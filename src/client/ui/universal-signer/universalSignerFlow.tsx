@@ -3,7 +3,7 @@
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { Result } from "better-result";
 import { Button } from "@/client/ui/shared/primitives/button";
-import { CheckIcon, RotateCcwIcon } from "@/client/ui/shared/icons";
+import { RotateCcwIcon } from "@/client/ui/shared/icons";
 
 import type { PassportAuthorizationViewState } from "@/client/logic/authorization/flow/PassportAuthorizationController";
 import { RingProfileEditor } from "@/client/logic/profile/RingProfileEditor";
@@ -12,6 +12,10 @@ import type {
   LocalIdentityMetadata,
 } from "@/client/logic/local-identity/localIdentityModels";
 import {
+  DeepLinkLauncher,
+  ringHandoffMode,
+} from "@/client/logic/universal-signer/deepLinkLauncher";
+import {
   findIdentity,
   initialSignerNavigation,
   requiresProfileSetup,
@@ -19,12 +23,16 @@ import {
   type SignerNavigation,
 } from "@/client/logic/universal-signer/signerNavigation";
 import { AuthorizationFlow } from "@/client/ui/authorization/authorizationFlow";
+import { ChooseIdentity } from "@/client/ui/authorization/choose/chooseIdentity";
+import { OtherWaysIn } from "@/client/ui/authorization/choose/otherWaysIn";
 import { ManualAuthorization } from "@/client/ui/authorization/manual-entry/manualAuthorization";
+import { RequestClosed } from "@/client/ui/authorization/requestClosed";
 import { SignInBand } from "@/client/ui/authorization/signInBand";
 import {
   usePassportAuthorization,
   type AuthorizationController,
 } from "@/client/ui/authorization/usePassportAuthorization";
+import { usePendingRequestGuard } from "@/client/ui/authorization/usePendingRequestGuard";
 import {
   useIdentityCatalog,
   type IdentityCatalogActions,
@@ -37,12 +45,9 @@ import { BackButton } from "@/client/ui/shared/backButton";
 import { CancelButton } from "@/client/ui/shared/cancelButton";
 import { ErrorScreen } from "@/client/ui/shared/errorScreen";
 import { LoadingScreen } from "@/client/ui/shared/loadingScreen";
-import { PassportNavigation } from "@/client/ui/shared/passportNavigation";
-import { PassportScreen } from "@/client/ui/shared/passportScreen";
-import { DisplayHeading, LeadText } from "@/client/ui/shared/primitives/typography";
 import { AddIdentity } from "./addIdentity";
-import { ExternalSignerRequest } from "./externalSignerRequest";
 import { IdentityManagementScreens } from "./identityManagementScreens";
+import { RingSignIn } from "./ringSignIn";
 import { useIdentityProfiles } from "@/client/ui/profile/useIdentityProfiles";
 import { ProfileSetupFlow } from "@/client/ui/profile/profileSetupFlow";
 import { RingProfileConnection } from "@/client/ui/profile/ringProfileConnection";
@@ -50,9 +55,11 @@ import { usePassportCollaborators } from "@/client/ui/passportCollaborators";
 import { usePassportProvider } from "@/client/ui/passportProviderConfiguration";
 
 export function UniversalSignerFlow() {
-  const { controller, state: authorization } = usePassportAuthorization();
+  const { controller, state: authorization, closed } = usePassportAuthorization();
   const identities = useIdentityCatalog();
+  usePendingRequestGuard(controller);
 
+  if (closed) return <RequestClosed />;
   if (!controller || !authorization) {
     return <LoadingScreen label="Loading Passport" />;
   }
@@ -127,9 +134,28 @@ function ReadyPassport({
   catalog: LocalIdentityCatalog;
   controller: AuthorizationController;
 }) {
-  const profiles = useIdentityProfiles(storedCatalog);
-  const { homeserver: providerHomeserver, httpRelay } = usePassportProvider();
   const { createRingProfileController, readAccountDraft } = usePassportCollaborators();
+  const hasRequest = authorization.status === "review";
+  // Navigation reads only which identities are saved, so the stored catalog serves it.
+  const context = { catalog: storedCatalog, requestPending: hasRequest };
+  const [storedNavigation, navigate] = useState<SignerNavigation>(() => {
+    const draft = readAccountDraft();
+    return initialSignerNavigation(context, Result.isOk(draft) ? draft.value : null);
+  });
+  const navigation = resolveSignerNavigation(storedNavigation, context);
+  // The resolved screen is kept, so a setup screen stays open while its own completion changes
+  // the catalog (profile setup clears its flag before it reports back).
+  if (navigation !== storedNavigation) navigate(navigation);
+  // With a request nothing is read until an identity is chosen: its list shows the summaries kept
+  // from earlier reads, and only the chosen identity's profile is read, for its review.
+  const profiles = useIdentityProfiles(storedCatalog, {
+    loadActive: !hasRequest || navigation.view === "home",
+  });
+  const {
+    features: { google },
+    homeserver: providerHomeserver,
+    httpRelay,
+  } = usePassportProvider();
   const [ringProfile] = useState(() => createRingProfileController(httpRelay));
   useEffect(() => {
     const dispose = () => ringProfile.dispose();
@@ -143,19 +169,11 @@ function ReadyPassport({
     () => new RingProfileEditor(profiles.controller, ringProfile),
     [profiles.controller, ringProfile],
   );
+  // Follows the request's deep link to Pubky Ring on a phone, and notices when Ring did not open.
+  const [ringLauncher] = useState(() => new DeepLinkLauncher(window));
+  useEffect(() => () => ringLauncher.dispose(), [ringLauncher]);
+  const [selectionFailed, setSelectionFailed] = useState(false);
   const catalog = profiles.catalog;
-  const hasRequest = authorization.status === "review";
-  // "Finish later" keeps setup required but stops forcing the editor for this session.
-  const [deferredProfiles, setDeferredProfiles] = useState<ReadonlySet<string>>(() => new Set());
-  const context = { catalog, deferredProfiles, requestPending: hasRequest };
-  const [storedNavigation, navigate] = useState<SignerNavigation>(() => {
-    const draft = readAccountDraft();
-    return initialSignerNavigation(context, Result.isOk(draft) ? draft.value : null);
-  });
-  const navigation = resolveSignerNavigation(storedNavigation, context);
-  // The resolved screen is kept, so a setup screen stays open while its own completion changes
-  // the catalog (profile setup clears its flag before it reports back).
-  if (navigation !== storedNavigation) navigate(navigation);
   const activeIdentity = catalog.activePublicKeyZ32
     ? findIdentity(catalog, catalog.activePublicKeyZ32)
     : undefined;
@@ -166,6 +184,18 @@ function ReadyPassport({
     : undefined;
   const goHome = () => navigate({ view: "home" });
   const addBack = "back" in navigation ? navigation.back : null;
+  const leaveAddition = (back: typeof addBack) =>
+    back === "choose" ? navigate({ view: "choose" }) : navigate({ view: "add", back });
+  /**
+   * Hands the request to Pubky Ring. A phone follows the deep link from this very press, which is
+   * what lets the browser open the app; a computer goes straight to the QR code.
+   */
+  const openRing = (origin: Extract<SignerNavigation, { view: "external" }>["origin"]) => {
+    ringLauncher.reset();
+    const url = ringHandoffMode(window) === "open" ? controller.externalSignerUrl() : undefined;
+    if (url) ringLauncher.launch(url);
+    navigate({ view: "external", origin });
+  };
   const selectAddedIdentity = (publicKeyZ32: string) => {
     const selected = actions.selectIdentity(publicKeyZ32);
     navigate(Result.isOk(selected) ? { view: "home" } : { view: "finish-add", publicKeyZ32 });
@@ -174,12 +204,8 @@ function ReadyPassport({
     const publicKeyZ32 = identity.publicIdentity.publicKeyZ32;
     if (requiresProfileSetup(identity, catalog)) {
       actions.selectIdentity(publicKeyZ32);
-      navigate({ view: "profile", publicKeyZ32 });
+      navigate({ view: "profile", publicKeyZ32, from: "addition" });
     } else selectAddedIdentity(publicKeyZ32);
-  };
-  const deferProfile = (publicKeyZ32: string) => {
-    setDeferredProfiles((current) => new Set(current).add(publicKeyZ32));
-    navigate({ view: "home" });
   };
   const removeIdentity = (publicKeyZ32: string) => {
     const removed = actions.removeIdentity(publicKeyZ32);
@@ -211,20 +237,28 @@ function ReadyPassport({
     }
     switch (navigation.view) {
       case "profile": {
-        const publicKeyZ32 = navigation.publicKeyZ32;
+        const { from, publicKeyZ32 } = navigation;
         const identity = findIdentity(catalog, publicKeyZ32);
         if (!identity) return null;
-        const onDefer = identity.profileSetupRequired
-          ? () => deferProfile(publicKeyZ32)
-          : undefined;
+        // Right after an identity is added, Finish later is the one way to skip: setup stays
+        // required, so the overview and Manage keep offering it, and a request goes on to its
+        // review. Opened from the overview or Manage, Back returns there.
+        const onDefer = from === "addition" ? goHome : undefined;
+        const onBack =
+          from === "addition"
+            ? undefined
+            : from === "manage"
+              ? () => navigate({ view: "manage", publicKeyZ32 })
+              : goHome;
+        const reopen = () => navigate({ view: "profile", publicKeyZ32, from });
         if (identity.keySource === "ring" && !ringProfile.isConnected(publicKeyZ32)) {
           return (
             <RingProfileConnection
               controller={ringProfile}
               expectedKey={publicKeyZ32}
               setupRequired={identity.profileSetupRequired === true}
-              onBack={() => navigate({ view: "manage", publicKeyZ32 })}
-              onComplete={() => navigate({ view: "profile", publicKeyZ32 })}
+              onBack={onBack}
+              onComplete={reopen}
               onDefer={onDefer}
             />
           );
@@ -234,17 +268,12 @@ function ReadyPassport({
             key={publicKeyZ32}
             identity={identity}
             controller={identity.keySource === "ring" ? ringEditor : profiles.controller}
-            actions={actions}
-            onBack={() => navigate({ view: "manage", publicKeyZ32 })}
+            onBack={onBack}
             onComplete={(profile, avatar) => {
               profiles.published(publicKeyZ32, profile, avatar);
               selectAddedIdentity(publicKeyZ32);
             }}
-            onReconnect={
-              identity.keySource === "ring"
-                ? () => navigate({ view: "profile", publicKeyZ32 })
-                : undefined
-            }
+            onReconnect={identity.keySource === "ring" ? reopen : undefined}
             onDefer={onDefer}
           />
         );
@@ -273,14 +302,19 @@ function ReadyPassport({
         );
       }
       case "add":
+        if (authorization.status === "review" && addBack === "choose")
+          return (
+            <OtherWaysIn
+              onBack={() => navigate({ view: "choose" })}
+              onComplete={completeAddition}
+              onImport={() => navigate({ view: "import", back: "choose" })}
+              review={authorization.review}
+            />
+          );
         return (
           <AddIdentity
             forAuthorization={hasRequest}
-            onUseRing={
-              hasRequest
-                ? () => navigate({ view: "external", origin: { view: "add", back: addBack } })
-                : undefined
-            }
+            onUseRing={hasRequest ? () => openRing({ view: "add", back: addBack }) : undefined}
             onConnectRing={
               hasRequest ? undefined : () => navigate({ view: "connect-ring", back: addBack })
             }
@@ -295,7 +329,12 @@ function ReadyPassport({
         return (
           <BackupImportFlow
             defaultHomeserver={providerHomeserver}
-            onBack={() => navigate({ view: "add", back: addBack })}
+            // Without Google the request's list opens the import itself.
+            onBack={() =>
+              addBack === "choose" && !google
+                ? navigate({ view: "choose" })
+                : navigate({ view: "add", back: addBack })
+            }
             onComplete={completeAddition}
           />
         );
@@ -313,41 +352,55 @@ function ReadyPassport({
           <CreateAccountFlow
             ringProfileController={ringProfile}
             inviteHomeserver={providerHomeserver ?? ""}
-            onBack={() => navigate({ view: "add", back: addBack })}
+            onBack={() => leaveAddition(addBack)}
             onLocalComplete={completeAddition}
           />
         );
       case "switch":
         return identitySelection;
+      case "choose":
+        if (authorization.status !== "review") return null;
+        return (
+          <ChooseIdentity
+            activePublicKeyZ32={catalog.activePublicKeyZ32}
+            identities={catalog.identities}
+            moreOptionsLabel={
+              google ? "Continue with Google or import a backup" : "Import a backup"
+            }
+            onCancel={() => void controller.cancel()}
+            onCreateAccount={() => navigate({ view: "create-account", back: "choose" })}
+            onMoreOptions={() =>
+              navigate(
+                google ? { view: "add", back: "choose" } : { view: "import", back: "choose" },
+              )
+            }
+            onOpenRing={() => openRing({ view: "choose" })}
+            onSelect={(publicKeyZ32) => {
+              const selected = actions.selectIdentity(publicKeyZ32);
+              setSelectionFailed(Result.isError(selected));
+              if (Result.isOk(selected)) goHome();
+            }}
+            review={authorization.review}
+            selectionFailed={selectionFailed}
+          />
+        );
       case "manual":
         return <ManualAuthorization onBack={goHome} />;
       case "external": {
+        if (authorization.status !== "review") return null;
         const origin = navigation.origin;
         return (
-          <PassportScreen className="gap-6">
-            <div className="space-y-3">
-              <DisplayHeading accent="Ring.">Sign in with</DisplayHeading>
-              <LeadText>
-                Approve this request in Pubky Ring and choose the identity to sign in with there.
-                After approving in Pubky Ring, return to the app.
-              </LeadText>
-            </div>
-            <ExternalSignerRequest getAuthorizationUrl={() => controller.externalSignerUrl()} />
-            <PassportNavigation
-              className="mt-auto md:mt-0"
-              back={<BackButton onClick={() => navigate(origin)} />}
-              confirm={
-                // Passport cannot see Ring's approval; this only hands the person back to the app.
-                <Button
-                  className="w-full"
-                  onClick={() => void controller.finishExternalApproval()}
-                  size="lg"
-                >
-                  <CheckIcon />I approved in Pubky Ring
-                </Button>
-              }
-            />
-          </PassportScreen>
+          <RingSignIn
+            getAuthorizationUrl={() => controller.externalSignerUrl()}
+            launcher={ringLauncher}
+            // Passport cannot see Ring's approval; this only hands the person back to the app.
+            onApproved={() => void controller.finishExternalApproval()}
+            onBack={() => {
+              ringLauncher.reset();
+              navigate(origin);
+            }}
+            review={authorization.review}
+          />
         );
       }
       case "manage":
@@ -360,7 +413,9 @@ function ReadyPassport({
             actions={actions}
             catalog={catalog}
             navigation={navigation}
-            onEditProfile={(publicKeyZ32) => navigate({ view: "profile", publicKeyZ32 })}
+            onEditProfile={(publicKeyZ32) =>
+              navigate({ view: "profile", publicKeyZ32, from: "manage" })
+            }
             onHome={goHome}
             onNavigate={navigate}
             onRemoveLocalIdentity={removeIdentity}
@@ -374,8 +429,8 @@ function ReadyPassport({
               authorization={authorization}
               controller={controller}
               identity={activeIdentity}
-              onUseRing={() => navigate({ view: "external", origin: { view: "home" } })}
-              onSwitch={() => navigate({ view: "switch" })}
+              onUseRing={() => openRing({ view: "home" })}
+              onSwitch={() => navigate({ view: "choose" })}
             />
           );
         }
@@ -393,6 +448,7 @@ function ReadyPassport({
                 ...(check ? { check: true as const } : {}),
               })
             }
+            onSetUpProfile={() => navigate({ view: "profile", publicKeyZ32, from: "overview" })}
             onSwitch={() => navigate({ view: "switch" })}
             onManage={() => navigate({ view: "manage", publicKeyZ32 })}
           />

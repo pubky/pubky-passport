@@ -62,6 +62,29 @@ describe("public Pubky profiles", () => {
     expect(readSecret).not.toHaveBeenCalled();
   });
 
+  it("remembers the name read for a saved identity, and forgets it once the profile is gone", async () => {
+    const remember = vi.spyOn(repository, "rememberProfileSummary");
+    const controller = new ProfileController(repository, transport);
+
+    await controller.load(KEY);
+    await vi.waitFor(() => expect(remember).toHaveBeenCalledWith(KEY, { name: "Satoshi" }));
+    expect(expectResultOk(repository.list()).identities[0]?.profileSummary).toEqual({
+      name: "Satoshi",
+    });
+
+    transport.readJson.mockResolvedValueOnce(Result.ok(null));
+    await controller.load(KEY);
+    await vi.waitFor(() => expect(remember).toHaveBeenLastCalledWith(KEY, null));
+    expect(expectResultOk(repository.list()).identities[0]?.profileSummary).toBeUndefined();
+
+    // A key this browser does not keep gets no summary.
+    await controller.load(OTHER);
+    await vi.waitFor(() => expect(remember).toHaveBeenLastCalledWith(OTHER, { name: "Satoshi" }));
+    expect(
+      localStorage.getItem(`pubky-passport/local-identities/v1/profile-summary/${OTHER}`),
+    ).toBeNull();
+  });
+
   it("keeps a missing profile, a failed read and an unreadable document apart", async () => {
     const controller = new ProfileController(repository, transport);
     transport.readJson

@@ -42,17 +42,36 @@ sequenceDiagram
 The authorization URL contains the relay secret. Keep it in the browser, encode it exactly once,
 and never log it or send it to analytics.
 
-Passport opens directly to permission review when a saved identity is selected, including locally
-saved Google identities. Without identities, it offers the shared add screen. **Use Pubky Ring**
-opens a separate sign-in screen directly from permission review or the add screen; it does not
-require switching the selected identity. For a selected identity held in Ring, permission review
-shows one action, **Continue in Pubky Ring**, and says that the identity is chosen in Ring. The
-Ring screen shows your request unchanged. Passport cannot see Ring's approval, so the screen asks
-the user to return to your app after approving, and **I approved in Pubky Ring** reports `success`
-(see [Outcome messages](#outcome-messages)). Switching identities or completing setup preserves the
-original request; local approval always requires an explicit **Authorize** action. Opening `/`
-without a request shows the selected identity overview, or the add screen on first use. An
-unfinished local account setup resumes its saved key and backup step after a reload.
+Passport opens a request in two steps. First it lists every identity saved in the browser, with
+**Create account** and **Open in Pubky Ring** below them, and a quieter link to a separate step
+that offers only Google and backup import (or, on an instance without Google, opens the backup
+import directly); without saved identities it shows only those options, with **Create account**
+recommended. The list reads no profiles: it shows the names and avatars kept from earlier reads.
+Choosing an identity opens the permission review, with **Authorize**, **Cancel** and **Switch**
+back to the list. Identities held in Ring are labelled **Key in Pubky Ring**; their review shows
+one action, **Continue in Pubky Ring**, and says that the identity is chosen in Ring. **Open in Pubky Ring** hands your request to Ring unchanged: on a phone or tablet
+(a coarse pointer) it follows the `pubkyauth://` link at once and shows the QR code if the page is
+still in view about two seconds later, because Ring did not open; with a mouse or trackpad (a fine
+pointer, such as your desktop popup) it shows the QR code directly, since a computer cannot open
+the link. Passport cannot see Ring's approval, so **I approved in Pubky Ring** reports `success`
+(see [Outcome messages](#outcome-messages)). Switching identities or creating an account preserves
+the original request; a new account is asked for its public profile once, and **Finish later**
+there goes on to the review. A request for broad access (for example `/:rw`) is flagged on the
+list and on the Pubky Ring screen as well as on the review. Local approval always requires an
+explicit **Authorize** action. Opening `/` without a request shows the selected identity overview,
+or the add screen on first use. An unfinished local account setup resumes its saved key and backup
+step after a reload.
+
+While a request waits in a tab of its own (a same-tab redirect, or a popup whose opener has
+closed), Passport asks the browser to confirm before the page is reloaded, closed or navigated
+away, because leaving drops the request without an outcome message; the request itself is never
+stored, so it does not survive a reload. A popup your page opened is never guarded: your page owns
+it and may close it at any time without the user seeing a prompt, for example once Pubky Ring's
+session arrives through the relay, at your attempt deadline or on your own cancel. While a request
+is pending, the footer's legal links open in a new tab and the logo is not a link. If the browser
+restores a page that was left mid-request from its back/forward cache, Passport says the request
+has closed and offers **Close window** (or, without an opener, a way back to Passport) instead of
+showing actions that could no longer answer your app.
 
 Passport accepts only sign-in requests: `pubkyauth://signin_grant?…` from
 `AuthFlowKind.signin()`, and the legacy `pubkyauth://signin?…` and `pubkyauth:///?…` forms.

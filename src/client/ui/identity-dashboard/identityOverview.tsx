@@ -11,6 +11,7 @@ import {
 } from "@/client/ui/shared/icons";
 import { Notice } from "@/client/ui/shared/notice";
 import { PassportScreen } from "@/client/ui/shared/passportScreen";
+import { RingKeyTag } from "@/client/ui/shared/ringKeyTag";
 import { Avatar } from "@/client/ui/shared/primitives/avatar";
 import { Button } from "@/client/ui/shared/primitives/button";
 import { DisplayHeading } from "@/client/ui/shared/primitives/typography";
@@ -20,6 +21,7 @@ function IdentityOverview({
   onAuthorize,
   onBackup,
   onManage,
+  onSetUpProfile,
   onSwitch,
 }: {
   identity: LocalIdentityMetadata;
@@ -27,6 +29,8 @@ function IdentityOverview({
   /** Opens a new backup file, or with `check` the check of one made earlier. */
   onBackup: (check: boolean) => void;
   onManage: () => void;
+  /** Opens the profile editor; offered while the identity's public profile is not set up. */
+  onSetUpProfile: () => void;
   onSwitch: () => void;
 }) {
   const account = identity.googleAccount;
@@ -60,10 +64,12 @@ function IdentityOverview({
               </div>
             ) : null}
             {/* A key that needs a backup gets one warning: the notice below, not this line. */}
-            {backup.kind === "ring" || backupDue ? (
-              <p className="pt-2 text-sm text-muted-foreground">
-                {backup.kind === "ring" ? "Key in Pubky Ring" : "Key in this browser"}
-              </p>
+            {backup.kind === "ring" ? (
+              <div className="flex w-full min-w-0 justify-center pt-3 md:justify-start">
+                <RingKeyTag />
+              </div>
+            ) : backupDue ? (
+              <p className="pt-2 text-sm text-muted-foreground">Key in this browser</p>
             ) : (
               <BackupStatusLine className="pt-2 text-muted-foreground" tone="ok">
                 {backup.kind === "file"
@@ -93,9 +99,12 @@ function IdentityOverview({
           </Notice>
         ) : null}
         {identity.profileSetupRequired ? (
-          <p className="col-span-2 text-sm leading-5 text-secondary-foreground" role="status">
-            Your public profile isn&apos;t set up yet. Finish it under Manage, then Edit profile.
-          </p>
+          <div className="col-span-2 flex flex-col items-center gap-3 rounded-lg bg-muted/40 p-4 text-center text-sm leading-5 text-secondary-foreground md:flex-row md:justify-between md:text-left">
+            <p role="status">Your public profile isn&apos;t set up yet.</p>
+            <Button onClick={onSetUpProfile} size="sm" variant="secondary">
+              <SquareUserRoundIcon /> Set up profile
+            </Button>
+          </div>
         ) : null}
         <Button
           aria-label="Authorize an app"

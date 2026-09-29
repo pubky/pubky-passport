@@ -148,6 +148,54 @@ describe("LocalStorageIdentityRepository", () => {
     });
   });
 
+  it("keeps each identity's last-read public profile beside its record, until it is removed", () => {
+    const repository = new LocalStorageIdentityRepository();
+    save(repository, FIRST_IDENTITY, 1);
+    save(repository, SECOND_IDENTITY, 2);
+    const avatar = "data:image/jpeg;base64,/9j/4AAQ";
+    const record = localStorage.getItem(`${IDENTITY_PREFIX}${FIRST_KEY}`);
+
+    expectResultOk(repository.rememberProfileSummary(FIRST_KEY, { name: "Satoshi", avatar }));
+    expectResultOk(repository.rememberProfileSummary(SECOND_KEY, { name: "Pseudonym" }));
+    const listed = expectResultOk(repository.list()).identities;
+    expect(listed.map((identity) => identity.profileSummary)).toEqual(
+      expect.arrayContaining([{ name: "Satoshi", avatar }, { name: "Pseudonym" }]),
+    );
+    // The identity record itself is untouched, so an older build still reads it.
+    expect(localStorage.getItem(`${IDENTITY_PREFIX}${FIRST_KEY}`)).toBe(record);
+
+    // A profile that is gone is forgotten; so is the summary of a removed identity.
+    expectResultOk(repository.rememberProfileSummary(SECOND_KEY, null));
+    expectResultOk(repository.remove(FIRST_KEY));
+    expect(expectResultOk(repository.list()).identities).toEqual([
+      { publicIdentity: SECOND_IDENTITY },
+    ]);
+    expect(Object.keys(localStorage).filter((key) => key.includes("profile-summary"))).toEqual([]);
+  });
+
+  it("keeps no summary for an unknown identity and ignores an invalid stored one", () => {
+    const repository = new LocalStorageIdentityRepository();
+    save(repository, FIRST_IDENTITY, 1);
+
+    expectResultError(repository.rememberProfileSummary(SECOND_KEY, { name: "Stranger" }), {
+      code: "invalid_identity",
+    });
+    expectResultError(
+      repository.rememberProfileSummary(FIRST_KEY, {
+        name: "Remote",
+        avatar: "https://tracker.example/avatar.png",
+      }),
+      { code: "invalid_identity" },
+    );
+    localStorage.setItem(
+      `pubky-passport/local-identities/v1/profile-summary/${FIRST_KEY}`,
+      JSON.stringify({ v: 1, name: "", extra: true }),
+    );
+    expect(expectResultOk(repository.list()).identities).toEqual([
+      { publicIdentity: FIRST_IDENTITY },
+    ]);
+  });
+
   it("notifies subscribers for same-tab and browser storage changes", () => {
     const repository = new LocalStorageIdentityRepository();
     const listener = vi.fn();

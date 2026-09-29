@@ -42,6 +42,8 @@ test("shows identity setup context as the designed full-width accent band", asyn
     { width: 1280, height: 720 },
   ]) {
     await page.setViewportSize(viewport);
+    // A fresh document each time: the same entry URL again would reload the open page mid-check.
+    await page.goto("about:blank");
     await page.goto(authorizationUrl(authorizationRequest(`${RELAY_ORIGIN}/inbox`)));
 
     const band = page.getByLabel("Signing in to client.example");
@@ -91,6 +93,7 @@ test("falls back to the callback domain when x-source is absent", async ({ page 
 test("keeps a long requester name inside the viewport on desktop breakpoints", async ({ page }) => {
   const source = "Extraordinarily Long Requester Application Name For Layout Testing GmbH & Co. KG";
   await installLocalIdentityFixture(page);
+  confirmLeaving(page);
   for (const viewport of [
     { width: 768, height: 1024 },
     { width: 1280, height: 800 },
@@ -115,6 +118,7 @@ test("names a look-alike callback host in full and keeps its end visible in the 
 }) => {
   const host = "accounts.google.com.sign-in.secure-verify.attacker.example";
   await installLocalIdentityFixture(page);
+  confirmLeaving(page);
   for (const viewport of [
     { width: 390, height: 844 },
     { width: 1280, height: 800 },
@@ -275,12 +279,17 @@ test("scrubs a valid request and renders only safe review data", async ({ page, 
   expect(policy).not.toContain(SENSITIVE_SECRET);
 
   await expect(page).toHaveURL(/\/authorize$/u);
+  // Neither step renders the secret-bearing request, not even as a Ring link or QR.
+  await expectIdentityList(page);
+  await expect(page.locator('main a[href^="pubkyauth:"]')).toHaveCount(0);
+  const renderedList = await page.locator("main").innerHTML();
+  for (const canary of SENSITIVE_CANARIES) expect(renderedList).not.toContain(canary);
+  const prompts = confirmLeaving(page);
   await chooseSavedIdentity(page);
   await expect(page.getByRole("heading", { name: `Sign in to ${SOURCE_NAME}` })).toBeVisible();
   await expect(page.getByLabel("Signing in to client.example")).toBeVisible();
   await expect(page.getByText("/pub/example.app/", { exact: true })).toBeVisible();
 
-  // The review never renders the secret-bearing request, not even as a Ring link or QR.
   await expect(page.locator('main a[href^="pubkyauth:"]')).toHaveCount(0);
   await expect(page.getByRole("img", { name: "Pubky authorization QR code" })).toHaveCount(0);
   const renderedReview = await page.locator("main").innerHTML();
@@ -299,8 +308,10 @@ test("scrubs a valid request and renders only safe review data", async ({ page, 
   const authorizationPersistence = await browserPersistenceSnapshot(page);
   expectAuthorizationPersistenceSafe(authorizationPersistence, LOCAL_IDENTITY_STORAGE);
 
+  // Leaving the review asks first, because the app would otherwise wait for an answer.
   await page.goBack();
   await expectEntryWithoutRequest(page, /\/$/u);
+  expect(prompts).toEqual(["beforeunload"]);
   // The scrubbed entry no longer holds a request, so it hands over to `/`.
   await page.goForward();
   await expectEntryWithoutRequest(page, /\/$/u);
@@ -365,14 +376,27 @@ test("an entry without a request continues on the home page", async ({ page }) =
   }
 });
 
-test("a reload during review returns to the home page", async ({ page }) => {
+test("a reload during review asks first, then returns to the home page", async ({ page }) => {
   await installLocalIdentityFixture(page);
   await page.goto(authorizationUrl(authorizationRequest(`${RELAY_ORIGIN}/inbox`)));
   await chooseSavedIdentity(page);
   await expect(page.getByRole("heading", { name: `Sign in to ${SOURCE_NAME}` })).toBeVisible();
 
+  // Dismissing the confirmation keeps the request open; the cancelled reload never settles.
+  const dismissed: string[] = [];
+  page.once("dialog", (dialog) => {
+    dismissed.push(dialog.type());
+    void dialog.dismiss();
+  });
+  await page.reload({ timeout: 2_000 }).catch(() => undefined);
+  expect(dismissed).toEqual(["beforeunload"]);
+  await expect(page.getByRole("button", { name: "Authorize", exact: true })).toBeVisible();
+
+  // The request is never stored, so a confirmed reload cannot bring it back.
+  const prompts = confirmLeaving(page);
   const homeResponse = waitForHomeDocument(page);
   await page.reload();
+  expect(prompts).toEqual(["beforeunload"]);
 
   expect((await homeResponse).ok()).toBe(true);
   await expectEntryWithoutRequest(page, /\/$/u);
@@ -421,7 +445,7 @@ test("forwards a request sent to the home page before Passport code runs", async
 
   expect((await homeResponse).ok()).toBe(true);
   await expectEntryWithoutRequest(page, /\/authorize$/u);
-  await chooseSavedIdentity(page);
+  await expectIdentityList(page);
   await expect(page.getByRole("heading", { name: `Sign in to ${SOURCE_NAME}` })).toBeVisible();
   const persistence = await browserPersistenceSnapshot(page);
   expectAuthorizationPersistenceSafe(persistence, LOCAL_IDENTITY_STORAGE);
@@ -450,7 +474,7 @@ test("forwards a request navigated into an open home page", async ({ page }) => 
   );
 
   await expectEntryWithoutRequest(page, /\/authorize$/u);
-  await chooseSavedIdentity(page);
+  await expectIdentityList(page);
   await expect(page.getByRole("heading", { name: `Sign in to ${SOURCE_NAME}` })).toBeVisible();
   const persistence = await browserPersistenceSnapshot(page);
   expectAuthorizationPersistenceSafe(persistence, LOCAL_IDENTITY_STORAGE);
@@ -469,6 +493,9 @@ test("captures a new request navigated into an open authorization page", async (
     authorizationUrl(authorizationRequest(`${RELAY_ORIGIN}/inbox`, "cookie", "First App")),
   );
   await expect(page.getByRole("heading", { name: "Sign in to First App" })).toBeVisible();
+  // The identity list loads the SDK for profile reads; Firefox reports a script cut short by the
+  // reload below to the console with the new request in the page URL, so the page settles first.
+  await page.waitForLoadState("networkidle");
 
   // A reused named popup navigates the same document to the next request.
   await page.evaluate(
@@ -490,20 +517,22 @@ test("captures a new request navigated into an open authorization page", async (
   await expectNoSensitiveBrowserLeaks(page, leakMonitor, [persistence]);
 });
 
-test("shows the request to Ring only in its link and QR code", async ({ page }) => {
+test("shows the request to Ring only in its link and QR code", async ({ page, isMobile }) => {
   const request = authorizationRequest(`${RELAY_ORIGIN}/${RELAY_PATH_CANARY}`, "grant");
-  const leakMonitor = await installAuthorizationLeakMonitor(page);
+  // A phone follows the request's own deep link to Ring: the designed hand-off, not a leak.
+  const leakMonitor = await installAuthorizationLeakMonitor(page, { handoff: request });
   await installLocalIdentityFixture(page);
   await page.goto(authorizationUrl(request));
-  await page.getByRole("button", { name: "Use Pubky Ring", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Sign in with Ring." })).toBeVisible();
-  const showQr = page.getByRole("button", { name: "Show QR" });
-  if (await showQr.isVisible()) await showQr.click();
+  await page.getByRole("button", { name: "Open in Pubky Ring", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Sign in with Pubky Ring." })).toBeVisible();
+  // A computer gets the QR code at once; a phone falls back to it when Ring does not open.
   await expect(page.getByRole("img", { name: "Pubky authorization QR code" })).toBeVisible();
+  expect(leakMonitor.handoffs).toBe(isMobile ? 1 : 0);
 
   const links = page.locator('main a[href^="pubkyauth:"]');
-  await expect(links).toHaveCount(1);
-  await expect(links).toHaveAttribute("href", request);
+  // Only a phone gets the link; a computer cannot open it.
+  await expect(links).toHaveCount(isMobile ? 1 : 0);
+  if (isMobile) await expect(links).toHaveAttribute("href", request);
   // Apart from that one href, the markup (text, aria and data attributes, the QR's SVG paths)
   // carries none of the request.
   const markupWithoutLink = await page.locator("main").evaluate((main) => {
@@ -732,8 +761,32 @@ async function expectEntryWithoutRequest(page: Page, path: RegExp): Promise<void
   for (const canary of SENSITIVE_CANARIES) expect(page.url()).not.toContain(canary);
 }
 
+/** The request opens on its identity list; choosing the saved identity opens its review. */
 async function chooseSavedIdentity(page: Page): Promise<void> {
+  await expectIdentityList(page);
+  await identityList(page).getByRole("button").first().click();
   await expect(page.getByRole("button", { name: "Authorize", exact: true })).toBeVisible();
+}
+
+function identityList(page: Page) {
+  return page.getByRole("list", { name: "Choose the identity to sign in with." });
+}
+
+async function expectIdentityList(page: Page): Promise<void> {
+  await expect(identityList(page)).toBeVisible();
+}
+
+/**
+ * Accepts the browser's leave confirmation, which a pending request raises once the person has
+ * interacted with the page, for tests that navigate away from a review on purpose.
+ */
+function confirmLeaving(page: Page): string[] {
+  const prompts: string[] = [];
+  page.on("dialog", (dialog) => {
+    prompts.push(dialog.type());
+    void dialog.accept();
+  });
+  return prompts;
 }
 
 function expectWithinOnePixel(actual: number, expected: number) {
@@ -777,10 +830,16 @@ type BrowserPersistenceSnapshot = Awaited<ReturnType<typeof browserPersistenceSn
 
 type AuthorizationLeakMonitor = {
   browserLeaks: string[];
+  /** Navigations to the request's own deep link, the designed hand-off to Pubky Ring. */
+  handoffs: number;
 };
 
-async function installAuthorizationLeakMonitor(page: Page): Promise<AuthorizationLeakMonitor> {
+async function installAuthorizationLeakMonitor(
+  page: Page,
+  { handoff }: { handoff?: string } = {},
+): Promise<AuthorizationLeakMonitor> {
   const browserLeaks: string[] = [];
+  const monitor = { browserLeaks, handoffs: 0 };
   await installPersistenceObserver(page);
   await page.addInitScript(() => {
     requestAnimationFrame(() => {
@@ -792,11 +851,15 @@ async function installAuthorizationLeakMonitor(page: Page): Promise<Authorizatio
   });
   page.on("console", (message) => browserLeaks.push(message.text()));
   page.on("request", (outgoing) => {
+    if (handoff !== undefined && outgoing.url() === handoff && !outgoing.postData()) {
+      monitor.handoffs += 1;
+      return;
+    }
     browserLeaks.push(
       `${outgoing.url()}\n${outgoing.postData() ?? ""}\n${outgoing.headers().referer ?? ""}`,
     );
   });
-  return { browserLeaks };
+  return monitor;
 }
 
 async function expectNoSensitiveBrowserLeaks(

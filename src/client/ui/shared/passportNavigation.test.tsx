@@ -19,6 +19,7 @@ describe("PassportNavigation", () => {
       "md:grid-cols-(--passport-navigation-columns)",
     );
     expect(slot?.parentElement).not.toHaveClass("mt-auto");
+    expect(slot?.parentElement).not.toHaveClass("min-[30rem]:grid-cols-[auto_minmax(0,1fr)]");
   });
 
   it("keeps a lone confirm action in the fixed right desktop column", () => {
@@ -30,6 +31,19 @@ describe("PassportNavigation", () => {
       "w-full",
       "md:grid-cols-(--passport-navigation-columns)",
     );
+  });
+
+  it("puts Back beside the forward action from 30rem, so the popup keeps it in view", () => {
+    render(<PassportNavigation back={<Button>Back</Button>} confirm={<Button>Next</Button>} />);
+
+    const back = screen.getByRole("button", { name: "Back" }).parentElement;
+    const next = screen.getByRole("button", { name: "Next" }).parentElement;
+    expect(back?.parentElement).toHaveClass(
+      "min-[30rem]:grid-cols-[auto_minmax(0,1fr)]",
+      "md:grid-cols-(--passport-navigation-columns)",
+    );
+    expect(next).toHaveClass("min-[30rem]:col-start-2", "md:col-start-3");
+    expect(back).toHaveClass("md:col-start-1");
   });
 
   it("gives paired actions equal full-width columns in reading order", () => {
@@ -44,7 +58,11 @@ describe("PassportNavigation", () => {
     const cancel = screen.getByRole("button", { name: "Cancel" });
     const logOut = screen.getByRole("button", { name: "Log out" });
     const grid = cancel.parentElement?.parentElement;
-    expect(grid).toHaveClass("sm:grid-cols-2", "[&_button]:w-full");
+    expect(grid).toHaveClass(
+      "min-[30rem]:grid-cols-[auto_minmax(0,1fr)]",
+      "sm:grid-cols-2",
+      "[&_button]:w-full",
+    );
     expect(grid).not.toHaveClass("md:grid-cols-(--passport-navigation-columns)");
     expect(cancel.parentElement).not.toHaveClass("md:col-start-1");
     expect(logOut.parentElement).not.toHaveClass("md:col-start-3");

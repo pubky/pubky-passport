@@ -18,6 +18,7 @@ function renderOverview(identity: LocalIdentityMetadata) {
       onAuthorize={vi.fn()}
       onBackup={onBackup}
       onManage={vi.fn()}
+      onSetUpProfile={vi.fn()}
       onSwitch={vi.fn()}
     />,
   );

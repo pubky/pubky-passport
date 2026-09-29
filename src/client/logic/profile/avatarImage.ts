@@ -60,3 +60,49 @@ export async function prepareAvatar(file: File): Promise<AvatarResult> {
     bitmap?.close();
   }
 }
+
+/** Edge of the avatar copy kept for lists; rows show avatars at 40 CSS pixels. */
+export const AVATAR_THUMBNAIL_SIZE = 96;
+
+/**
+ * A small square JPEG copy of an avatar, as a `data:` URL, for lists that name identities without
+ * reading their profiles again. The centre is cropped to a square and transparency lands on the
+ * card colour. Resolves `undefined` wherever the browser cannot decode or encode the image.
+ */
+export async function avatarThumbnail(avatar: Blob): Promise<string | undefined> {
+  let bitmap: ImageBitmap | undefined;
+  try {
+    if (typeof createImageBitmap !== "function" || typeof OffscreenCanvas !== "function")
+      return undefined;
+    bitmap = await createImageBitmap(avatar);
+    const edge = Math.min(bitmap.width, bitmap.height);
+    if (edge <= 0) return undefined;
+    const canvas = new OffscreenCanvas(AVATAR_THUMBNAIL_SIZE, AVATAR_THUMBNAIL_SIZE);
+    const context = canvas.getContext("2d");
+    if (!context) return undefined;
+    context.fillStyle = "#1f1f23";
+    context.fillRect(0, 0, AVATAR_THUMBNAIL_SIZE, AVATAR_THUMBNAIL_SIZE);
+    context.drawImage(
+      bitmap,
+      (bitmap.width - edge) / 2,
+      (bitmap.height - edge) / 2,
+      edge,
+      edge,
+      0,
+      0,
+      AVATAR_THUMBNAIL_SIZE,
+      AVATAR_THUMBNAIL_SIZE,
+    );
+    const encoded = await canvas.convertToBlob({ type: "image/jpeg", quality: 0.8 });
+    const bytes = new Uint8Array(await encoded.arrayBuffer());
+    if (sniffImageType(bytes) !== "image/jpeg") return undefined;
+    let binary = "";
+    for (const byte of bytes) binary += String.fromCharCode(byte);
+    return `data:image/jpeg;base64,${btoa(binary)}`;
+  } catch (e) {
+    LOGGER.info("profile.avatar.thumbnail.failed", safeErrorLogFields(e));
+    return undefined;
+  } finally {
+    bitmap?.close();
+  }
+}

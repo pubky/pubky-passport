@@ -110,6 +110,16 @@ body:has([data-passport-context-band]) {
   --passport-context-band-height: 34px;
 }
 
+/*
+ * Below md a form may pin its actions to the bottom of the window (`data-sticky-actions`). Focus
+ * then scrolls a field clear of that bar instead of leaving it underneath (WCAG 2.4.11).
+ */
+@media (width < 48rem) {
+  html:has([data-sticky-actions]) {
+    scroll-padding-bottom: calc(9rem + env(safe-area-inset-bottom));
+  }
+}
+
 @layer components {
   .legal-document {
     color: var(--muted-foreground);

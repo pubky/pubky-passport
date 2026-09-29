@@ -9,7 +9,7 @@ import { HomegateSignupController } from "@/client/logic/homegate/HomegateSignup
 import { HomegateVerificationClient } from "@/client/logic/homegate/HomegateVerificationClient";
 import { InviteDestinationController } from "@/client/logic/local-account/InviteDestinationController";
 import { LocalAccountDraftRepository } from "@/client/logic/local-account/LocalAccountDraftRepository";
-import { readUnfinishedAccount } from "@/client/logic/local-account/LocalAccountSetupController";
+import { readUnfinishedAccount } from "@/client/logic/local-account/unfinishedLocalAccount";
 import { LocalIdentityController } from "@/client/logic/local-identity/LocalIdentityController";
 import { ProfileController } from "@/client/logic/profile/ProfileController";
 import { RingProfileController } from "@/client/logic/profile/RingProfileController";

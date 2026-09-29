@@ -1,6 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { expectResultOk } from "@test-utils/resultAssertions";
-import { AVATAR_MAX_DIMENSION, prepareAvatar } from "./avatarImage";
+import {
+  AVATAR_MAX_DIMENSION,
+  AVATAR_THUMBNAIL_SIZE,
+  avatarThumbnail,
+  prepareAvatar,
+} from "./avatarImage";
 
 const JPEG_START = [0xff, 0xd8];
 /** An APP1 segment carrying EXIF with a GPS IFD marker. */
@@ -32,7 +37,7 @@ function stubCanvas(
         canvases.push(this.record);
       }
       getContext() {
-        return { drawImage };
+        return { drawImage, fillRect: vi.fn(), fillStyle: "" };
       }
       async convertToBlob({ type }: { type: string }) {
         this.record.type = type;
@@ -107,5 +112,36 @@ describe("avatar preparation", () => {
       await prepareAvatar(new File([ENCODED_PNG], "avatar.png", { type: "image/png" })),
     ).toMatchObject({ error: { code: "invalid_avatar" } });
     expect(close).toHaveBeenCalledOnce();
+  });
+});
+
+describe("avatar thumbnails for lists", () => {
+  it("keeps a small square JPEG of the centre as a data URL", async () => {
+    const { close, drawImage, canvases } = stubCanvas(400, 200, () => ENCODED_JPEG);
+
+    const thumbnail = await avatarThumbnail(new Blob([ENCODED_PNG], { type: "image/png" }));
+
+    expect(thumbnail).toBe(`data:image/jpeg;base64,${btoa(String.fromCharCode(...ENCODED_JPEG))}`);
+    expect(canvases).toEqual([
+      { width: AVATAR_THUMBNAIL_SIZE, height: AVATAR_THUMBNAIL_SIZE, type: "image/jpeg" },
+    ]);
+    // The centre 200px square of the 400x200 image.
+    expect(drawImage.mock.calls[0]?.slice(1)).toEqual([
+      100,
+      0,
+      200,
+      200,
+      0,
+      0,
+      AVATAR_THUMBNAIL_SIZE,
+      AVATAR_THUMBNAIL_SIZE,
+    ]);
+    expect(close).toHaveBeenCalledOnce();
+  });
+
+  it("keeps none where the browser cannot decode or encode the image", async () => {
+    expect(await avatarThumbnail(new Blob([ENCODED_PNG]))).toBeUndefined();
+    stubCanvas(10, 10, () => ENCODED_PNG);
+    expect(await avatarThumbnail(new Blob([ENCODED_PNG]))).toBeUndefined();
   });
 });

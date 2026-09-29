@@ -4,7 +4,7 @@ import { act, cleanup, fireEvent, render, screen, within } from "@testing-librar
 import { Keypair } from "@synonymdev/pubky";
 import userEvent from "@testing-library/user-event";
 import { Result } from "better-result";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { LocalIdentityResult } from "@/client/logic/local-identity/LocalStorageIdentityRepository";
 import { PubkyRingMigration } from "@/client/logic/pubky/PubkySdkAdapter";
@@ -22,17 +22,24 @@ function createMigrationHandle(): PubkyRingMigration {
 const QR_WARNING =
   "This code contains your private key. Anyone who scans it can use your pubky. Don’t show it on a shared or recorded screen.";
 
-/** Stubs the desktop breakpoint; `change()` fires the listener the screen registered. */
-function stubBreakpoint(initial: boolean) {
-  const state = { desktop: initial, listener: undefined as (() => void) | undefined };
+const DESKTOP_QUERY = "(min-width: 48rem)";
+const COARSE_POINTER_QUERY = "(pointer: coarse)";
+
+/**
+ * Stubs the desktop breakpoint and the pointer: a desktop layout comes with a computer's fine
+ * pointer and a narrow one with a phone's coarse pointer unless `coarse` says otherwise.
+ * `change()` fires the breakpoint listener the screen registered.
+ */
+function stubBreakpoint(initial: boolean, { coarse = !initial }: { coarse?: boolean } = {}) {
+  const state = { desktop: initial, listeners: new Map<string, () => void>() };
   vi.stubGlobal(
     "matchMedia",
-    vi.fn(() => ({
+    vi.fn((query: string) => ({
       addEventListener: vi.fn((_event: string, listener: () => void) => {
-        state.listener = listener;
+        state.listeners.set(query, listener);
       }),
       get matches() {
-        return state.desktop;
+        return query === COARSE_POINTER_QUERY ? coarse : state.desktop;
       },
       removeEventListener: vi.fn(),
     })),
@@ -40,7 +47,7 @@ function stubBreakpoint(initial: boolean) {
   return {
     change(desktop: boolean) {
       state.desktop = desktop;
-      act(() => state.listener?.());
+      act(() => state.listeners.get(DESKTOP_QUERY)?.());
     },
   };
 }
@@ -53,6 +60,11 @@ function setPageHidden(hidden: boolean) {
 }
 
 describe("MigrateToPubkyRing", () => {
+  // Every test starts on a phone (narrow layout, coarse pointer); a computer is stubbed per test.
+  beforeEach(() => {
+    stubBreakpoint(false);
+  });
+
   afterEach(() => {
     cleanup();
     vi.restoreAllMocks();
@@ -81,7 +93,11 @@ describe("MigrateToPubkyRing", () => {
       "href",
       "https://play.google.com/store/apps/details?id=to.pubky.ring&hl=en-US",
     );
-    expect(screen.getByRole("button", { name: "Open in Pubky Ring" })).not.toHaveAttribute("href");
+    // A computer cannot open Ring, so it gets only the QR code.
+    expect(screen.queryByRole("button", { name: "Open in Pubky Ring" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Continue with Pubky Ring" }),
+    ).not.toBeInTheDocument();
     expect(screen.getByAltText("Pubky Ring")).toHaveClass("h-[30px]", "w-[137px]");
     const warning = screen.getByText(QR_WARNING);
     expect(warning.closest("[data-tone]")).toHaveAttribute("data-tone", "warning");
@@ -334,6 +350,46 @@ describe("MigrateToPubkyRing", () => {
     expect(navigate).toHaveBeenCalledOnce();
     expect(handle.url).toBeNull();
     expect(screen.queryByRole("dialog", { name: "Scan with Pubky Ring" })).not.toBeInTheDocument();
+  });
+
+  it("offers Open in Pubky Ring on a wide layout with a coarse pointer", () => {
+    stubBreakpoint(true, { coarse: true });
+    render(
+      <MigrateToPubkyRing
+        createMigration={async () => Result.ok(createMigrationHandle())}
+        navigationAction="back"
+        onBack={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "Open in Pubky Ring" })).not.toHaveAttribute("href");
+  });
+
+  it("shows the QR code with its warning when Ring did not open on the phone", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    Object.defineProperty(document, "visibilityState", { configurable: true, value: "visible" });
+    vi.stubGlobal("location", { assign: vi.fn(), href: "http://localhost/" });
+    const createMigration = vi.fn(async () => Result.ok(createMigrationHandle()));
+    render(
+      <MigrateToPubkyRing
+        createMigration={createMigration}
+        navigationAction="back"
+        onBack={vi.fn()}
+      />,
+    );
+
+    await userEvent
+      .setup({ advanceTimers: vi.advanceTimersByTime })
+      .click(screen.getByRole("button", { name: "Open in Pubky Ring" }));
+    expect(screen.queryByRole("dialog", { name: "Scan with Pubky Ring" })).not.toBeInTheDocument();
+    await act(async () => {
+      vi.advanceTimersByTime(2_000);
+    });
+
+    const dialog = await screen.findByRole("dialog", { name: "Scan with Pubky Ring" });
+    expect(within(dialog).getByText(QR_WARNING)).toBeInTheDocument();
+    expect(createMigration).toHaveBeenCalledTimes(2);
+    vi.useRealTimers();
   });
 
   it("says why an export failed and what to do next", async () => {

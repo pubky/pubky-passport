@@ -13,6 +13,13 @@ import type { ProfileIdentity } from "@/client/logic/profile/profile";
  */
 export type LocalIdentityBackup = Readonly<{ createdAt?: string; verifiedAt?: string }>;
 
+/**
+ * The public name and a small copy of the avatar this browser last read for an identity. Lists
+ * show it instead of reading every saved identity's profile at once, which would let PKARR relays
+ * and shared homeservers link identities kept apart. `avatar` is a `data:` URL.
+ */
+export type ProfileSummary = Readonly<{ name: string; avatar?: string }>;
+
 /** UI-safe local identity metadata. Contains no secret key material. */
 export type LocalIdentityMetadata = Readonly<
   ProfileIdentity & {
@@ -26,6 +33,8 @@ export type LocalIdentityMetadata = Readonly<
     profileSetupRequired?: true;
     /** Backup files of a browser-held key; absent when this browser knows of none. */
     backup?: LocalIdentityBackup;
+    /** The profile last read in this browser, if any; see {@link ProfileSummary}. */
+    profileSummary?: ProfileSummary;
   }
 >;
 

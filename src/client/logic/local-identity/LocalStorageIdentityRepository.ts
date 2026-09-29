@@ -18,6 +18,7 @@ import type {
   LocalIdentityBackup,
   LocalIdentityCatalog,
   LocalIdentityMetadata,
+  ProfileSummary,
 } from "./localIdentityModels";
 
 /**
@@ -55,10 +56,22 @@ export type LocalIdentityResult<Success> = ResultType<
   CodedFailure<LocalIdentityErrorCode>
 >;
 
+/**
+ * Persisted {@link ProfileSummary}, kept beside its identity's record rather than in it: an older
+ * build rejects identity records with unknown keys, and must not lose an identity to a summary.
+ */
+type StoredProfileSummary = { v: 1; name: string; avatar?: string };
+
 const STORAGE_ROOT = "pubky-passport/local-identities/v1";
 const IDENTITY_KEY_PREFIX = `${STORAGE_ROOT}/identity/`;
 const BACKUP_KEY_PREFIX = `${STORAGE_ROOT}/identity-backup/`;
+const PROFILE_SUMMARY_KEY_PREFIX = `${STORAGE_ROOT}/profile-summary/`;
 const ACTIVE_IDENTITY_KEY = `${STORAGE_ROOT}/active`;
+/** Longer than any valid profile name; a summary only ever holds a validated one. */
+const PROFILE_SUMMARY_NAME_MAX_LENGTH = 200;
+/** A 96 px JPEG thumbnail stays far below this. */
+const PROFILE_SUMMARY_AVATAR_MAX_LENGTH = 64_000;
+const PROFILE_SUMMARY_AVATAR = /^data:image\/(?:jpeg|png|webp);base64,[A-Za-z0-9+/]+={0,2}$/u;
 const SAME_TAB_LISTENERS = new Set<() => void>();
 
 /** Stores each identity independently so concurrent tabs cannot overwrite a shared array. */
@@ -87,10 +100,43 @@ export class LocalStorageIdentityRepository {
     for (const identity of identities.value) {
       const backup = readBackup(storage, identity);
       if (Result.isError(backup)) return Result.err(backup.error);
-      metadata.push(toMetadata(identity, backup.value));
+      metadata.push(
+        toMetadata(identity, backup.value, readProfileSummary(storage, identity.publicKeyZ32)),
+      );
     }
 
     return Result.ok(Object.freeze({ activePublicKeyZ32, identities: Object.freeze(metadata) }));
+  }
+
+  /**
+   * Keeps the public profile last read for a saved identity, or forgets it (`null`), so lists can
+   * name identities without reading every profile. Public data only; does not notify this tab,
+   * whose screens already show the profile they read.
+   */
+  rememberProfileSummary(
+    publicKeyZ32: string,
+    summary: ProfileSummary | null,
+  ): LocalIdentityResult<void> {
+    const stored: StoredProfileSummary | null = summary
+      ? { v: 1, name: summary.name, ...(summary.avatar ? { avatar: summary.avatar } : {}) }
+      : null;
+    if (stored && !isStoredProfileSummary(stored)) return invalidIdentity("remember_profile");
+    const storageResult = getLocalStorage("write");
+    if (Result.isError(storageResult)) return Result.err(storageResult.error);
+    const storage = storageResult.value;
+    const identity = readIdentity(storage, publicKeyZ32);
+    if (Result.isError(identity)) return Result.err(identity.error);
+    if (!identity.value) return invalidIdentity("remember_profile");
+    const key = profileSummaryStorageKey(publicKeyZ32);
+    try {
+      const value = stored ? JSON.stringify(stored) : null;
+      if (storage.getItem(key) === value) return Result.ok();
+      if (value === null) storage.removeItem(key);
+      else storage.setItem(key, value);
+      return Result.ok();
+    } catch (e) {
+      return storageUnavailable("write", e);
+    }
   }
 
   save(
@@ -353,8 +399,6 @@ export class LocalStorageIdentityRepository {
       if (active.value === publicKeyZ32) writeActiveIdentityOrThrow(storage, nextActive);
       storage.removeItem(storedKey);
       storage.removeItem(backupKey);
-      notifySameTab();
-      return Result.ok();
     } catch (e) {
       restoreStorageValues(
         storage,
@@ -368,6 +412,17 @@ export class LocalStorageIdentityRepository {
       notifySameTab();
       return storageUnavailable("write", e);
     }
+    // The identity is gone; its public summary goes with it where storage allows.
+    try {
+      storage.removeItem(profileSummaryStorageKey(publicKeyZ32));
+    } catch (e) {
+      LOGGER.warn("identity.local_store.failed", {
+        operation: "remove_profile_summary",
+        ...safeErrorLogFields(e),
+      });
+    }
+    notifySameTab();
+    return Result.ok();
   }
 
   read(publicKeyZ32: string): LocalIdentityResult<{
@@ -598,9 +653,11 @@ function isEncodedSecretKey(value: unknown): value is string {
 function toMetadata(
   identity: StoredLocalIdentity,
   backup?: StoredIdentityBackup,
+  profileSummary?: ProfileSummary,
 ): LocalIdentityMetadata {
   return Object.freeze({
     publicIdentity: Object.freeze({ publicKeyZ32: identity.publicKeyZ32 }),
+    ...(profileSummary ? { profileSummary } : {}),
     ...(identity.keySource === "ring" ? { keySource: "ring" as const } : {}),
     ...(identity.profileSetupRequired ? { profileSetupRequired: true as const } : {}),
     ...(identity.googleAccount
@@ -616,6 +673,41 @@ function toMetadata(
         }
       : {}),
   });
+}
+
+/** A missing, unreadable or invalid summary reads as none; it is never worth failing a list. */
+function readProfileSummary(storage: Storage, publicKeyZ32: string): ProfileSummary | undefined {
+  try {
+    const value = storage.getItem(profileSummaryStorageKey(publicKeyZ32));
+    if (value === null) return undefined;
+    const parsed: unknown = JSON.parse(value);
+    if (!isStoredProfileSummary(parsed)) return undefined;
+    return Object.freeze({
+      name: parsed.name,
+      ...(parsed.avatar ? { avatar: parsed.avatar } : {}),
+    });
+  } catch {
+    return undefined;
+  }
+}
+
+function isStoredProfileSummary(value: unknown): value is StoredProfileSummary {
+  return (
+    isRecord(value) &&
+    hasExactKeys(value, ["v", "name", ...(value.avatar === undefined ? [] : ["avatar"])]) &&
+    value.v === 1 &&
+    typeof value.name === "string" &&
+    value.name.length > 0 &&
+    value.name.length <= PROFILE_SUMMARY_NAME_MAX_LENGTH &&
+    (value.avatar === undefined ||
+      (typeof value.avatar === "string" &&
+        value.avatar.length <= PROFILE_SUMMARY_AVATAR_MAX_LENGTH &&
+        PROFILE_SUMMARY_AVATAR.test(value.avatar)))
+  );
+}
+
+function profileSummaryStorageKey(publicKeyZ32: string): string {
+  return `${PROFILE_SUMMARY_KEY_PREFIX}${publicKeyZ32}`;
 }
 
 function decodeStoredSecretKey(value: string): Uint8Array | undefined {

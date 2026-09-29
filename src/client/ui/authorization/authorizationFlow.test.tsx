@@ -61,18 +61,21 @@ describe("AuthorizationFlow", () => {
     expect(screen.queryByRole("button", { name: "Authorize" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Use Pubky Ring" })).not.toBeInTheDocument();
     expect(screen.getByText(/You choose the identity to sign in with in Ring/u)).toBeVisible();
+    expect(screen.getByText("Key in Pubky Ring")).toBeVisible();
     await userEvent.setup().click(screen.getByRole("button", { name: "Continue in Pubky Ring" }));
 
     expect(onUseRing).toHaveBeenCalledOnce();
     expect(approve).not.toHaveBeenCalled();
   });
 
-  it("keeps Authorize and the separate Ring option for an identity held in Passport", () => {
+  it("keeps the review to Authorize and Cancel for an identity held in Passport", () => {
     renderFlow({ status: "review", review: REVIEW });
 
     expect(screen.getByRole("button", { name: "Authorize" })).toBeEnabled();
-    expect(screen.getByRole("button", { name: "Use Pubky Ring" })).toBeEnabled();
+    // Pubky Ring is one of the choices in the identity list, not a competing action here.
+    expect(screen.queryByRole("button", { name: /Pubky Ring/u })).not.toBeInTheDocument();
     expect(screen.queryByText(/You choose the identity to sign in with in Ring/u)).toBeNull();
+    expect(screen.queryByText("Key in Pubky Ring")).toBeNull();
   });
 
   it("cancels and switches from review", async () => {
@@ -96,7 +99,6 @@ describe("AuthorizationFlow", () => {
     expect(authorize).toBeEnabled();
     expect(screen.getByRole("button", { name: "Cancel" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Switch identity" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Use Pubky Ring" })).toBeDisabled();
   });
 
   it.each([

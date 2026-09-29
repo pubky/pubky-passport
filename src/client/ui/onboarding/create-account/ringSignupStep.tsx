@@ -1,20 +1,26 @@
-import Image from "next/image";
-import { QRCodeSVG } from "qrcode.react";
 import { useState } from "react";
 
 import type { HomeserverSignupDetails } from "@/client/logic/signup/homeserverInvite";
 import { ringSignupUrl } from "@/client/logic/signup/ringSignup";
 import { BackButton } from "@/client/ui/shared/backButton";
-import { PubkyBrandIcon } from "@/client/ui/shared/brand/pubkyBrandIcon";
-import { PubkyRingLogo } from "@/client/ui/shared/brand/pubkyRingLogo";
-import { ArrowRightIcon, ScanIcon } from "@/client/ui/shared/icons";
+import { ArrowRightIcon } from "@/client/ui/shared/icons";
 import { PassportNavigation } from "@/client/ui/shared/passportNavigation";
-import { Button, ButtonLink } from "@/client/ui/shared/primitives/button";
+import { Button } from "@/client/ui/shared/primitives/button";
+import { RingHandoff } from "@/client/ui/shared/ringHandoff";
+import { useDeepLinkLauncher, useRingHandoffMode } from "@/client/ui/shared/useRingHandoff";
 import { RingInstallStep } from "./ringInstallStep";
 import { SignupStep } from "./signupStep";
 import { RingProfileConnection } from "@/client/ui/profile/ringProfileConnection";
 import type { RingProfileControllerPort } from "@/client/ui/passportCollaborators";
 import type { LocalIdentityMetadata } from "@/client/logic/local-identity/localIdentityModels";
+
+const SIGNUP_LABELS = {
+  section: "Pubky Ring signup",
+  qrCode: "Pubky Ring signup QR code",
+  open: "Continue with Pubky Ring",
+  tooLarge: "This signup is too big for a QR code. Open it in Pubky Ring on this device.",
+  unavailable: "This signup is no longer available. Go back and choose your signer again.",
+};
 
 /**
  * Hands the invite to Pubky Ring for signup, then connects the new identity's profile. Ring returns
@@ -35,7 +41,10 @@ export function RingSignupStep({
   profileController: RingProfileControllerPort;
 }) {
   const [step, setStep] = useState<"scan" | "install" | "profile">(inviteUsed ? "profile" : "scan");
-  const [showQr, setShowQr] = useState(false);
+  const mode = useRingHandoffMode();
+  // A phone whose link did not open Ring falls back to the QR code, and the copy follows it.
+  const [launch, launcher] = useDeepLinkLauncher();
+  const scanning = mode === "scan" || launch === "failed";
   const url = ringSignupUrl(invite);
 
   if (step === "install")
@@ -53,65 +62,25 @@ export function RingSignupStep({
 
   return (
     <SignupStep
-      title="Scan"
-      mobileTitle="Tap to"
-      accent="QR Code."
-      mobileAccent="Authorize."
+      // The pointer, not the width, decides: a computer scans, a phone opens Ring directly.
+      title={scanning ? "Scan" : "Tap to"}
+      accent={scanning ? "QR Code." : "Authorize."}
       description={
-        <>
-          <span className="hidden md:inline">
-            Open Pubky Ring, tap ‘Add Pubky’, then ‘Scan signup QR’ to create your account.
-          </span>
-          <span className="md:hidden">
-            Tap the button to open Pubky Ring and create your account.
-          </span>
-        </>
+        scanning
+          ? `Open Pubky Ring on ${mode === "scan" ? "your" : "another"} phone, tap ‘Add Pubky’, then ‘Scan signup QR’ to create your account.`
+          : "Open Pubky Ring to create your account. Pubky Ring is a mobile keychain that lets you securely authorize web services and apps."
       }
     >
-      <section
-        className={`${showQr ? "flex" : "hidden md:flex"} items-center justify-center gap-8 rounded-lg bg-card p-6 md:p-8`}
-      >
-        <Image
-          alt=""
-          aria-hidden="true"
-          src="/illustrations/scan.png"
-          width={176}
-          height={176}
-          className="hidden size-44 shrink-0 object-contain md:block"
-        />
-        <div className="flex max-w-full shrink-0 items-center justify-center rounded-lg bg-white">
-          <QRCodeSVG
-            aria-label="Pubky Ring signup QR code"
-            role="img"
-            value={url}
-            className="h-auto max-w-full"
-            size={280}
-            level="M"
-            marginSize={4}
-          />
-        </div>
-      </section>
-      <section className="flex flex-col gap-6 rounded-lg bg-card px-6 pb-6 pt-12 md:hidden">
-        <PubkyRingLogo />
-        <p className="text-base leading-6 text-secondary-foreground">
-          Pubky Ring is a mobile keychain that enables you to securely authorize web services and
-          apps.
+      <RingHandoff labels={SIGNUP_LABELS} launcher={launcher} url={url} />
+      {/* One row, so Back and Continue stay in view in the app's 760px popup. */}
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+        <p className="min-w-0 flex-1 basis-60 text-sm text-muted-foreground">
+          After creating your account in Ring, continue here to set up your public profile.
         </p>
-        <ButtonLink className="w-full" href={url} size="lg" variant="secondary">
-          <PubkyBrandIcon />
-          Continue with Pubky Ring
-        </ButtonLink>
-        <Button variant="ghost" className="w-full" onClick={() => setShowQr(!showQr)}>
-          <ScanIcon />
-          {showQr ? "Hide signup QR" : "Show signup QR"}
+        <Button variant="ghost" className="shrink-0" onClick={() => setStep("install")}>
+          Install Pubky Ring
         </Button>
-      </section>
-      <Button variant="ghost" className="self-start" onClick={() => setStep("install")}>
-        Install Pubky Ring
-      </Button>
-      <p className="text-sm text-muted-foreground">
-        After creating your account in Ring, continue here to set up your public profile.
-      </p>
+      </div>
       <PassportNavigation
         className="mt-auto md:mt-0"
         back={<BackButton onClick={onBack} />}

@@ -10,7 +10,6 @@ import {
   profileFromDraft,
   type ProfileDraft,
 } from "@/client/logic/profile/profileDraft";
-import type { IdentityCatalogActions } from "@/client/ui/identity-catalog/useIdentityCatalog";
 import { BackButton } from "@/client/ui/shared/backButton";
 import { ArrowRightIcon, RotateCcwIcon, TrashIcon } from "@/client/ui/shared/icons";
 import { Notice } from "@/client/ui/shared/notice";
@@ -23,15 +22,17 @@ import { Label } from "@/client/ui/shared/primitives/label";
 import { Spinner } from "@/client/ui/shared/primitives/spinner";
 import { DisplayHeading, LeadText } from "@/client/ui/shared/primitives/typography";
 import { SetupProgressProvider } from "@/client/ui/shared/setupProgress";
-import { ProfileBackupSteps } from "./profileBackupSteps";
 
 type ProfileSetupFlowProps = {
   identity: LocalIdentityMetadata;
   controller: Pick<ProfileController, "load" | "save">;
-  actions: IdentityCatalogActions;
-  onBack: () => void;
+  /** Returns to where the form was opened from; absent right after an identity was added. */
+  onBack?: (() => void) | undefined;
   onComplete: (profile: PubkyProfile, avatar?: File) => void;
-  /** Leaves required setup unfinished; the identity stays usable meanwhile. */
+  /**
+   * Leaves setup unfinished and goes on ("Finish later"); the identity stays usable meanwhile.
+   * Offered right after an identity was added, where it is the one way to skip.
+   */
   onDefer?: (() => void) | undefined;
   /** Returns to the Ring connection after its grant has ended. */
   onReconnect?: (() => void) | undefined;
@@ -75,7 +76,6 @@ function saveErrorMessage(code: Exclude<ProfileErrorCode, "cancelled">): string 
 function ProfileEditor({
   identity,
   controller,
-  actions,
   required,
   onBack,
   onComplete,
@@ -83,9 +83,6 @@ function ProfileEditor({
   onReconnect,
 }: ProfileSetupFlowProps & { required: boolean }) {
   const publicKey = identity.publicIdentity.publicKeyZ32;
-  // Onboarding passes the backup step on the way back; a Google backup already happened.
-  const backupStep = required && !identity.googleAccount;
-  const [view, setView] = useState<"profile" | "backup">("profile");
   const [draft, setDraft] = useState<ProfileDraft>();
   const [avatar, setAvatar] = useState<File>();
   const [preview, setPreview] = useState<string>();
@@ -168,30 +165,20 @@ function ProfileEditor({
     });
   }
 
-  const finishLater =
-    required && onDefer ? (
-      <Button
-        className="self-center"
-        disabled={saving}
-        onClick={onDefer}
-        type="button"
-        variant="ghost"
-      >
-        Finish later
-      </Button>
-    ) : null;
-  const back = backupStep ? () => setView("backup") : onBack;
-
-  if (view === "backup")
-    return (
-      <ProfileBackupSteps
-        identity={identity}
-        actions={actions}
-        onBack={onBack}
-        onContinue={() => setView("profile")}
-        footer={finishLater}
-      />
-    );
+  const finishLater = onDefer ? (
+    <Button disabled={saving} onClick={onDefer} size="lg" type="button" variant="ghost">
+      Finish later
+    </Button>
+  ) : null;
+  // Back never detours through backups: the key was backed up before this step, and further
+  // backups live in Manage. Right after an identity is added there is no Back: Finish later is the
+  // one way on without a profile.
+  const back = onBack;
+  const leave = back ? (
+    <BackButton className="w-[120px]" disabled={saving} onClick={back} />
+  ) : (
+    finishLater
+  );
 
   return (
     <PassportScreen width="wide" className="gap-6">
@@ -409,26 +396,33 @@ function ProfileEditor({
             </Notice>
           ) : null}
           <p className="text-sm text-muted-foreground">Your profile is public.</p>
-          <div className="flex items-center justify-between gap-3">
-            <BackButton className="w-[120px]" disabled={saving} onClick={back} />
-            <Button loading={saving} size="lg" type="submit" className="min-w-32">
-              <ArrowRightIcon />
-              {unreadable
-                ? saving
-                  ? "Replacing…"
-                  : "Replace profile"
-                : saving
-                  ? "Saving…"
-                  : "Finish"}
-            </Button>
+          {/* Below md the actions stay pinned to the window, so Finish is in view in the popup;
+              the page's scroll padding keeps focused fields clear of them. */}
+          <div
+            className="sticky bottom-0 z-10 -mx-6 flex flex-col gap-2 border-t border-border bg-background/95 px-6 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur md:static md:mx-0 md:border-0 md:bg-transparent md:p-0 md:backdrop-blur-none"
+            data-sticky-actions
+          >
+            <div className="flex items-center justify-between gap-3">
+              {leave}
+              <Button loading={saving} size="lg" type="submit" className="ml-auto min-w-32">
+                <ArrowRightIcon />
+                {unreadable
+                  ? saving
+                    ? "Replacing…"
+                    : "Replace profile"
+                  : saving
+                    ? "Saving…"
+                    : "Finish"}
+              </Button>
+            </div>
+            {back && finishLater ? <div className="self-center">{finishLater}</div> : null}
           </div>
-          {finishLater}
         </form>
       )}
       {loading || loadFailed ? (
         <>
           <PassportNavigation
-            back={<BackButton onClick={back} />}
+            back={back ? <BackButton onClick={back} /> : undefined}
             confirm={
               loadFailed ? (
                 // Stays mounted through the retry, so focus is not lost while it runs.
@@ -447,7 +441,7 @@ function ProfileEditor({
               ) : undefined
             }
           />
-          {finishLater}
+          {finishLater ? <div className="self-center">{finishLater}</div> : null}
         </>
       ) : null}
     </PassportScreen>

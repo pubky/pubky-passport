@@ -6,7 +6,6 @@ import type {
 } from "@/client/logic/local-identity/localIdentityModels";
 import {
   initialSignerNavigation,
-  pendingProfileSetup,
   requiresProfileSetup,
   resolveSignerNavigation,
   type SignerNavigation,
@@ -26,41 +25,63 @@ const DRAFT = {
 function context(
   identities: readonly LocalIdentityMetadata[],
   active: string | null = identities[0]?.publicIdentity.publicKeyZ32 ?? null,
-  deferred: readonly string[] = [],
+  requestPending = false,
 ) {
   const catalog: LocalIdentityCatalog = { activePublicKeyZ32: active, identities };
-  return { catalog, deferredProfiles: new Set(deferred) };
+  return { catalog, requestPending };
 }
 
-describe("pendingProfileSetup", () => {
-  it("returns only the active identity whose setup was not put off", () => {
-    expect(pendingProfileSetup(context([UNFINISHED]))).toBe(UNFINISHED);
-    expect(pendingProfileSetup(context([UNFINISHED, READY], "ready"))).toBeUndefined();
-    expect(
-      pendingProfileSetup(context([UNFINISHED], "unfinished", ["unfinished"])),
-    ).toBeUndefined();
-    expect(pendingProfileSetup(context([READY]))).toBeUndefined();
-    expect(pendingProfileSetup(context([UNFINISHED], null))).toBeUndefined();
-  });
-});
-
-describe("Ring profile setup with a pending request", () => {
-  const UNFINISHED_RING: LocalIdentityMetadata = { ...UNFINISHED, keySource: "ring" };
-
-  it("waits until no app request is under review", () => {
-    const pending = { ...context([UNFINISHED_RING]), requestPending: true };
-    expect(pendingProfileSetup(pending)).toBeUndefined();
-    expect(resolveSignerNavigation({ view: "home" }, pending)).toEqual({ view: "home" });
-    expect(initialSignerNavigation(pending, null)).toEqual({ view: "home" });
-    expect(resolveSignerNavigation({ view: "home" }, context([UNFINISHED_RING]))).toEqual({
-      view: "profile",
-      publicKeyZ32: "unfinished",
+describe("an app's request", () => {
+  it("opens on the identity list, also with nothing saved", () => {
+    expect(initialSignerNavigation(context([READY], "ready", true), null)).toEqual({
+      view: "choose",
     });
+    expect(initialSignerNavigation(context([], null, true), null)).toEqual({ view: "choose" });
   });
 
-  it("still opens a local identity's setup before the request", () => {
-    const pending = { ...context([UNFINISHED]), requestPending: true };
-    expect(pendingProfileSetup(pending)).toBe(UNFINISHED);
+  it("resumes a submitted account setup with Back leading to the list", () => {
+    expect(
+      initialSignerNavigation(context([READY], "ready", true), {
+        ...DRAFT,
+        registrationStarted: true,
+      }),
+    ).toEqual({ view: "create-account", back: "choose" });
+  });
+
+  it("reviews the active identity from home and lists identities without one", () => {
+    const home: SignerNavigation = { view: "home" };
+    expect(resolveSignerNavigation(home, context([READY], "ready", true))).toBe(home);
+    expect(resolveSignerNavigation(home, context([READY], null, true))).toEqual({
+      view: "choose",
+    });
+    expect(resolveSignerNavigation(home, context([], null, true))).toEqual({ view: "choose" });
+  });
+
+  it("replaces the switcher with the list and keeps the list while the request waits", () => {
+    expect(resolveSignerNavigation({ view: "switch" }, context([READY], "ready", true))).toEqual({
+      view: "choose",
+    });
+    const choose: SignerNavigation = { view: "choose" };
+    expect(resolveSignerNavigation(choose, context([READY], "ready", true))).toBe(choose);
+  });
+
+  it("never forces profile setup in front of the review", () => {
+    for (const identity of [UNFINISHED, { ...UNFINISHED, keySource: "ring" as const }]) {
+      const pending = context([identity], "unfinished", true);
+      expect(initialSignerNavigation(pending, null)).toEqual({ view: "choose" });
+      const home: SignerNavigation = { view: "home" };
+      expect(resolveSignerNavigation(home, pending)).toBe(home);
+    }
+  });
+
+  it("leaves the list for home once no request is pending", () => {
+    expect(resolveSignerNavigation({ view: "choose" }, context([READY]))).toEqual({
+      view: "home",
+    });
+    expect(resolveSignerNavigation({ view: "choose" }, context([]))).toEqual({
+      view: "add",
+      back: null,
+    });
   });
 });
 
@@ -93,14 +114,14 @@ describe("initialSignerNavigation", () => {
     expect(initialSignerNavigation(context([READY]), registered)).toEqual({ view: "home" });
   });
 
-  it("puts due profile setup before a resumed account setup", () => {
+  it("resumes a submitted account setup although another identity's profile is unfinished", () => {
     const navigation = initialSignerNavigation(context([UNFINISHED]), {
       ...DRAFT,
       registrationStarted: true,
     });
     expect(resolveSignerNavigation(navigation, context([UNFINISHED]))).toEqual({
-      view: "profile",
-      publicKeyZ32: "unfinished",
+      view: "create-account",
+      back: "home",
     });
   });
 });
@@ -113,20 +134,10 @@ describe("resolveSignerNavigation", () => {
     expect(resolveSignerNavigation(home, context([READY]))).toBe(home);
   });
 
-  it("opens due profile setup from home until it is put off", () => {
-    expect(resolveSignerNavigation({ view: "home" }, context([UNFINISHED]))).toEqual({
-      view: "profile",
-      publicKeyZ32: "unfinished",
-    });
-    expect(
-      resolveSignerNavigation(
-        { view: "home" },
-        context([UNFINISHED], "unfinished", ["unfinished"]),
-      ),
-    ).toEqual({ view: "home" });
-  });
-
-  it("does not interrupt other screens for due profile setup", () => {
+  it("stays home when the active identity's profile is unfinished", () => {
+    const home: SignerNavigation = { view: "home" };
+    expect(resolveSignerNavigation(home, context([UNFINISHED]))).toBe(home);
+    expect(initialSignerNavigation(context([UNFINISHED]), null)).toEqual({ view: "home" });
     const navigation: SignerNavigation = { view: "switch" };
     expect(resolveSignerNavigation(navigation, context([UNFINISHED]))).toBe(navigation);
   });
@@ -138,13 +149,18 @@ describe("resolveSignerNavigation", () => {
     });
   });
 
-  it.each(["manage", "recovery", "ring", "backup-to-google", "finish-add", "profile"] as const)(
-    "leaves %s when its identity is no longer saved",
-    (view) => {
-      expect(resolveSignerNavigation({ view, publicKeyZ32: "gone" }, context([READY]))).toEqual({
-        view: "home",
-      });
-      expect(resolveSignerNavigation({ view, publicKeyZ32: "gone" }, context([]))).toEqual({
+  it.each([
+    { view: "manage", publicKeyZ32: "gone" },
+    { view: "recovery", publicKeyZ32: "gone" },
+    { view: "ring", publicKeyZ32: "gone" },
+    { view: "backup-to-google", publicKeyZ32: "gone" },
+    { view: "finish-add", publicKeyZ32: "gone" },
+    { view: "profile", publicKeyZ32: "gone", from: "manage" },
+  ] as const satisfies readonly SignerNavigation[])(
+    "leaves $view when its identity is no longer saved",
+    (navigation) => {
+      expect(resolveSignerNavigation(navigation, context([READY]))).toEqual({ view: "home" });
+      expect(resolveSignerNavigation(navigation, context([]))).toEqual({
         view: "add",
         back: null,
       });

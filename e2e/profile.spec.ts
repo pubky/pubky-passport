@@ -23,6 +23,9 @@ test("profile setup follows Figma, preserves identity on reload and failed saves
 }, info) => {
   await mockPublicProfile(page, null);
   await seedProfileIdentity(page);
+  // Setup is asked for right after creation only; afterwards the overview offers it.
+  await expect(page.getByRole("heading", { name: "Your pubky." })).toBeVisible();
+  await page.getByRole("button", { name: "Set up profile" }).click();
   await expect(page.getByRole("heading", { name: "Create your profile." })).toBeVisible();
   await expect(page.getByLabel("Name", { exact: true })).toBeVisible();
   await page.screenshot({ path: info.outputPath("profile-empty.png"), fullPage: true });
@@ -40,12 +43,14 @@ test("profile setup follows Figma, preserves identity on reload and failed saves
   await page.screenshot({ path: info.outputPath("profile-filled.png"), fullPage: true });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+  // Back leaves setup for the overview, never for a backup detour.
   await page.getByRole("button", { name: "Back", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Choose backup method" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Your pubky." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Choose backup method" })).toHaveCount(0);
   await expect(page.locator("main")).toBeFocused();
-  await page.screenshot({ path: info.outputPath("profile-backup-methods.png"), fullPage: true });
-  await page.getByRole("button", { name: "Continue to profile" }).click();
-  await expect(page.getByLabel("Name", { exact: true })).toHaveValue("Satoshi");
+  await page.getByRole("button", { name: "Set up profile" }).click();
+  await page.getByLabel("Name", { exact: true }).fill(PROFILE.name);
+  await page.getByLabel("Choose avatar file").setInputFiles("e2e/fixtures/profile-avatar.png");
   // The avatar is re-encoded in the browser, then the homeserver answers the session with a 503.
   await page.getByRole("button", { name: "Finish", exact: true }).click();
   await expect(page.locator("main").getByRole("alert")).toContainText(
@@ -61,7 +66,8 @@ test("profile setup follows Figma, preserves identity on reload and failed saves
     ),
   ).toBe(true);
   await page.reload();
-  await expect(page.getByRole("heading", { name: "Create your profile." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Your pubky." })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Set up profile" })).toBeVisible();
 });
 
 test("an unreadable published profile opens an empty editor instead of blocking setup", async ({
@@ -69,6 +75,7 @@ test("an unreadable published profile opens an empty editor instead of blocking 
 }) => {
   await mockPublicProfile(page, { name: "x" });
   await seedProfileIdentity(page);
+  await page.getByRole("button", { name: "Set up profile" }).click();
   await expect(page.getByRole("heading", { name: "Create your profile." })).toBeVisible();
   await expect(page.getByText("We couldn’t read your current profile.")).toBeVisible();
   await expect(page.getByLabel("Name", { exact: true })).toHaveValue("");
@@ -105,6 +112,7 @@ test("profile form stays accessible in narrow and short windows with five links"
 }, info) => {
   await mockPublicProfile(page, null);
   await seedProfileIdentity(page);
+  await page.getByRole("button", { name: "Set up profile" }).click();
   await expect(page.getByLabel("Name", { exact: true })).toBeVisible();
   await page
     .getByLabel("Name", { exact: true })
@@ -130,4 +138,35 @@ test("profile form stays accessible in narrow and short windows with five links"
       fullPage: true,
     });
   }
+});
+
+test("in the app's popup, a focused field scrolls clear of the actions pinned below it", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 520, height: 760 });
+  await mockPublicProfile(page, null);
+  await seedProfileIdentity(page);
+  await page.getByRole("button", { name: "Set up profile" }).click();
+  await expect(page.getByLabel("Name", { exact: true })).toBeVisible();
+  for (let index = 0; index < 3; index++)
+    await page.getByRole("button", { name: "Add link" }).click();
+  const lastLink = page.getByRole("textbox", { name: /^Link \d+ URL$/u }).last();
+  const bar = page.locator("[data-sticky-actions]");
+
+  // Park the field in the window but under the bar, where focusing it would otherwise leave it.
+  await lastLink.evaluate((field) => {
+    const box = field.getBoundingClientRect();
+    window.scrollBy({ top: box.bottom - (window.innerHeight - 20), behavior: "instant" });
+  });
+  const barTop = (await bar.boundingBox())!.y;
+  expect((await lastLink.boundingBox())!.y).toBeGreaterThan(barTop);
+  await lastLink.focus();
+
+  await expect(lastLink).toBeFocused();
+  await expect
+    .poll(async () => {
+      const field = (await lastLink.locator("xpath=..").boundingBox())!;
+      return field.y + field.height;
+    })
+    .toBeLessThanOrEqual((await bar.boundingBox())!.y);
 });

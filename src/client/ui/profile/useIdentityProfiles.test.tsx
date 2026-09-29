@@ -59,6 +59,33 @@ describe("useIdentityProfiles", () => {
     expect(load.mock.calls).toEqual([[FIRST], [SECOND]]);
   });
 
+  it("reads nothing while loading the active identity is off, showing kept summaries", async () => {
+    const catalog: LocalIdentityCatalog = {
+      activePublicKeyZ32: FIRST,
+      identities: [
+        {
+          publicIdentity: { publicKeyZ32: FIRST },
+          profileSummary: { name: "Kept", avatar: "data:image/jpeg;base64,AAAA" },
+        },
+        { publicIdentity: { publicKeyZ32: SECOND } },
+      ],
+    };
+    const { result, rerender } = renderHook(
+      ({ loadActive }) => useIdentityProfiles(catalog, { loadActive }),
+      { wrapper, initialProps: { loadActive: false } },
+    );
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 10)));
+    expect(load).not.toHaveBeenCalled();
+    expect(names(result)).toEqual(["Kept", undefined]);
+    expect(result.current.catalog.identities[0]?.avatarUrl).toBe("data:image/jpeg;base64,AAAA");
+
+    // Once an identity is chosen, only its profile is read, and the read replaces the summary.
+    rerender({ loadActive: true });
+    await waitFor(() => expect(names(result)).toEqual(["Name 1aeh", undefined]));
+    expect(result.current.catalog.identities[0]?.avatarUrl).toBe("blob:avatar-1");
+    expect(load.mock.calls).toEqual([[FIRST]]);
+  });
+
   it("loads a newly selected identity without reloading the others", async () => {
     const { result, rerender } = renderHook(({ catalog }) => useIdentityProfiles(catalog), {
       wrapper,

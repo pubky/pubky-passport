@@ -3,7 +3,7 @@
 import { Result } from "better-result";
 import { type FormEvent, useEffect, useLayoutEffect, useRef, useState } from "react";
 
-import { BackupImporter, type BackupImportErrorCode } from "@/client/logic/backup/BackupImporter";
+import type { BackupImporter, BackupImportErrorCode } from "@/client/logic/backup/BackupImporter";
 import {
   MAXIMUM_BACKUP_BYTES,
   MAXIMUM_BACKUP_PASSWORD_LENGTH,
@@ -30,7 +30,7 @@ export function BackupImportFlow({
   defaultHomeserver,
   onBack,
   onComplete,
-  createImporter = () => new BackupImporter(),
+  createImporter = createBackupImporter,
 }: {
   /**
    * The instance homeserver, offered when a lookup finds no homeserver record for the backup's
@@ -39,7 +39,8 @@ export function BackupImportFlow({
   defaultHomeserver: string | null;
   onBack: () => void;
   onComplete: (identity: LocalIdentityMetadata) => void;
-  createImporter?: () => ImportPort;
+  /** Builds the importer; it may load the Pubky SDK first. */
+  createImporter?: () => ImportPort | Promise<ImportPort>;
 }) {
   const importer = useRef<ImportPort>(null);
   const [buildImporter] = useState(() => createImporter);
@@ -58,12 +59,28 @@ export function BackupImportFlow({
     else if (error.target === "password") passwordInput.current?.focus();
   }, [error, pending]);
 
+  const importerReady = useRef<Promise<ImportPort | null>>(null);
   useEffect(() => {
-    const setup = buildImporter();
-    importer.current = setup;
+    let active = true;
+    let setup: ImportPort | undefined;
+    importerReady.current = Promise.resolve()
+      .then(buildImporter)
+      .then(
+        (built) => {
+          if (!active) {
+            built.dispose();
+            return null;
+          }
+          setup = built;
+          importer.current = built;
+          return built;
+        },
+        () => null,
+      );
     return () => {
+      active = false;
       if (importer.current === setup) importer.current = null;
-      setup.dispose();
+      setup?.dispose();
     };
   }, [buildImporter]);
 
@@ -85,7 +102,9 @@ export function BackupImportFlow({
     setError(undefined);
     try {
       const bytes = new Uint8Array(await file.arrayBuffer());
-      const imported = await importer.current?.importBackup(bytes, password, defaultHomeserver);
+      // The importer may still be loading the Pubky SDK when the form is sent.
+      const ready = importer.current ?? (await importerReady.current);
+      const imported = await ready?.importBackup(bytes, password, defaultHomeserver);
       if (passwordInput.current) passwordInput.current.value = "";
       if (!imported || Result.isError(imported)) {
         bytes.fill(0);
@@ -313,4 +332,10 @@ function importError(code: BackupImportErrorCode): ImportError {
     case "import_unavailable":
       return { target: "form", message: "Passport could not import this backup." };
   }
+}
+
+/** Loads the importer, and with it the Pubky SDK, only once the import screen opens. */
+async function createBackupImporter(): Promise<ImportPort> {
+  const { BackupImporter } = await import("@/client/logic/backup/BackupImporter");
+  return new BackupImporter();
 }

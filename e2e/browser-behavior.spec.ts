@@ -48,6 +48,160 @@ test("primary screens have no automated accessibility violations", async ({ page
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
 });
 
+const REQUEST =
+  "pubkyauth://signin?caps=/pub/example.app/:rw&relay=https://relay.client.example/inbox" +
+  "&secret=kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8&x-source=Client%20App" +
+  "&x-success=https%3A%2F%2Fclient.example%2Fsuccess&x-error=https%3A%2F%2Fclient.example%2Ferror" +
+  "&x-cancel=https%3A%2F%2Fclient.example%2Fcancel";
+
+test("a pending sign-in survives the legal links, the logo and a reload the person stops", async ({
+  page,
+  context,
+}) => {
+  await seedLocalIdentity(page);
+  await page.goto(`/authorize#d=${encodeURIComponent(REQUEST)}`);
+  await page
+    .getByRole("list", { name: "Choose the identity to sign in with." })
+    .getByRole("button")
+    .click();
+  const authorize = page.getByRole("button", { name: "Authorize", exact: true });
+  await expect(authorize).toBeVisible();
+
+  // The logo leads nowhere while a request waits.
+  await expect(page.getByRole("img", { name: "Pubky", exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Pubky", exact: true })).toHaveCount(0);
+  // Reading the terms opens a new tab and leaves the request where it was.
+  const terms = page.getByRole("link", { name: "Terms of Service (opens in a new tab)" });
+  await expect(terms).toHaveAttribute("target", "_blank");
+  await expect(
+    page.getByRole("link", { name: "Privacy Policy (opens in a new tab)" }),
+  ).toHaveAttribute("rel", "noopener noreferrer");
+  const [legal] = await Promise.all([context.waitForEvent("page"), terms.click()]);
+  await expect(legal).toHaveURL(/\/terms-of-service$/u);
+  await legal.close();
+  await expect(authorize).toBeVisible();
+
+  // A reload asks first; staying keeps the request, which is never stored and could not return.
+  const prompts: string[] = [];
+  page.once("dialog", (dialog) => {
+    prompts.push(dialog.type());
+    void dialog.dismiss();
+  });
+  await page.reload({ timeout: 2_000 }).catch(() => undefined);
+  expect(prompts).toEqual(["beforeunload"]);
+  await expect(authorize).toBeVisible();
+  await expect(page).toHaveURL(/\/authorize$/u);
+});
+
+test("the app closes its own popup mid-request without a leave prompt", async ({
+  page,
+  context,
+}) => {
+  await seedLocalIdentity(page);
+  await page.goto("/");
+  const passportEntry = new URL(`/authorize#d=${encodeURIComponent(REQUEST)}`, page.url()).href;
+  await page.route("https://client.example/**", (route) =>
+    route.fulfill({ body: "<!doctype html><title>Client</title>", contentType: "text/html" }),
+  );
+  // The app's page, which opens Passport as its sign-in popup and keeps the handle.
+  await page.goto("https://client.example/");
+  for (const screen of ["review", "Ring QR code"] as const) {
+    const [popup] = await Promise.all([
+      context.waitForEvent("page"),
+      page.evaluate((url) => {
+        (window as unknown as { passport: Window | null }).passport = window.open(
+          url,
+          "passport",
+          "popup,width=520,height=760",
+        );
+      }, passportEntry),
+    ]);
+    const prompts: string[] = [];
+    popup.on("dialog", (dialog) => {
+      prompts.push(dialog.type());
+      void dialog.dismiss();
+    });
+    await expect(popup.getByRole("heading", { name: "Sign in to Client App" })).toBeVisible();
+    if (screen === "review") {
+      await popup
+        .getByRole("list", { name: "Choose the identity to sign in with." })
+        .getByRole("button")
+        .click();
+      await expect(popup.getByRole("button", { name: "Authorize", exact: true })).toBeVisible();
+    } else {
+      await popup.getByRole("button", { name: "Open in Pubky Ring", exact: true }).click();
+      await expect(popup.getByRole("img", { name: "Pubky authorization QR code" })).toBeVisible();
+    }
+
+    // The session arrived through the relay, or the app gave up: it closes the popup itself.
+    const closed = popup.waitForEvent("close");
+    await page.evaluate(() => (window as unknown as { passport: Window }).passport.close());
+    await closed;
+    expect(prompts, screen).toEqual([]);
+    expect(
+      await page.evaluate(() => (window as unknown as { passport: Window }).passport.closed),
+    ).toBe(true);
+  }
+});
+
+test("outside a request the logo leads home and the legal links stay in the tab", async ({
+  page,
+}) => {
+  await page.goto("/privacy-policy");
+  await expect(page.getByRole("link", { name: "Pubky", exact: true })).toHaveAttribute("href", "/");
+  const terms = page.getByRole("link", { name: "Terms of Service", exact: true });
+  await expect(terms).not.toHaveAttribute("target");
+  await terms.click();
+  await expect(page).toHaveURL(/\/terms-of-service$/u);
+});
+
+test("the first paint says Passport is opening before any of its scripts run", async ({ page }) => {
+  await page.route("**/_next/static/chunks/*.js", (route) => route.abort());
+  await page.goto("/");
+
+  const loading = page.getByRole("main", { name: "Loading Passport" });
+  await expect(loading).toBeVisible();
+  await expect(loading).toHaveAttribute("aria-busy", "true");
+  await expect(page.getByRole("heading", { level: 1, name: "Loading Passport" })).toBeAttached();
+  const message = page.getByText("Opening Passport…", { exact: true });
+  await expect(message).toBeVisible();
+  // Centred in the window rather than tucked under the header.
+  const box = (await message.boundingBox())!;
+  const viewport = page.viewportSize()!;
+  expect(Math.abs(box.x + box.width / 2 - viewport.width / 2)).toBeLessThanOrEqual(2);
+  expect(Math.abs(box.y + box.height / 2 - viewport.height / 2)).toBeLessThanOrEqual(
+    viewport.height / 8,
+  );
+});
+
+test("the first screen renders without loading the Pubky SDK, which comes when needed", async ({
+  page,
+}) => {
+  const scripts: Promise<number>[] = [];
+  page.on("response", (response) => {
+    if (response.request().resourceType() === "script")
+      scripts.push(
+        response.body().then(
+          (body) => body.byteLength,
+          () => 0,
+        ),
+      );
+  });
+  // The SDK bundle is well over a megabyte; everything the first screen needs is far smaller.
+  const largestScript = async () => Math.max(0, ...(await Promise.all(scripts)));
+
+  await page.goto("/");
+  await expect(page.getByRole("heading", { name: "Quick & easy signing." })).toBeVisible();
+  await page.waitForLoadState("networkidle");
+  expect(await largestScript()).toBeLessThan(1_000_000);
+
+  await page.getByRole("button", { name: "Create account", exact: true }).click();
+  await page.getByRole("button", { name: "Enter invite manually" }).click();
+  // Checking the invite with its homeserver is the first step that needs the SDK.
+  await page.getByLabel("Enter invite code").fill("AB12-CD34-EF56");
+  await expect.poll(largestScript, { timeout: 15_000 }).toBeGreaterThan(1_000_000);
+});
+
 test("the signer title keeps its accent color without horizontal overflow", async ({ page }) => {
   for (const viewport of [
     { width: 1280, height: 720 },

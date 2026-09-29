@@ -6,8 +6,11 @@ import type {
   LocalIdentityMetadata,
 } from "@/client/logic/local-identity/localIdentityModels";
 
-/** Where Back leaves identity addition; `null` means addition is the entry screen. */
-export type AdditionOrigin = "switch" | "home" | null;
+/**
+ * Where Back leaves identity addition; `null` means addition is the entry screen. `choose` is the
+ * identity list of an app's request.
+ */
+export type AdditionOrigin = "choose" | "switch" | "home" | null;
 
 /** Screens that manage one identity. Detachment keeps the identity it started with. */
 export type ManagementNavigation =
@@ -29,17 +32,30 @@ export type ManagementNavigation =
     }
   | { view: "detach"; identity: LocalIdentityMetadata; googleSubject: string };
 
+/**
+ * Where the profile form was opened: right after an identity was added (`addition`), where
+ * Finish later goes on and there is no Back, or from the overview or Manage, where Back returns.
+ */
+export type ProfileOrigin = "addition" | "overview" | "manage";
+
+/**
+ * With an app's request, `choose` lists the identities to sign in with and `home` reviews the
+ * request for the active one. Without a request, `home` is the active identity's overview and
+ * `switch` changes it.
+ */
 export type SignerNavigation =
-  | { view: "home" | "switch" | "manual" }
+  | { view: "home" | "switch" | "manual" | "choose" }
   | { view: "add" | "import" | "create-account" | "connect-ring"; back: AdditionOrigin }
-  | { view: "finish-add" | "profile"; publicKeyZ32: string }
-  | { view: "external"; origin: { view: "home" } | { view: "add"; back: AdditionOrigin } }
+  | { view: "finish-add"; publicKeyZ32: string }
+  | { view: "profile"; publicKeyZ32: string; from: ProfileOrigin }
+  | {
+      view: "external";
+      origin: { view: "home" | "choose" } | { view: "add"; back: AdditionOrigin };
+    }
   | ManagementNavigation;
 
 export type SignerNavigationContext = {
   catalog: LocalIdentityCatalog;
-  /** Keys whose required profile setup was put off for this session. */
-  deferredProfiles: ReadonlySet<string>;
   /** Whether an app's request is under review. */
   requestPending?: boolean | undefined;
 };
@@ -54,36 +70,22 @@ export function findIdentity(
 }
 
 /**
- * The active identity whose required profile setup is still due in this session. A Ring identity's
- * setup starts with Passport's own Ring request, which must not stand in front of an app's pending
- * request, so it waits until no request is under review.
- */
-export function pendingProfileSetup({
-  catalog,
-  deferredProfiles,
-  requestPending = false,
-}: SignerNavigationContext): LocalIdentityMetadata | undefined {
-  const active = catalog.activePublicKeyZ32
-    ? findIdentity(catalog, catalog.activePublicKeyZ32)
-    : undefined;
-  if (!active?.profileSetupRequired) return undefined;
-  if (deferredProfiles.has(active.publicIdentity.publicKeyZ32)) return undefined;
-  return requestPending && active.keySource === "ring" ? undefined : active;
-}
-
-/**
- * The first screen. Due profile setup comes first. Only a submitted invite forces account setup
- * to resume, because its key may already own an account; unsubmitted setups wait until the person
- * opens account creation again. A submitted draft whose key is already saved finished registering.
+ * The first screen. A request opens on its identity list. Only a submitted invite forces account
+ * setup to resume, because its key may already own an account; unsubmitted setups wait until the
+ * person opens account creation again. A submitted draft whose key is already saved finished
+ * registering. Profile setup is never forced here: it follows account creation once, and is
+ * offered afterwards from the overview and Manage.
  */
 export function initialSignerNavigation(
-  context: SignerNavigationContext,
+  { catalog, requestPending = false }: SignerNavigationContext,
   draft: LocalAccountDraft | null,
 ): SignerNavigation {
-  const { catalog } = context;
-  if (pendingProfileSetup(context)) return { view: "home" };
   if (draft?.registrationStarted && !findIdentity(catalog, draft.publicIdentity.publicKeyZ32))
-    return { view: "create-account", back: catalog.identities.length ? "home" : null };
+    return {
+      view: "create-account",
+      back: requestPending ? "choose" : catalog.identities.length ? "home" : null,
+    };
+  if (requestPending) return { view: "choose" };
   // Chosen explicitly, so first-identity setup stays open after its identity is saved.
   if (catalog.identities.length === 0) return { view: "add", back: null };
   return { view: "home" };
@@ -91,20 +93,29 @@ export function initialSignerNavigation(
 
 /**
  * The screen to show for `navigation` in the current catalog, derived on every render. A screen
- * whose identity left the catalog falls back home. Home opens due profile setup, or identity
- * addition when nothing is saved. Detachment is never redirected. Returns `navigation` itself when
- * it needs no change.
+ * whose identity left the catalog falls back home. With a request, home without an active
+ * identity is the identity list, and the list replaces the switcher; without one, the list is
+ * not offered and home opens identity addition when nothing is saved. Detachment is never
+ * redirected. Returns `navigation` itself when it needs no change.
  */
 export function resolveSignerNavigation(
   navigation: SignerNavigation,
   context: SignerNavigationContext,
 ): SignerNavigation {
-  if ("publicKeyZ32" in navigation && !findIdentity(context.catalog, navigation.publicKeyZ32))
+  const { catalog, requestPending = false } = context;
+  if ("publicKeyZ32" in navigation && !findIdentity(catalog, navigation.publicKeyZ32))
     return resolveSignerNavigation({ view: "home" }, context);
+  if (requestPending) {
+    if (navigation.view === "switch") return { view: "choose" };
+    if (navigation.view !== "home") return navigation;
+    const active = catalog.activePublicKeyZ32
+      ? findIdentity(catalog, catalog.activePublicKeyZ32)
+      : undefined;
+    return active ? navigation : { view: "choose" };
+  }
+  if (navigation.view === "choose") return resolveSignerNavigation({ view: "home" }, context);
   if (navigation.view !== "home") return navigation;
-  const pending = pendingProfileSetup(context);
-  if (pending) return { view: "profile", publicKeyZ32: pending.publicIdentity.publicKeyZ32 };
-  if (context.catalog.identities.length === 0) return { view: "add", back: null };
+  if (catalog.identities.length === 0) return { view: "add", back: null };
   return navigation;
 }
 

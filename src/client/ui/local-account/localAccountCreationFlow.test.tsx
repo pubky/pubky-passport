@@ -102,6 +102,52 @@ describe("LocalAccountCreationFlow", () => {
     vi.restoreAllMocks();
   });
 
+  it("prepares the account once the setup controller has loaded the SDK", async () => {
+    const controller = fakeController();
+    let finishLoading!: () => void;
+    const view = render(
+      <LocalAccountCreationFlow
+        invite={INVITE}
+        onBack={vi.fn()}
+        onComplete={vi.fn()}
+        createSetupController={() =>
+          new Promise((resolve) => {
+            finishLoading = () => resolve(controller);
+          })
+        }
+      />,
+    );
+    expect(screen.getByText("Preparing your Pubky…")).toBeInTheDocument();
+    expect(controller.prepareAccount).not.toHaveBeenCalled();
+
+    finishLoading();
+    expect(await screen.findByLabelText("Enter strong password")).toBeInTheDocument();
+    expect(controller.prepareAccount).toHaveBeenCalledWith(INVITE);
+    view.unmount();
+    expect(controller.dispose).toHaveBeenCalled();
+  });
+
+  it("disposes a setup controller that finishes loading after the screen closed", async () => {
+    const controller = fakeController();
+    let finishLoading!: () => void;
+    const view = render(
+      <LocalAccountCreationFlow
+        invite={INVITE}
+        onBack={vi.fn()}
+        onComplete={vi.fn()}
+        createSetupController={() =>
+          new Promise((resolve) => {
+            finishLoading = () => resolve(controller);
+          })
+        }
+      />,
+    );
+    view.unmount();
+    finishLoading();
+    await vi.waitFor(() => expect(controller.dispose).toHaveBeenCalledOnce());
+    expect(controller.prepareAccount).not.toHaveBeenCalled();
+  });
+
   it("forgets an unregistered draft when the user backs out of the password step", async () => {
     const controller = fakeController();
     const { onBack, onAbandon } = renderFlow(controller);

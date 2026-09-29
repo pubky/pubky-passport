@@ -96,6 +96,37 @@ function mount(withRequest: boolean, collaborators: Partial<PassportCollaborator
     }),
   );
 }
+/** Opens identity addition: from the request's identity list, or through the switcher. */
+async function openAddition(user: ReturnType<typeof userEvent.setup>, withRequest: boolean) {
+  if (withRequest) {
+    await user.click(
+      await screen.findByRole("button", { name: "Continue with Google or import a backup" }),
+    );
+    return;
+  }
+  await user.click(await screen.findByRole("button", { name: "Switch identity" }));
+  await user.click(screen.getByRole("button", { name: "Add identity" }));
+}
+/** Opens account creation: from the request's identity list, or through the switcher. */
+async function openAccountCreation(user: ReturnType<typeof userEvent.setup>, withRequest: boolean) {
+  if (!withRequest) await openAddition(user, false);
+  await user.click(await screen.findByRole("button", { name: "Create account" }));
+}
+/** A phone: Ring hand-offs lead with their deep link. */
+function stubCoarsePointer() {
+  vi.stubGlobal("matchMedia", (query: string) => ({
+    matches: query === "(pointer: coarse)",
+    addEventListener: () => undefined,
+    removeEventListener: () => undefined,
+  }));
+}
+/** From the review, back to the list and on to the request's Ring hand-off. */
+async function expectRingHandoff(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole("button", { name: "Switch identity" }));
+  await user.click(screen.getByRole("button", { name: "Open in Pubky Ring" }));
+  expect(screen.getByRole("heading", { name: "Sign in with Pubky Ring." })).toBeInTheDocument();
+  expect(screen.getByRole("img", { name: "Pubky authorization QR code" })).toBeInTheDocument();
+}
 function notifyAdded() {
   // Deliberately leave the older selection active: completion must select the new identity.
   state.catalog = {
@@ -134,19 +165,30 @@ afterEach(() => {
 });
 
 describe("shared addition navigation", () => {
-  it.each([false, true])(
-    "places account creation before backup import with request=%s",
-    (withRequest) => {
-      state.catalog = { activePublicKeyZ32: null, identities: [] };
-      mount(withRequest);
+  it("places account creation before backup import", async () => {
+    state.catalog = { activePublicKeyZ32: null, identities: [] };
+    mount(false);
 
-      const create = screen.getByRole("button", { name: "Create account" });
-      const importBackup = screen.getByRole("button", { name: "Import backup" });
-      expect(
-        create.compareDocumentPosition(importBackup) & Node.DOCUMENT_POSITION_FOLLOWING,
-      ).toBeTruthy();
-    },
-  );
+    const create = await screen.findByRole("button", { name: "Create account" });
+    const importBackup = screen.getByRole("button", { name: "Import backup" });
+    expect(
+      create.compareDocumentPosition(importBackup) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it("keeps a request's Create account on its list and the backup one quiet step away", async () => {
+    state.catalog = { activePublicKeyZ32: null, identities: [] };
+    const user = userEvent.setup();
+    mount(true);
+
+    expect(await screen.findByRole("button", { name: "Create account" })).toBeInTheDocument();
+    await openAddition(user, true);
+    // The focused step offers only what the list does not: Google and a backup.
+    expect(screen.getByRole("button", { name: "Import backup" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Create account" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Pubky Ring/u })).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Sign in to Original app" })).toBeInTheDocument();
+  });
 
   it.each([false, true])("returns import to its origin with request=%s", async (withRequest) => {
     const user = userEvent.setup();
@@ -159,8 +201,7 @@ describe("shared addition navigation", () => {
         }),
     );
     mount(withRequest);
-    await user.click(await screen.findByRole("button", { name: "Switch identity" }));
-    await user.click(screen.getByRole("button", { name: "Add identity" }));
+    await openAddition(user, withRequest);
     await user.click(screen.getByRole("button", { name: "Import backup" }));
     await user.upload(screen.getByLabelText("Pubky backup"), backupFile());
     await user.type(screen.getByLabelText("Backup password"), "correct horse");
@@ -175,13 +216,7 @@ describe("shared addition navigation", () => {
       }),
     ).toBeInTheDocument();
     expect(state.catalog.activePublicKeyZ32).toBe("new-identity");
-    if (withRequest) {
-      await user.click(screen.getByRole("button", { name: "Use Pubky Ring" }));
-      expect(screen.getByRole("link", { name: "Open in Ring" })).toHaveAttribute(
-        "href",
-        EXACT_REQUEST,
-      );
-    }
+    if (withRequest) await expectRingHandoff(user);
   });
 
   it.each([
@@ -204,9 +239,7 @@ describe("shared addition navigation", () => {
           }),
       );
       mount(withRequest);
-      await user.click(await screen.findByRole("button", { name: "Switch identity" }));
-      await user.click(screen.getByRole("button", { name: "Add identity" }));
-      await user.click(screen.getByRole("button", { name: "Create account" }));
+      await openAccountCreation(user, withRequest);
       expect(
         screen.queryByRole("button", { name: "Continue with Google" }),
       ).not.toBeInTheDocument();
@@ -258,28 +291,68 @@ describe("shared addition navigation", () => {
       ).toBeInTheDocument();
       expect(state.catalog.activePublicKeyZ32).toBe("new-identity");
       expect(approve).not.toHaveBeenCalled();
-      if (withRequest) {
-        await user.click(screen.getByRole("button", { name: "Use Pubky Ring" }));
-        expect(screen.getByRole("link", { name: "Open in Ring" })).toHaveAttribute(
-          "href",
-          EXACT_REQUEST,
-        );
-      }
+      if (withRequest) await expectRingHandoff(user);
     },
   );
 
-  it("backs out of import and add to the originating switcher and review", async () => {
+  it.each([false, true])(
+    "asks for the profile once after creation, and Finish later goes on to where the person was going, request=%s",
+    async (withRequest) => {
+      const user = userEvent.setup();
+      const created = { ...ADDED, profileSetupRequired: true as const };
+      LOCAL.registerAccount.mockImplementation(async () => {
+        state.catalog = {
+          activePublicKeyZ32: EXISTING.publicIdentity.publicKeyZ32,
+          identities: [EXISTING, created],
+        };
+        state.listener?.();
+        return Result.ok(created);
+      });
+      mount(withRequest);
+      await openAccountCreation(user, withRequest);
+      await user.click(screen.getByRole("button", { name: "Enter invite manually" }));
+      await user.type(screen.getByLabelText("Enter invite code"), "AB12-CD34-EF56");
+      await screen.findByText("Invite verified with the homeserver.");
+      await user.click(screen.getByRole("button", { name: "Continue" }));
+      await user.click(screen.getByRole("button", { name: /Keep in Passport/ }));
+      await user.type(await screen.findByLabelText("Enter strong password"), "correct horse");
+      await user.type(screen.getByLabelText("Confirm password"), "correct horse");
+      await user.click(screen.getByRole("button", { name: "Download encrypted backup" }));
+      await user.click(screen.getByRole("button", { name: "Skip this check (not recommended)" }));
+
+      expect(
+        await screen.findByRole("heading", { name: "Create your profile." }),
+      ).toBeInTheDocument();
+      // Finish later is the one way on without a profile; there is no Back into creation.
+      expect(screen.queryByRole("button", { name: "Back" })).not.toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: "Finish later" }));
+
+      // Neither a backup detour nor Manage: the request's review, or the overview.
+      expect(
+        await screen.findByRole("heading", {
+          name: withRequest ? "Sign in to Original app" : "Your pubky.",
+        }),
+      ).toBeInTheDocument();
+      expect(screen.queryByRole("heading", { name: "Choose backup method" })).toBeNull();
+      if (withRequest) expect(screen.getByRole("button", { name: "Authorize" })).toBeEnabled();
+      else expect(screen.getByRole("button", { name: "Set up profile" })).toBeInTheDocument();
+      expect(state.catalog.activePublicKeyZ32).toBe("new-identity");
+      expect(cancel).not.toHaveBeenCalled();
+    },
+  );
+
+  it("backs out of import and add to the originating list", async () => {
     const user = userEvent.setup();
     mount(true);
-    await user.click(await screen.findByRole("button", { name: "Switch identity" }));
-    await user.click(screen.getByRole("button", { name: "Add identity" }));
+    await openAddition(user, true);
     await user.click(screen.getByRole("button", { name: "Import backup" }));
     await user.click(screen.getByRole("button", { name: "Back" }));
-    expect(screen.getByRole("heading", { name: "Quick & easy signing." })).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Back" }));
-    expect(screen.getByRole("heading", { name: "Switch identity." })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Other ways to sign in" })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Back" }));
     expect(screen.getByRole("heading", { name: "Sign in to Original app" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("list", { name: "Choose the identity to sign in with." }),
+    ).toBeInTheDocument();
     expect(screen.getByRole("main")).toHaveFocus();
     expect(cancel).not.toHaveBeenCalled();
   });
@@ -322,6 +395,7 @@ describe("account creation navigation", () => {
 
   it("keeps a resumed invite for Ring after backing out of Passport", async () => {
     saveDraft();
+    stubCoarsePointer();
     const user = userEvent.setup();
     mount(false);
     await openAccountCreation(user);
@@ -415,6 +489,7 @@ describe("account creation navigation", () => {
   ] as const)(
     "checks an invite again before %s reuses it when the check after starting over failed",
     async (_, signer, role, destination) => {
+      stubCoarsePointer();
       const user = userEvent.setup();
       const checkSignupToken = await abandonSubmittedInvite(user, "unknown");
       await vi.waitFor(() => expect(screen.getByRole("button", { name: signer })).toBeEnabled());
@@ -581,6 +656,9 @@ describe("required Ring profile setup", () => {
     state.catalog = { activePublicKeyZ32: "ring-identity", identities: [RING] };
     const ring = disconnectedRing();
     const user = userEvent.setup();
+    stubCoarsePointer();
+    const assign = vi.fn();
+    vi.spyOn(window, "location", "get").mockReturnValue({ ...window.location, assign });
     mount(true, { createRingProfileController: () => ring });
 
     expect(
@@ -589,8 +667,11 @@ describe("required Ring profile setup", () => {
     expect(screen.queryByRole("heading", { name: "Connect your Ring." })).toBeNull();
     expect(screen.queryByRole("img", { name: "Pubky Ring profile connection QR code" })).toBeNull();
     expect(ring.start).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: /Key in Pubky Ring/u }));
     await user.click(screen.getByRole("button", { name: "Continue in Pubky Ring" }));
-    expect(screen.getByRole("link", { name: "Open in Ring" })).toHaveAttribute(
+    // A phone follows the unchanged request straight to Ring.
+    expect(assign).toHaveBeenCalledWith(EXACT_REQUEST);
+    expect(screen.getByRole("link", { name: "Opening Pubky Ring…" })).toHaveAttribute(
       "href",
       EXACT_REQUEST,
     );
@@ -602,15 +683,25 @@ describe("required Ring profile setup", () => {
     expect(state.catalog.identities[0]?.profileSetupRequired).toBe(true);
   });
 
-  it("lets a reloaded Ring identity leave the connection loop without a request", async () => {
+  it("offers a reloaded Ring identity its setup without forcing the connection", async () => {
     state.catalog = { activePublicKeyZ32: "ring-identity", identities: [RING] };
     const user = userEvent.setup();
     mount(false, { createRingProfileController: disconnectedRing });
 
+    expect(await screen.findByRole("heading", { name: "Your pubky." })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Set up profile" }));
     expect(await screen.findByRole("heading", { name: "Connect your Ring." })).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Finish later" }));
+    // Opened from the overview, Back is the one way out and returns there.
+    expect(screen.queryByRole("button", { name: "Finish later" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Back" }));
     expect(screen.getByRole("heading", { name: "Your pubky." })).toBeInTheDocument();
+    // Opened from Manage, Back returns to Manage.
     await user.click(screen.getByRole("button", { name: "Manage identity" }));
+    const manage = screen.getByRole("heading", { level: 1 }).textContent;
+    await user.click(screen.getByRole("button", { name: "Set up profile" }));
+    expect(await screen.findByRole("heading", { name: "Connect your Ring." })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Back" }));
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(manage!);
     await user.click(screen.getByRole("button", { name: "Back" }));
     expect(screen.getByRole("heading", { name: "Your pubky." })).toBeInTheDocument();
   });

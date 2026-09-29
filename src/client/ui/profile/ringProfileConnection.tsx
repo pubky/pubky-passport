@@ -55,7 +55,8 @@ export function RingProfileConnection({
   setupRequired?: boolean;
   /** After a Ring signup: Passport cannot know the new key, so the person confirms it. */
   confirmIdentity?: boolean;
-  onBack: () => void;
+  /** Absent right after an identity was added, where Finish later is the one way on. */
+  onBack?: (() => void) | undefined;
   onComplete: (identity: LocalIdentityMetadata) => void;
   /** Leaves required setup unfinished; the identity stays usable meanwhile. */
   onDefer?: (() => void) | undefined;
@@ -196,7 +197,7 @@ export function RingProfileConnection({
         </>
       )}
       <PassportNavigation
-        back={<BackButton onClick={onBack} />}
+        back={onBack ? <BackButton onClick={onBack} /> : undefined}
         confirm={
           state.status === "failed" || retryPressed ? (
             <Button

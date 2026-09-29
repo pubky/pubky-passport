@@ -71,7 +71,6 @@ export function AuthorizationFlow({
             void controller.cancel();
           }}
           onSwitch={onSwitch}
-          onUseRing={onUseRing}
           phase={authorization.status}
           review={authorization.review}
         />

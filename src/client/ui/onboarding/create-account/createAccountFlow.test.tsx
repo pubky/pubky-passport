@@ -142,10 +142,21 @@ function storedInvite() {
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
+
+/** A phone: the Ring signup leads with its deep link, which carries the invite. */
+function stubCoarsePointer() {
+  vi.stubGlobal("matchMedia", (query: string) => ({
+    matches: query === "(pointer: coarse)",
+    addEventListener: () => undefined,
+    removeEventListener: () => undefined,
+  }));
+}
 
 describe("CreateAccountFlow", () => {
   it("keeps a verified SMS invite through Cancel and offers it again without verifying", async () => {
+    stubCoarsePointer();
     const user = userEvent.setup();
     const first = mountFlow();
     await user.click(screen.getByRole("button", { name: "Continue with SMS" }));
@@ -277,6 +288,7 @@ describe("CreateAccountFlow with a finished registration's draft", () => {
   afterEach(() => localStorage.clear());
 
   it("releases the draft of a finished registration so Ring and a new invite stay usable", async () => {
+    stubCoarsePointer();
     // Registration saved the key, but removing its draft afterwards failed.
     const drafts = new LocalAccountDraftRepository();
     expectResultOk(

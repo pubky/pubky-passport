@@ -151,7 +151,8 @@ function IdentityManagement({
           />
           {onEditProfile ? (
             <Button onClick={onEditProfile} variant="secondary">
-              <SquareUserRoundIcon /> Edit profile
+              <SquareUserRoundIcon />{" "}
+              {identity.profileSetupRequired ? "Set up profile" : "Edit profile"}
             </Button>
           ) : null}
         </section>

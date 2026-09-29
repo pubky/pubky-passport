@@ -1,5 +1,6 @@
 import { holdHttpsRequests } from "./helpers/network";
 import { expect, test, type Page } from "./helpers/passportTest";
+import { emulateCoarsePointer } from "./helpers/pointer";
 import AxeBuilder from "@axe-core/playwright";
 import { E2E_HTTP_RELAY_URL, E2E_SIGNUP_HOMESERVER } from "./helpers/e2eServer";
 import { HOMESERVER as TEST_HOMESERVER, mockHomeserverRecords } from "./helpers/pubkyProfile";
@@ -30,7 +31,8 @@ test("keeps account-signup QR distinct and does not claim Ring success", async (
   await reachDestinationChoice(page);
   await page.getByRole("button", { name: "Use Pubky Ring" }).click();
 
-  const showSignupQr = page.getByRole("button", { name: "Show signup QR" });
+  // A computer gets the QR code at once; a phone shows it on request.
+  const showSignupQr = page.getByRole("button", { name: "Show QR code" });
   if (await showSignupQr.isVisible()) await showSignupQr.click();
   await expect(page.getByRole("img", { name: "Pubky Ring signup QR code" })).toBeVisible();
   await expect(page.getByRole("img", { name: "Pubky authorization QR code" })).toHaveCount(0);
@@ -41,6 +43,8 @@ test("keeps account-signup QR distinct and does not claim Ring success", async (
 test("keeps request context and requires a separate profile approval after Ring signup", async ({
   page,
 }) => {
+  // Only a phone gets the connection's link, which the spec reads the request from.
+  await emulateCoarsePointer(page);
   await page.goto(`/authorize#d=${encodeURIComponent(AUTHORIZATION_REQUEST)}`);
   await expect(page.getByLabel("Signing in to client.example")).toBeVisible();
   await page.getByRole("button", { name: "Create account", exact: true }).click();
@@ -54,14 +58,10 @@ test("keeps request context and requires a separate profile approval after Ring 
 
   await expect(page.getByLabel("Signing in to client.example")).toBeVisible();
   // Passport's own profile request is labelled apart from the app's sign-in request.
-  const profileRequestLink = page.getByRole("link", {
-    name: "Connect in Ring",
-    includeHidden: true,
-  });
+  const profileRequestLink = page.getByRole("link", { name: "Connect in Pubky Ring" });
   await expect(profileRequestLink).toHaveAttribute("href", /^pubkyauth:\/\//);
-  await expect(page.getByRole("link", { name: "Open in Ring", includeHidden: true })).toHaveCount(
-    0,
-  );
+  await expect(page.getByRole("link", { name: "Open Pubky Ring" })).toHaveCount(0);
+  await expect(page.locator(`a[href="${AUTHORIZATION_REQUEST}"]`)).toHaveCount(0);
   const profileRequest = new URL((await profileRequestLink.getAttribute("href"))!);
   expect(profileRequest.href).not.toBe(AUTHORIZATION_REQUEST);
   expect(profileRequest.searchParams.get("caps")?.split(",")).toEqual([
@@ -71,8 +71,7 @@ test("keeps request context and requires a separate profile approval after Ring 
   ]);
   expect(await page.evaluate(() => Object.keys(localStorage))).toEqual([]);
   await expect(page.getByRole("heading", { name: "Authorization complete." })).toHaveCount(0);
-  const showProfileQr = page.getByRole("button", { name: "Show QR" });
-  if (await showProfileQr.isVisible()) await showProfileQr.click();
+  await page.getByRole("button", { name: "Show QR code" }).click();
   await expect(
     page.getByRole("img", { name: "Pubky Ring profile connection QR code" }),
   ).toBeVisible();
@@ -95,16 +94,14 @@ test("the profile grant after a Ring signup on the home page polls only the conf
     relayRequests.push(route.request().url());
     await route.fulfill({ status: 404, body: "" });
   });
+  await emulateCoarsePointer(page);
   await reachDestinationChoice(page);
   await page.getByRole("button", { name: "Use Pubky Ring" }).click();
   await page.getByRole("button", { name: "Continue to profile" }).click();
   await expect(page.getByRole("heading", { name: "Connect your Ring." })).toBeVisible();
   await expect(page).toHaveURL(/\/$/u);
 
-  const profileRequestLink = page.getByRole("link", {
-    name: "Connect in Ring",
-    includeHidden: true,
-  });
+  const profileRequestLink = page.getByRole("link", { name: "Connect in Pubky Ring" });
   const profileRequest = new URL((await profileRequestLink.getAttribute("href"))!);
   expect(profileRequest.searchParams.get("relay")).toBe(E2E_HTTP_RELAY_URL);
   await expect.poll(() => relayRequests.length).toBeGreaterThan(0);
@@ -250,6 +247,8 @@ test("decrypts the downloaded backup before starting local registration", async 
 test("SMS validates codes and retains Homegate's homeserver for the destination choice", async ({
   page,
 }) => {
+  // The Ring signup link carries the invite; only a phone gets it.
+  await emulateCoarsePointer(page);
   await page.route("**/sms_verification/send_code", async (route) => {
     expect(route.request().postDataJSON()).toEqual({ phoneNumber: "+41791234567" });
     await route.fulfill({ status: 200, body: "" });
@@ -280,9 +279,7 @@ test("SMS validates codes and retains Homegate's homeserver for the destination 
 
   await expect(page.getByRole("button", { name: "Use Pubky Ring" })).toBeVisible();
   await openRingSignup(page);
-  await expect(
-    page.getByRole("link", { name: "Continue with Pubky Ring", includeHidden: true }),
-  ).toHaveAttribute(
+  await expect(ringSignupLink(page)).toHaveAttribute(
     "href",
     `pubkyauth://direct_signup?hs=${HOMEGATE_HOMESERVER}&st=sms-invite-token`,
   );
@@ -302,6 +299,8 @@ test("SMS provider limits stay recoverable inside account creation", async ({ pa
 });
 
 test("SMS Back, Cancel, and reload preserve the verified invite", async ({ page }) => {
+  // The Ring signup link carries the invite; only a phone gets it.
+  await emulateCoarsePointer(page);
   let sends = 0;
   let verifications = 0;
   await page.route("**/sms_verification/send_code", async (route) => {
@@ -355,10 +354,7 @@ test("SMS Back, Cancel, and reload preserve the verified invite", async ({ page 
   await page.getByRole("button", { name: "Create account", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Choose your signer." })).toBeVisible();
   await page.getByRole("button", { name: "Use Pubky Ring" }).click();
-  const ringLink = page.getByRole("link", {
-    name: "Continue with Pubky Ring",
-    includeHidden: true,
-  });
+  const ringLink = ringSignupLink(page);
   const ringRequest = new URL((await ringLink.getAttribute("href"))!);
   expect(ringRequest.searchParams.get("st")).toBe("verified-sms-invite");
   expect(ringRequest.searchParams.get("hs")).toBe(HOMEGATE_HOMESERVER);
@@ -395,6 +391,8 @@ test("manual invite Back returns to the completed form and then verification met
 test("shared account creation offers Ring after verification and Back keeps its invite", async ({
   page,
 }) => {
+  // The Ring signup link carries the invite; only a phone gets it.
+  await emulateCoarsePointer(page);
   await page.goto("/");
   await expect(page.getByRole("button", { name: "Use Pubky Ring", exact: true })).toHaveCount(0);
   await expect(
@@ -407,7 +405,7 @@ test("shared account creation offers Ring after verification and Back keeps its 
   await expect(page.getByRole("heading", { name: "Choose your signer." })).toBeVisible();
   await expect(page.getByRole("button", { name: "Keep in Passport" })).toBeEnabled();
   await page.getByRole("button", { name: "Use Pubky Ring", exact: true }).click();
-  const link = page.getByRole("link", { name: "Continue with Pubky Ring", includeHidden: true });
+  const link = ringSignupLink(page);
   const url = `pubkyauth://direct_signup?hs=${E2E_SIGNUP_HOMESERVER}&st=${RING_INVITE}`;
   await expect(link).toHaveAttribute("href", url);
   await page.getByRole("button", { name: "Install Pubky Ring", exact: true }).click();
@@ -423,6 +421,8 @@ test("shared account creation offers Ring after verification and Back keeps its 
 });
 
 test("Lightning payment uses the homeserver returned with its token", async ({ page }) => {
+  // The Ring signup link carries the invite; only a phone gets it.
+  await emulateCoarsePointer(page);
   let paid = false;
   let invoices = 0;
   await page.route("**/ln_verification", (route) => {
@@ -459,18 +459,14 @@ test("Lightning payment uses the homeserver returned with its token", async ({ p
     timeout: 10_000,
   });
   await openRingSignup(page);
-  await expect(
-    page.getByRole("link", { name: "Continue with Pubky Ring", includeHidden: true }),
-  ).toHaveAttribute(
+  await expect(ringSignupLink(page)).toHaveAttribute(
     "href",
     `pubkyauth://direct_signup?hs=${HOMEGATE_HOMESERVER}&st=lightning-invite-token`,
   );
   await page.getByRole("button", { name: "Back", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Choose your signer." })).toBeVisible();
   await openRingSignup(page);
-  await expect(
-    page.getByRole("link", { name: "Continue with Pubky Ring", includeHidden: true }),
-  ).toHaveAttribute(
+  await expect(ringSignupLink(page)).toHaveAttribute(
     "href",
     `pubkyauth://direct_signup?hs=${HOMEGATE_HOMESERVER}&st=lightning-invite-token`,
   );
@@ -525,6 +521,11 @@ async function openRingSignup(page: Page): Promise<void> {
   await page.getByRole("button", { name: "Use Pubky Ring" }).click();
 }
 
+/** The Ring signup's link, which carries the invite; only a phone (coarse pointer) gets it. */
+function ringSignupLink(page: Page) {
+  return page.getByRole("link", { name: "Continue with Pubky Ring" });
+}
+
 test("can skip the backup check and keeps the attempted signup bound to its key", async ({
   page,
 }) => {
@@ -561,3 +562,25 @@ async function resumeSavedSetup(page: Page) {
   await expect(page.getByRole("heading", { name: "Choose your signer." })).toBeVisible();
   await page.getByRole("button", { name: "Keep in Passport" }).click();
 }
+
+test.describe("in the app's 520x760 popup", () => {
+  test.use({ viewport: { width: 520, height: 760 }, hasTouch: false });
+
+  test("Pubky Ring signup keeps its QR code, Back and Continue to profile in view", async ({
+    page,
+  }) => {
+    await page.goto(`/authorize#d=${encodeURIComponent(AUTHORIZATION_REQUEST)}`);
+    await page.getByRole("button", { name: "Create account", exact: true }).click();
+    await page.getByRole("button", { name: "Enter invite manually" }).click();
+    await page.getByLabel("Enter invite code").fill(MANUAL_INVITE);
+    await page.getByRole("button", { name: "Continue" }).click();
+    await page.getByRole("button", { name: "Use Pubky Ring" }).click();
+
+    await expect(page.getByRole("img", { name: "Pubky Ring signup QR code" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Install Pubky Ring" })).toBeVisible();
+    for (const name of ["Back", "Continue to profile"]) {
+      const box = (await page.getByRole("button", { name, exact: true }).boundingBox())!;
+      expect(box.y + box.height).toBeLessThanOrEqual(760);
+    }
+  });
+});

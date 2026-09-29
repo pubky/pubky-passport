@@ -11,22 +11,22 @@ const LARGE_REQUEST = `pubkyauth://signin?secret=s&caps=${Array.from(
 afterEach(cleanup);
 
 describe("ExternalSignerRequest", () => {
-  it("offers only the Ring link for an app request too large for a QR code", () => {
+  it("offers only opening Ring for an app request too large for a QR code", () => {
     render(<ExternalSignerRequest getAuthorizationUrl={() => LARGE_REQUEST} />);
     expect(
       screen.getByText(
-        "This request is too large for a QR code. Open it directly in Ring on this device.",
+        "This request is too big for a QR code. Open it in Pubky Ring on this device.",
       ),
     ).toBeTruthy();
     // A Ring identity has no Authorize action, so the hint must not point to one.
     expect(screen.queryByText(/Authorize in Passport/u)).toBeNull();
     expect(screen.queryByRole("img", { name: "Pubky authorization QR code" })).toBeNull();
-    expect(screen.getByRole("link", { name: "Open in Ring" }).getAttribute("href")).toBe(
+    expect(screen.getByRole("link", { name: "Open Pubky Ring" }).getAttribute("href")).toBe(
       LARGE_REQUEST,
     );
   });
 
-  it("labels a profile connection too large for a QR code as its own", () => {
+  it("labels a profile connection as its own", () => {
     render(
       <ExternalSignerRequest
         getAuthorizationUrl={() => LARGE_REQUEST}
@@ -35,10 +35,11 @@ describe("ExternalSignerRequest", () => {
     );
     expect(
       screen.getByText(
-        "This connection request is too large for a QR code. Open it directly in Ring.",
+        "This connection request is too big for a QR code. Open it in Pubky Ring on this device.",
       ),
     ).toBeTruthy();
-    expect(screen.getByRole("link", { name: "Connect in Ring" }).getAttribute("href")).toBe(
+    expect(screen.getByRole("region", { name: "Pubky Ring profile connection" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Connect in Pubky Ring" }).getAttribute("href")).toBe(
       LARGE_REQUEST,
     );
   });

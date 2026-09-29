@@ -111,7 +111,17 @@ describe("UniversalSignerFlow identity navigation", () => {
     cleanup();
     window.dispatchEvent(new PageTransitionEvent("pagehide"));
     vi.clearAllMocks();
+    vi.unstubAllGlobals();
   });
+
+  /** A phone: the migration waits for Show QR or Import pubky instead of exporting at once. */
+  function stubCoarsePointer() {
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: query === "(pointer: coarse)",
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+    }));
+  }
 
   it("keeps Google backup completion visible until Continue, then requires profile setup", async () => {
     FLOW.establishIdentity = true;
@@ -395,6 +405,7 @@ describe("UniversalSignerFlow identity navigation", () => {
         { publicIdentity: { publicKeyZ32: "active" } },
       ],
     };
+    stubCoarsePointer();
     renderSigner();
 
     await userEvent.setup().click(screen.getByRole("button", { name: "Manage identity" }));
@@ -427,6 +438,7 @@ describe("UniversalSignerFlow identity navigation", () => {
         },
       ],
     };
+    stubCoarsePointer();
     renderSigner();
 
     await userEvent.setup().click(screen.getByRole("button", { name: "Manage identity" }));

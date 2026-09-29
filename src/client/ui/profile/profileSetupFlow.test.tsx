@@ -6,7 +6,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { LocalIdentityMetadata } from "@/client/logic/local-identity/localIdentityModels";
 import type { ProfileErrorCode, ProfileResult } from "@/client/logic/profile/ProfileController";
 import type { LoadedProfile, PubkyProfile } from "@/client/logic/profile/profile";
-import type { IdentityCatalogActions } from "@/client/ui/identity-catalog/useIdentityCatalog";
 import { ProfileSetupFlow } from "./profileSetupFlow";
 
 const KEY = "1aeh1m9m47shq8ixa7ikaunjb81ierse9by6f7wnkbxzj4dddwdy";
@@ -15,24 +14,24 @@ const save =
   vi.fn<
     (key: string, profile: PubkyProfile, avatar?: File) => Promise<ProfileResult<PubkyProfile>>
   >();
-const actions = {} as IdentityCatalogActions;
 
+/** Opened from Manage or the overview by default; `afterAddition` opens it as creation does. */
 function mount(
   identity: Partial<LocalIdentityMetadata> = {},
-  handlers: { onReconnect?: () => void } = {},
+  handlers: { onReconnect?: () => void; afterAddition?: boolean } = {},
 ) {
   const onBack = vi.fn();
   const onComplete = vi.fn();
   const onDefer = vi.fn();
+  const { afterAddition = false, ...rest } = handlers;
   render(
     <ProfileSetupFlow
       identity={{ publicIdentity: { publicKeyZ32: KEY }, ...identity }}
       controller={{ load, save }}
-      actions={actions}
-      onBack={onBack}
+      onBack={afterAddition ? undefined : onBack}
       onComplete={onComplete}
-      onDefer={onDefer}
-      {...handlers}
+      onDefer={afterAddition ? onDefer : undefined}
+      {...rest}
     />,
   );
   return { onBack, onComplete, onDefer };
@@ -195,30 +194,54 @@ describe("ProfileSetupFlow", () => {
     expect(onComplete).not.toHaveBeenCalled();
   });
 
-  it("goes back through the backup step during setup, then leaves instead of looping", async () => {
-    const { onBack } = mount({ profileSetupRequired: true });
-    const user = userEvent.setup();
-    await screen.findByLabelText("Name");
-    await user.click(screen.getByRole("button", { name: "Back" }));
-    expect(screen.getByRole("heading", { name: "Choose backup method" })).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Back" }));
-    expect(onBack).toHaveBeenCalledOnce();
-  });
-
-  it("skips the key backup step for a Google-backed identity", async () => {
-    const { onBack } = mount({
-      profileSetupRequired: true,
-      googleAccount: {
-        name: "Google name",
-        email: "google@example.com",
-        googleSubject: "subject",
-        pictureUrl: null,
+  it.each([
+    ["a browser key", {}],
+    [
+      "a Google-backed identity",
+      {
+        googleAccount: {
+          name: "Google name",
+          email: "google@example.com",
+          googleSubject: "subject",
+          pictureUrl: null,
+        },
       },
-    });
+    ],
+  ])("leaves required setup of %s straight away, without a backup detour", async (_, extra) => {
+    const { onBack } = mount({ profileSetupRequired: true, ...extra });
     await screen.findByLabelText("Name");
     await userEvent.setup().click(screen.getByRole("button", { name: "Back" }));
     expect(onBack).toHaveBeenCalledOnce();
     expect(screen.queryByRole("heading", { name: "Choose backup method" })).not.toBeInTheDocument();
+  });
+
+  it("offers Finish later as the one way on right after an identity was added", async () => {
+    const { onDefer } = mount({ profileSetupRequired: true }, { afterAddition: true });
+    await screen.findByLabelText("Name");
+    expect(screen.queryByRole("button", { name: "Back" })).not.toBeInTheDocument();
+    // Finish later takes Back's place beside Finish, so the pinned bar stays one row.
+    const finishLater = screen.getByRole("button", { name: "Finish later" });
+    expect(finishLater.parentElement).toBe(
+      screen.getByRole("button", { name: "Finish" }).parentElement,
+    );
+    await userEvent.setup().click(finishLater);
+    expect(onDefer).toHaveBeenCalledOnce();
+  });
+
+  it("offers only Back, no Finish later, when required setup was opened later", async () => {
+    mount({ profileSetupRequired: true });
+    await screen.findByLabelText("Name");
+    expect(screen.getByRole("button", { name: "Back" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Finish later" })).not.toBeInTheDocument();
+  });
+
+  it("keeps focused fields clear of the actions pinned to the window", async () => {
+    mount();
+    await screen.findByLabelText("Name");
+    // The page's scroll padding below md applies while this bar is on screen (globals.css).
+    expect(
+      screen.getByRole("button", { name: "Finish" }).closest("[data-sticky-actions]"),
+    ).not.toBeNull();
   });
 
   it("goes straight back when editing a finished profile", async () => {

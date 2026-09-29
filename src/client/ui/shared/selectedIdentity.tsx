@@ -4,6 +4,7 @@ import { GoogleAccountTag } from "./googleAccountTag";
 import { SquareUserRoundIcon } from "./icons";
 import { IdentitySummary } from "./identitySummary";
 import { Button } from "./primitives/button";
+import { RingKeyTag } from "./ringKeyTag";
 
 export function SelectedIdentity({
   identity,
@@ -18,12 +19,19 @@ export function SelectedIdentity({
   return (
     <section
       aria-label="Selected identity"
-      className="flex min-w-0 flex-wrap items-center gap-3 rounded-2xl bg-card p-4"
+      className="@container flex min-w-0 flex-wrap items-center gap-3 rounded-2xl bg-card p-4"
     >
-      <div className="flex min-w-0 flex-1 items-center gap-3">
+      {/* The basis keeps the name, key and account readable: below it the button wraps. */}
+      <div className="flex min-w-0 flex-1 basis-48 items-center gap-3">
         {identity ? (
           <IdentitySummary
-            attachment={account ? <GoogleAccountTag account={account} /> : undefined}
+            attachment={
+              identity.keySource === "ring" ? (
+                <RingKeyTag />
+              ) : account ? (
+                <GoogleAccountTag account={account} />
+              ) : undefined
+            }
             avatarSrc={identity.avatarUrl ?? undefined}
             detail={shortPublicKey(identity.publicIdentity.publicKeyZ32)}
             detailClassName="uppercase"
@@ -34,13 +42,14 @@ export function SelectedIdentity({
         )}
       </div>
       <Button
-        className="shrink-0"
+        className="@max-[21rem]:w-full"
         disabled={disabled}
         onClick={onSwitch}
         size="sm"
         variant="secondary"
       >
-        <SquareUserRoundIcon /> Switch identity
+        <SquareUserRoundIcon />
+        Switch <span className="sr-only">identity</span>
       </Button>
     </section>
   );

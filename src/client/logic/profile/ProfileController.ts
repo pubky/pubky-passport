@@ -1,10 +1,10 @@
 import "client-only";
 import { Result, type Result as ResultType } from "better-result";
 import type { CodedFailure } from "@/libs/result";
-import { LOGGER } from "@/libs/logger/logger";
+import { LOGGER, safeErrorLogFields } from "@/libs/logger/logger";
 import { LocalStorageIdentityRepository } from "@/client/logic/local-identity/LocalStorageIdentityRepository";
 import { isPubkyPublicKey } from "@/client/logic/pubky/pubkyIdentityKey";
-import { prepareAvatar } from "./avatarImage";
+import { avatarThumbnail, prepareAvatar } from "./avatarImage";
 import {
   PROFILE_PATH,
   ownAvatarResource,
@@ -69,12 +69,16 @@ function publicationErrorCode(code: ProfileSpecsErrorCode): ProfileErrorCode {
   }
 }
 
-/** Public reads never access local secrets. Writes own a short-lived, identity-bound session. */
+/**
+ * Public reads never access local secrets. Writes own a short-lived, identity-bound session. Each
+ * read of a saved identity's profile is remembered as its summary (name and a small avatar), so
+ * lists can name identities without reading them all.
+ */
 export class ProfileController {
   constructor(
     private readonly repository: Pick<
       LocalStorageIdentityRepository,
-      "read" | "completeProfileSetup"
+      "read" | "completeProfileSetup" | "rememberProfileSummary"
     > = new LocalStorageIdentityRepository(),
     private readonly transport?: ProfileTransport,
   ) {}
@@ -104,7 +108,10 @@ export class ProfileController {
         cause: document.error,
       });
     }
-    if (document.value === null) return Result.ok(null);
+    if (document.value === null) {
+      void this.rememberSummary(publicKey, null);
+      return Result.ok(null);
+    }
     const profile = await parseProfile(document.value);
     if (Result.isError(profile)) {
       return Result.err({
@@ -116,7 +123,22 @@ export class ProfileController {
     const avatar = profile.value.image
       ? await this.loadAvatar(transport, publicKey, profile.value.image)
       : undefined;
-    return Result.ok({ profile: profile.value, avatar });
+    const loadedProfile = { profile: profile.value, avatar };
+    void this.rememberSummary(publicKey, loadedProfile);
+    return Result.ok(loadedProfile);
+  }
+
+  /** Best effort: a summary that cannot be kept only means a list shows the key alone. */
+  private async rememberSummary(publicKey: string, loaded: LoadedProfile | null): Promise<void> {
+    try {
+      const avatar = loaded?.avatar ? await avatarThumbnail(loaded.avatar) : undefined;
+      this.repository.rememberProfileSummary(
+        publicKey,
+        loaded ? { name: loaded.profile.name, ...(avatar ? { avatar } : {}) } : null,
+      );
+    } catch (e) {
+      LOGGER.info("profile.summary.failed", safeErrorLogFields(e));
+    }
   }
 
   async save(

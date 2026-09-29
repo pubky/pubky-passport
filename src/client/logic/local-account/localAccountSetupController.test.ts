@@ -9,11 +9,8 @@ import type {
 } from "@/client/logic/pubky/pubkyIdentityKey";
 import { LOGGER } from "@/libs/logger/logger";
 import { MINIMUM_BACKUP_PASSWORD_LENGTH } from "@/client/logic/backup/BackupVerifier";
-import {
-  LocalAccountSetupController,
-  readUnfinishedAccount,
-  releaseFinishedAccount,
-} from "./LocalAccountSetupController";
+import { LocalAccountSetupController } from "./LocalAccountSetupController";
+import { readUnfinishedAccount, releaseFinishedAccount } from "./unfinishedLocalAccount";
 import type {
   SignupTokenChecker,
   SignupTokenLookup,

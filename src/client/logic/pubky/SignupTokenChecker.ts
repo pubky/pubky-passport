@@ -7,7 +7,6 @@ import type { HomeserverSignupDetails } from "@/client/logic/signup/homeserverIn
 import { readBoundedText } from "@/libs/http/boundedBody";
 import { LOGGER, safeErrorLogFields } from "@/libs/logger/logger";
 import { REQUEST_TIMEOUT_MS } from "@/libs/passportPolicy";
-import { fetchHomeserver } from "./PubkySdkAdapter";
 
 /**
  * What the homeserver says about an invite before it is submitted. `unknown` covers transport,
@@ -28,6 +27,10 @@ type HomeserverFetch = (url: string, init: RequestInit) => Promise<Response>;
 
 /** The documented client answer: `{ status: "valid" | "used", created_at }`. */
 const tokenStatusSchema = z.object({ status: z.enum(["valid", "used"]) });
+
+/** Loads the SDK only for the first lookup, so the pages render without it. */
+const fetchHomeserver: HomeserverFetch = async (url, init) =>
+  (await import("./PubkySdkAdapter")).fetchHomeserver(url, init);
 
 /** Read-only lookup of `GET /signup_tokens/{token}`; it never consumes the invite. */
 export class SignupTokenChecker {

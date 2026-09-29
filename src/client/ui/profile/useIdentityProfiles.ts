@@ -5,12 +5,17 @@ import type { ProfileIdentity, PubkyProfile } from "@/client/logic/profile/profi
 import { usePassportCollaborators } from "@/client/ui/passportCollaborators";
 
 /**
- * Loads public profiles on demand: the active identity's straight away, the others only after
- * {@link loadAll} (the switcher is open). Fetching every saved identity on each visit would let
- * PKARR relays and shared homeservers link identities that a user keeps apart. Refetches one
- * identity after it publishes, and releases avatar object URLs as identities leave the catalog.
+ * Loads public profiles on demand: the active identity's straight away unless `loadActive` is off
+ * (a request's identity list, where nothing is chosen yet), the others only after {@link loadAll}
+ * (the switcher is open). Fetching every saved identity on each visit would let PKARR relays and
+ * shared homeservers link identities that a user keeps apart. Until an identity's profile is read,
+ * it shows the summary this browser kept from its last read. Refetches one identity after it
+ * publishes, and releases avatar object URLs as identities leave the catalog.
  */
-export function useIdentityProfiles(catalog: LocalIdentityCatalog) {
+export function useIdentityProfiles(
+  catalog: LocalIdentityCatalog,
+  { loadActive = true }: { loadActive?: boolean } = {},
+) {
   const { createProfileController } = usePassportCollaborators();
   const [controller] = useState(createProfileController);
   const [profiles, setProfiles] = useState<Record<string, ProfileIdentity>>({});
@@ -56,8 +61,10 @@ export function useIdentityProfiles(catalog: LocalIdentityCatalog) {
         return next;
       });
     }
-    queue.current?.request(showAll ? current : active && current.has(active) ? [active] : []);
-  }, [keys, active, showAll, controller]);
+    queue.current?.request(
+      showAll ? current : loadActive && active && current.has(active) ? [active] : [],
+    );
+  }, [keys, active, showAll, loadActive, controller]);
 
   return {
     controller,
@@ -81,10 +88,14 @@ export function useIdentityProfiles(catalog: LocalIdentityCatalog) {
     },
     catalog: {
       ...catalog,
-      identities: catalog.identities.map((identity) => ({
-        ...identity,
-        ...profiles[identity.publicIdentity.publicKeyZ32],
-      })),
+      identities: catalog.identities.map((identity) => {
+        const read = profiles[identity.publicIdentity.publicKeyZ32];
+        if (read) return { ...identity, ...read };
+        const summary = identity.profileSummary;
+        return summary
+          ? { ...identity, profile: { name: summary.name }, avatarUrl: summary.avatar }
+          : identity;
+      }),
     },
   };
 }

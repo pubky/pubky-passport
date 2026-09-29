@@ -7,7 +7,7 @@ import {
   selectedInvite,
   type InviteDestinationErrorCode,
 } from "@/client/logic/local-account/InviteDestinationController";
-import { releaseFinishedAccount } from "@/client/logic/local-account/LocalAccountSetupController";
+import { releaseFinishedAccount } from "@/client/logic/local-account/unfinishedLocalAccount";
 import type { LocalIdentityMetadata } from "@/client/logic/local-identity/localIdentityModels";
 import type { SignupTokenStatus } from "@/client/logic/pubky/SignupTokenChecker";
 import { sameInvite } from "@/client/logic/signup/homeserverInvite";

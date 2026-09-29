@@ -13,6 +13,7 @@ import { PassportNavigation } from "@/client/ui/shared/passportNavigation";
 import { PassportScreen } from "@/client/ui/shared/passportScreen";
 import { Button } from "@/client/ui/shared/primitives/button";
 import { DisplayHeading, LeadText } from "@/client/ui/shared/primitives/typography";
+import { useDeepLinkLauncher, useRingHandoffMode } from "@/client/ui/shared/useRingHandoff";
 import { PubkyRingQrCode } from "./pubkyRingQrCode";
 import { PubkyRingQrDialog } from "./pubkyRingQrDialog";
 
@@ -97,6 +98,9 @@ function MigrateToPubkyRing({
     [commitOwned, requestMigration],
   );
 
+  // The pointer decides whether this device can open Ring, not the width: a computer (fine
+  // pointer) cannot, so it gets only the QR code; a phone can also open this pubky in Ring.
+  const mode = useRingHandoffMode();
   // The QR code appears only when asked for, and goes away when the layout switches between the
   // inline code and the drawer or the page is hidden (another tab, a minimised window). A failure
   // message stays until the next attempt.
@@ -125,13 +129,26 @@ function MigrateToPubkyRing({
     void load(desktop ? "desktop" : "dialog");
   }
 
+  // A phone still showing this page shortly after Open in Pubky Ring did not open Ring: show the
+  // QR code.
+  const [, launcher] = useDeepLinkLauncher();
+  useEffect(
+    () =>
+      launcher?.subscribe(() => {
+        if (launcher.getState() === "failed") void load("dialog");
+      }),
+    [launcher, load],
+  );
+
   async function importPubky() {
     const migration = ownedMigrationRef.current ?? (await requestMigration());
     if (!migration) return;
     // Own a freshly created handle so the invalidation below disposes it even if navigate throws.
     ownedMigrationRef.current = migration;
     try {
-      migration.navigate();
+      launcher?.launch(() => {
+        if (!migration.navigate()) throw new Error("Migration link unavailable.");
+      });
     } finally {
       invalidate();
     }
@@ -183,20 +200,21 @@ function MigrateToPubkyRing({
               <ScanIcon />
               {desktopQr ? "Hide QR code" : "Show QR code"}
             </Button>
-            <Button
-              className="md:hidden"
-              disabled={pending && pressed !== "import"}
-              loading={pending && pressed === "import"}
-              onClick={() => {
-                setPressed("import");
-                void importPubky();
-              }}
-              size="lg"
-              type="button"
-            >
-              <PubkyBrandIcon />
-              Open in Pubky Ring
-            </Button>
+            {mode === "open" ? (
+              <Button
+                disabled={pending && pressed !== "import"}
+                loading={pending && pressed === "import"}
+                onClick={() => {
+                  setPressed("import");
+                  void importPubky();
+                }}
+                size="lg"
+                type="button"
+              >
+                <PubkyBrandIcon />
+                Open in Pubky Ring
+              </Button>
+            ) : null}
           </div>
           <p className="text-sm leading-5 text-muted-foreground">
             Once Ring has it, your key is in both places. To keep it only in Ring, remove it from

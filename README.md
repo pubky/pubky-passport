@@ -46,7 +46,8 @@ user downloads an encrypted backup; leaving before the invite is submitted disca
 Identities show their public name and avatar from `/pub/pubky.app/profile.json`; an attached Google
 account appears only as a small labelled tag, never as the identity's profile. **Manage identity →
 Edit profile** publishes name, bio, links and an optional avatar using `pubky-app-specs` file and
-blob records. New accounts stay in profile setup until **Finish** publishes the profile. Profile
+blob records. A new account is asked for its profile once, right after it is created; until
+**Finish** publishes one, the overview and Manage offer **Set up profile**. Profile
 records are validated and serialized with the `pubky-app-specs` WASM package, pinned to 0.4.4 in
 `package.json`.
 
@@ -54,7 +55,11 @@ records are validated and serialized with the `pubky-app-specs` WASM package, pi
   exactly at 0.7.0, the release whose models Nexus indexes with. Only
   `src/client/logic/profile/ProfileSpecsAdapter.ts` may import it; ESLint enforces this.
 - **Reads.** Passport reads the active identity's profile, and the others only when the identity
-  switcher is open, so a visit does not resolve every saved identity at once. Avatars are shown
+  switcher is open, so a visit does not resolve every saved identity at once (which would let PKARR
+  relays and shared homeservers link identities kept apart). A sign-in request's identity list
+  reads no profile at all: it names each identity from the public name and a 96 px avatar copy
+  kept in `localStorage` from that identity's last read, and only the identity chosen for the
+  review is read. Avatars are shown
   only from the identity's own `/pub/pubky.app/` files and blobs; remote image URLs are never
   fetched. Every read is bounded in size and time.
 - **Avatars.** A chosen image is re-encoded in the browser (at most 512 px) before upload, so

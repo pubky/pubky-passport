@@ -116,6 +116,11 @@ test("approval republishes the homeserver record before returning to the app", a
   });
 
   await page.goto(`/authorize#d=${encodeURIComponent(AUTHORIZATION_REQUEST)}`);
+  // The request opens on its identity list; choosing the identity opens its review.
+  await page
+    .getByRole("list", { name: "Choose the identity to sign in with." })
+    .getByRole("button")
+    .click();
   await page.getByRole("button", { name: "Authorize", exact: true }).click();
 
   await expect(page).toHaveURL(/^https:\/\/client\.example\/success/u);

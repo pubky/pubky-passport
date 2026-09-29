@@ -4,10 +4,10 @@ import { Result } from "better-result";
 import { useEffect, useRef, useState } from "react";
 
 import type { HomeserverSignupDetails } from "@/client/logic/signup/homeserverInvite";
-import {
+import type {
+  LocalAccountRegistrationProgress,
   LocalAccountSetupController,
-  type LocalAccountRegistrationProgress,
-  type LocalAccountSetupErrorCode,
+  LocalAccountSetupErrorCode,
 } from "@/client/logic/local-account/LocalAccountSetupController";
 import type { LocalIdentityMetadata } from "@/client/logic/local-identity/localIdentityModels";
 import { BackupFlow } from "@/client/ui/backup/backupFlow";
@@ -64,14 +64,15 @@ export function LocalAccountCreationFlow({
   onBack,
   onAbandon,
   onComplete,
-  createSetupController = () => new LocalAccountSetupController(),
+  createSetupController = createLocalAccountSetupController,
 }: {
   invite: HomeserverSignupDetails;
   onBack: () => void;
   /** Called after the draft was removed; the parent should stop resuming this setup. */
   onAbandon?: (reason: LocalAccountAbandonReason) => void;
   onComplete: (identity: LocalIdentityMetadata) => void;
-  createSetupController?: () => LocalAccountSetupPort;
+  /** Builds the setup controller; it may load the Pubky SDK first. */
+  createSetupController?: () => LocalAccountSetupPort | Promise<LocalAccountSetupPort>;
 }) {
   const controller = useRef<LocalAccountSetupPort>(null);
   // The factory is a test seam fixed at mount; only the invite decides which draft to prepare.
@@ -95,14 +96,24 @@ export function LocalAccountCreationFlow({
         }
       });
     };
-    try {
-      setup = buildController();
-      controller.current = setup;
-      const result = setup.prepareAccount(invite);
+    const prepare = (built: LocalAccountSetupPort) => {
+      if (!active) {
+        built.dispose();
+        return;
+      }
+      setup = built;
+      controller.current = built;
+      const result = built.prepareAccount(invite);
       publishPrepared(
         Result.isError(result) ? { status: "failed" } : { status: "ready", identity: result.value },
-        setup.preparedStep,
+        built.preparedStep,
       );
+    };
+    try {
+      const built = buildController();
+      if (built instanceof Promise)
+        built.then(prepare).catch(() => publishPrepared({ status: "failed" }));
+      else prepare(built);
     } catch {
       publishPrepared({ status: "failed" });
     }
@@ -357,4 +368,11 @@ function registrationErrorMessage({ code, registrationStarted }: RegistrationFai
     default:
       return "Registration did not complete. The invite may still be valid; retry with the same key.";
   }
+}
+
+/** Loads the setup controller, and with it the Pubky SDK, only once account setup opens. */
+async function createLocalAccountSetupController(): Promise<LocalAccountSetupPort> {
+  const { LocalAccountSetupController } =
+    await import("@/client/logic/local-account/LocalAccountSetupController");
+  return new LocalAccountSetupController();
 }

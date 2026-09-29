@@ -60,13 +60,11 @@ describe("RingProfileConnection", () => {
     expect(
       screen.getByRole("region", { name: "Pubky Ring profile connection" }),
     ).toBeInTheDocument();
+    // Without a coarse pointer (a computer) the QR code shows at once, with no link to open.
     expect(
       screen.getByRole("img", { name: "Pubky Ring profile connection QR code" }),
     ).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Connect in Ring" })).toHaveAttribute(
-      "href",
-      PROFILE_REQUEST,
-    );
+    expect(screen.queryByRole("link", { name: "Connect in Pubky Ring" })).toBeNull();
     expect(screen.queryByRole("img", { name: "Pubky authorization QR code" })).toBeNull();
     expect(screen.queryByRole("region", { name: "Sign in with Pubky Ring" })).toBeNull();
     await waitFor(() => expect(onComplete).toHaveBeenCalledWith(IDENTITY), { timeout: 3_000 });
@@ -75,6 +73,28 @@ describe("RingProfileConnection", () => {
       setupRequired: true,
       confirmIdentity: false,
     });
+  });
+
+  it("offers the connection link on a phone and keeps its QR code behind a toggle", async () => {
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: query === "(pointer: coarse)",
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+    }));
+    const ring = controller();
+    ring.poll.mockResolvedValue(Result.ok({ status: "waiting" }));
+    mount(ring);
+
+    expect(await screen.findByRole("link", { name: "Connect in Pubky Ring" })).toHaveAttribute(
+      "href",
+      PROFILE_REQUEST,
+    );
+    expect(screen.queryByRole("img", { name: "Pubky Ring profile connection QR code" })).toBeNull();
+    await userEvent.setup().click(screen.getByRole("button", { name: "Show QR code" }));
+    expect(
+      screen.getByRole("img", { name: "Pubky Ring profile connection QR code" }),
+    ).toBeInTheDocument();
+    vi.unstubAllGlobals();
   });
 
   it.each<[RingConnectionErrorCode, string]>([
@@ -157,7 +177,7 @@ describe("RingProfileConnection after a Ring signup", () => {
       setupRequired: true,
       confirmIdentity: true,
     });
-    expect(screen.queryByRole("link", { name: "Connect in Ring" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Connect in Pubky Ring" })).toBeNull();
     expect(ring.confirm).not.toHaveBeenCalled();
     expect(onComplete).not.toHaveBeenCalled();
 

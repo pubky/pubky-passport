@@ -71,6 +71,58 @@ describe("BackupImportFlow", () => {
     expect(importer.dispose).toHaveBeenCalledOnce();
   });
 
+  it("waits for an importer that is still loading the SDK when the form is sent", async () => {
+    let finishLoading!: () => void;
+    const importer = {
+      importBackup: vi.fn(async () => Result.ok({ status: "imported", identity: IDENTITY })),
+      republishHomeserver: vi.fn(),
+      discardPending: vi.fn(),
+      dispose: vi.fn(),
+    };
+    const onComplete = vi.fn();
+    const rendered = render(
+      <BackupImportFlow
+        defaultHomeserver={HOMESERVER}
+        onBack={vi.fn()}
+        onComplete={onComplete}
+        createImporter={() =>
+          new Promise((resolve) => {
+            finishLoading = () => resolve(importer as never);
+          })
+        }
+      />,
+    );
+    const user = userEvent.setup();
+    await submitBackup(user);
+    expect(importer.importBackup).not.toHaveBeenCalled();
+
+    finishLoading();
+    await vi.waitFor(() => expect(onComplete).toHaveBeenCalledWith(IDENTITY));
+    rendered.unmount();
+    expect(importer.dispose).toHaveBeenCalledOnce();
+  });
+
+  it("disposes an importer that finishes loading after the screen closed", async () => {
+    let finishLoading!: () => void;
+    const importer = { importBackup: vi.fn(), discardPending: vi.fn(), dispose: vi.fn() };
+    const rendered = render(
+      <BackupImportFlow
+        defaultHomeserver={HOMESERVER}
+        onBack={vi.fn()}
+        onComplete={vi.fn()}
+        createImporter={() =>
+          new Promise((resolve) => {
+            finishLoading = () => resolve(importer as never);
+          })
+        }
+      />,
+    );
+    await vi.waitFor(() => expect(finishLoading).toBeTypeOf("function"));
+    rendered.unmount();
+    finishLoading();
+    await vi.waitFor(() => expect(importer.dispose).toHaveBeenCalledOnce());
+  });
+
   it("opens backups made elsewhere with a short passphrase", async () => {
     const { importer } = renderFlow(async () =>
       Result.ok({ status: "imported", identity: IDENTITY }),
