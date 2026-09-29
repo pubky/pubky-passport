@@ -10,8 +10,14 @@ test("regional blocks disable signup methods while Google restore stays availabl
   // Restoring a Google identity does not use Homegate, so its signup route is not a gate.
   await expect(page.getByRole("button", { name: "Continue with Google" })).toBeEnabled();
   await page.getByRole("button", { name: "Create account", exact: true }).click();
-  await expect(page.getByText("Not available in your country")).toBeVisible();
-  const warningBounds = await page.getByText("Not available in your country").boundingBox();
+  // From lg the warning covers the card; below it, a row under the method names the method.
+  const wide = (page.viewportSize()?.width ?? 0) >= 1024;
+  const warning = page.getByText(
+    wide ? "Not available in your country" : "Phone verification: not available in your country",
+    { exact: true },
+  );
+  await expect(warning).toBeVisible();
+  const warningBounds = await warning.boundingBox();
   const cardBounds = await page.getByRole("group", { name: "Phone verification" }).boundingBox();
   expect(warningBounds).not.toBeNull();
   expect(cardBounds).not.toBeNull();
@@ -21,19 +27,27 @@ test("regional blocks disable signup methods while Google restore stays availabl
   );
   await expect(page.getByRole("button", { name: "Continue with SMS" })).toBeDisabled();
   await expect(page.getByRole("button", { name: "Continue with Lightning" })).toBeEnabled();
+  await expect(page.getByRole("group", { name: "Phone verification" })).toHaveAccessibleDescription(
+    "Phone verification: not available in your country",
+  );
+  // One announcement names the blocked method; the card's warning is not a live region.
+  await expect(
+    page.getByRole("status").filter({ hasText: /available in your country/u }),
+  ).toHaveText("SMS isn’t available in your country. You can use Lightning or an invite code.");
   await expect(page).toHaveURL(/\/$/);
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: testInfo.outputPath("regional-availability.png"), fullPage: true });
   // The blocked card and its warning must also fit a narrow phone without sideways scrolling.
   await page.setViewportSize({ width: 390, height: 844 });
-  await expect(page.getByText("Not available in your country")).toBeVisible();
+  const namedWarning = page.getByText("Phone verification: not available in your country");
+  await expect(namedWarning).toBeVisible();
   const narrow = await page.evaluate(() => ({
     scrollWidth: document.documentElement.scrollWidth,
     innerWidth,
   }));
   expect(narrow.scrollWidth).toBeLessThanOrEqual(narrow.innerWidth);
-  const narrowWarning = await page.getByText("Not available in your country").boundingBox();
+  const narrowWarning = await namedWarning.boundingBox();
   expect(narrowWarning!.x).toBeGreaterThanOrEqual(0);
   expect(narrowWarning!.x + narrowWarning!.width).toBeLessThanOrEqual(390);
   await page.screenshot({
@@ -54,7 +68,7 @@ test("unknown availability remains distinct from geography and can be retried", 
   await page.goto("/");
   await page.getByRole("button", { name: "Create account", exact: true }).click();
   await expect(page.getByText(/Couldn’t check all verification methods/)).toBeVisible();
-  await expect(page.getByText("Not available in your country")).toHaveCount(0);
+  await expect(page.getByText(/not available in your country/iu)).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Continue with SMS" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Enter invite manually" })).toBeEnabled();
   offline = false;
@@ -66,7 +80,7 @@ test("Google regional restrictions limit only new Google identities", async ({ p
   await page.route("**/google_verification", (route) => route.fulfill({ status: 403, body: "" }));
   await page.goto("/");
   await expect(
-    page.getByText(/New Google identities are not available in your country/),
+    page.getByText(/Creating an account with Google isn’t available in your country/u),
   ).toBeVisible();
   await expect(page.getByRole("button", { name: "Continue with Google" })).toBeEnabled();
   await expect(page.getByRole("button", { name: "Import backup" })).toBeEnabled();

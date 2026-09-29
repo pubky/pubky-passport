@@ -679,6 +679,7 @@ describe("UniversalSignerFlow with an authorization request", () => {
     await user.click(screen.getByRole("button", { name: "Continue with Google" }));
     // A restore needs no confirmation screen; the review comes straight back.
     expect(await screen.findByRole("button", { name: "Authorize" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Sign in to requesting.app" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Restore complete." })).not.toBeInTheDocument();
   });
 
@@ -748,6 +749,7 @@ describe("UniversalSignerFlow with an authorization request", () => {
     expect(
       await screen.findByRole("heading", { name: "Sign in to requesting.app" }),
     ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Create account" })).toBeInTheDocument();
     expect(screen.getByLabelText("Signing in to requesting.app")).toBeInTheDocument();
     expect(screen.queryByRole("list")).not.toBeInTheDocument();
     expect(screen.queryByText("or")).not.toBeInTheDocument();
@@ -771,6 +773,7 @@ describe("UniversalSignerFlow with an authorization request", () => {
 
     renderFlow();
 
+    // The app's own label is never shown alone: without a website, the line under it says so.
     expect(
       await screen.findByRole("heading", { name: "Sign in to Source Only App" }),
     ).toBeInTheDocument();
@@ -798,6 +801,7 @@ describe("UniversalSignerFlow with an authorization request", () => {
     await user.click(screen.getByRole("button", { name: "Continue with Google" }));
     // A restore needs no confirmation screen; the review comes straight back.
     expect(await screen.findByRole("button", { name: "Authorize" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Sign in to requesting.app" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Restore complete." })).not.toBeInTheDocument();
   });
 

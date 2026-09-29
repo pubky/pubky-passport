@@ -71,7 +71,7 @@ test("local signup sends nothing while its homeserver is unreachable and retries
   await page.getByRole("button", { name: "Send Code" }).click();
   await page.getByLabel("Verification code", { exact: true }).fill("123456");
   await page.getByRole("button", { name: "Verify Code" }).click();
-  await page.getByRole("button", { name: /Keep in Passport/u }).click();
+  await page.getByRole("button", { name: /Keep key in this browser/u }).click();
   await page.getByLabel("Enter strong password").fill("correct horse");
   await page.getByLabel("Confirm password").fill("correct horse");
   await page.getByRole("button", { name: "Download encrypted backup" }).click();

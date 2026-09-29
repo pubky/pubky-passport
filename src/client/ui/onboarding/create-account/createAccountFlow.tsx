@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useId,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import Image from "next/image";
 
 import {
@@ -310,80 +317,64 @@ function InviteDestinationChoice({
   // Both choices wait on the same invite check; only the one pressed shows it.
   const [choice, setChoice] = useState<"ring" | "passport" | null>(null);
   if (choice && !checkingInvite) setChoice(null);
+  // A key saved in this browser that already started signup must finish it, so Ring is then no
+  // longer the path to recommend.
+  const recommendRing = !registrationStarted;
+  // The chip also describes the recommended button, so moving between buttons still hears it.
+  const recommendationId = useId();
   return (
     <SignupStep
-      accent="your signer."
-      description="Choose where the new identity and its private key will live."
-      title="Choose"
+      accent="key live?"
+      description="Your key proves this account is yours. Keep it somewhere only you control."
+      title="Where should your"
       wide
     >
       <div className="grid gap-6 lg:grid-cols-2">
-        <section
-          aria-label="Pubky Ring"
-          className="flex min-w-0 flex-col gap-6 rounded-lg bg-card p-6 lg:p-8 xl:flex-row xl:items-center xl:gap-12 xl:p-12"
+        <DestinationCard
+          description={
+            registrationStarted
+              ? "Signup has started with the key saved in this browser. Continue with that key."
+              : "Keep your key on your phone and approve sign-ins there. Needs the Pubky Ring app."
+          }
+          illustration="/illustrations/identity-keys.png"
+          recommendationId={recommendRing ? recommendationId : undefined}
+          title="Pubky Ring app"
         >
-          <Image
-            alt=""
-            aria-hidden="true"
-            src="/illustrations/identity-keys.png"
-            width={192}
-            height={192}
-            className="hidden size-48 shrink-0 object-contain lg:block"
-          />
-          <div className="flex min-w-0 flex-1 flex-col gap-3">
-            <h2 className="text-2xl font-bold leading-8">Pubky Ring</h2>
-            <p className="mb-3 text-sm leading-5 text-muted-foreground">
-              {registrationStarted
-                ? "Signup has started with the key saved in Passport. Continue with that key."
-                : "Keep your private key in Ring and approve requests from your phone."}
-            </p>
-            <Button
-              className="w-full"
-              onClick={() => {
-                setChoice("ring");
-                onRing();
-              }}
-              disabled={registrationStarted || checkingInvite}
-              loading={choice === "ring"}
-              size="lg"
-              variant="secondary"
-            >
-              <PubkyBrandIcon /> {choice === "ring" ? "Checking invite…" : "Use Pubky Ring"}
-            </Button>
-          </div>
-        </section>
-        <section
-          aria-label="Pubky Passport"
-          className="flex min-w-0 flex-col gap-6 rounded-lg bg-card p-6 lg:p-8 xl:flex-row xl:items-center xl:gap-12 xl:p-12"
+          <Button
+            aria-describedby={recommendRing ? recommendationId : undefined}
+            className="w-full"
+            onClick={() => {
+              setChoice("ring");
+              onRing();
+            }}
+            disabled={registrationStarted || checkingInvite}
+            loading={choice === "ring"}
+            size="lg"
+            variant={recommendRing ? "default" : "secondary"}
+          >
+            <PubkyBrandIcon /> {choice === "ring" ? "Checking invite…" : "Keep key in Pubky Ring"}
+          </Button>
+        </DestinationCard>
+        <DestinationCard
+          description="Passport keeps your key in this browser, and you download an encrypted backup next."
+          illustration="/illustrations/backup-shield.png"
+          title="This browser"
         >
-          <Image
-            alt=""
-            aria-hidden="true"
-            src="/illustrations/backup-shield.png"
-            width={192}
-            height={192}
-            className="hidden size-48 shrink-0 object-contain lg:block"
-          />
-          <div className="flex min-w-0 flex-1 flex-col gap-3">
-            <h2 className="text-2xl font-bold leading-8">Pubky Passport</h2>
-            <p className="mb-3 text-sm leading-5 text-muted-foreground">
-              Keep your key in this browser. Download an encrypted backup to keep it safe.
-            </p>
-            <Button
-              className="w-full"
-              onClick={() => {
-                setChoice("passport");
-                void onPassport();
-              }}
-              disabled={checkingInvite}
-              loading={choice === "passport"}
-              size="lg"
-              variant="secondary"
-            >
-              <KeyRoundIcon /> {choice === "passport" ? "Checking invite…" : "Keep in Passport"}
-            </Button>
-          </div>
-        </section>
+          <Button
+            className="w-full"
+            onClick={() => {
+              setChoice("passport");
+              void onPassport();
+            }}
+            disabled={checkingInvite}
+            loading={choice === "passport"}
+            size="lg"
+            variant={recommendRing ? "secondary" : "default"}
+          >
+            <KeyRoundIcon />{" "}
+            {choice === "passport" ? "Checking invite…" : "Keep key in this browser"}
+          </Button>
+        </DestinationCard>
       </div>
       {error ? (
         <Notice focusOnMount tone="error">
@@ -404,5 +395,57 @@ function InviteDestinationChoice({
         back={onBack ? <BackButton onClick={onBack} /> : <CancelButton onClick={onCancel} />}
       />
     </SignupStep>
+  );
+}
+
+function DestinationCard({
+  title,
+  description,
+  illustration,
+  recommendationId,
+  children,
+}: {
+  title: string;
+  description: string;
+  illustration: string;
+  /** Marks the recommended card; its chip carries this id for the button to reference. */
+  recommendationId?: string | undefined;
+  children: ReactNode;
+}) {
+  const headingId = useId();
+  return (
+    // Side by side, both headings start at the top and both actions sit at the bottom, whatever
+    // wraps in between.
+    <section
+      aria-labelledby={headingId}
+      className="flex min-w-0 flex-col gap-6 rounded-lg bg-card p-6 lg:p-8 xl:flex-row xl:gap-12 xl:p-12"
+    >
+      <Image
+        alt=""
+        aria-hidden="true"
+        src={illustration}
+        width={192}
+        height={192}
+        className="hidden size-48 shrink-0 object-contain lg:block xl:self-center"
+      />
+      <div className="flex min-w-0 flex-1 flex-col gap-3">
+        {/* The chip sits beside the heading, so the card keeps the heading as its name. */}
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <h2 className="text-2xl font-bold leading-8" id={headingId}>
+            {title}
+          </h2>
+          {recommendationId ? (
+            <span
+              className="rounded-full bg-brand/16 px-2 py-0.5 text-xs font-bold uppercase leading-4 tracking-[0.05em] text-brand"
+              id={recommendationId}
+            >
+              Recommended
+            </span>
+          ) : null}
+        </div>
+        <p className="mb-3 text-sm leading-5 text-muted-foreground">{description}</p>
+        <div className="mt-auto">{children}</div>
+      </div>
+    </section>
   );
 }

@@ -6,6 +6,8 @@ const FIRST = "1aeh1m9m47shq8ixa7ikaunjb81ierse9by6f7wnkbxzj4dddwdy";
 const SECOND = "5jsjx1o6fzu6aeeo697r3i5rx15zq41kikcye8wtwdqm4nb4tryo";
 const REQUEST =
   "pubkyauth://signin?caps=/pub/app/:rw&relay=https://relay.example/inbox&secret=kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8&x-source=Example%20App";
+const NO_WEBSITE_NOTICE =
+  "This request doesn't name a website. Only continue if you just started signing in on another device.";
 
 async function seed(page: Page, count = 2) {
   await page.goto("/");
@@ -29,7 +31,7 @@ for (const count of [0, 1, 2]) {
     await seed(page, count);
     await page.reload();
     await expect(
-      page.getByRole("heading", { name: count ? "Your pubky." : "Quick & easy signing." }),
+      page.getByRole("heading", { name: count ? "Your pubky." : "Get your pubky." }),
     ).toBeVisible();
     if (count)
       await expect(
@@ -39,11 +41,14 @@ for (const count of [0, 1, 2]) {
       ).toBeVisible();
     await page.reload();
     await expect(
-      page.getByRole("heading", { name: count ? "Your pubky." : "Quick & easy signing." }),
+      page.getByRole("heading", { name: count ? "Your pubky." : "Get your pubky." }),
     ).toBeVisible();
     await page.goto(`/authorize#d=${encodeURIComponent(REQUEST)}`);
     // A request opens on its identity list; with nothing saved, only the ways to add one remain.
+    // The heading names the waiting app, never by its label alone: this request has no
+    // callbacks, so the line under the heading says it names no website.
     await expect(page.getByRole("heading", { name: "Sign in to Example App" })).toBeVisible();
+    await expect(page.getByText(NO_WEBSITE_NOTICE)).toBeVisible();
     // x-source is an app-chosen label; only a validated callback host fills the band.
     await expect(page.getByLabel("Signing in to Example App")).toHaveCount(0);
     const list = page.getByRole("list", { name: "Choose the identity to sign in with." });
@@ -81,7 +86,7 @@ test("switching persists immediately and removing the last identity returns to s
   await page.getByRole("button", { name: "Manage identity" }).click();
   await page.getByRole("button", { name: "Log out" }).click();
   await page.getByRole("button", { name: "Log out" }).click();
-  await expect(page.getByRole("heading", { name: "Quick & easy signing." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Get your pubky." })).toBeVisible();
   await expect(page.getByRole("button", { name: "Import backup" })).toBeVisible();
 });
 

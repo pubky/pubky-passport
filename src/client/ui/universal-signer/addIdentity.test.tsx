@@ -5,6 +5,7 @@ import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import type { AuthorizationRequestReview } from "@/client/logic/authorization/request/ValidatedPubkyAuthRequest";
 import type { MethodAvailability } from "@/client/logic/homegate/HomegateAvailabilityClient";
 import { makeInstanceConfig } from "@test-utils/instanceConfig";
 import { mockGoogleIdentityController } from "@test-utils/mockGoogleIdentityController";
@@ -15,6 +16,14 @@ import { PassportProviderConfiguration } from "@/client/ui/passportProviderConfi
 import { AddIdentity } from "./addIdentity";
 
 afterEach(cleanup);
+
+function request(review: Partial<AuthorizationRequestReview> = {}): AuthorizationRequestReview {
+  return {
+    authenticationMethod: "cookie",
+    capabilities: [{ path: "/pub/example.app/", read: true, write: true, scope: "specific" }],
+    ...review,
+  };
+}
 
 function renderAddIdentity(
   view: ReactNode,
@@ -67,7 +76,9 @@ it("renders an invite-only instance without Google or Homegate credentials", () 
   expect(screen.queryByRole("button", { name: "Continue with Google" })).not.toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Create account" })).toBeEnabled();
   expect(screen.getByRole("button", { name: "Import backup" })).toBeEnabled();
-  expect(screen.getByRole("button", { name: "Use Pubky Ring" })).toBeEnabled();
+  expect(screen.getByRole("button", { name: "Open in Pubky Ring" })).toBeEnabled();
+  // Without Google only the own-key card remains, so the page keeps the narrow column.
+  expect(screen.getByRole("main")).toHaveClass("max-w-[588px]");
 });
 
 describe("AddIdentity", () => {
@@ -92,7 +103,7 @@ describe("AddIdentity", () => {
 
     expect(
       screen.getByText(
-        "New Google identities are not available in your country. You can still restore an existing one.",
+        "Creating an account with Google isn’t available in your country. You can still restore an existing one.",
       ),
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Continue with Google" })).toBeEnabled();
@@ -110,10 +121,75 @@ describe("AddIdentity", () => {
     expect(screen.getByRole("button", { name: "Import backup" })).toBeEnabled();
   });
 
+  it("recommends Create account first, then Google, and keeps Ring out of the cards", () => {
+    renderAddIdentity(addIdentity({ onUseRing: vi.fn() }));
+
+    const cards = screen.getAllByRole("region");
+    expect(cards.map((card) => card.getAttribute("aria-labelledby"))).toEqual([
+      "add-account-heading",
+      "add-google-heading",
+    ]);
+    const create = screen.getByRole("button", { name: "Create account" });
+    expect(cards[0]).toContainElement(create);
+    // The one brand button is the recommendation; every other entry stays secondary.
+    expect(create).toHaveClass("bg-brand/16");
+    const importBackup = screen.getByRole("button", { name: "Import backup" });
+    expect(cards[0]).toContainElement(importBackup);
+    expect(importBackup).not.toHaveClass("bg-brand/16");
+    expect(cards[1]).toContainElement(screen.getByRole("button", { name: "Continue with Google" }));
+    const ring = screen.getByRole("button", { name: "Open in Pubky Ring" });
+    for (const card of cards) expect(card).not.toContainElement(ring);
+    expect(ring).not.toHaveClass("bg-brand/16");
+    expect(ring.closest("p")).toHaveTextContent(/^Already use Pubky Ring\?/u);
+    expect(screen.getByRole("main")).toHaveClass("max-w-[1280px]");
+    // Create account precedes Google in tab order as well as on screen.
+    expect(
+      create.compareDocumentPosition(screen.getByRole("button", { name: "Continue with Google" })),
+    ).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+  });
+
+  it.each([
+    [
+      { request: request({ requesterName: "Example App", callbackHost: "example.app" }) },
+      "Sign in to Example App",
+    ],
+    [{ request: request({ callbackHost: "example.app" }) }, "Sign in to example.app"],
+    [{}, "Get your pubky."],
+    [{ onBack: vi.fn() }, "Add an account."],
+  ])("names the task in the heading with %o", (props, heading) => {
+    renderAddIdentity(addIdentity(props));
+
+    expect(screen.getByRole("heading", { level: 1, name: heading })).toBeInTheDocument();
+  });
+
+  // The app picks its own label, so the heading never shows it alone, as on the review.
+  it.each([
+    [
+      "a label that differs from its website",
+      { requesterName: "Your Bank Secure Login", callbackHost: "login.attacker.example" },
+      "Website: login.attacker.example",
+    ],
+    [
+      "a label and no website",
+      { requesterName: "Your Bank Secure Login" },
+      "This request doesn't name a website. Only continue if you just started signing in on another device.",
+    ],
+  ])("backs the requester's name when a request has %s", (_case, review, backing) => {
+    renderAddIdentity(addIdentity({ request: request(review) }));
+
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Sign in to Your Bank Secure Login" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText((_, element) => element?.tagName === "P" && element.textContent === backing),
+    ).toBeVisible();
+  });
+
   it.each([true, false])(
-    "takes the authorization layout from the shell, not from Ring, forAuthorization=%s",
+    "takes the authorization layout from the shell's request, not from Ring, forAuthorization=%s",
     async (forAuthorization) => {
-      renderAddIdentity(addIdentity({ forAuthorization, onUseRing: vi.fn() }));
+      const pending = forAuthorization ? request() : undefined;
+      renderAddIdentity(addIdentity({ request: pending, onUseRing: vi.fn() }));
 
       await userEvent.setup().click(screen.getByRole("button", { name: "Continue with Google" }));
 
@@ -121,23 +197,36 @@ describe("AddIdentity", () => {
       expect(waiting.classList.contains("md:w-[220px]")).toBe(!forAuthorization);
     },
   );
+
+  it("keeps the Google check's retry with the cards, above the Ring line", () => {
+    renderAddIdentity(addIdentity({ onConnectRing: vi.fn() }), "unknown");
+
+    const retry = screen.getByRole("button", { name: "Check again" });
+    const ring = screen.getByRole("button", { name: "Sign in with Pubky Ring" });
+    expect(retry.compareDocumentPosition(ring)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(
+      screen.getByRole("region", { name: "Google account" }).compareDocumentPosition(retry),
+    ).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+  });
 });
 
 describe("Pubky Ring on the add screen", () => {
-  it("connects an existing Ring identity when no request is pending", async () => {
+  it("signs in with an existing Ring identity when no request is pending", async () => {
     const onConnectRing = vi.fn();
     renderAddIdentity(addIdentity({ onConnectRing }));
 
-    expect(screen.getByText(/connect Pubky Ring/u)).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Use Pubky Ring" })).not.toBeInTheDocument();
-    await userEvent.setup().click(screen.getByRole("button", { name: "Connect Pubky Ring" }));
+    expect(screen.getByText("Already use Pubky Ring?")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Open in Pubky Ring" })).not.toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole("button", { name: "Sign in with Pubky Ring" }));
     expect(onConnectRing).toHaveBeenCalledOnce();
   });
 
-  it("hands a pending request to Ring instead of connecting it", () => {
+  it("opens a pending request in Ring, named as on the review, instead of connecting", () => {
     renderAddIdentity(addIdentity({ onUseRing: vi.fn(), onConnectRing: vi.fn() }));
 
-    expect(screen.getByRole("button", { name: "Use Pubky Ring" })).toBeEnabled();
-    expect(screen.queryByRole("button", { name: "Connect Pubky Ring" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Open in Pubky Ring" })).toBeEnabled();
+    expect(
+      screen.queryByRole("button", { name: "Sign in with Pubky Ring" }),
+    ).not.toBeInTheDocument();
   });
 });

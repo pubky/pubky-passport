@@ -8,11 +8,13 @@ import { copyToClipboard } from "@/client/ui/shared/copyToClipboard";
 import { CopyIcon, RotateCcwIcon } from "@/client/ui/shared/icons";
 import { Button, ButtonLink } from "@/client/ui/shared/primitives/button";
 import { FieldMessage } from "@/client/ui/shared/primitives/fieldMessage";
+import { Label } from "@/client/ui/shared/primitives/label";
 import { Notice } from "@/client/ui/shared/notice";
 import { OnboardingCard } from "@/client/ui/shared/onboardingCard";
 import { PassportNavigation } from "@/client/ui/shared/passportNavigation";
 import { Spinner } from "@/client/ui/shared/primitives/spinner";
 import { useFocusWhenSettled } from "@/client/ui/shared/useFocusWhenSettled";
+import { formatSats } from "./formatSats";
 import { SignupStep } from "./signupStep";
 
 export function LightningVerification({
@@ -117,14 +119,13 @@ export function LightningVerification({
                 >
                   Bitcoin Lightning Payment
                 </h2>
-                <p
-                  className="text-5xl font-bold leading-none text-brand"
-                  aria-label={`${invoice.amountSat} sats`}
-                >
-                  ₿ {invoice.amountSat.toLocaleString()}
+                {/* The unit is part of the text, so the amount never reads as bitcoin. */}
+                <p className="text-5xl font-bold leading-none text-brand">
+                  {formatSats(invoice.amountSat)}{" "}
+                  <span className="text-2xl font-semibold text-secondary-foreground">sats</span>
                 </p>
                 <p className="text-base leading-6 text-secondary-foreground">
-                  Please pay {invoice.amountSat.toLocaleString()} sats to continue.
+                  One-time payment to verify your new account.
                 </p>
                 <p className="flex items-center gap-2 text-sm text-muted-foreground" role="status">
                   <Spinner className="size-4" decorative />
@@ -177,12 +178,18 @@ export function LightningVerification({
           </Notice>
         ) : null}
         {copyFailed && invoice && !expired ? (
-          <p
-            className="select-all break-all rounded-lg border border-dashed border-input p-4 text-sm"
-            aria-label="Lightning invoice"
-          >
-            {invoice.bolt11Invoice}
-          </p>
+          // A read-only field: labelled, focusable and easy to select on every device.
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="lightning-invoice-text">Lightning invoice</Label>
+            <textarea
+              className="w-full resize-none break-all rounded-lg border border-dashed border-input bg-black/10 p-4 text-sm text-foreground outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-foreground"
+              id="lightning-invoice-text"
+              onFocus={(event) => event.currentTarget.select()}
+              readOnly
+              rows={4}
+              value={invoice.bolt11Invoice}
+            />
+          </div>
         ) : null}
       </OnboardingCard>
       <PassportNavigation

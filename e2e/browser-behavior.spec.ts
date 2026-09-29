@@ -191,7 +191,7 @@ test("the first screen renders without loading the Pubky SDK, which comes when n
   const largestScript = async () => Math.max(0, ...(await Promise.all(scripts)));
 
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "Quick & easy signing." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Get your pubky." })).toBeVisible();
   await page.waitForLoadState("networkidle");
   expect(await largestScript()).toBeLessThan(1_000_000);
 
@@ -210,7 +210,7 @@ test("the signer title keeps its accent color without horizontal overflow", asyn
     await page.setViewportSize(viewport);
     await page.goto("/");
 
-    const heading = page.getByRole("heading", { name: "Quick & easy signing." });
+    const heading = page.getByRole("heading", { name: "Get your pubky." });
     await expect(heading).toBeVisible();
     const headingColor = await heading.evaluate((element) => getComputedStyle(element).color);
     const [titleBox, accentBox] = await heading.locator("span").evaluateAll((spans) =>
@@ -240,7 +240,7 @@ test("the passport chrome does not overlap content in a short viewport", async (
   await page.goto("/");
 
   const logo = page.getByRole("img", { name: "Pubky", exact: true });
-  const heading = page.getByRole("heading", { name: "Quick & easy signing." });
+  const heading = page.getByRole("heading", { name: "Get your pubky." });
   const footer = page.locator("body > footer");
   const main = page.locator("main");
   await expect(heading).toBeVisible();

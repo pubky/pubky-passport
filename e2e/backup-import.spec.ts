@@ -40,6 +40,25 @@ test.beforeEach(async ({ page }) => {
   await page.route(ANY_HTTPS_URL, (route) => route.abort());
 });
 
+for (const width of [320, 390]) {
+  test(`the picked backup's long name stays inside the page at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 800 });
+    await page.goto("/");
+    await page.getByRole("button", { name: "Import backup", exact: true }).click();
+    const picker = page.getByLabel("Pubky backup");
+    await picker.setInputFiles(recoveryFile());
+
+    // The field shows the name once, cut short inside its box, instead of a line that overflows.
+    const field = page.locator('[data-slot="file-field"]');
+    await expect(field).toContainText(`pubky-${PROFILE_KEY}.pkarr`);
+    await expect(field).toContainText("Change file");
+    await expect(page.getByText(/^Selected /u)).toHaveCount(0);
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+    ).toBe(true);
+  });
+}
+
 test("backup import reports a wrong password and saves nothing", async ({ page }) => {
   await page.goto("/");
   await importBackup(page, "wrong password");

@@ -18,6 +18,7 @@ import { PassportNavigation } from "@/client/ui/shared/passportNavigation";
 import { RecoveryScreen } from "@/client/ui/shared/recoveryScreen";
 import { Button } from "@/client/ui/shared/primitives/button";
 import { FieldMessage } from "@/client/ui/shared/primitives/fieldMessage";
+import { FileField } from "@/client/ui/shared/primitives/fileField";
 import { Input } from "@/client/ui/shared/primitives/input";
 import { Label } from "@/client/ui/shared/primitives/label";
 
@@ -253,13 +254,11 @@ export function BackupFlow({
         {confirming ? (
           <div className="flex flex-col gap-2">
             <Label htmlFor="backup-file">Backup file</Label>
-            <Input
+            <FileField
               id="backup-file"
-              type="file"
               accept=".pkarr,application/octet-stream"
               ref={file}
               disabled={pending}
-              containerClassName="border-dashed"
               aria-invalid={fileError ? true : undefined}
               aria-describedby={
                 [downloadedFile && "backup-file-help", fileError && "backup-file-error"]

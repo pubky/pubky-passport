@@ -7,11 +7,16 @@ there, and `/authorize` without a request returns to `/`. The exact validated re
 memory while the user switches identities, imports a backup, or creates an account. Passport never
 creates a replacement client request.
 
-The shared **Quick & easy signing** screen opens on first use and from **Switch identity → Add
-identity**. It offers Google, backup import, account creation, and Pubky Ring: **Use Pubky Ring**
-hands a pending app request to Ring, and without a request **Connect Pubky Ring** adds an existing
-Ring identity. Google begins from that screen;
-**Create account** opens the provider's enabled SMS, Lightning, and manual invite options.
+The shared add screen opens on first use and from **Switch identity → Add identity**; during a
+request its heading names the waiting app, backed by its website or a notice that it names none, as
+on permission review. **Create account** is the recommended path and comes first, with backup import
+beside it, then Google. Pubky Ring is a quiet link under the cards: **Open in Pubky Ring** hands a
+pending app request to Ring, and without a request **Sign in with Pubky Ring** adds an existing Ring
+identity. Google begins from that screen; **Create account**
+opens the provider's enabled SMS, Lightning, and manual invite options, each with its price or
+terms, and says that new accounts are verified once to keep out spam. The phone step says the
+number is used only to send the code and to limit sign-ups per number, and that the sign-up
+service keeps only a one-way hash of it.
 `PASSPORT_PROVIDER_CONFIG_JSON` controls which methods and provider terms are displayed.
 
 SMS and Lightning verification use the homeserver returned by Homegate. A manual invite can name any
@@ -55,9 +60,11 @@ Homegate and the PKARR relays.
 
 ## Invite destinations
 
-After SMS/Lightning verification or manual invite entry, the user chooses where the new key lives:
+After SMS/Lightning verification or manual invite entry, Passport asks where the new key should
+live. Pubky Ring is listed first as the recommended choice, unless a key saved in this browser has
+already started signup:
 
-- **Use Pubky Ring.** Passport shows a distinct `pubkyauth://direct_signup?hs=…&st=…`
+- **Keep key in Pubky Ring.** Passport shows a distinct `pubkyauth://direct_signup?hs=…&st=…`
   signup QR/deeplink, with installation help available separately. After creating the account,
   **Continue to profile** asks Ring to approve a separate limited grant for Passport's profile
   editor. Only a returned SDK session proves control. Ring returns nothing from the signup, so
@@ -67,11 +74,11 @@ After SMS/Lightning verification or manual invite entry, the user chooses where 
   and setup status, never the private key or grant. The user publishes their profile before
   completing setup. The client's original request still needs explicit approval in Ring;
   connecting the profile does not authorize the client.
-- **Keep in Passport.** Passport generates one SDK key, requires a `.pkarr` download protected by
-  a password entered twice, then offers a file check: select and decrypt that backup to confirm
-  the public key matches, or explicitly **Skip this check (not recommended)**, offered below the
-  primary action. Passport registers, publishes, verifies sign-in, and stores that same identity
-  locally, recording whether its backup was checked or only created. An uncertain attempt can be retried with the same key; no
+- **Keep key in this browser.** Passport generates one SDK key, requires a `.pkarr` download
+  protected by a password entered twice, then offers a file check: select and decrypt that backup
+  to confirm the public key matches, or explicitly **Skip this check (not recommended)**, offered
+  below the primary action. Passport registers, publishes, verifies sign-in, and stores that same
+  identity locally, recording whether its backup was checked or only created. An uncertain attempt can be retried with the same key; no
   replacement identity is generated. Each attempt first looks the invite up on its homeserver
   (read-only); when the homeserver does not answer, Passport submits and publishes nothing, says
   the homeserver could not be reached, and offers the retry. A first attempt that stops there
@@ -113,8 +120,8 @@ so an account Ring already created can finish setup. Both signers use the same *
 entry: obtain an invite, then choose Ring or Passport. Choosing Ring displays the signup QR.
 External authorization with Ring is offered only for a validated client request.
 
-Without a request, **Connect Pubky Ring** on the add screen adds an identity that already exists in
-Ring, with no invite. It asks Ring for the same profile grant as profile editing and saves whichever
+Without a request, **Sign in with Pubky Ring** on the add screen adds an identity that already
+exists in Ring, with no invite. It asks Ring for the same profile grant as profile editing and saves whichever
 pubky approves, without setup and without writing anything: an existing profile stays as it is
 until the user edits it.
 
@@ -181,21 +188,21 @@ requests, so they do not accumulate in IndexedDB. A Web Lock held by every open 
 one Passport tab from deleting a key that another still signs with. Whether Ring and the homeserver
 accept write-only scopes has not been verified on a device; test it before release.
 
-With an app request, **Use Pubky Ring** on permission review or the add screen opens a separate
-sign-in screen with the original validated `pubkyauth` URL unchanged. For a selected Ring identity,
-the review shows one action, **Continue in Pubky Ring**, and says that the identity is chosen in
-Ring: Passport cannot make Ring sign with the one it shows. An active Ring identity whose profile
-setup is unfinished opens this review first; Passport's own profile request waits until no request
-is under review. Compatible Pubky signers can use the same QR. Mobile users can open Ring directly
-or optionally show the QR. Back returns to the originating screen. Opening Ring does not send an
-authorization outcome. Passport cannot see Ring's approval, so the screen tells the user to return
-to the app after approving, and **I approved in Pubky Ring** ends the review with the request's
-`success` callback, a hint like every outcome: the popup closes after an acknowledged message, or
-the page follows the validated `x-success` URL. Without callbacks Passport shows **Return to the
-app.** and never reports the request as approved. Passport keeps that URL out of persistent
-storage, logs, and general UI state; reloading setup does not restore a scrubbed request URL. If it
-expires while setup is in progress, a locally completed identity remains saved, but the client must
-start a fresh SDK authorization flow.
+With an app request, **Open in Pubky Ring**, on permission review or the add screen, opens a
+separate sign-in screen with the original validated `pubkyauth` URL unchanged.
+For a selected Ring identity, the review shows one action, **Continue in Pubky Ring**, and says that
+the identity is chosen in Ring: Passport cannot make Ring sign with the one it shows. An active Ring
+identity whose profile setup is unfinished opens this review first; Passport's own profile request
+waits until no request is under review. Compatible Pubky signers can use the same QR. Mobile users
+can open Ring directly or optionally show the QR. Back returns to the originating screen. Opening
+Ring does not send an authorization outcome. Passport cannot see Ring's approval, so the screen
+tells the user to return to the app after approving, and **I approved in Pubky Ring** ends the
+review with the request's `success` callback, a hint like every outcome: the popup closes after an
+acknowledged message, or the page follows the validated `x-success` URL. Without callbacks Passport
+shows **Return to the app.** and never reports the request as approved. Passport keeps that URL out
+of persistent storage, logs, and general UI state; reloading setup does not restore a scrubbed
+request URL. If it expires while setup is in progress, a locally completed identity remains saved,
+but the client must start a fresh SDK authorization flow.
 
 ## Verification availability
 
@@ -209,7 +216,10 @@ the user's location. These checks never send SMS, create invoices, or request in
   provider setting. Disabled methods are not probed.
 
 A 404 hides the method. A 403 displays the disabled regional-restriction card from the
-[Figma design](https://www.figma.com/design/01ZvjSPZnKTNmaEWz0yJsq/Pubky-SHADCN?node-id=41492-356648).
+[Figma design](https://www.figma.com/design/01ZvjSPZnKTNmaEWz0yJsq/Pubky-SHADCN?node-id=41492-356648);
+below the `lg` breakpoint, where the cards collapse to their buttons, a row under the method names
+it (for example "Phone verification: not available in your country"). Screen readers hear one
+polite summary that names the blocked methods and what is left.
 Google is the exception: its probe governs only creating new Google identities, because restoring
 an existing identity from Drive never calls Homegate. **Continue with Google** stays available
 whenever the provider enables Google and a client ID is configured. A 403 adds a note that new

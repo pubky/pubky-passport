@@ -22,7 +22,7 @@ for (const viewport of [
     await page.getByLabel("Enter invite code", { exact: true }).fill("AB12-CD34-EF56");
     await page.getByRole("button", { name: "Continue", exact: true }).click();
     await inspect("signer-choice");
-    await page.getByRole("button", { name: "Keep in Passport" }).click();
+    await page.getByRole("button", { name: "Keep key in this browser" }).click();
     await expect(page.getByRole("heading", { name: "Protect your key." })).toBeVisible();
     await inspect("protect-key");
     await page.getByLabel("Enter strong password", { exact: true }).fill("correct horse battery");
@@ -36,8 +36,8 @@ for (const viewport of [
     await page.getByRole("button", { name: "Back", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Protect your key." })).toBeVisible();
     await page.getByRole("button", { name: "Back", exact: true }).click();
-    await expect(page.getByRole("heading", { name: "Choose your signer." })).toBeVisible();
-    await page.getByRole("button", { name: "Keep in Passport" }).click();
+    await expect(page.getByRole("heading", { name: "Where should your key live?" })).toBeVisible();
+    await page.getByRole("button", { name: "Keep key in this browser" }).click();
     await expect(page.getByRole("heading", { name: "Protect your key." })).toBeVisible();
     await expect(page.getByLabel("Signing in to example.app")).toHaveCount(1);
     const storage = await page.evaluate(() => JSON.stringify(localStorage));
@@ -45,7 +45,7 @@ for (const viewport of [
     expect(storage).not.toContain("kqnceEMgrNQM");
     await page.reload();
     await page.getByRole("button", { name: "Create account", exact: true }).click();
-    await page.getByRole("button", { name: "Keep in Passport" }).click();
+    await page.getByRole("button", { name: "Keep key in this browser" }).click();
     await expect(page.getByRole("heading", { name: "Protect your key." })).toBeVisible();
     await expect(page.getByLabel("Enter strong password", { exact: true })).toBeEmpty();
 
@@ -78,7 +78,7 @@ test("import uses a compact accessible form with a working Back action", async (
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
   await page.screenshot({ path: testInfo.outputPath("import-backup.png"), fullPage: true });
   await page.getByRole("button", { name: "Back", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Quick & easy signing." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Get your pubky." })).toBeVisible();
 });
 
 test("removing a browser-only key without a backup requires acknowledging one", async ({
@@ -109,7 +109,7 @@ test("removing a browser-only key without a backup requires acknowledging one", 
   await page.getByRole("checkbox", { name: /I have a backup of this key/ }).check();
   await remove.click();
 
-  await expect(page.getByRole("heading", { name: "Quick & easy signing." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Get your pubky." })).toBeVisible();
   expect(
     await page.evaluate(() =>
       Object.keys(localStorage).filter((key) => key.includes("/local-identities/v1/identity/")),

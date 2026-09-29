@@ -4,8 +4,8 @@ Pubky Passport is a web signer for the [Pubky](https://pubky.org) protocol. It k
 identities in the browser and signs in to Pubky apps on their behalf, the way
 [Pubky Ring](https://github.com/pubky/pubky-ring) does on a phone. An identity gets into Passport
 in one of four ways: **Continue with Google**, **Create account** with SMS, Lightning or an invite,
-**Import backup** from an encrypted recovery file, or **Connect Pubky Ring** for an identity that
-stays in Ring.
+**Import backup** from an encrypted recovery file, or **Sign in with Pubky Ring** for an identity
+that stays in Ring.
 
 Production runs at [passport.pubky.app](https://passport.pubky.app).
 

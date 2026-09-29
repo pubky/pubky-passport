@@ -133,4 +133,13 @@ describe("PhoneNumberStep", () => {
     rerender(step(false, "Too many attempts. Try again later."));
     expect(screen.getByLabelText("Phone number")).toHaveFocus();
   });
+
+  it("says why the number is needed and that only a one-way hash of it is kept", () => {
+    render(<PhoneNumberStep error={null} onBack={vi.fn()} onSendCode={vi.fn()} pending={false} />);
+
+    const phone = screen.getByRole("textbox", { name: "Phone number" });
+    expect(phone).toHaveAccessibleDescription(
+      /only to send this code and to limit sign-ups per number\. The sign-up service keeps a one-way hash of it, never the number itself\. It isn’t added to your Pubky profile or shared with the apps you sign in to\./u,
+    );
+  });
 });

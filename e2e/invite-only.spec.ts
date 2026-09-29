@@ -5,7 +5,7 @@ import { expect, test } from "./helpers/passportTest";
 test("offers only manual invites on a provider without Google or Homegate", async ({ page }) => {
   await page.goto("/");
 
-  await expect(page.getByRole("heading", { name: "Quick & easy signing." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Get your pubky." })).toBeVisible();
   // Passport names no provider.
   await expect(page.getByText(/Hosted by/u)).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Continue with Google" })).toHaveCount(0);

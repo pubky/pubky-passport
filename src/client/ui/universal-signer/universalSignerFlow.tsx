@@ -313,7 +313,7 @@ function ReadyPassport({
           );
         return (
           <AddIdentity
-            forAuthorization={hasRequest}
+            request={authorization.status === "review" ? authorization.review : undefined}
             onUseRing={hasRequest ? () => openRing({ view: "add", back: addBack }) : undefined}
             onConnectRing={
               hasRequest ? undefined : () => navigate({ view: "connect-ring", back: addBack })

@@ -247,13 +247,15 @@ describe("shared addition navigation", () => {
       await user.type(screen.getByLabelText("Enter invite code"), "AB12-CD34-EF56");
       await screen.findByText("Invite verified with the homeserver.");
       await user.click(screen.getByRole("button", { name: "Continue" }));
-      await user.click(screen.getByRole("button", { name: /Keep in Passport/ }));
+      await user.click(screen.getByRole("button", { name: /Keep key in this browser/ }));
       await user.type(await screen.findByLabelText("Enter strong password"), "correct horse");
       await user.type(screen.getByLabelText("Confirm password"), "correct horse");
       await user.click(screen.getByRole("button", { name: "Download encrypted backup" }));
       act(notifyAdded);
       expect(screen.getByRole("heading", { name: "Verify backup." })).toBeInTheDocument();
-      expect(screen.queryByRole("button", { name: /Use Pubky Ring/ })).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: /Keep key in Pubky Ring/ }),
+      ).not.toBeInTheDocument();
       expect(LOCAL.registerAccount).not.toHaveBeenCalled();
       if (skip) {
         await user.click(screen.getByRole("button", { name: "Skip this check (not recommended)" }));
@@ -314,7 +316,7 @@ describe("shared addition navigation", () => {
       await user.type(screen.getByLabelText("Enter invite code"), "AB12-CD34-EF56");
       await screen.findByText("Invite verified with the homeserver.");
       await user.click(screen.getByRole("button", { name: "Continue" }));
-      await user.click(screen.getByRole("button", { name: /Keep in Passport/ }));
+      await user.click(screen.getByRole("button", { name: /Keep key in this browser/ }));
       await user.type(await screen.findByLabelText("Enter strong password"), "correct horse");
       await user.type(screen.getByLabelText("Confirm password"), "correct horse");
       await user.click(screen.getByRole("button", { name: "Download encrypted backup" }));
@@ -386,10 +388,14 @@ describe("account creation navigation", () => {
     mount(false);
 
     expect(await screen.findByRole("button", { name: "Switch identity" })).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "Choose your signer." })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "Where should your key live?" }),
+    ).not.toBeInTheDocument();
     await openAccountCreation(user);
 
-    expect(screen.getByRole("heading", { name: "Choose your signer." })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Where should your key live?" }),
+    ).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Protect your key." })).not.toBeInTheDocument();
   });
 
@@ -400,11 +406,13 @@ describe("account creation navigation", () => {
     mount(false);
     await openAccountCreation(user);
 
-    await user.click(screen.getByRole("button", { name: /Keep in Passport/ }));
+    await user.click(screen.getByRole("button", { name: /Keep key in this browser/ }));
     expect(await screen.findByRole("heading", { name: "Protect your key." })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Back" }));
-    expect(screen.getByRole("heading", { name: "Choose your signer." })).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: /Use Pubky Ring/ }));
+    expect(
+      screen.getByRole("heading", { name: "Where should your key live?" }),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /Keep key in Pubky Ring/ }));
 
     const ring = screen.getByRole("link", { name: /Continue with Pubky Ring/ });
     expect(new URL(ring.getAttribute("href")!).searchParams.get("st")).toBe("saved-invite");
@@ -414,9 +422,16 @@ describe("account creation navigation", () => {
     saveDraft({ registrationStarted: true });
     mount(false);
 
-    expect(await screen.findByRole("heading", { name: "Choose your signer." })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Use Pubky Ring/ })).toBeDisabled();
-    expect(screen.getByRole("button", { name: /Keep in Passport/ })).toBeEnabled();
+    expect(
+      await screen.findByRole("heading", { name: "Where should your key live?" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Keep key in Pubky Ring/ })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /Keep key in this browser/ })).toBeEnabled();
+    // Only this browser's key can finish, so it takes the recommendation from Ring.
+    expect(screen.queryByText("Recommended")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Keep key in this browser/ })).toHaveClass(
+      "bg-brand/16",
+    );
   });
 
   /** Submits a manual invite with a Passport key, then drops the key after sign-in fails. */
@@ -439,7 +454,7 @@ describe("account creation navigation", () => {
     await user.type(screen.getByLabelText("Enter invite code"), "AB12-CD34-EF56");
     await screen.findByText("Invite verified with the homeserver.");
     await user.click(screen.getByRole("button", { name: "Continue" }));
-    await user.click(screen.getByRole("button", { name: /Keep in Passport/ }));
+    await user.click(screen.getByRole("button", { name: /Keep key in this browser/ }));
     await user.type(await screen.findByLabelText("Enter strong password"), "correct horse");
     await user.type(screen.getByLabelText("Confirm password"), "correct horse");
     await user.click(screen.getByRole("button", { name: "Download encrypted backup" }));
@@ -470,22 +485,22 @@ describe("account creation navigation", () => {
 
       if (kept) {
         await vi.waitFor(() =>
-          expect(screen.getByRole("button", { name: /Use Pubky Ring/ })).toBeEnabled(),
+          expect(screen.getByRole("button", { name: /Keep key in Pubky Ring/ })).toBeEnabled(),
         );
       } else {
         expect(
           await screen.findByRole("button", { name: "Enter invite manually" }),
         ).toBeInTheDocument();
         expect(
-          screen.queryByRole("heading", { name: "Choose your signer." }),
+          screen.queryByRole("heading", { name: "Where should your key live?" }),
         ).not.toBeInTheDocument();
       }
     },
   );
 
   it.each([
-    ["Use Pubky Ring", /Use Pubky Ring/, "link", /Continue with Pubky Ring/],
-    ["Keep in Passport", /Keep in Passport/, "heading", /Protect your key\./],
+    ["Keep key in Pubky Ring", /Keep key in Pubky Ring/, "link", /Continue with Pubky Ring/],
+    ["Keep key in this browser", /Keep key in this browser/, "heading", /Protect your key\./],
   ] as const)(
     "checks an invite again before %s reuses it when the check after starting over failed",
     async (_, signer, role, destination) => {
@@ -500,7 +515,9 @@ describe("account creation navigation", () => {
       expect(await screen.findByRole("alert")).toHaveTextContent(
         "This invite has already been used.",
       );
-      expect(screen.getByRole("heading", { name: "Choose your signer." })).toBeInTheDocument();
+      expect(
+        screen.getByRole("heading", { name: "Where should your key live?" }),
+      ).toBeInTheDocument();
 
       checkSignupToken.mockResolvedValueOnce("valid");
       await user.click(screen.getByRole("button", { name: signer }));
@@ -555,15 +572,17 @@ describe("account creation navigation", () => {
     await user.type(screen.getByLabelText("Enter invite code"), "AB12-CD34-EF56");
     await screen.findByText("Invite verified with the homeserver.");
     await user.click(screen.getByRole("button", { name: "Continue" }));
-    await user.click(screen.getByRole("button", { name: /Use Pubky Ring/ }));
+    await user.click(screen.getByRole("button", { name: /Keep key in Pubky Ring/ }));
     await user.click(screen.getByRole("button", { name: "Back" }));
 
-    await user.click(screen.getByRole("button", { name: /Keep in Passport/ }));
+    await user.click(screen.getByRole("button", { name: /Keep key in this browser/ }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "Pubky Ring has already used this invite.",
     );
-    expect(screen.getByRole("heading", { name: "Choose your signer." })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Where should your key live?" }),
+    ).toBeInTheDocument();
     expect(checkSignupToken).toHaveBeenCalledTimes(2);
   });
 });

@@ -141,9 +141,7 @@ describe("UniversalSignerFlow identity navigation", () => {
 
   it("shows the landing page when no local identity exists", async () => {
     renderSigner();
-    expect(
-      await screen.findByRole("heading", { name: "Quick & easy signing." }),
-    ).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Get your pubky." })).toBeInTheDocument();
   });
 
   it("offers to reload when local identity storage is unavailable", async () => {
@@ -213,9 +211,7 @@ describe("UniversalSignerFlow identity navigation", () => {
     expect(screen.getByRole("button", { name: "Manage identity" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Authorize an app" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Download backup" })).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("heading", { name: "Quick & easy signing." }),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Get your pubky." })).not.toBeInTheDocument();
   });
 
   it("shows the active identity when several identities exist", async () => {
@@ -253,9 +249,7 @@ describe("UniversalSignerFlow identity navigation", () => {
     expect(screen.getByRole("heading", { name: "Switch identity." })).toBeInTheDocument();
     await userEvent.setup().click(screen.getByRole("button", { name: "Add identity" }));
 
-    expect(
-      await screen.findByRole("heading", { name: "Quick & easy signing." }),
-    ).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Add an account." })).toBeInTheDocument();
   });
 
   it("gates a newly added identity behind setup completion", async () => {
@@ -499,9 +493,7 @@ describe("UniversalSignerFlow identity navigation", () => {
       FLOW.listener?.();
     });
 
-    expect(
-      await screen.findByRole("heading", { name: "Quick & easy signing." }),
-    ).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Get your pubky." })).toBeInTheDocument();
   });
 
   it.each([
@@ -550,9 +542,7 @@ describe("UniversalSignerFlow identity navigation", () => {
     await userEvent.setup().click(screen.getByRole("checkbox"));
     await userEvent.setup().click(screen.getByRole("button", { name: "Remove key" }));
 
-    expect(
-      await screen.findByRole("heading", { name: "Quick & easy signing." }),
-    ).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Get your pubky." })).toBeInTheDocument();
   });
 
   it("returns to the logout confirmation after the backup it asked for", async () => {

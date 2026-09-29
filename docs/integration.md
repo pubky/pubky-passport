@@ -46,7 +46,9 @@ Passport opens a request in two steps. First it lists every identity saved in th
 **Create account** and **Open in Pubky Ring** below them, and a quieter link to a separate step
 that offers only Google and backup import (or, on an instance without Google, opens the backup
 import directly); without saved identities it shows only those options, with **Create account**
-recommended. The list reads no profiles: it shows the names and avatars kept from earlier reads.
+recommended. Every step names your app the way permission review does: with your callback host
+when your `x-source` label differs from it, or with a notice when the request has no callbacks. The
+list reads no profiles: it shows the names and avatars kept from earlier reads.
 Choosing an identity opens the permission review, with **Authorize**, **Cancel** and **Switch**
 back to the list. Identities held in Ring are labelled **Key in Pubky Ring**; their review shows
 one action, **Continue in Pubky Ring**, and says that the identity is chosen in Ring. **Open in Pubky Ring** hands your request to Ring unchanged: on a phone or tablet

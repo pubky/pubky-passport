@@ -1,11 +1,17 @@
 import Image from "next/image";
+import { useId } from "react";
 import { BackButton } from "@/client/ui/shared/backButton";
 import { PassportScreen } from "@/client/ui/shared/passportScreen";
 import { Button } from "@/client/ui/shared/primitives/button";
 import { DisplayHeading, LeadText } from "@/client/ui/shared/primitives/typography";
 import { ProviderTerms, usePassportProvider } from "@/client/ui/passportProviderConfiguration";
 import { useHomegateAvailability } from "@/client/ui/homegateAvailability";
-import { AvailabilityCard, AvailabilityNotice } from "@/client/ui/verificationAvailability";
+import {
+  AvailabilityCard,
+  AvailabilityNotice,
+  describeBlockedMethods,
+} from "@/client/ui/verificationAvailability";
+import { formatSats } from "./formatSats";
 
 export function VerificationOptions({
   onLightning,
@@ -20,14 +26,16 @@ export function VerificationOptions({
 }) {
   const provider = usePassportProvider();
   const { methods, retry } = useHomegateAvailability();
+  const detailId = useId();
   const options = [
     {
       method: "lightning" as const,
       title: "Lightning payment",
+      name: "Lightning",
       detail:
         provider.paymentDescription ??
         (methods.lightning.amountSat
-          ? `Verify with ${methods.lightning.amountSat.toLocaleString("en-US")} sats`
+          ? `Verify with ${formatSats(methods.lightning.amountSat)} sats`
           : "Verify with a Lightning payment"),
       button: "Continue with Lightning",
       image: "/illustrations/verification-payment.png",
@@ -37,6 +45,7 @@ export function VerificationOptions({
     {
       method: "sms" as const,
       title: "Phone verification",
+      name: "SMS",
       detail: "Verify with your phone number",
       button: "Continue with SMS",
       image: "/illustrations/sms-verification.png",
@@ -46,6 +55,7 @@ export function VerificationOptions({
     {
       method: "invite" as const,
       title: "Invite code",
+      name: "an invite code",
       detail: "Use an invite from a homeserver",
       button: "Enter invite manually",
       image: "/illustrations/invite.png",
@@ -59,6 +69,14 @@ export function VerificationOptions({
         // Methods still being probed keep their place so the layout does not shift under a tap.
         ["available", "blocked", "checking"].includes(methods[option.method].status)),
   );
+  const statusOf = (method: (typeof options)[number]["method"]) =>
+    method === "invite" ? "available" : methods[method].status;
+  const blockedSummary = describeBlockedMethods(
+    options.filter((option) => statusOf(option.method) === "blocked").map((option) => option.name),
+    options
+      .filter((option) => statusOf(option.method) === "available")
+      .map((option) => option.name),
+  );
   return (
     <PassportScreen width="wide" className="gap-6">
       <div className="space-y-3">
@@ -68,14 +86,17 @@ export function VerificationOptions({
         <LeadText>
           {provider.storageDescription ?? "Choose how to verify and create your Pubky account."}
         </LeadText>
+        <p className="text-sm leading-5 text-muted-foreground">
+          New accounts are verified once to keep out spam.
+        </p>
       </div>
       <section
         aria-label="Verification methods"
-        className={`grid gap-3 rounded-lg bg-card p-6 lg:gap-6 lg:bg-transparent lg:p-0 ${options.length === 3 ? "lg:grid-cols-3" : options.length === 2 ? "lg:grid-cols-2" : "lg:grid-cols-1"}`}
+        className={`grid gap-5 rounded-lg bg-card p-6 lg:gap-6 lg:bg-transparent lg:p-0 ${options.length === 3 ? "lg:grid-cols-3" : options.length === 2 ? "lg:grid-cols-2" : "lg:grid-cols-1"}`}
       >
         <h2 className="mb-3 text-xl font-bold lg:hidden">Pick verification method</h2>
         {options.map((option) => {
-          const status = option.method === "invite" ? "available" : methods[option.method].status;
+          const status = statusOf(option.method);
           const blocked = status === "blocked";
           const checking = status === "checking";
           return (
@@ -83,7 +104,7 @@ export function VerificationOptions({
               key={option.method}
               blocked={blocked}
               label={option.title}
-              className="flex min-w-0 flex-col gap-6 lg:rounded-lg lg:bg-card lg:p-12"
+              className="flex min-w-0 flex-col gap-2 lg:gap-6 lg:rounded-lg lg:bg-card lg:p-12"
             >
               <Image
                 alt=""
@@ -102,6 +123,7 @@ export function VerificationOptions({
                 </p>
               </div>
               <Button
+                aria-describedby={`${detailId}-${option.method}`}
                 className="w-full whitespace-normal"
                 size="lg"
                 variant="secondary"
@@ -120,11 +142,23 @@ export function VerificationOptions({
                 />{" "}
                 {option.button}
               </Button>
+              {/* Below lg the cards collapse to buttons; the price and terms stay under each.
+                  A blocked card is dimmed, so its line takes the full text colour to stay legible. */}
+              <p
+                className={`text-sm leading-5 lg:hidden ${blocked ? "text-foreground" : "text-muted-foreground"}`}
+                id={`${detailId}-${option.method}`}
+              >
+                {option.detail}
+              </p>
             </AvailabilityCard>
           );
         })}
       </section>
-      <AvailabilityNotice methods={[methods.sms, methods.lightning]} onRetry={retry} />
+      <AvailabilityNotice
+        blockedSummary={blockedSummary}
+        methods={[methods.sms, methods.lightning]}
+        onRetry={retry}
+      />
       <ProviderTerms />
       <BackButton onClick={onBack} />
     </PassportScreen>

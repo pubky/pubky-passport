@@ -49,6 +49,25 @@ describe("LightningVerification", () => {
       expect(screen.getByText(visual)).toHaveAttribute("aria-hidden", "true");
   });
 
+  it("names the amount in sats, grouped the same way in every locale", () => {
+    render(
+      <LightningVerification
+        invoice={{ ...invoice, amountSat: 1_000 }}
+        expired={false}
+        pending={false}
+        error={null}
+        onBack={vi.fn()}
+        onCreateInvoice={vi.fn()}
+        onCheckPayment={vi.fn()}
+      />,
+    );
+    const amount = screen.getByText("1,000");
+    expect(amount).toHaveTextContent(/^1,000 sats$/u);
+    expect(amount).not.toHaveAttribute("aria-label");
+    expect(screen.queryByText(/₿/u)).not.toBeInTheDocument();
+    expect(screen.getByText("One-time payment to verify your new account.")).toBeVisible();
+  });
+
   it("confirms copying the invoice only after the clipboard succeeds", async () => {
     let finishCopy!: () => void;
     const writeText = vi.fn(
@@ -83,7 +102,9 @@ describe("LightningVerification", () => {
       }),
     );
     expect(MOCKS.toastInfo).not.toHaveBeenCalledWith("Invoice copied to clipboard");
-    expect(screen.getByText(invoice.bolt11Invoice)).toBeVisible();
+    const manualCopy = screen.getByRole("textbox", { name: "Lightning invoice" });
+    expect(manualCopy).toHaveValue(invoice.bolt11Invoice);
+    expect(manualCopy).toHaveAttribute("readonly");
     expect(screen.getByRole("link", { name: "Pay Now" })).toHaveAttribute(
       "href",
       `lightning:${invoice.bolt11Invoice}`,

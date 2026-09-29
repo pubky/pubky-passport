@@ -17,6 +17,7 @@ import { PassportNavigation } from "@/client/ui/shared/passportNavigation";
 import { RecoveryScreen } from "@/client/ui/shared/recoveryScreen";
 import { Button } from "@/client/ui/shared/primitives/button";
 import { FieldMessage } from "@/client/ui/shared/primitives/fieldMessage";
+import { FileField } from "@/client/ui/shared/primitives/fileField";
 import { Input } from "@/client/ui/shared/primitives/input";
 import { Label } from "@/client/ui/shared/primitives/label";
 
@@ -215,11 +216,10 @@ export function BackupImportFlow({
       <form className="flex flex-col gap-6" onSubmit={(event) => void submit(event)}>
         <div className="flex flex-col gap-2">
           <Label htmlFor="passport-backup">Pubky backup</Label>
-          <Input
+          <FileField
             accept=".pkarr,application/octet-stream"
             aria-describedby={fileError ? "passport-backup-error" : undefined}
             aria-invalid={fileError ? true : undefined}
-            containerClassName="border-dashed"
             disabled={pending}
             id="passport-backup"
             onChange={(event) => {
@@ -227,9 +227,7 @@ export function BackupImportFlow({
               setError(undefined);
             }}
             ref={fileInput}
-            type="file"
           />
-          {fileName ? <p className="text-xs text-muted-foreground">Selected {fileName}</p> : null}
           {fileError ? (
             <FieldMessage error id="passport-backup-error" role="alert">
               {fileError}

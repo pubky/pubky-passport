@@ -30,7 +30,7 @@ const LOCAL_IDENTITY_STORAGE = {
 test("shows shared onboarding when no request was supplied", async ({ page }) => {
   await page.goto("/");
 
-  await expect(page.getByRole("heading", { name: "Quick & easy signing." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Get your pubky." })).toBeVisible();
   await expect(page.getByRole("button", { name: "Continue with Google" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Import backup" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Create account" })).toBeVisible();
@@ -572,7 +572,7 @@ test("rejects an unsafe relay without adding it to CSP", async ({ page }) => {
   await page.getByRole("button", { name: "Back", exact: true }).click();
   expect((await homeResponse).ok()).toBe(true);
   await expect(page).toHaveURL(/\/$/u);
-  await expect(page.getByRole("heading", { name: "Quick & easy signing." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Get your pubky." })).toBeVisible();
 });
 
 test("reviews and scrubs a v0.10 grant authorization request", async ({ page }) => {

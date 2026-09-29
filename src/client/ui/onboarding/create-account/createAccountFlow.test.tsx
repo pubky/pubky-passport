@@ -155,6 +155,26 @@ function stubCoarsePointer() {
 }
 
 describe("CreateAccountFlow", () => {
+  it("asks where the key should live and recommends Pubky Ring first", async () => {
+    mountFlow({ storage: storedInvite() });
+
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "Where should your key live?" }),
+    ).toBeVisible();
+    const [ring, browser] = screen.getAllByRole("region");
+    expect(ring).toHaveAccessibleName("Pubky Ring app");
+    expect(within(ring!).getByText("Recommended")).toBeVisible();
+    const keepInRing = within(ring!).getByRole("button", { name: "Keep key in Pubky Ring" });
+    expect(keepInRing).toHaveClass("bg-brand/16");
+    // Moving from button to button still says which one is recommended.
+    expect(keepInRing).toHaveAccessibleDescription("Recommended");
+    expect(browser).toHaveAccessibleName("This browser");
+    expect(within(browser!).queryByText("Recommended")).toBeNull();
+    const keepHere = within(browser!).getByRole("button", { name: "Keep key in this browser" });
+    expect(keepHere).not.toHaveClass("bg-brand/16");
+    expect(keepHere).not.toHaveAttribute("aria-describedby");
+  });
+
   it("keeps a verified SMS invite through Cancel and offers it again without verifying", async () => {
     stubCoarsePointer();
     const user = userEvent.setup();
@@ -164,15 +184,17 @@ describe("CreateAccountFlow", () => {
     await user.click(screen.getByRole("button", { name: "Send Code" }));
     await user.type(screen.getByLabelText("Verification code", { exact: true }), "123456");
     await user.click(screen.getByRole("button", { name: "Verify Code" }));
-    expect(await screen.findByRole("heading", { name: "Choose your signer." })).toBeVisible();
+    expect(
+      await screen.findByRole("heading", { name: "Where should your key live?" }),
+    ).toBeVisible();
 
     await user.click(screen.getByRole("button", { name: "Cancel" }));
     expect(first.onBack).toHaveBeenCalledOnce();
     first.unmount();
 
     const second = mountFlow({ storage: first.storage });
-    expect(screen.getByRole("heading", { name: "Choose your signer." })).toBeVisible();
-    await user.click(screen.getByRole("button", { name: /Use Pubky Ring/u }));
+    expect(screen.getByRole("heading", { name: "Where should your key live?" })).toBeVisible();
+    await user.click(screen.getByRole("button", { name: /Keep key in Pubky Ring/u }));
     const ring = screen.getByRole("link", { name: /Continue with Pubky Ring/u });
     expect(new URL(ring.getAttribute("href")!).searchParams.get("st")).toBe(INVITE.signupToken);
     expect(first.verification.sendSmsCode).toHaveBeenCalledOnce();
@@ -188,7 +210,7 @@ describe("CreateAccountFlow", () => {
     const dialog = screen.getByRole("dialog", { name: "Discard this invite?" });
     await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
     expect(storage.length).toBe(1);
-    expect(screen.getByRole("heading", { name: "Choose your signer." })).toBeVisible();
+    expect(screen.getByRole("heading", { name: "Where should your key live?" })).toBeVisible();
 
     await user.click(screen.getByRole("button", { name: "Discard invite" }));
     const confirmation = screen.getByRole("dialog", { name: "Discard this invite?" });
@@ -208,11 +230,11 @@ describe("CreateAccountFlow", () => {
       const user = userEvent.setup();
       const { checkSignupToken, storage } = mountFlow({ storage: storedInvite(), status });
 
-      await user.click(screen.getByRole("button", { name: /Keep in Passport/u }));
+      await user.click(screen.getByRole("button", { name: /Keep key in this browser/u }));
 
       expect(await screen.findByRole("alert")).toHaveTextContent(message);
       expect(checkSignupToken).toHaveBeenCalledWith(INVITE, expect.any(AbortSignal));
-      expect(screen.getByRole("heading", { name: "Choose your signer." })).toBeVisible();
+      expect(screen.getByRole("heading", { name: "Where should your key live?" })).toBeVisible();
       // A used invite already belongs to an account, so the next visit does not offer it.
       expect(storage.length).toBe(storedRecords);
     },
@@ -226,7 +248,7 @@ describe("CreateAccountFlow", () => {
       ringProfile: approvingRingProfile(),
     });
 
-    await user.click(screen.getByRole("button", { name: /Use Pubky Ring/u }));
+    await user.click(screen.getByRole("button", { name: /Keep key in Pubky Ring/u }));
 
     expect(await screen.findByRole("heading", { name: /Connect your/u })).toBeVisible();
     expect(screen.queryByRole("img", { name: "Pubky Ring signup QR code" })).toBeNull();
@@ -243,13 +265,13 @@ describe("CreateAccountFlow", () => {
     const user = userEvent.setup();
     const { storage, onLocalComplete } = mountFlow({ ringProfile: approvingRingProfile() });
     await user.click(screen.getByRole("button", { name: "Continue with Lightning" }));
-    expect(await screen.findByLabelText("100 sats")).toBeVisible();
+    expect(await screen.findByText("100")).toHaveTextContent(/^100 sats$/u);
     await user.click(screen.getByRole("button", { name: "Use an invite code" }));
     await user.click(screen.getByLabelText("Enter invite code"));
     await user.paste("AB12-CD34-EF56");
     await screen.findByText("Invite verified with the homeserver.");
     await user.click(screen.getByRole("button", { name: "Continue" }));
-    await user.click(screen.getByRole("button", { name: /Use Pubky Ring/u }));
+    await user.click(screen.getByRole("button", { name: /Keep key in Pubky Ring/u }));
     await user.click(screen.getByRole("button", { name: "Continue to profile" }));
     await user.click(await screen.findByRole("button", { name: "Yes, it is my new pubky" }));
 
@@ -264,7 +286,7 @@ describe("CreateAccountFlow", () => {
     const scheduler = manualScheduler();
     const { verification } = mountFlow({ schedule: scheduler.schedule });
     await user.click(screen.getByRole("button", { name: "Continue with Lightning" }));
-    expect(await screen.findByLabelText("100 sats")).toBeVisible();
+    expect(await screen.findByText("100")).toHaveTextContent(/^100 sats$/u);
 
     await act(async () => scheduler.timers[0]?.run());
     expect(await screen.findByText(/Could not reach the verification service/u)).toBeVisible();
@@ -325,9 +347,11 @@ describe("CreateAccountFlow with a finished registration's draft", () => {
     await user.type(screen.getByLabelText("Enter invite code"), "AB12-CD34-EF56");
     await screen.findByText("Invite verified with the homeserver.");
     await user.click(screen.getByRole("button", { name: "Continue" }));
-    expect(screen.getByRole("heading", { name: "Choose your signer." })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Where should your key live?" }),
+    ).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: /Use Pubky Ring/u }));
+    await user.click(screen.getByRole("button", { name: /Keep key in Pubky Ring/u }));
     const ring = screen.getByRole("link", { name: /Continue with Pubky Ring/u });
     expect(new URL(ring.getAttribute("href")!).searchParams.get("st")).toBe("AB12-CD34-EF56");
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();

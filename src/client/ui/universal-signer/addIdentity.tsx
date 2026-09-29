@@ -1,7 +1,9 @@
+import type { AuthorizationRequestReview } from "@/client/logic/authorization/request/ValidatedPubkyAuthRequest";
 import type { LocalIdentityMetadata } from "@/client/logic/local-identity/localIdentityModels";
 import { IdentityEstablishmentFlow } from "@/client/ui/onboarding/identityEstablishmentFlow";
 import { ContinueWithGoogle } from "@/client/ui/onboarding/google/continueWithGoogle";
 import Image from "next/image";
+import { RequestHeading } from "@/client/ui/authorization/requestHeading";
 import { PassportScreen } from "@/client/ui/shared/passportScreen";
 import { DisplayHeading, LeadText } from "@/client/ui/shared/primitives/typography";
 import { ProviderTerms, usePassportProvider } from "@/client/ui/passportProviderConfiguration";
@@ -13,8 +15,11 @@ import { PubkyBrandIcon } from "@/client/ui/shared/brand/pubkyBrandIcon";
 import { useHomegateAvailability } from "@/client/ui/homegateAvailability";
 import { AvailabilityNotice } from "@/client/ui/verificationAvailability";
 
+const CARD_CLASS_NAME =
+  "flex min-w-0 flex-col gap-6 rounded-lg bg-card p-6 lg:p-8 xl:flex-row xl:items-start xl:gap-12 xl:p-12";
+
 export function AddIdentity({
-  forAuthorization = false,
+  request,
   onBack,
   onCancel,
   onComplete,
@@ -23,8 +28,11 @@ export function AddIdentity({
   onUseRing,
   onConnectRing,
 }: {
-  /** Whether a supplied request waits behind this screen; set by the shell, not inferred. */
-  forAuthorization?: boolean | undefined;
+  /**
+   * The request waiting behind this screen, set by the shell rather than inferred. The heading
+   * names its requester with what backs that name, and the flows below keep the request layout.
+   */
+  request?: AuthorizationRequestReview | undefined;
   onBack?: (() => void) | undefined;
   onCancel?: (() => void) | undefined;
   onComplete: (identity: LocalIdentityMetadata) => void;
@@ -35,11 +43,14 @@ export function AddIdentity({
   /** Adds an existing Ring identity through Passport's own connection; offered without a request. */
   onConnectRing?: (() => void) | undefined;
 }) {
+  // Handing a request over is named as on the review. Without one, connecting a Ring identity
+  // signs the person in to Passport with it.
   const ring = onUseRing
-    ? { label: "Use Pubky Ring", action: onUseRing }
+    ? { label: "Open in Pubky Ring", action: onUseRing }
     : onConnectRing
-      ? { label: "Connect Pubky Ring", action: onConnectRing }
+      ? { label: "Sign in with Pubky Ring", action: onConnectRing }
       : undefined;
+  const forAuthorization = request !== undefined;
   const provider = usePassportProvider();
   const { methods, retry } = useHomegateAvailability();
   // Restoring needs only Google Drive and Passport. The Homegate probe covers new identities only.
@@ -50,22 +61,22 @@ export function AddIdentity({
       forAuthorization={forAuthorization}
       onComplete={onComplete}
       renderEntry={(startGoogle) => (
-        <PassportScreen width="wide" className="gap-6">
+        <PassportScreen width={showGoogle ? "wide" : "compact"} className="gap-6">
           <div className="space-y-3">
-            <DisplayHeading
-              accent="signing."
-              aria-label="Quick & easy signing."
-              className="[&>span]:inline"
-            >
-              Quick & easy{" "}
-            </DisplayHeading>
-            <LeadText>Add an existing identity or create your Pubky account.</LeadText>
+            {request ? (
+              <RequestHeading review={request} />
+            ) : (
+              <AddIdentityHeading adding={Boolean(onBack)} />
+            )}
+            <LeadText>
+              {forAuthorization
+                ? "To continue, create an account or add one you already have."
+                : "Create an account or add one you already have."}
+            </LeadText>
           </div>
           <div className={`grid gap-6 ${showGoogle ? "lg:grid-cols-2" : ""}`}>
-            <section
-              aria-labelledby="add-existing-heading"
-              className="flex min-w-0 flex-col gap-6 rounded-lg bg-card p-6 lg:p-8 xl:flex-row xl:items-start xl:gap-12 xl:p-12"
-            >
+            {/* The recommended path comes first in the DOM, so reading and tab order match. */}
+            <section aria-labelledby="add-account-heading" className={CARD_CLASS_NAME}>
               <Image
                 alt=""
                 aria-hidden="true"
@@ -75,22 +86,14 @@ export function AddIdentity({
                 className="hidden size-48 shrink-0 object-contain lg:block xl:self-center"
               />
               <div className="flex min-w-0 flex-1 flex-col gap-3">
-                <h2 id="add-existing-heading" className="text-2xl font-bold leading-8">
-                  Your keys
+                <h2 id="add-account-heading" className="text-2xl font-bold leading-8">
+                  Hold your own key
                 </h2>
                 <p className="mb-3 text-sm leading-5 text-muted-foreground">
-                  {onUseRing
-                    ? "Create an account, use Pubky Ring, or import an encrypted backup."
-                    : onConnectRing
-                      ? "Create an account, connect Pubky Ring, or import an encrypted backup."
-                      : "Create an account or import an encrypted backup."}
+                  Create an account and keep its key in Pubky Ring or this browser. Already have a
+                  backup file? Import it.
                 </p>
-                {ring ? (
-                  <Button className="w-full" onClick={ring.action} size="lg" variant="secondary">
-                    <PubkyBrandIcon /> {ring.label}
-                  </Button>
-                ) : null}
-                <Button className="w-full" onClick={onCreateAccount} size="lg" variant="secondary">
+                <Button className="w-full" onClick={onCreateAccount} size="lg">
                   <UserRoundPlusIcon /> Create account
                 </Button>
                 <Button className="w-full" onClick={onImport} size="lg" variant="secondary">
@@ -99,10 +102,7 @@ export function AddIdentity({
               </div>
             </section>
             {showGoogle ? (
-              <section
-                aria-labelledby="add-quick-heading"
-                className="flex min-w-0 flex-col gap-6 rounded-lg bg-card p-6 lg:p-8 xl:flex-row xl:items-start xl:gap-12 xl:p-12"
-              >
+              <section aria-labelledby="add-google-heading" className={CARD_CLASS_NAME}>
                 <Image
                   alt=""
                   aria-hidden="true"
@@ -112,16 +112,17 @@ export function AddIdentity({
                   className="hidden size-48 shrink-0 object-contain lg:block xl:self-center"
                 />
                 <div className="flex min-w-0 flex-1 flex-col gap-3">
-                  <h2 id="add-quick-heading" className="text-2xl font-bold leading-8">
-                    Quick & easy
+                  <h2 id="add-google-heading" className="text-2xl font-bold leading-8">
+                    Google account
                   </h2>
                   <p className="mb-3 text-sm leading-5 text-muted-foreground">
-                    Use your Google account to create or restore your identity.
+                    Create or restore an account with Google. Your key is encrypted before it’s
+                    saved to your Google Drive, and Google never sees it.
                   </p>
                   {googleSignupBlocked ? (
                     <p className="text-sm font-medium leading-5 text-foreground" role="status">
-                      New Google identities are not available in your country. You can still restore
-                      an existing one.
+                      Creating an account with Google isn’t available in your country. You can still
+                      restore an existing one.
                     </p>
                   ) : null}
                   <ContinueWithGoogle onContinue={startGoogle} />
@@ -129,12 +130,32 @@ export function AddIdentity({
               </section>
             ) : null}
           </div>
+          {/* The Google check's retry stays with the cards it belongs to, above the Ring line. */}
           <AvailabilityNotice methods={[methods.google]} onRetry={retry} />
+          {ring ? (
+            // Quiet on purpose: Ring suits people who already have it, not newcomers.
+            <p className="flex flex-wrap items-center justify-center gap-x-1 text-center text-sm leading-5 text-muted-foreground">
+              Already use Pubky Ring?
+              <Button className="px-3" onClick={ring.action} variant="ghost">
+                <PubkyBrandIcon /> {ring.label}
+              </Button>
+            </p>
+          ) : null}
           <ProviderTerms />
           {onBack ? <BackButton className="mt-3" onClick={onBack} /> : null}
           {onCancel ? <CancelButton className="mt-3" onClick={onCancel} /> : null}
         </PassportScreen>
       )}
     />
+  );
+}
+
+/** Without a request the heading names the task: a first account, or one more from the switcher. */
+function AddIdentityHeading({ adding }: { adding: boolean }) {
+  const [lead, accent] = adding ? ["Add an", "account."] : ["Get your", "pubky."];
+  return (
+    <DisplayHeading accent={accent} aria-label={`${lead} ${accent}`} className="[&>span]:inline">
+      {lead}{" "}
+    </DisplayHeading>
   );
 }

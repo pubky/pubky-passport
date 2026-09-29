@@ -72,7 +72,9 @@ export function PhoneNumberStep({
             containerClassName={`h-14 border-dashed px-4 ${valid ? "border-brand text-brand" : ""}`}
             className={valid ? "text-brand" : ""}
             action={valid ? <CircleCheckIcon className="text-brand" size={20} /> : undefined}
-            aria-describedby={error ? "phone-help phone-error" : "phone-help"}
+            aria-describedby={
+              error ? "phone-help phone-error phone-privacy" : "phone-help phone-privacy"
+            }
             aria-invalid={Boolean(error)}
             onChange={(event) => setPhoneNumber(event.target.value)}
           />
@@ -81,6 +83,12 @@ export function PhoneNumberStep({
               {error}
             </FieldMessage>
           ) : null}
+          {/* Homegate stores only a peppered one-way hash of the number, to cap sign-ups per number. */}
+          <p className="text-sm leading-5 text-muted-foreground" id="phone-privacy">
+            We use your number only to send this code and to limit sign-ups per number. The sign-up
+            service keeps a one-way hash of it, never the number itself. It isn’t added to your
+            Pubky profile or shared with the apps you sign in to.
+          </p>
         </OnboardingCard>
         <PassportNavigation
           className="mt-auto md:mt-0"

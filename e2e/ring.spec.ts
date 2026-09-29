@@ -38,7 +38,7 @@ test("adds an existing Ring identity from the home page with a write-only grant,
   const net = await mockRingNetwork(page, { profile: { name: "Carol" } });
   await emulateCoarsePointer(page);
   await page.goto("/");
-  await page.getByRole("button", { name: "Connect Pubky Ring" }).click();
+  await page.getByRole("button", { name: "Sign in with Pubky Ring" }).click();
   await expect(page.getByRole("heading", { name: "Connect your Ring." })).toBeVisible();
   await expect(page.getByRole("button", { name: "Finish later" })).toHaveCount(0);
 
@@ -69,17 +69,17 @@ test("an abandoned Ring connection leaves no delegated key in the browser", asyn
   await mockRingNetwork(page);
   await emulateCoarsePointer(page);
   await page.goto("/");
-  await page.getByRole("button", { name: "Connect Pubky Ring" }).click();
+  await page.getByRole("button", { name: "Sign in with Pubky Ring" }).click();
   await profileConnectionRequest(page);
   // The SDK keeps the pending request's non-extractable PoP key in IndexedDB.
   await expect.poll(() => delegatedKeyCount(page), { timeout: DELEGATED_KEY_TIMEOUT_MS }).toBe(1);
   await page.getByRole("button", { name: "Back", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Quick & easy signing." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Get your pubky." })).toBeVisible();
   await expect.poll(() => delegatedKeyCount(page), { timeout: DELEGATED_KEY_TIMEOUT_MS }).toBe(0);
 
   // Each new request replaces the previous one's key instead of adding to it.
   for (let attempt = 0; attempt < 2; attempt++) {
-    await page.getByRole("button", { name: "Connect Pubky Ring" }).click();
+    await page.getByRole("button", { name: "Sign in with Pubky Ring" }).click();
     await profileConnectionRequest(page);
     await expect.poll(() => delegatedKeyCount(page), { timeout: DELEGATED_KEY_TIMEOUT_MS }).toBe(1);
     await page.getByRole("button", { name: "Back", exact: true }).click();
@@ -91,7 +91,7 @@ test("says so when the homeserver refuses the grant after Ring approved", async 
   const net = await mockRingNetwork(page, { grantStatus: 403 });
   await emulateCoarsePointer(page);
   await page.goto("/");
-  await page.getByRole("button", { name: "Connect Pubky Ring" }).click();
+  await page.getByRole("button", { name: "Sign in with Pubky Ring" }).click();
   await ringApproves(net, (await profileConnectionRequest(page)).href);
 
   await expect(page.locator("main").getByRole("alert")).toContainText(
@@ -121,7 +121,9 @@ test("an unfinished Ring identity opens the app's request first, with one Ring a
   // The list labels the identity whose key stays in Ring.
   await page.getByRole("button", { name: /Key in Pubky Ring/u }).click();
   await expect(page.getByRole("button", { name: "Authorize", exact: true })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: /Use Pubky Ring/u })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Open in Pubky Ring", exact: true })).toHaveCount(
+    0,
+  );
   await expect(page.getByText(/You choose the identity to sign in with in Ring/u)).toBeVisible();
 
   await page.getByRole("button", { name: "Continue in Pubky Ring" }).click();

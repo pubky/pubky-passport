@@ -189,9 +189,9 @@ it("adds an existing Ring identity from the home page without an invite or a pro
   );
 
   const user = userEvent.setup();
-  expect(await screen.findByRole("heading", { name: "Quick & easy signing." })).toBeInTheDocument();
-  expect(screen.queryByRole("button", { name: "Use Pubky Ring" })).toBeNull();
-  await user.click(screen.getByRole("button", { name: "Connect Pubky Ring" }));
+  expect(await screen.findByRole("heading", { name: "Get your pubky." })).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Open in Pubky Ring" })).toBeNull();
+  await user.click(screen.getByRole("button", { name: "Sign in with Pubky Ring" }));
   expect(await screen.findByRole("heading", { name: "Connect your Ring." })).toBeInTheDocument();
   expect(
     screen.getByRole("img", { name: "Pubky Ring profile connection QR code" }),
@@ -224,5 +224,5 @@ it("offers the request handoff instead of a profile connection while an app requ
     }),
   );
   expect(await screen.findByRole("button", { name: "Open in Pubky Ring" })).toBeInTheDocument();
-  expect(screen.queryByRole("button", { name: "Connect Pubky Ring" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "Sign in with Pubky Ring" })).toBeNull();
 });
