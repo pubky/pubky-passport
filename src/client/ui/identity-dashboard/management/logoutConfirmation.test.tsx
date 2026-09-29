@@ -17,6 +17,8 @@ const GOOGLE_ACCOUNT = {
   name: "Satoshi Google",
   pictureUrl: null,
 };
+const UNLOCKED_REMOVAL_TEXT =
+  "This removes the private key from Passport in this browser. Copies can remain in the browser's files and in backups until they are overwritten. Your public profile remains online, and sessions in other apps stay signed in.";
 
 describe("LogoutConfirmation", () => {
   afterEach(() => {
@@ -24,7 +26,7 @@ describe("LogoutConfirmation", () => {
     vi.clearAllMocks();
   });
 
-  it("requires a backup acknowledgement before deleting an unbacked browser key", () => {
+  it("requires a backup acknowledgement before removing an unbacked browser key", () => {
     const onRemoveIdentity = vi.fn(() => Result.ok());
     const onRemoved = vi.fn();
     const onDownloadBackup = vi.fn();
@@ -35,14 +37,18 @@ describe("LogoutConfirmation", () => {
       onRemoved,
     });
 
-    expect(screen.getByText(/deletes the private key saved in this browser/)).toBeInTheDocument();
+    expect(screen.getByText(UNLOCKED_REMOVAL_TEXT)).toBeInTheDocument();
     expect(screen.getByRole("alert")).toHaveTextContent("No Google backup is attached");
     expect(screen.getByRole("button", { name: "Log out" })).toBeDisabled();
 
     fireEvent.click(screen.getByRole("button", { name: "Download backup" }));
     expect(onDownloadBackup).toHaveBeenCalledOnce();
 
-    fireEvent.click(screen.getByRole("checkbox"));
+    fireEvent.click(
+      screen.getByRole("checkbox", {
+        name: "I have a backup of this identity and understand the key will be removed from Passport in this browser.",
+      }),
+    );
     fireEvent.click(screen.getByRole("button", { name: "Log out" }));
     expect(onRemoveIdentity).toHaveBeenCalledOnce();
     expect(onRemoved).toHaveBeenCalledOnce();
@@ -53,6 +59,7 @@ describe("LogoutConfirmation", () => {
       identity: { publicIdentity: PUBLIC_IDENTITY, googleAccount: GOOGLE_ACCOUNT },
     });
 
+    expect(screen.getByText(UNLOCKED_REMOVAL_TEXT)).toBeInTheDocument();
     expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Download backup" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Log out" })).toBeEnabled();
@@ -62,7 +69,7 @@ describe("LogoutConfirmation", () => {
     renderConfirmation({ identity: { publicIdentity: PUBLIC_IDENTITY, keySource: "ring" } });
 
     expect(screen.getByText(/removes the saved identity from this browser/)).toBeInTheDocument();
-    expect(screen.queryByText(/deletes the private key/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/removes the private key/)).not.toBeInTheDocument();
     expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Log out" })).toBeEnabled();
   });

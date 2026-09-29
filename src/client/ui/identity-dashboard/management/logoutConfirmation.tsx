@@ -29,7 +29,7 @@ export function LogoutConfirmation({
   const [backupAcknowledged, setBackupAcknowledged] = useState(false);
   const [removalFailed, setRemovalFailed] = useState(false);
   const browserKey = identity.keySource !== "ring";
-  // Without Google Drive or Ring, logging out deletes the only copy of the key.
+  // Without a Google backup or Ring, a recovery file is the only way back once Passport removes this key.
   const unbackedKey = browserKey && !identity.googleAccount;
 
   function logOut(): void {
@@ -45,7 +45,7 @@ export function LogoutConfirmation({
       title="Log out of this identity?"
       description={
         browserKey
-          ? "This deletes the private key saved in this browser. Your public profile remains online, and sessions in other apps stay signed in."
+          ? "This removes the private key from Passport in this browser. Copies can remain in the browser's files and in backups until they are overwritten. Your public profile remains online, and sessions in other apps stay signed in."
           : "This removes the saved identity from this browser. Your public profile remains online, and sessions in other apps stay signed in."
       }
     >
@@ -71,8 +71,8 @@ export function LogoutConfirmation({
               onChange={(event) => setBackupAcknowledged(event.currentTarget.checked)}
               type="checkbox"
             />
-            I have a backup of this identity and understand the key will be deleted from this
-            browser.
+            I have a backup of this identity and understand the key will be removed from Passport in
+            this browser.
           </label>
         </>
       ) : null}
