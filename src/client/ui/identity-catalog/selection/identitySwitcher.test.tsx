@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -48,11 +48,17 @@ describe("IdentitySwitcher", () => {
       />,
     );
 
-    const activeRow = screen.getByRole("button", { name: /Active Account/ });
-    expect(activeRow).toHaveAttribute("aria-pressed", "true");
-    expect(
-      screen.getAllByRole("button").filter((button) => button.hasAttribute("aria-pressed"))[0],
-    ).toBe(activeRow);
+    // A list of identities with the active one as its current item, not a toggle button.
+    const list = screen.getByRole("list", { name: "Saved identities" });
+    // Explicit, so WebKit keeps the list (and its count) despite the removed markers.
+    expect(list).toHaveAttribute("role", "list");
+    expect(screen.getByRole("heading", { level: 2, name: "Saved identities" })).toBeInTheDocument();
+    expect(within(list).getAllByRole("listitem")).toHaveLength(IDENTITIES.length);
+    const activeRow = within(list).getByRole("button", { name: /Active Account/ });
+    expect(activeRow).toHaveAttribute("aria-current", "true");
+    expect(within(list).getAllByRole("button", { current: true })).toEqual([activeRow]);
+    expect(screen.queryByRole("button", { pressed: true })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { pressed: false })).not.toBeInTheDocument();
     // The row is the Pubky profile; Google appears only as the small attached-account tag.
     expect(activeRow).toHaveTextContent("seco...5678");
     expect(activeRow).not.toHaveTextContent("Google Active");

@@ -23,6 +23,16 @@ export function usePassportProvider(): PassportProvider {
   return provider;
 }
 
+const WHOSE = "of the homeserver provider (opens in a new tab)";
+const PROVIDER_LINK_CLASS_NAME =
+  "rounded-sm font-medium text-brand underline decoration-brand/40 underline-offset-4 hover:decoration-brand";
+
+/**
+ * The homeserver provider's own legal documents. The links are underlined, since colour alone
+ * does not mark them in a sentence, and their accessible names say whose documents they are,
+ * because Passport's own Terms of Service and Privacy Policy sit in the footer. Each name starts
+ * with the visible text, so voice control finds the link by what it shows.
+ */
 export function ProviderTerms() {
   const provider = usePassportProvider();
   if (!provider.termsUrl && !provider.privacyUrl) return null;
@@ -31,10 +41,11 @@ export function ProviderTerms() {
       Homeserver provider:{" "}
       {provider.termsUrl ? (
         <a
-          className="text-brand underline-offset-4 hover:underline"
+          aria-label={`Terms of service ${WHOSE}`}
+          className={PROVIDER_LINK_CLASS_NAME}
           href={provider.termsUrl}
           target="_blank"
-          rel="noreferrer"
+          rel="noopener noreferrer"
         >
           Terms of service
         </a>
@@ -42,10 +53,11 @@ export function ProviderTerms() {
       {provider.termsUrl && provider.privacyUrl ? " · " : null}
       {provider.privacyUrl ? (
         <a
-          className="text-brand underline-offset-4 hover:underline"
+          aria-label={`Privacy policy ${WHOSE}`}
+          className={PROVIDER_LINK_CLASS_NAME}
           href={provider.privacyUrl}
           target="_blank"
-          rel="noreferrer"
+          rel="noopener noreferrer"
         >
           Privacy policy
         </a>

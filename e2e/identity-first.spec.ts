@@ -74,7 +74,9 @@ test("switching persists immediately and removing the last identity returns to s
   await seed(page);
   await page.reload();
   await page.getByRole("button", { name: "Switch identity", exact: true }).click();
-  await expect(page.locator("main")).toBeFocused();
+  // Each screen names itself: its heading takes focus and titles the window.
+  await expect(page.getByRole("heading", { name: "Switch identity." })).toBeFocused();
+  await expect(page).toHaveTitle("Switch identity | Pubky Passport");
   await page.getByRole("button", { name: /identity-0@example\.com/ }).click();
   await expect(page.getByText("identity-0@example.com", { exact: true })).toBeVisible();
   await page.reload();
@@ -208,10 +210,12 @@ test("long identity and permission lists stay inside the page with a separated f
   });
   await page.reload();
   await page.getByRole("button", { name: "Switch identity", exact: true }).click();
-  await expect(page.locator("button[aria-pressed]")).toHaveCount(14);
+  const saved = page.getByRole("list", { name: "Saved identities" });
+  await expect(saved.getByRole("listitem")).toHaveCount(14);
+  await expect(saved.locator('button[aria-current="true"]')).toHaveCount(1);
   await page.getByRole("button", { name: "Add identity" }).scrollIntoViewIfNeeded();
   await page.getByRole("button", { name: "Add identity" }).click();
-  await expect(page.locator("main")).toBeFocused();
+  await expect(page.locator("main h1")).toBeFocused();
   expect(await page.evaluate(() => window.scrollY)).toBe(0);
   const request = new URL(REQUEST);
   request.searchParams.set(

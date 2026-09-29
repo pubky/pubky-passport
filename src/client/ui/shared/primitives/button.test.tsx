@@ -9,7 +9,7 @@ import { GoogleLogo } from "@/client/ui/shared/brand/googleLogo";
 import { PubkyBrandIcon } from "@/client/ui/shared/brand/pubkyBrandIcon";
 import { ArrowRightIcon } from "@/client/ui/shared/icons";
 
-import { Button, ButtonLink } from "./button";
+import { Button, ButtonLink, LARGE_PADDING_X } from "./button";
 
 describe("Button", () => {
   afterEach(cleanup);
@@ -93,6 +93,52 @@ describe("Button", () => {
     expect(onClick).toHaveBeenCalledOnce();
     expect(onSubmit).toHaveBeenCalledOnce();
     expect(button).toHaveFocus();
+  });
+
+  it("wraps a label that does not fit below md, and gives touch pointers 44px targets", () => {
+    render(
+      <>
+        <Button size="lg">Download encrypted backup</Button>
+        <Button>Download backup</Button>
+        <Button size="sm">Set up profile</Button>
+        <Button aria-label="Close" className="size-8" size="icon" />
+      </>,
+    );
+
+    const lg = screen.getByRole("button", { name: "Download encrypted backup" });
+    // A minimum height for one line, so a wrapped label grows the pill instead of spilling out.
+    expect(lg).toHaveClass("min-h-15", "md:whitespace-nowrap", "text-center");
+    expect(lg).not.toHaveClass("h-15", "whitespace-nowrap");
+    expect(screen.getByRole("button", { name: "Download backup" })).toHaveClass(
+      "min-h-10",
+      "pointer-coarse:min-h-11",
+    );
+    expect(screen.getByRole("button", { name: "Set up profile" })).toHaveClass(
+      "min-h-8",
+      "pointer-coarse:min-h-11",
+    );
+    // A smaller icon button still grows to 44px under a finger.
+    expect(screen.getByRole("button", { name: "Close" })).toHaveClass(
+      "size-8",
+      "pointer-coarse:size-11",
+    );
+  });
+
+  it("narrows the large pill's padding in a narrow window, unless the caller sets its own", () => {
+    render(
+      <>
+        <Button size="lg">Create account</Button>
+        <Button className="px-3" size="lg">
+          Resend Code
+        </Button>
+      </>,
+    );
+
+    expect(screen.getByRole("button", { name: "Create account" })).toHaveClass(LARGE_PADDING_X);
+    const own = screen.getByRole("button", { name: "Resend Code" });
+    expect(own).toHaveClass("px-3");
+    expect(own).not.toHaveClass(LARGE_PADDING_X);
+    expect(own.className).not.toMatch(/(^|\s)\S+:px-/u);
   });
 
   it("renders an anchor and forwards its anchor ref", () => {

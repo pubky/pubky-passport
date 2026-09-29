@@ -261,7 +261,9 @@ describe("HomeserverRecord", () => {
       "href",
       "https://acme.example/storage",
     );
-    expect(screen.getByRole("link", { name: "Terms of service" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: /^Terms of service of the homeserver provider/u }),
+    ).toBeInTheDocument();
 
     cleanup();
     renderRecord({ resolveHomeserver: async () => Result.ok(OTHER_HOMESERVER) }, (children) => (

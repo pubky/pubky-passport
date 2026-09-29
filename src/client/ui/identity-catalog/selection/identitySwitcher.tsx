@@ -1,5 +1,5 @@
 import type { LocalIdentityMetadata } from "@/client/logic/local-identity/localIdentityModels";
-import { useSyncExternalStore } from "react";
+import { useId, useSyncExternalStore } from "react";
 import { shortPublicKey } from "@/client/ui/shared/formatPublicKey";
 import { UserRoundPlusIcon } from "@/client/ui/shared/icons";
 import { BackButton } from "@/client/ui/shared/backButton";
@@ -24,6 +24,7 @@ function IdentitySwitcher({
   onSelect: (publicKeyZ32: string) => void;
   selectionFailed?: boolean;
 }) {
+  const listHeadingId = useId();
   const desktopViewport = useSyncExternalStore(
     subscribeToDesktopViewport,
     getDesktopViewport,
@@ -46,25 +47,34 @@ function IdentitySwitcher({
         Switch
       </DisplayHeading>
       <section className="flex min-h-0 flex-1 flex-col gap-3">
-        <p className="text-xs font-medium uppercase leading-4 tracking-[0.1em] text-muted-foreground">
+        <h2
+          className="text-xs font-medium uppercase leading-4 tracking-[0.1em] text-muted-foreground"
+          id={listHeadingId}
+        >
           Saved identities
-        </p>
-        {orderedIdentities.map((identity) => {
-          const account = identity.googleAccount;
-          const publicKeyZ32 = identity.publicIdentity.publicKeyZ32;
-          return (
-            <IdentityRow
-              avatarSrc={identity.avatarUrl ?? undefined}
-              detail={shortPublicKey(publicKeyZ32)}
-              googleAccount={account}
-              keyInRing={identity.keySource === "ring"}
-              key={publicKeyZ32}
-              name={identity.profile?.name ?? "Your Pubky"}
-              onClick={() => onSelect(publicKeyZ32)}
-              selected={publicKeyZ32 === activePublicKeyZ32}
-            />
-          );
-        })}
+        </h2>
+        {/* A list, so screen readers say how many identities there are; the active one is marked
+            as current. Tailwind's preflight removes list markers, and WebKit then drops the list
+            semantics unless the role is explicit. */}
+        <ul aria-labelledby={listHeadingId} className="flex flex-col gap-3" role="list">
+          {orderedIdentities.map((identity) => {
+            const account = identity.googleAccount;
+            const publicKeyZ32 = identity.publicIdentity.publicKeyZ32;
+            return (
+              <li key={publicKeyZ32}>
+                <IdentityRow
+                  avatarSrc={identity.avatarUrl ?? undefined}
+                  detail={shortPublicKey(publicKeyZ32)}
+                  googleAccount={account}
+                  keyInRing={identity.keySource === "ring"}
+                  name={identity.profile?.name ?? "Your Pubky"}
+                  onClick={() => onSelect(publicKeyZ32)}
+                  selected={publicKeyZ32 === activePublicKeyZ32}
+                />
+              </li>
+            );
+          })}
+        </ul>
         {selectionFailed ? (
           <Notice tone="error">Could not switch identities. Please try again.</Notice>
         ) : null}

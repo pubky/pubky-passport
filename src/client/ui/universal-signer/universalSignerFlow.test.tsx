@@ -351,11 +351,10 @@ describe("shared addition navigation", () => {
     await user.click(screen.getByRole("button", { name: "Back" }));
     expect(screen.getByRole("region", { name: "Other ways to sign in" })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Back" }));
-    expect(screen.getByRole("heading", { name: "Sign in to Original app" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Sign in to Original app" })).toHaveFocus();
     expect(
       screen.getByRole("list", { name: "Choose the identity to sign in with." }),
     ).toBeInTheDocument();
-    expect(screen.getByRole("main")).toHaveFocus();
     expect(cancel).not.toHaveBeenCalled();
   });
 });

@@ -53,9 +53,12 @@ describe("ChooseIdentity", () => {
 
     expect(screen.getByRole("heading", { name: "Sign in to Acme Notes" })).toBeInTheDocument();
     expect(screen.getByText("Website:", { exact: false })).toHaveTextContent("notes.example");
-    const rows = within(
-      screen.getByRole("list", { name: "Choose the identity to sign in with." }),
-    ).getAllByRole("button");
+    // The window title names the website too, not only the app's own label.
+    expect(document.title).toBe("Sign in to Acme Notes (notes.example) | Pubky Passport");
+    const list = screen.getByRole("list", { name: "Choose the identity to sign in with." });
+    // Explicit, so WebKit keeps the list (and its count) despite the removed markers.
+    expect(list).toHaveAttribute("role", "list");
+    const rows = within(list).getAllByRole("button");
     expect(rows.map((row) => row.textContent)).toEqual([
       expect.stringContaining("Key in Pubky Ring"),
       expect.stringContaining("Plain"),

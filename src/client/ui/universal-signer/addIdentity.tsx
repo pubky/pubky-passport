@@ -15,8 +15,14 @@ import { PubkyBrandIcon } from "@/client/ui/shared/brand/pubkyBrandIcon";
 import { useHomegateAvailability } from "@/client/ui/homegateAvailability";
 import { AvailabilityNotice } from "@/client/ui/verificationAvailability";
 
+/**
+ * The illustration sits above the text until xl, then beside it. Beside it, the art and spacing
+ * stay small enough to leave the text column room for "Continue with Google" on one line.
+ */
 const CARD_CLASS_NAME =
-  "flex min-w-0 flex-col gap-6 rounded-lg bg-card p-6 lg:p-8 xl:flex-row xl:items-start xl:gap-12 xl:p-12";
+  "flex min-w-0 flex-col gap-6 rounded-lg bg-card p-6 lg:p-8 xl:flex-row xl:items-start xl:gap-8";
+const ILLUSTRATION_CLASS_NAME =
+  "hidden size-48 shrink-0 object-contain lg:block xl:size-36 xl:self-center";
 
 export function AddIdentity({
   request,
@@ -83,7 +89,7 @@ export function AddIdentity({
                 src="/illustrations/identity-keys.png"
                 width={192}
                 height={192}
-                className="hidden size-48 shrink-0 object-contain lg:block xl:self-center"
+                className={ILLUSTRATION_CLASS_NAME}
               />
               <div className="flex min-w-0 flex-1 flex-col gap-3">
                 <h2 id="add-account-heading" className="text-2xl font-bold leading-8">
@@ -109,7 +115,7 @@ export function AddIdentity({
                   src="/illustrations/cloud.png"
                   width={192}
                   height={192}
-                  className="hidden size-48 shrink-0 object-contain lg:block xl:self-center"
+                  className={ILLUSTRATION_CLASS_NAME}
                 />
                 <div className="flex min-w-0 flex-1 flex-col gap-3">
                   <h2 id="add-google-heading" className="text-2xl font-bold leading-8">

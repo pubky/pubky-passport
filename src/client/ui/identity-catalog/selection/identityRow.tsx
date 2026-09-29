@@ -32,9 +32,11 @@ function IdentityRow({
 }: IdentityRowProps) {
   return (
     <button
-      aria-pressed={selected}
+      // Choosing a row switches to that identity; it toggles nothing, so the active row is the
+      // current item of its list rather than a pressed button.
+      aria-current={selected ? "true" : undefined}
       className={cn(
-        "group flex min-h-18 w-full items-center gap-2 rounded-2xl border border-transparent bg-card px-4 py-3 text-left transition-colors hover:bg-accent aria-pressed:border-brand/64",
+        "group flex min-h-18 w-full items-center gap-2 rounded-2xl border border-transparent bg-card px-4 py-3 text-left transition-colors hover:bg-accent aria-[current=true]:border-brand/64",
         className,
       )}
       type="button"

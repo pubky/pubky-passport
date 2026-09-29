@@ -29,7 +29,7 @@ test("profile setup follows Figma, preserves identity on reload and failed saves
   await expect(page.getByRole("heading", { name: "Create your profile." })).toBeVisible();
   await expect(page.getByLabel("Name", { exact: true })).toBeVisible();
   await page.screenshot({ path: info.outputPath("profile-empty.png"), fullPage: true });
-  await expect(page.locator("main")).toBeFocused();
+  await expect(page.getByRole("heading", { name: "Create your profile." })).toBeFocused();
   await page.getByLabel("Name", { exact: true }).fill(PROFILE.name);
   await page.getByLabel("Bio", { exact: true }).fill(PROFILE.bio);
   await page.getByLabel("Website", { exact: true }).fill(PROFILE.links[0]!.url);
@@ -47,7 +47,7 @@ test("profile setup follows Figma, preserves identity on reload and failed saves
   await page.getByRole("button", { name: "Back", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Your pubky." })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Choose backup method" })).toHaveCount(0);
-  await expect(page.locator("main")).toBeFocused();
+  await expect(page.getByRole("heading", { name: "Your pubky." })).toBeFocused();
   await page.getByRole("button", { name: "Set up profile" }).click();
   await page.getByLabel("Name", { exact: true }).fill(PROFILE.name);
   await page.getByLabel("Choose avatar file").setInputFiles("e2e/fixtures/profile-avatar.png");

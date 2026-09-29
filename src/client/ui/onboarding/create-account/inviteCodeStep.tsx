@@ -119,7 +119,7 @@ export function InviteCodeStep({
             <div className="flex items-center justify-between gap-3">
               <Label htmlFor="invite-homeserver">Homeserver</Label>
               <Button
-                className="h-auto px-2 py-1"
+                className="min-h-0 px-2 py-1"
                 disabled={changingHomeserver && !isPubkyPublicKey(homeserverPubky)}
                 onClick={() => setChangingHomeserver((current) => !current)}
                 type="button"

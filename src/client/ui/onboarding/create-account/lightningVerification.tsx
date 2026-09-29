@@ -168,7 +168,7 @@ export function LightningVerification({
             {error}
             {onUseInvite ? (
               <button
-                className="w-fit cursor-pointer font-medium text-brand hover:underline"
+                className="w-fit cursor-pointer font-medium text-brand hover:underline pointer-coarse:min-h-11"
                 type="button"
                 onClick={onUseInvite}
               >

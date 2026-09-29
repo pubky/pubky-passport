@@ -217,7 +217,7 @@ export function SmsCodeStep({
           ) : null}
           {error && onUseInvite ? (
             <button
-              className="w-fit cursor-pointer text-sm text-brand hover:underline"
+              className="w-fit cursor-pointer text-sm text-brand hover:underline pointer-coarse:min-h-11"
               type="button"
               onClick={onUseInvite}
             >
@@ -227,7 +227,8 @@ export function SmsCodeStep({
         </OnboardingCard>
         <div className="mt-auto flex flex-col gap-4 md:mt-0 md:flex-row md:items-center">
           <BackButton onClick={onBack} />
-          <div className="grid min-w-0 flex-1 grid-cols-2 gap-3 md:grid-cols-[minmax(0,1fr)_228px]">
+          {/* Side by side from 360px; narrower (a zoomed popup) they stack instead of wrapping. */}
+          <div className="grid min-w-0 flex-1 grid-cols-1 gap-3 min-[360px]:grid-cols-2 md:grid-cols-[minmax(0,1fr)_228px]">
             <Button
               variant="secondary"
               className="w-full px-3"

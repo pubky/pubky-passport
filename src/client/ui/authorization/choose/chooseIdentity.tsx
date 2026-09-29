@@ -99,6 +99,9 @@ export function ChooseIdentity({
               FILL_SPACE,
             )}
             onFocus={revealKeyboardFocus}
+            // Tailwind's preflight removes list markers, and WebKit then drops the list semantics
+            // unless the role is explicit.
+            role="list"
           >
             {ordered.map((identity) => {
               const publicKeyZ32 = identity.publicIdentity.publicKeyZ32;
@@ -159,11 +162,7 @@ export function ChooseIdentity({
             <PubkyBrandIcon /> Open in Pubky Ring
           </Button>
         </div>
-        <Button
-          className="h-auto min-h-10 self-center whitespace-normal text-center"
-          onClick={onMoreOptions}
-          variant="ghost"
-        >
+        <Button className="self-center" onClick={onMoreOptions} variant="ghost">
           {moreOptionsLabel}
         </Button>
       </div>

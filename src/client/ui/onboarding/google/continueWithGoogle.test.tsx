@@ -107,9 +107,11 @@ describe("ContinueWithGoogle", () => {
 
     expect(onContinue).toHaveBeenCalledOnce();
     expect(pill).toHaveClass("w-full");
-    expect(pill.parentElement).toHaveClass("relative", "flex");
+    // The pill and its overlay share one grid cell, so a wrapped label makes the pill taller.
+    expect(pill.parentElement).toHaveClass("relative", "grid");
+    expect(pill).toHaveClass("col-start-1", "row-start-1", "min-h-15");
     expect(pill.textContent).toBe("");
-    expect(trigger.parentElement).toHaveClass("pointer-events-none");
+    expect(trigger.parentElement).toHaveClass("pointer-events-none", "col-start-1", "row-start-1");
     expect(trigger).toHaveClass("pointer-events-auto");
     expect(trigger).toHaveAttribute("aria-haspopup", "dialog");
     expect(trigger).toHaveAttribute("aria-expanded", "false");
@@ -393,10 +395,13 @@ describe("ContinueWithGoogle", () => {
       const sheet = screen.getByRole("dialog", { name: TITLE });
       expect(sheet.tagName).toBe("DIALOG");
       expect(sheet).toHaveClass("mt-auto", "rounded-t-2xl", "p-0");
-      expect(within(sheet).getByRole("heading", { level: 2, name: TITLE })).toBeInTheDocument();
+      // Opening starts on the title, not on Close or on the sign-in one Enter would start.
+      expect(within(sheet).getByRole("heading", { level: 2, name: TITLE })).toHaveFocus();
       expect(trigger).toHaveAttribute("aria-expanded", "true");
       expectExplanation(sheet);
-      expect(within(sheet).getByRole("button", { name: "Close" })).toBeInTheDocument();
+      // The handle is decoration; Close is a real 44px button.
+      expect(within(sheet).getAllByRole("button", { name: "Close" })).toHaveLength(1);
+      expect(within(sheet).getByRole("button", { name: "Close" })).toHaveClass("size-11");
 
       const signIn = within(sheet).getByRole("button", { name: "Continue with Google" });
       expect(signIn).toHaveAccessibleDescription(DRIVE_PERMISSION_HINT);
@@ -407,7 +412,7 @@ describe("ContinueWithGoogle", () => {
       expect(trigger).toHaveAttribute("aria-expanded", "false");
     });
 
-    it("closes the sheet from its handle and from the backdrop", () => {
+    it("closes the sheet from Close and from the backdrop", () => {
       const { trigger } = renderControl(false);
 
       fireEvent.click(trigger);

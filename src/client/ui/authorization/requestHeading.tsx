@@ -17,6 +17,19 @@ export function describeRequester({ callbackHost, requesterName }: Authorization
   };
 }
 
+/**
+ * The window title for a request. The title labels the app's popup and is kept in history and tab
+ * search, where nothing beside it names the website, so it never carries the app's label alone:
+ * the callback host goes with it, and a request without one is not named after its label at all.
+ */
+export function requestWindowTitle(review: AuthorizationRequestReview): string {
+  const { requester, labelledHost } = describeRequester(review);
+  if (review.callbackHost === undefined) return "Sign-in request";
+  return labelledHost
+    ? `Sign in to ${requester} (${labelledHost})`
+    : `Sign in to ${review.callbackHost}`;
+}
+
 /** Below this window height a compact heading leaves room for what the screen lists. */
 export const SHORT_WINDOW_HEADING =
   "[@media(max-height:50rem)]:text-4xl [@media(max-height:50rem)]:md:text-5xl";
@@ -43,6 +56,7 @@ export function RequestHeading({
         accent={<FittedRequester>{requester}</FittedRequester>}
         aria-label={`Sign in to ${requester}`}
         className={compact ? SHORT_WINDOW_HEADING : undefined}
+        data-window-title={requestWindowTitle(review)}
       >
         Sign in to
       </DisplayHeading>

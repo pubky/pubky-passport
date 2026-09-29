@@ -7,6 +7,10 @@ type InputProps = ComponentPropsWithRef<"input"> & {
   containerClassName?: string;
 };
 
+/**
+ * A text field in a bordered box, with an optional action (e.g. paste) at its end. The input fills
+ * the box's height, so a tap anywhere across the field focuses it, not just on its line of text.
+ */
 function Input({ action, className, containerClassName, ...props }: InputProps) {
   return (
     <div
@@ -17,7 +21,7 @@ function Input({ action, className, containerClassName, ...props }: InputProps) 
     >
       <input
         className={cn(
-          "min-w-0 flex-1 bg-transparent text-base font-medium leading-6 text-foreground outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed",
+          "min-w-0 flex-1 self-stretch bg-transparent text-base font-medium leading-6 text-foreground outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed",
           className,
         )}
         {...props}

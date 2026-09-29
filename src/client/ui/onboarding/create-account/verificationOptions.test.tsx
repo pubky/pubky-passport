@@ -124,10 +124,9 @@ it("shows only supported signup methods and the configured provider terms", asyn
   );
   expect(screen.queryByRole("button", { name: "Continue with Lightning" })).not.toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "Continue with SMS" })).not.toBeInTheDocument();
-  expect(screen.getByRole("link", { name: "Terms of service" })).toHaveAttribute(
-    "href",
-    "https://provider.example/terms",
-  );
+  expect(
+    screen.getByRole("link", { name: /^Terms of service of the homeserver provider/u }),
+  ).toHaveAttribute("href", "https://provider.example/terms");
   // The invite option names no provider.
   expect(screen.getByRole("button", { name: "Enter invite manually" })).toHaveAccessibleDescription(
     "Use an invite from a homeserver",

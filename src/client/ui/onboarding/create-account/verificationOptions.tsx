@@ -124,7 +124,7 @@ export function VerificationOptions({
               </div>
               <Button
                 aria-describedby={`${detailId}-${option.method}`}
-                className="w-full whitespace-normal"
+                className="w-full"
                 size="lg"
                 variant="secondary"
                 disabled={blocked}

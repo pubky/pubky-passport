@@ -24,7 +24,8 @@ function RecoveryBeforeDetaching({
       <div className="flex flex-col gap-6 md:gap-3">
         <h1
           aria-label="Backup your pubky first."
-          className="text-5xl font-bold leading-none md:text-6xl"
+          className="text-5xl font-bold leading-none outline-none md:text-6xl"
+          tabIndex={-1}
         >
           <span className="block md:inline">Backup your </span>
           <span className="text-brand">pubky</span>

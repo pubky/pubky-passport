@@ -120,7 +120,7 @@ function ManualAuthorization({ onBack }: { onBack: () => void }) {
                   </IconButton>
                   <IconButton
                     aria-label="Paste authorization link"
-                    className="size-6 p-0 md:size-8"
+                    className="size-8 p-0"
                     onClick={() => void paste()}
                     type="button"
                     variant="ghost"

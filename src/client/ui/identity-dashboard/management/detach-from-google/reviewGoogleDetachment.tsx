@@ -29,7 +29,7 @@ function ReviewGoogleDetachment({
         backup. You’ll stay signed in on this device and can back up to Google again.
       </Notice>
 
-      <div className="relative flex h-[248px] w-full items-center justify-center md:-ml-[101px] md:h-56 md:w-[790px]">
+      <div className="relative flex h-[248px] w-full items-center justify-center md:h-56 lg:-ml-[101px] lg:w-[790px]">
         <Image
           alt=""
           aria-hidden="true"

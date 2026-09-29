@@ -26,6 +26,7 @@ import { PassportNavigation } from "@/client/ui/shared/passportNavigation";
 import { PassportScreen } from "@/client/ui/shared/passportScreen";
 import { Button } from "@/client/ui/shared/primitives/button";
 import { FieldMessage } from "@/client/ui/shared/primitives/fieldMessage";
+import { IconButton } from "@/client/ui/shared/primitives/iconButton";
 import { Input } from "@/client/ui/shared/primitives/input";
 import { Label } from "@/client/ui/shared/primitives/label";
 import { Spinner } from "@/client/ui/shared/primitives/spinner";
@@ -286,7 +287,7 @@ function ProfileEditor({
   // one way on without a profile.
   const back = onBack;
   const leave = back ? (
-    <BackButton className="w-[120px]" disabled={saving} onClick={back} />
+    <BackButton className="w-[120px] @max-[17rem]:w-full" disabled={saving} onClick={back} />
   ) : (
     finishLater
   );
@@ -435,7 +436,7 @@ function ProfileEditor({
                           id={`profile-link-${link.id}-title`}
                           value={link.title}
                           placeholder="Link title"
-                          containerClassName="h-9 border-dashed"
+                          containerClassName="h-9 border-dashed pointer-coarse:h-11"
                           onChange={(event) => editLink(link.id, { title: event.target.value })}
                         />
                         {titleError ? (
@@ -459,11 +460,12 @@ function ProfileEditor({
                       value={link.url}
                       onChange={(event) => editLink(link.id, { url: event.target.value })}
                       action={
-                        <Button
+                        // A 40px target (44px by touch) whose icon stays where the field's
+                        // padding put it.
+                        <IconButton
                           type="button"
-                          size="sm"
                           variant="ghost"
-                          className="size-6 p-0"
+                          className="-mr-3"
                           aria-label={`Remove ${link.title || `link ${index + 1}`}`}
                           onClick={() =>
                             edit(
@@ -477,7 +479,7 @@ function ProfileEditor({
                           }
                         >
                           <TrashIcon />
-                        </Button>
+                        </IconButton>
                       }
                     />
                     {urlError ? (
@@ -517,7 +519,8 @@ function ProfileEditor({
               </h2>
               <Image
                 alt="Profile avatar preview"
-                className="size-48 rounded-full object-cover"
+                // Square at any width: a column narrower than 192px shrinks the whole circle.
+                className="aspect-square h-auto w-48 rounded-full object-cover"
                 width={192}
                 height={192}
                 unoptimized
@@ -538,7 +541,7 @@ function ProfileEditor({
                   <TrashIcon /> Delete
                 </Button>
               ) : (
-                <label className="relative flex h-8 cursor-pointer items-center gap-2 rounded-full bg-secondary px-3 text-xs font-bold text-secondary-foreground has-[input:focus-visible]:outline-2 has-[input:focus-visible]:outline-offset-2 has-[input:focus-visible]:outline-foreground">
+                <label className="relative flex h-8 cursor-pointer items-center gap-2 rounded-full pointer-coarse:h-11 bg-secondary px-3 text-xs font-bold text-secondary-foreground has-[input:focus-visible]:outline-2 has-[input:focus-visible]:outline-offset-2 has-[input:focus-visible]:outline-foreground">
                   <Image alt="" src="/icons/profile-file.svg" width={16} height={16} /> Choose file
                   <input
                     aria-describedby={avatarError ? "profile-avatar-error" : undefined}
@@ -584,12 +587,18 @@ function ProfileEditor({
           {/* Below md the actions stay pinned to the window, so Finish is in view in the popup;
               the page's scroll padding keeps focused fields clear of them. */}
           <div
-            className="sticky bottom-0 z-10 -mx-6 flex flex-col gap-2 border-t border-border bg-background/95 px-6 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur md:static md:mx-0 md:border-0 md:bg-transparent md:p-0 md:backdrop-blur-none"
+            className="@container sticky bottom-0 z-10 -mx-6 flex flex-col gap-2 border-t border-border bg-background/95 px-6 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur md:static md:mx-0 md:border-0 md:bg-transparent md:p-0 md:backdrop-blur-none"
             data-sticky-actions
           >
-            <div className="flex items-center justify-between gap-3">
+            {/* One row while both fit; in a zoomed popup they stack rather than run off the edge. */}
+            <div className="flex flex-wrap items-center justify-between gap-3">
               {leave}
-              <Button loading={saving} size="lg" type="submit" className="ml-auto min-w-32">
+              <Button
+                loading={saving}
+                size="lg"
+                type="submit"
+                className="ml-auto min-w-32 @max-[17rem]:w-full"
+              >
                 <ArrowRightIcon />
                 {unreadable
                   ? saving

@@ -43,7 +43,7 @@ function IdentityOverview({
   const publicKey = identity.publicIdentity.publicKeyZ32;
 
   return (
-    <PassportScreen className="max-w-[375px] gap-6 md:max-w-[588px] md:gap-8">
+    <PassportScreen className="gap-6 md:gap-8">
       <DisplayHeading accent="pubky." aria-label="Your pubky." className="[&>span]:inline">
         Your{" "}
       </DisplayHeading>

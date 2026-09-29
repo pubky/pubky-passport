@@ -551,16 +551,14 @@ test("overview keeps recovery and account actions in a separate management scree
   await expect(page.getByRole("button", { name: "Authorize an app" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Download backup" })).toHaveCount(0);
   await page.getByRole("button", { name: "Manage identity" }).click();
-  await expect(page.getByRole("heading", { name: "Manage identity." })).toBeVisible();
-  await expect(page.locator("main")).toBeFocused();
+  await expect(page.getByRole("heading", { name: "Manage identity." })).toBeFocused();
   await expect(page.getByRole("button", { name: "Authorize an app" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Download backup" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Use in Pubky Ring" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Detach from Google" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Log out" })).toBeVisible();
   await page.getByRole("button", { name: "Back", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Your pubky." })).toBeVisible();
-  await expect(page.locator("main")).toBeFocused();
+  await expect(page.getByRole("heading", { name: "Your pubky." })).toBeFocused();
 });
 
 test("overview pubky is plain text; management copying shows the gray info toast", async ({
@@ -621,6 +619,8 @@ test("management copy controls align with their values and share a right edge", 
   await page.getByRole("button", { name: "Manage identity" }).click();
   await expect(page.getByRole("button", { name: "Copy Homeserver" })).toBeEnabled();
   await page.evaluate(async () => document.fonts.ready);
+  // 36px buttons, grown to 44px touch targets under a finger.
+  const side = (await page.evaluate(() => matchMedia("(pointer: coarse)").matches)) ? 44 : 36;
 
   for (const width of [1440, 768, 375, 320]) {
     await page.setViewportSize({ width, height: 900 });
@@ -641,8 +641,8 @@ test("management copy controls align with their values and share a right edge", 
           gap: control.left - value.right,
         };
       });
-      expect(geometry.width).toBe(36);
-      expect(geometry.height).toBe(36);
+      expect(geometry.width).toBe(side);
+      expect(geometry.height).toBe(side);
       expect(geometry.iconWidth).toBe(20);
       expect(geometry.iconHeight).toBe(20);
       expect(Math.abs(geometry.centerOffset)).toBeLessThanOrEqual(1);

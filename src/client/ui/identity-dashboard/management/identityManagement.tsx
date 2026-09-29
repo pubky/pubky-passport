@@ -99,7 +99,7 @@ function IdentityManagement({
         <Button
           aria-label={leaveLabel}
           title={leaveLabel}
-          className="size-10 p-0 min-[375px]:w-auto min-[375px]:px-4"
+          className="size-10 p-0 pointer-coarse:min-w-11 min-[375px]:w-auto min-[375px]:px-4"
           onClick={() => setConfirmingLogout(true)}
           variant="secondary"
         >

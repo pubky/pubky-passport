@@ -67,9 +67,10 @@ describe("ManualAuthorization", () => {
     expect(cameraIcon).toHaveAttribute("viewBox", "0 0 21.5 17.5");
     expect(cameraIcon).toHaveStyle({ width: "20px", height: "20px" });
     expect(cameraIcon?.parentElement).toHaveClass("size-5", "items-center", "justify-center");
+    // 32px, and 44px with a touch pointer.
     expect(screen.getByRole("button", { name: "Paste authorization link" })).toHaveClass(
-      "size-6",
-      "md:size-8",
+      "size-8",
+      "pointer-coarse:size-11",
     );
     const back = screen.getByRole("button", { name: "Back" });
     const navigation = back.parentElement?.parentElement;

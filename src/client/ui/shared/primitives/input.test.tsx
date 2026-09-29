@@ -19,4 +19,10 @@ describe("Input", () => {
     expect(input.parentElement).toHaveClass("container-class");
     expect(input.parentElement).not.toHaveClass("input-class");
   });
+
+  it("fills the field's height, so a tap anywhere across the field focuses it", () => {
+    render(<Input aria-label="Authorization link" action={<button type="button">Paste</button>} />);
+
+    expect(screen.getByRole("textbox", { name: "Authorization link" })).toHaveClass("self-stretch");
+  });
 });

@@ -559,8 +559,7 @@ describe("UniversalSignerFlow with an authorization request", () => {
     renderFlow();
     await user.click(await screen.findByRole("button", { name: "Open in Pubky Ring" }));
 
-    expect(screen.getByRole("heading", { name: "Sign in with Pubky Ring." })).toBeInTheDocument();
-    expect(screen.getByRole("main")).toHaveFocus();
+    expect(screen.getByRole("heading", { name: "Sign in with Pubky Ring." })).toHaveFocus();
     // Without a coarse pointer the QR code shows at once; a computer cannot open the link.
     expect(screen.getByRole("img", { name: "Pubky authorization QR code" })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Open Pubky Ring" })).not.toBeInTheDocument();

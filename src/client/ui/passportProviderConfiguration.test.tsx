@@ -45,7 +45,7 @@ describe("PassportProviderConfiguration", () => {
     );
   });
 
-  it("links the provider's terms and privacy policy", () => {
+  it("links the provider's terms and privacy policy, named apart from Passport's own", () => {
     render(
       <PassportProviderConfiguration
         value={makeInstanceConfig({
@@ -57,14 +57,20 @@ describe("PassportProviderConfiguration", () => {
       </PassportProviderConfiguration>,
     );
 
-    expect(screen.getByRole("link", { name: "Terms of service" })).toHaveAttribute(
-      "href",
-      "https://acme.example/terms",
-    );
-    expect(screen.getByRole("link", { name: "Privacy policy" })).toHaveAttribute(
-      "href",
-      "https://acme.example/privacy",
-    );
+    const terms = screen.getByRole("link", {
+      name: "Terms of service of the homeserver provider (opens in a new tab)",
+    });
+    const privacy = screen.getByRole("link", {
+      name: "Privacy policy of the homeserver provider (opens in a new tab)",
+    });
+    expect(terms).toHaveAttribute("href", "https://acme.example/terms");
+    expect(privacy).toHaveAttribute("href", "https://acme.example/privacy");
+    for (const link of [terms, privacy]) {
+      expect(link).toHaveAttribute("target", "_blank");
+      expect(link).toHaveAttribute("rel", "noopener noreferrer");
+      // Underlined at rest: colour alone does not mark a link inside a sentence.
+      expect(link).toHaveClass("underline");
+    }
     expect(screen.getByText(/^Homeserver provider:/u)).toBeInTheDocument();
   });
 });

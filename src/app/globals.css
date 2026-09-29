@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* A phone on its side: too short to stack a sheet's content, wide enough to set it side by side. */
+@custom-variant short-landscape (@media (orientation: landscape) and (max-height: 30rem));
+
 @theme {
   --font-sans: "Inter Tight Variable", "Inter Tight", sans-serif;
   --color-background: var(--background);
@@ -66,7 +69,8 @@
   --destructive-text: #ff8a80;
   --warning: oklch(0.828 0.189 84.429);
   --border: #303034;
-  --input: #525252;
+  /* Field borders are often the only edge of a field, so they keep 3:1 against cards and dialogs. */
+  --input: #76767e;
   --input-surface: #ffffff0b;
   --ring: oklch(0.55 0.008 286.145);
   --brand: #c8ff00;

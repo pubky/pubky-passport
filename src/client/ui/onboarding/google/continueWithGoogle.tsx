@@ -12,8 +12,8 @@ import {
 
 import { DRIVE_PERMISSION_HINT } from "@/client/ui/googleDrivePermissionPrompt";
 import { GoogleLogo } from "@/client/ui/shared/brand/googleLogo";
-import { ArrowRightIcon, CircleHelpIcon, FileTextIcon } from "@/client/ui/shared/icons";
-import { Button, ButtonLink } from "@/client/ui/shared/primitives/button";
+import { ArrowRightIcon, CircleHelpIcon, FileTextIcon, XIcon } from "@/client/ui/shared/icons";
+import { Button, ButtonLink, LARGE_PADDING_X } from "@/client/ui/shared/primitives/button";
 import { Dialog } from "@/client/ui/shared/primitives/dialog";
 import { IconButton } from "@/client/ui/shared/primitives/iconButton";
 
@@ -116,6 +116,7 @@ function GoogleSignInPill({
   const root = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   const panel = useRef<HTMLDivElement>(null);
+  const sheetTitle = useRef<HTMLHeadingElement>(null);
   const refocusing = useRef(false);
   const labelId = useId();
   const panelId = useId();
@@ -167,6 +168,13 @@ function GoogleSignInPill({
   };
 
   useEffect(() => cancelClose, [cancelClose]);
+
+  // A modal dialog focuses its first control when it opens, which here is Close. Start on the
+  // title instead, so the explanation is read from its start; never on Continue with Google,
+  // where one Enter would start the sign-in. (The dialog's effect runs first and opens it.)
+  useEffect(() => {
+    if (sheetOpen) sheetTitle.current?.focus();
+  }, [sheetOpen]);
 
   useEffect(() => {
     if (!panelOpen) return;
@@ -280,10 +288,10 @@ function GoogleSignInPill({
   }
 
   return (
-    // A flex wrapper blockifies the inline-flex pill, so no line-box gap makes the wrapper taller
-    // than the pill and the overlay centres exactly on it.
+    // The pill and its overlay share one grid cell, so the overlay centres exactly on the pill and
+    // a label that wraps (zoomed text, a narrow card) makes the pill taller instead of spilling out.
     <div
-      className="relative flex"
+      className="relative grid"
       onBlur={leaveWithKeyboard}
       onMouseEnter={enterControl}
       onMouseLeave={leaveControl}
@@ -292,19 +300,23 @@ function GoogleSignInPill({
       <Button
         aria-describedby={hintId}
         aria-labelledby={labelId}
-        className="w-full"
+        className="col-start-1 row-start-1 w-full"
         onClick={onContinue}
         size="lg"
         type="button"
         variant="secondary"
       />
-      <div className="pointer-events-none absolute inset-0 flex items-center justify-center gap-2 px-8">
+      {/* The label drawn over the pill takes the pill's own padding, so it wraps where the
+          other large buttons' labels do. */}
+      <div
+        className={`pointer-events-none col-start-1 row-start-1 flex items-center justify-center gap-2 py-2 ${LARGE_PADDING_X}`}
+      >
         <span aria-hidden="true" className="flex size-5 items-center justify-center">
           <GoogleLogo />
         </span>
         <span
           aria-hidden="true"
-          className="text-sm font-bold leading-5 text-secondary-foreground"
+          className="text-balance text-center text-sm font-bold leading-5 text-secondary-foreground"
           id={labelId}
         >
           Continue with Google
@@ -370,19 +382,28 @@ function GoogleSignInPill({
         onOpenChange={setSheetOpen}
         open={sheetOpen}
       >
-        {/* The padding lives inside, so only the backdrop hits the dialog element itself. */}
+        {/* The padding lives inside, so only the backdrop hits the dialog element itself. The
+            handle only shows what the sheet is; Close, Escape and the backdrop close it. */}
         <div className="px-6 pb-8 pt-3">
-          <button
-            aria-label="Close"
-            className="mx-auto mb-6 block h-1.5 w-16 rounded-full bg-muted"
-            onClick={() => setSheetOpen(false)}
-            type="button"
-          />
+          <div className="relative mb-2 flex h-11 items-center justify-center">
+            <div aria-hidden="true" className="h-1.5 w-16 rounded-full bg-muted" />
+            <IconButton
+              aria-label="Close"
+              className="absolute right-0 top-0 size-11"
+              onClick={() => setSheetOpen(false)}
+              type="button"
+              variant="secondary"
+            >
+              <XIcon className="opacity-70" />
+            </IconButton>
+          </div>
           <div className="flex flex-col gap-6">
             <h2
               aria-label={TITLE}
-              className="text-center text-xl font-bold leading-7 text-foreground"
+              className="text-center text-xl font-bold leading-7 text-foreground outline-none"
               id={sheetTitleId}
+              ref={sheetTitle}
+              tabIndex={-1}
             >
               Continue with Google,
               <br />
