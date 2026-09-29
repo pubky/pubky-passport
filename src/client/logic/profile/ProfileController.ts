@@ -128,6 +128,23 @@ export class ProfileController {
     return Result.ok(loadedProfile);
   }
 
+  /**
+   * Whether `publicKey` has published a profile document, readable or not. A failed read tells
+   * nothing either way, so it fails instead of answering `false`.
+   */
+  async hasProfile(publicKey: string): Promise<ProfileResult<boolean>> {
+    if (!isPubkyPublicKey(publicKey)) return Result.err({ code: "identity_unavailable" });
+    const loaded = await this.getTransport();
+    if (Result.isError(loaded)) return Result.err({ code: "load_failed", cause: loaded.error });
+    const document = await loaded.value.readJson(`pubky://${publicKey}${PROFILE_PATH}`);
+    if (Result.isOk(document)) return Result.ok(document.value !== null);
+    const unreadable =
+      document.error.code === "invalid_resource" || document.error.code === "resource_too_large";
+    return unreadable
+      ? Result.ok(true)
+      : Result.err({ code: "load_failed", cause: document.error });
+  }
+
   /** Best effort: a summary that cannot be kept only means a list shows the key alone. */
   private async rememberSummary(publicKey: string, loaded: LoadedProfile | null): Promise<void> {
     try {

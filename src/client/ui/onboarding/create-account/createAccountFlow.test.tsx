@@ -83,9 +83,13 @@ function approvingRingProfile() {
   return {
     start: vi.fn(async () => Result.ok()),
     poll: vi.fn(async () =>
-      Result.ok({ status: "approved", publicKeyZ32: RING_IDENTITY.publicIdentity.publicKeyZ32 }),
+      Result.ok({
+        status: "approved",
+        publicKeyZ32: RING_IDENTITY.publicIdentity.publicKeyZ32,
+        hasProfile: "none",
+      }),
     ),
-    confirm: vi.fn(() => Result.ok(RING_IDENTITY)),
+    confirm: vi.fn(async () => Result.ok(RING_IDENTITY)),
     authorizationUrl: () => "pubkyauth://signin?secret=profile-only",
     isConnected: () => true,
     save: vi.fn(),

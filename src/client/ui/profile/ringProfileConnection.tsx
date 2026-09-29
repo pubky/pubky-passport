@@ -1,7 +1,11 @@
 import { useEffect, useEffectEvent, useId, useLayoutEffect, useRef, useState } from "react";
 import { Result } from "better-result";
+import { toast } from "sonner";
 import type { LocalIdentityMetadata } from "@/client/logic/local-identity/localIdentityModels";
-import type { RingConnectionErrorCode } from "@/client/logic/profile/RingProfileController";
+import type {
+  PublishedProfile,
+  RingConnectionErrorCode,
+} from "@/client/logic/profile/RingProfileController";
 import type { RingProfileControllerPort } from "@/client/ui/passportCollaborators";
 import { BackButton } from "@/client/ui/shared/backButton";
 import { PUBKY_COPY_TOASTS } from "@/client/ui/shared/copyToClipboard";
@@ -56,7 +60,7 @@ function identityLabel(identity: LocalIdentityMetadata): string {
 
 type ConnectionState =
   | { status: "starting" | "waiting" }
-  | { status: "confirming"; publicKeyZ32: string }
+  | { status: "confirming"; publicKeyZ32: string; hasProfile: PublishedProfile; saving: boolean }
   | { status: "failed"; failure: RingConnectionErrorCode };
 
 /**
@@ -132,7 +136,12 @@ export function RingProfileConnection({
         return;
       }
       if (progress.status === "approved") {
-        setState({ status: "confirming", publicKeyZ32: progress.publicKeyZ32 });
+        setState({
+          status: "confirming",
+          publicKeyZ32: progress.publicKeyZ32,
+          hasProfile: progress.hasProfile,
+          saving: false,
+        });
         return;
       }
       timer = setTimeout(() => void poll(), 1_500);
@@ -165,10 +174,22 @@ export function RingProfileConnection({
     setAttempt(({ id }) => ({ id: id + 1, resume }));
   }
 
-  function confirm() {
-    const confirmed = controller.confirm();
-    if (Result.isError(confirmed)) setState({ status: "failed", failure: confirmed.error.code });
-    else onComplete(confirmed.value);
+  async function confirm() {
+    if (state.status !== "confirming" || state.saving) return;
+    const existing = state.hasProfile === "published";
+    setState({ ...state, saving: true });
+    const confirmed = await controller.confirm();
+    if (Result.isError(confirmed)) {
+      setState({ status: "failed", failure: confirmed.error.code });
+      return;
+    }
+    // The person may otherwise take this pubky for the one they just created in Ring.
+    if (existing)
+      toast.info(`Added ${shortPublicKey(confirmed.value.publicIdentity.publicKeyZ32)}`, {
+        description:
+          "The pubky you just created in Pubky Ring is not in Passport yet. Add it with Sign in with Pubky Ring.",
+      });
+    onComplete(confirmed.value);
   }
 
   return (
@@ -241,19 +262,62 @@ export function RingProfileConnection({
           className="flex min-w-0 flex-col gap-4 rounded-lg bg-card p-6 md:p-8"
         >
           <h2 className="text-2xl font-bold leading-8" id={`${id}-confirm`}>
-            Is this your new pubky?
+            {state.hasProfile === "published"
+              ? "This pubky already has a profile"
+              : "Is this your new pubky?"}
           </h2>
           <DetailField label="Pubky from Pubky Ring" value={state.publicKeyZ32} />
-          <p className="text-sm leading-5 text-muted-foreground">
-            Continue only if it is the pubky you just created in Pubky Ring. Passport saves it and
-            publishes your new profile to it.
-          </p>
-          <Button className="w-full" onClick={confirm} size="lg">
-            Yes, it is my new pubky
-          </Button>
-          <Button className="w-full" onClick={() => retry(false)} size="lg" variant="outline">
-            No, choose again in Pubky Ring
-          </Button>
+          {state.hasProfile === "published" ? (
+            // An existing account: its live profile is kept, never offered as a new one to fill.
+            <>
+              <p className="text-sm leading-5 text-muted-foreground">
+                Pubky Ring approved a pubky that already has a public profile, so it is not the one
+                you just created. Choose your new pubky in Pubky Ring, or add this one to Passport.
+                Its profile stays as it is.
+              </p>
+              <Button
+                className="w-full"
+                disabled={state.saving}
+                onClick={() => retry(false)}
+                size="lg"
+              >
+                Choose again in Pubky Ring
+              </Button>
+              <Button
+                className="w-full"
+                loading={state.saving}
+                onClick={() => void confirm()}
+                size="lg"
+                variant="outline"
+              >
+                Add this pubky
+              </Button>
+            </>
+          ) : (
+            <>
+              <p className="text-sm leading-5 text-muted-foreground">
+                Continue only if it is the pubky you just created in Pubky Ring. Passport saves it
+                and publishes your new profile to it.
+              </p>
+              <Button
+                className="w-full"
+                loading={state.saving}
+                onClick={() => void confirm()}
+                size="lg"
+              >
+                Yes, it is my new pubky
+              </Button>
+              <Button
+                className="w-full"
+                disabled={state.saving}
+                onClick={() => retry(false)}
+                size="lg"
+                variant="outline"
+              >
+                No, choose again in Pubky Ring
+              </Button>
+            </>
+          )}
         </section>
       ) : state.status === "waiting" ? (
         <ExternalSignerRequest

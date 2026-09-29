@@ -4,6 +4,7 @@ import { emulateCoarsePointer } from "./helpers/pointer";
 import {
   delegatedKeyCount,
   mockRingNetwork,
+  retryFlakyEd25519KeyGeneration,
   RING_KEY,
   ringApproves,
   seedRingIdentity,
@@ -129,6 +130,8 @@ test("keeps profile edits across a Ring reconnect and publishes them only on Sav
 const DELEGATED_KEY_TIMEOUT_MS = 20_000;
 
 test("an abandoned Ring connection leaves no delegated key in the browser", async ({ page }) => {
+  // Otherwise a WebKit key generation that fails leaves the key in memory, and none is counted.
+  await retryFlakyEd25519KeyGeneration(page);
   await mockRingNetwork(page);
   await emulateCoarsePointer(page);
   await page.goto("/");

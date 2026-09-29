@@ -135,6 +135,8 @@ function ReadyPassport({
   const { homeserver: providerHomeserver, httpRelay } = usePassportProvider();
   const [ringProfile] = useState(() => createRingProfileController(httpRelay));
   useEffect(() => {
+    // Best effort on page leave: the revocation this starts is dropped when the page unloads, so
+    // the grant stays valid on the homeserver (by design: the grant lasts for the page session).
     const dispose = () => ringProfile.dispose();
     window.addEventListener("pagehide", dispose);
     return () => {

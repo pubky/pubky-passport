@@ -59,8 +59,10 @@ identity is chosen in Ring. **Continue with Pubky Ring** hands your request to R
 phone or tablet (a coarse pointer) it follows the `pubkyauth://` link at once and shows the QR code
 if the page is still in view about two seconds later, because Ring did not open; with a mouse or
 trackpad (a fine pointer, such as your desktop popup) it shows the QR code directly, since a
-computer cannot open the link. Passport notices Ring's answer on your relay channel and then reports
-`success` by itself; **I approved in Pubky Ring** does the same by hand (see
+computer cannot open the link. When Ring runs on the same device, it opens your request's
+`x-success` URL itself after the approval, so the user lands back in your app. Wherever Ring runs
+(including a desktop popup scanned with a phone, or a request without `x-success`), Passport notices Ring's answer on your relay channel and then reports `success`
+by itself; **I approved in Pubky Ring** does the same by hand (see
 [Outcome messages](#outcome-messages)). Switching identities or creating an
 account preserves the original request; a new account is asked for its public profile once, and
 **Skip for now** there goes on to the review. A request for broad access (for example `/:rw`) is

@@ -82,6 +82,20 @@ describe("parseEncodedPubkyAuthRequest", () => {
     expect(result.value.sensitivePubkyAuthUrl).toBe(request);
   });
 
+  it("normalises only the caps value and keeps every other parameter's encoding", () => {
+    const tail = "&x-source=Example%20App%20%2B%20Co";
+    const request = `${VALID_REQUEST.replace("/pub/pubky.app/", "/pub/café/")}${tail}`;
+    const result = parseEncodedPubkyAuthRequest(encodeRequest(request));
+
+    if (Result.isError(result)) throw new Error(result.error.code);
+    expect(result.value.sensitivePubkyAuthUrl).toBe(
+      `${VALID_REQUEST.replace("/pub/pubky.app/", "/pub/caf%C3%A9/")}${tail}`,
+    );
+    expect(new URL(result.value.sensitivePubkyAuthUrl).searchParams.get("caps")).toBe(
+      "/pub/café/:rw",
+    );
+  });
+
   it("preserves a literal plus while decoding an x-source percent-encoded space", () => {
     const request = `${VALID_REQUEST}&x-source=Bitkit+Wallet%20Mobile`;
     const result = parseEncodedPubkyAuthRequest(encodeRequest(request));

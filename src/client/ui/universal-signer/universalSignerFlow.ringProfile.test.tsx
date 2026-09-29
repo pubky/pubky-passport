@@ -21,6 +21,9 @@ import type {
 
 const KEY = "1aeh1m9m47shq8ixa7ikaunjb81ierse9by6f7wnkbxzj4dddwdy";
 const RELAY = "https://relay.passport.example/inbox";
+/** The pubkys Ring approves here have published no profile yet, so setup stays required. */
+const NO_PUBLISHED_PROFILE = { hasProfile: async () => Result.ok(false) };
+
 afterEach(() => {
   cleanup();
   window.dispatchEvent(new PageTransitionEvent("pagehide"));
@@ -36,9 +39,13 @@ it("keeps the Ring grant when saving its identity opens the profile editor", asy
     publish: vi.fn(async () => Result.ok()),
     dispose: vi.fn(async () => undefined),
   };
-  const ring = new RingProfileController(RELAY, repository, {
-    start: async () => Result.ok(connection as unknown as RingProfileGrant),
-  });
+  const ring = new RingProfileController(
+    RELAY,
+    repository,
+    { start: async () => Result.ok(connection as unknown as RingProfileGrant) },
+    Date.now,
+    NO_PUBLISHED_PROFILE,
+  );
   const createRingProfileController = vi.fn<PassportCollaborators["createRingProfileController"]>(
     () => ring,
   );
@@ -97,7 +104,13 @@ it("returns to the Ring connection when the profile grant has been revoked, keep
     .fn()
     .mockResolvedValueOnce(Result.ok(revoked as unknown as RingProfileGrant))
     .mockResolvedValueOnce(Result.ok(renewed as unknown as RingProfileGrant));
-  const ring = new RingProfileController(RELAY, repository, { start });
+  const ring = new RingProfileController(
+    RELAY,
+    repository,
+    { start },
+    Date.now,
+    NO_PUBLISHED_PROFILE,
+  );
   render(
     withPassportTestProviders(<UniversalSignerFlow />, {
       createLocalIdentityController: () => new LocalIdentityController(repository),
@@ -164,7 +177,13 @@ it("asks before leaving the reconnect with kept edits, and drops them once disca
     .mockResolvedValueOnce(Result.ok(revoked as unknown as RingProfileGrant))
     .mockResolvedValueOnce(Result.ok(pending as unknown as RingProfileGrant))
     .mockResolvedValue(Result.ok(renewed as unknown as RingProfileGrant));
-  const ring = new RingProfileController(RELAY, repository, { start });
+  const ring = new RingProfileController(
+    RELAY,
+    repository,
+    { start },
+    Date.now,
+    NO_PUBLISHED_PROFILE,
+  );
   render(
     withPassportTestProviders(<UniversalSignerFlow />, {
       createLocalIdentityController: () => new LocalIdentityController(repository),
@@ -274,9 +293,13 @@ it("adds an existing Ring identity from the home page without an invite or a pro
     publish: vi.fn(async () => Result.ok()),
     dispose: vi.fn(async () => undefined),
   };
-  const ring = new RingProfileController(RELAY, repository, {
-    start: async () => Result.ok(connection as unknown as RingProfileGrant),
-  });
+  const ring = new RingProfileController(
+    RELAY,
+    repository,
+    { start: async () => Result.ok(connection as unknown as RingProfileGrant) },
+    Date.now,
+    NO_PUBLISHED_PROFILE,
+  );
   render(
     withPassportTestProviders(<UniversalSignerFlow />, {
       createLocalIdentityController: () => new LocalIdentityController(repository),

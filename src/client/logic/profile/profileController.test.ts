@@ -100,6 +100,28 @@ describe("public Pubky profiles", () => {
     expect(await controller.load(KEY)).toMatchObject({ error: { code: "invalid_profile" } });
   });
 
+  it("tells a published profile, readable or not, from none, and fails when it cannot tell", async () => {
+    const controller = new ProfileController(repository, transport);
+    transport.readJson
+      .mockResolvedValueOnce(Result.ok(null))
+      .mockResolvedValueOnce(Result.ok({ name: "x" }))
+      .mockResolvedValueOnce(Result.err({ code: "invalid_resource" }))
+      .mockResolvedValueOnce(Result.err({ code: "resource_too_large" }))
+      .mockResolvedValueOnce(Result.err({ code: "read_failed" }))
+      .mockResolvedValueOnce(Result.err({ code: "read_timeout" }));
+    expect(expectResultOk(await controller.hasProfile(OTHER))).toBe(false);
+    for (let read = 0; read < 3; read++)
+      expect(expectResultOk(await controller.hasProfile(OTHER))).toBe(true);
+    for (let read = 0; read < 2; read++)
+      expect(await controller.hasProfile(OTHER)).toMatchObject({ error: { code: "load_failed" } });
+    expect(transport.readJson).toHaveBeenCalledWith(`pubky://${OTHER}${PROFILE_PATH}`);
+    // Only the document is read, never an avatar.
+    expect(transport.readImage).not.toHaveBeenCalled();
+    expect(await controller.hasProfile("not-a-key")).toMatchObject({
+      error: { code: "identity_unavailable" },
+    });
+  });
+
   it("reads profiles the way pubky-app-specs sanitises them", async () => {
     transport.readJson.mockResolvedValueOnce(
       Result.ok({ name: " [DELETED] ", bio: null, image: null, links: null, status: null, x: 1 }),

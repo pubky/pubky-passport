@@ -178,6 +178,38 @@ export async function seedRingIdentity(page: Page, profileSetupRequired = false)
 }
 
 /**
+ * WebKit's Ed25519 `generateKey` now and then rejects with an `OperationError` (seen under load on
+ * Linux WebKit). The SDK then keeps that flow's PoP key in memory, so no key ever reaches IndexedDB
+ * and a spec counting stored keys cannot tell cleanup from a key that was never stored. This
+ * retries such a generation in the page, which leaves every other engine and algorithm as it is.
+ */
+export async function retryFlakyEd25519KeyGeneration(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    const subtle = globalThis.crypto?.subtle;
+    if (!subtle) return;
+    const generateKey = subtle.generateKey.bind(subtle) as (
+      ...args: Parameters<SubtleCrypto["generateKey"]>
+    ) => Promise<CryptoKey | CryptoKeyPair>;
+    const ed25519 = (algorithm: unknown) =>
+      (typeof algorithm === "string" ? algorithm : (algorithm as { name?: unknown })?.name) ===
+      "Ed25519";
+    Object.defineProperty(subtle, "generateKey", {
+      configurable: true,
+      value: async (...args: Parameters<SubtleCrypto["generateKey"]>) => {
+        for (let attempt = 1; ; attempt++) {
+          try {
+            return await generateKey(...args);
+          } catch (e) {
+            const flaky = e instanceof DOMException && e.name === "OperationError";
+            if (!flaky || !ed25519(args[0]) || attempt >= 5) throw e;
+          }
+        }
+      },
+    });
+  });
+}
+
+/**
  * How many delegated PoP keys the SDK holds in this origin's IndexedDB. The database is only
  * read, never created, so the SDK still sets it up on first use.
  */

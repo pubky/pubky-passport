@@ -10,6 +10,9 @@ import type {
 } from "@/client/logic/profile/RingProfileController";
 import { RingProfileConnection } from "./ringProfileConnection";
 
+const MOCKS = vi.hoisted(() => ({ toastInfo: vi.fn() }));
+vi.mock("sonner", () => ({ toast: { info: MOCKS.toastInfo } }));
+
 const KEY = "1aeh1m9m47shq8ixa7ikaunjb81ierse9by6f7wnkbxzj4dddwdy";
 const IDENTITY: LocalIdentityMetadata = {
   publicIdentity: { publicKeyZ32: KEY },
@@ -25,7 +28,9 @@ function controller() {
   return {
     start: vi.fn(async (): Promise<Result<void, Failure>> => Result.ok()),
     poll: vi.fn(async (): Promise<PollResult> => Result.ok({ status: "waiting" })),
-    confirm: vi.fn((): Result<LocalIdentityMetadata, Failure> => Result.ok(IDENTITY)),
+    confirm: vi.fn(async (): Promise<Result<LocalIdentityMetadata, Failure>> =>
+      Result.ok(IDENTITY),
+    ),
     authorizationUrl: () => PROFILE_REQUEST,
     isConnected: vi.fn(() => false),
     save: vi.fn(),
@@ -174,7 +179,9 @@ describe("RingProfileConnection after a Ring signup", () => {
 
   it("shows the pubky Ring connected and saves it only after confirmation", async () => {
     const ring = controller();
-    ring.poll.mockResolvedValueOnce(Result.ok({ status: "approved", publicKeyZ32: OTHER }));
+    ring.poll.mockResolvedValueOnce(
+      Result.ok({ status: "approved", publicKeyZ32: OTHER, hasProfile: "none" }),
+    );
     const { onComplete } = mount(ring, { setupRequired: true, confirmIdentity: true });
     expect(screen.getByText(/choose the pubky you just created/u)).toBeInTheDocument();
     expect(
@@ -197,12 +204,14 @@ describe("RingProfileConnection after a Ring signup", () => {
 
     await userEvent.setup().click(screen.getByRole("button", { name: "Yes, it is my new pubky" }));
     expect(ring.confirm).toHaveBeenCalledOnce();
-    expect(onComplete).toHaveBeenCalledWith(IDENTITY);
+    await waitFor(() => expect(onComplete).toHaveBeenCalledWith(IDENTITY));
   });
 
   it("starts a new request when the connected pubky is not the new one", async () => {
     const ring = controller();
-    ring.poll.mockResolvedValueOnce(Result.ok({ status: "approved", publicKeyZ32: OTHER }));
+    ring.poll.mockResolvedValueOnce(
+      Result.ok({ status: "approved", publicKeyZ32: OTHER, hasProfile: "none" }),
+    );
     const { onComplete } = mount(ring, { setupRequired: true, confirmIdentity: true });
     await screen.findByText(OTHER);
     await userEvent
@@ -216,12 +225,67 @@ describe("RingProfileConnection after a Ring signup", () => {
     expect(await screen.findByText("Waiting for approval in Pubky Ring…")).toBeInTheDocument();
   });
 
+  it("does not present a pubky that already has a profile as the new one", async () => {
+    const ring = controller();
+    ring.poll.mockResolvedValueOnce(
+      Result.ok({ status: "approved", publicKeyZ32: OTHER, hasProfile: "published" }),
+    );
+    const { onComplete } = mount(ring, { setupRequired: true, confirmIdentity: true });
+    expect(
+      await screen.findByRole("heading", { name: "This pubky already has a profile" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Yes, it is my new pubky" })).toBeNull();
+    expect(screen.queryByText(/publishes your new profile/u)).toBeNull();
+    expect(screen.getByText(/Its profile stays as it is\./u)).toBeInTheDocument();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Add this pubky" }));
+    expect(ring.confirm).toHaveBeenCalledOnce();
+    await waitFor(() => expect(onComplete).toHaveBeenCalledWith(IDENTITY));
+    // The pubky just created in Ring was not added, and the person is told so.
+    expect(MOCKS.toastInfo).toHaveBeenCalledWith(`Added ${KEY.slice(0, 4)}…${KEY.slice(-4)}`, {
+      description: expect.stringMatching(
+        /^The pubky you just created in Pubky Ring is not in Passport yet\. Add it with Sign in with Pubky Ring\.$/u,
+      ),
+    });
+  });
+
+  it("treats a pubky whose profile could not be read as the new one", async () => {
+    const ring = controller();
+    ring.poll.mockResolvedValueOnce(
+      Result.ok({ status: "approved", publicKeyZ32: OTHER, hasProfile: "unknown" }),
+    );
+    const { onComplete } = mount(ring, { setupRequired: true, confirmIdentity: true });
+    expect(
+      await screen.findByRole("heading", { name: "Is this your new pubky?" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/already has a public profile/u)).toBeNull();
+    await userEvent.setup().click(screen.getByRole("button", { name: "Yes, it is my new pubky" }));
+    expect(ring.confirm).toHaveBeenCalledOnce();
+    await waitFor(() => expect(onComplete).toHaveBeenCalledWith(IDENTITY));
+    expect(MOCKS.toastInfo).not.toHaveBeenCalled();
+  });
+
+  it("offers to choose again when Ring approved a pubky that already has a profile", async () => {
+    const ring = controller();
+    ring.poll.mockResolvedValueOnce(
+      Result.ok({ status: "approved", publicKeyZ32: OTHER, hasProfile: "published" }),
+    );
+    mount(ring, { setupRequired: true, confirmIdentity: true });
+    await userEvent
+      .setup()
+      .click(await screen.findByRole("button", { name: "Choose again in Pubky Ring" }));
+    await waitFor(() => expect(ring.start).toHaveBeenCalledTimes(2));
+    expect(ring.confirm).not.toHaveBeenCalled();
+  });
+
   it("keeps the confirmed pubky when saving it fails and retries without Ring", async () => {
     const ring = controller();
     ring.poll
-      .mockResolvedValueOnce(Result.ok({ status: "approved", publicKeyZ32: OTHER }))
+      .mockResolvedValueOnce(
+        Result.ok({ status: "approved", publicKeyZ32: OTHER, hasProfile: "none" }),
+      )
       .mockResolvedValueOnce(Result.ok({ status: "connected", identity: IDENTITY }));
-    ring.confirm.mockReturnValueOnce(Result.err({ code: "storage_failed" }));
+    ring.confirm.mockResolvedValueOnce(Result.err({ code: "storage_failed" }));
     const { onComplete } = mount(ring, { setupRequired: true, confirmIdentity: true });
     const user = userEvent.setup();
     await user.click(await screen.findByRole("button", { name: "Yes, it is my new pubky" }));

@@ -2,6 +2,7 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { Result } from "better-result";
 import { RingProfileController } from "./RingProfileController";
+import type { ProfileController } from "./ProfileController";
 import { LocalStorageIdentityRepository } from "../local-identity/LocalStorageIdentityRepository";
 import { PUBKY_SECRET_KEY_FORMAT } from "../pubky/pubkyIdentityKey";
 import type {
@@ -18,6 +19,7 @@ const OTHER = "5jsjx1o6fzu6aeeo697r3i5rx15zq41kikcye8wtwdqm4nb4tryo";
 const URL = "pubkyauth://signin?secret=PROFILE-REQUEST-SECRET";
 const RELAY = "https://relay.passport.example/inbox";
 const profile = { name: "Satoshi" };
+type RingProfileControllerProfiles = Pick<ProfileController, "hasProfile">;
 function setup() {
   const repository = new LocalStorageIdentityRepository();
   const connection = {
@@ -32,9 +34,15 @@ function setup() {
   const start = vi.fn<Pick<PubkyRingProfileTransport, "start">["start"]>(async () =>
     Result.ok(connection as unknown as RingProfileGrant),
   );
-  const controller = new RingProfileController(RELAY, repository, { start }, () => now);
+  const hasProfile = vi.fn<RingProfileControllerProfiles["hasProfile"]>(async () =>
+    Result.ok(false),
+  );
+  const controller = new RingProfileController(RELAY, repository, { start }, () => now, {
+    hasProfile,
+  });
   return {
     repository,
+    hasProfile,
     connection,
     controller,
     start,
@@ -143,6 +151,84 @@ it("retries saving an approved identity without asking Ring again", async () => 
   expect(controller.isConnected(KEY)).toBe(true);
 });
 
+it("flags setup only for a pubky without a published profile, and says whether it has one", async () => {
+  const { controller, connection, repository, hasProfile } = setup();
+  await controller.start({ setupRequired: true, confirmIdentity: true });
+  connection.poll.mockResolvedValue(Result.ok(KEY));
+  expect(expectResultOk(await controller.poll())).toEqual({
+    status: "approved",
+    publicKeyZ32: KEY,
+    hasProfile: "none",
+  });
+  expect(hasProfile).toHaveBeenCalledExactlyOnceWith(KEY);
+  expect(expectResultOk(await controller.confirm()).profileSetupRequired).toBe(true);
+  expect(expectResultOk(repository.list()).identities[0]?.profileSetupRequired).toBe(true);
+});
+
+it("never flags setup for an approving pubky that already has a published profile", async () => {
+  const context = setup();
+  context.hasProfile.mockResolvedValue(Result.ok(true));
+  await context.controller.start({ setupRequired: true, confirmIdentity: true });
+  context.connection.poll.mockResolvedValue(Result.ok(KEY));
+  expect(expectResultOk(await context.controller.poll())).toEqual({
+    status: "approved",
+    publicKeyZ32: KEY,
+    hasProfile: "published",
+  });
+  expect(expectResultOk(await context.controller.confirm())).not.toHaveProperty(
+    "profileSetupRequired",
+  );
+  const stored = localStorage.getItem(`pubky-passport/local-identities/v1/identity/${KEY}`)!;
+  expect(JSON.parse(stored)).toEqual({ v: 1, publicKeyZ32: KEY, keySource: "ring" });
+});
+
+it.each([
+  ["still fails", Result.err({ code: "load_failed" as const }), true],
+  ["finds no profile", Result.ok(false), true],
+  ["finds a published profile", Result.ok(true), false],
+] as const)(
+  "reads an unknown profile again on confirmation and flags setup unless that read %s",
+  async (_case, reread, flagged) => {
+    const context = setup();
+    context.hasProfile.mockResolvedValueOnce(Result.err({ code: "load_failed" }));
+    context.hasProfile.mockResolvedValueOnce(reread);
+    await context.controller.start({ setupRequired: true, confirmIdentity: true });
+    context.connection.poll.mockResolvedValue(Result.ok(KEY));
+    expect(expectResultOk(await context.controller.poll())).toEqual({
+      status: "approved",
+      publicKeyZ32: KEY,
+      hasProfile: "unknown",
+    });
+    const identity = expectResultOk(await context.controller.confirm());
+    expect(context.hasProfile).toHaveBeenCalledTimes(2);
+    expect(identity.profileSetupRequired === true).toBe(flagged);
+    expect(
+      expectResultOk(context.repository.list()).identities[0]?.profileSetupRequired === true,
+    ).toBe(flagged);
+  },
+);
+
+it("completes a stale setup flag once the saved Ring identity's profile is live", async () => {
+  const { controller, connection, repository, hasProfile } = setup();
+  expectResultOk(repository.saveExternal(KEY, true));
+  hasProfile.mockResolvedValue(Result.ok(true));
+  await controller.start({ expectedKey: KEY, setupRequired: true });
+  connection.poll.mockResolvedValue(Result.ok(KEY));
+  const progress = expectResultOk(await controller.poll());
+  expect(progress).toMatchObject({ status: "connected" });
+  expect(progress.status === "connected" && progress.identity).not.toHaveProperty(
+    "profileSetupRequired",
+  );
+  expect(expectResultOk(repository.list()).identities[0]).not.toHaveProperty(
+    "profileSetupRequired",
+  );
+});
+
+it("does not read the profile when no setup was asked for", async () => {
+  const { hasProfile } = await connected();
+  expect(hasProfile).not.toHaveBeenCalled();
+});
+
 it("does not replace local key material when the same identity connects through Ring", () => {
   const { repository } = setup();
   const secret = { format: PUBKY_SECRET_KEY_FORMAT, bytes: new Uint8Array(32).fill(1) } as const;
@@ -233,6 +319,7 @@ it("holds the pubky Ring approved after a signup until the person confirms it", 
   expect(expectResultOk(await controller.poll())).toEqual({
     status: "approved",
     publicKeyZ32: OTHER,
+    hasProfile: "none",
   });
   // Nothing is saved or usable for publishing before the confirmation.
   expect(expectResultOk(repository.list()).identities).toEqual([]);
@@ -241,10 +328,11 @@ it("holds the pubky Ring approved after a signup until the person confirms it", 
   expect(expectResultOk(await controller.poll())).toEqual({
     status: "approved",
     publicKeyZ32: OTHER,
+    hasProfile: "none",
   });
   expect(connection.poll).toHaveBeenCalledOnce();
 
-  expect(expectResultOk(controller.confirm())).toMatchObject({
+  expect(expectResultOk(await controller.confirm())).toMatchObject({
     keySource: "ring",
     profileSetupRequired: true,
     publicIdentity: { publicKeyZ32: OTHER },
@@ -263,7 +351,7 @@ it("discards an unconfirmed approval without saving it", async () => {
   expect(start).toHaveBeenCalledTimes(2);
   expect(expectResultOk(repository.list()).identities).toEqual([]);
   controller.dispose();
-  expectResultError(controller.confirm(), { code: "cancelled" });
+  expectResultError(await controller.confirm(), { code: "cancelled" });
   expect(expectResultOk(repository.list()).identities).toEqual([]);
 });
 
@@ -275,7 +363,7 @@ it("keeps an approved pubky for a retry when saving it after confirmation fails"
   vi.spyOn(repository, "saveExternal").mockReturnValueOnce(
     Result.err({ code: "storage_unavailable" }),
   );
-  expect(controller.confirm()).toMatchObject({ error: { code: "storage_failed" } });
+  expect(await controller.confirm()).toMatchObject({ error: { code: "storage_failed" } });
   // The confirmation stands; retrying saves without asking again.
   expect(expectResultOk(await controller.poll())).toMatchObject({ status: "connected" });
   expect(connection.poll).toHaveBeenCalledOnce();

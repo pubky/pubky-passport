@@ -189,7 +189,7 @@ export function parseEncodedPubkyAuthRequest(encodedRequest: unknown): PubkyAuth
   const sensitivePubkyAuthUrl =
     normalizedCapabilities === requestedCapabilities
       ? decoded.value
-      : replaceCapabilities(authUrl.value, normalizedCapabilities);
+      : replaceCapabilities(decoded.value, normalizedCapabilities);
 
   return Result.ok({
     authenticationMethod: authenticationMethod.value,
@@ -208,9 +208,30 @@ export function validateEncodedPubkyAuthRequest(
   return Result.isError(parsed) ? Result.err(parsed.error) : Result.ok();
 }
 
-function replaceCapabilities(authUrl: URL, capabilities: string): string {
-  authUrl.searchParams.set(PUBKY_AUTH_REQUEST_PARAMETERS.capabilities, capabilities);
-  return authUrl.toString();
+/**
+ * Rewrites only the `caps` value and leaves every other byte of the request as the app sent it.
+ * Re-serialising through URLSearchParams would form-encode the other values (`%20` becomes `+`),
+ * and Pubky Ring decodes with decodeURIComponent, which keeps the `+`.
+ */
+function replaceCapabilities(authUrl: string, capabilities: string): string {
+  const queryStart = authUrl.indexOf("?");
+  const hashStart = authUrl.indexOf("#", queryStart);
+  const queryEnd = hashStart === -1 ? authUrl.length : hashStart;
+  const pairs = authUrl.slice(queryStart + 1, queryEnd).split("&");
+  const encoded = encodeURIComponent(capabilities).replace(/%2F|%3A|%2C/gi, decodeURIComponent);
+  const replaced = pairs.map((pair) => {
+    const separator = pair.indexOf("=");
+    const name = separator === -1 ? pair : pair.slice(0, separator);
+    return queryParameterName(name) === PUBKY_AUTH_REQUEST_PARAMETERS.capabilities
+      ? `${name}=${encoded}`
+      : pair;
+  });
+  return `${authUrl.slice(0, queryStart + 1)}${replaced.join("&")}${authUrl.slice(queryEnd)}`;
+}
+
+/** A query name as URLSearchParams reads it, so `c%61ps` is found as `caps`. */
+function queryParameterName(name: string): string {
+  return new URLSearchParams(`${name}=`).keys().next().value ?? "";
 }
 
 function decodeDParam(d: string): ParseValueResult<string> {

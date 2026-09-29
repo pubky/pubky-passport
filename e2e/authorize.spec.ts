@@ -779,7 +779,7 @@ function waitForHomeDocument(page: Page) {
 /** Waits for the current history entry to settle on `path`, then checks it holds no request. */
 async function expectEntryWithoutRequest(page: Page, path: RegExp): Promise<void> {
   await expect(page).toHaveURL(path);
-  expect(await page.evaluate(() => window.location.search + window.location.hash)).toBe("");
+  expect(await evaluateSettled(page, () => window.location.search + window.location.hash)).toBe("");
   for (const canary of SENSITIVE_CANARIES) expect(page.url()).not.toContain(canary);
 }
 
@@ -825,8 +825,26 @@ function cspSources(policy: string, directiveName: string): string[] {
   return directive?.trim().split(/\s+/u).slice(1) ?? [];
 }
 
+/**
+ * Evaluates once the page's navigation has settled. History moves and the entry's hand-over to `/`
+ * are full navigations, and WebKit may still be replacing the document when the URL already shows
+ * the destination, so an evaluation then fails with a destroyed execution context. It waits for
+ * the load, and retries only that failure, after the next load.
+ */
+async function evaluateSettled<Value>(page: Page, evaluate: () => Value | Promise<Value>) {
+  for (let attempt = 1; ; attempt++) {
+    await page.waitForLoadState("load");
+    try {
+      return await page.evaluate(evaluate);
+    } catch (e) {
+      const replaced = e instanceof Error && /Execution context was destroyed/u.test(e.message);
+      if (!replaced || attempt >= 3) throw e;
+    }
+  }
+}
+
 async function browserPersistenceSnapshot(page: Page) {
-  return page.evaluate(async () => {
+  return evaluateSettled(page, async () => {
     const storageEntries = (storage: Storage) =>
       Array.from({ length: storage.length }, (_, index) => storage.key(index))
         .filter((key): key is string => key !== null)

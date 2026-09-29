@@ -4,6 +4,7 @@ import { emulateCoarsePointer } from "./helpers/pointer";
 import AxeBuilder from "@axe-core/playwright";
 import { E2E_HTTP_RELAY_URL, E2E_SIGNUP_HOMESERVER } from "./helpers/e2eServer";
 import { HOMESERVER as TEST_HOMESERVER, mockHomeserverRecords } from "./helpers/pubkyProfile";
+import { mockRingNetwork, RING_KEY, ringApproves } from "./helpers/pubkyRing";
 
 const HOMEGATE_HOMESERVER = "8pinxxgqs41n4aididenw5apqp1urfmzdztr8jt4abrkdn435ewo";
 const LIGHTNING_INVOICE_ID = "550e8400-e29b-41d4-a716-446655440000";
@@ -138,6 +139,44 @@ test("the profile grant after a Ring signup on the home page polls only the conf
     () => (window as Window & { __refusedConnections?: string[] }).__refusedConnections ?? [],
   );
   expect(refused).toEqual([]);
+});
+
+test("an existing account approving the profile grant after a Ring signup keeps its live profile", async ({
+  page,
+}) => {
+  const net = await mockRingNetwork(page, { profile: { name: "Carol" } });
+  // Only a phone gets the connection's link, which the spec reads the request from.
+  await emulateCoarsePointer(page);
+  await reachDestinationChoice(page);
+  await openRingSignup(page);
+  await page.getByRole("button", { name: "Continue to profile" }).click();
+  const link = page.getByRole("link", { name: "Connect in Pubky Ring" });
+  await expect(link).toHaveAttribute("href", /^pubkyauth:\/\//u);
+  await ringApproves(net, (await link.getAttribute("href"))!);
+
+  // The approving pubky already has a profile, so it is not presented as the new one.
+  await expect(
+    page.getByRole("heading", { name: "This pubky already has a profile" }),
+  ).toBeVisible();
+  await expect(page.getByText(RING_KEY, { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Yes, it is my new pubky" })).toHaveCount(0);
+  await page.getByRole("button", { name: "Add this pubky" }).click();
+
+  await expect(page.getByRole("heading", { name: "Your pubky." })).toBeVisible();
+  await expect(page.getByText("Carol", { exact: true })).toBeVisible();
+  // The pubky just created in Ring was not added, and Passport says so.
+  await expect(
+    page.getByText(/^The pubky you just created in Pubky Ring is not in Passport yet/u),
+  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: /^Create your/u })).toHaveCount(0);
+  expect(net.writes).toEqual([]);
+  expect(
+    await page.evaluate(
+      (key) =>
+        JSON.parse(localStorage.getItem(`pubky-passport/local-identities/v1/identity/${key}`)!),
+      RING_KEY,
+    ),
+  ).toEqual({ v: 1, publicKeyZ32: RING_KEY, keySource: "ring" });
 });
 
 test("local setup starts with a password-protected backup", async ({ page }) => {

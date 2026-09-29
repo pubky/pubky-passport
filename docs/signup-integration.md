@@ -99,8 +99,13 @@ submitted its signup, there is nothing left to choose: Passport shows **Finish y
   Passport cannot know the new key: it shows the pubky Ring connected and asks the user to confirm
   that it is the one just created. Only then does it add the Ring identity to the catalog; **No,
   choose again in Ring** closes that grant and starts a new request. Passport stores the public key
-  and setup status, never the private key or grant. The user publishes their profile before
-  completing setup. The client's original request still needs explicit approval in Ring;
+  and setup status, never the private key or grant, and the user then publishes their profile to
+  complete setup. If the approving pubky already has a published profile, it is not the new one:
+  Passport says so (**This pubky already has a profile**) and offers **Choose again in Pubky Ring**
+  first or **Add this pubky**, which saves it without flagging setup, clears a setup flag left from
+  earlier, keeps its live profile unchanged and says that the pubky just created is not in Passport
+  yet. If that profile cannot be read, Passport reads it once more on confirmation and, if it still
+  cannot tell, treats the pubky as new; the setup form opens over whatever profile it can read. The client's original request still needs explicit approval in Ring;
   connecting the profile does not authorize the client.
 - **Keep key in this browser.** Passport generates one SDK key, requires a `.pkarr` download
   protected by a password entered twice, then offers a file check: select and decrypt that backup
@@ -215,9 +220,11 @@ The delegated session stays in page memory for the page session, so further edit
 approval; after a reload editing asks Ring again. Passport revokes the grant (`session.signout()`)
 when it closes the connection inside the page: when another connection replaces it, when the
 identity is removed, when a write is refused, and when the connection screen is left (for example
-with **Back**) after Ring approved but before the connection completed. Closing or reloading the tab
-does **not** revoke it: Passport starts the revocation on page hide, but the page is gone before it
-completes, and no revocation reached the homeserver in a reload test. The grant then stays valid on
+with **Back**) after Ring approved but before the connection completed. This is by design: the
+grant lasts for the page session, and leaving the page does not revoke it on the homeserver. On page
+hide Passport starts the revocation as a best effort, but the SDK's `DELETE` is sent without
+`keepalive`, so the browser drops it when the page unloads, and closing the tab sends nothing at
+all. The grant then stays valid on
 the homeserver for its lifetime (two years), although no one holds its session any more, and
 neither Passport nor Ring can list or revoke it. Disposing a connection also deletes the SDK's
 delegated keys from the browser (`browserSessionStore.clearAll()`), including those of abandoned
@@ -232,7 +239,9 @@ the identity is chosen in Ring: Passport cannot make Ring sign with the one it s
 identity whose profile setup is unfinished opens this review first; Passport's own profile request
 waits until no request is under review. Compatible Pubky signers can use the same QR. Mobile users
 can open Ring directly or optionally show the QR. Back returns to the originating screen. Opening
-Ring does not send an authorization outcome. While the screen is shown and the page is in view,
+Ring does not send an authorization outcome. On the same device Ring opens the request's
+`x-success` URL itself after approval, so the person returns to the app without Passport. Wherever
+Ring runs, while the screen is shown and the page is in view,
 Passport reads the relay's acknowledgement for the app's channel (`GET <channel>/ack`, see
 [integration](integration.md#outcome-messages)) and ends the review by itself once Ring's answer is
 there for the app: acknowledged by the app's SDK while the app's popup opener can receive

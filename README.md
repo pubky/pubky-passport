@@ -79,9 +79,10 @@ requests a separate write-only grant for `profile.json` plus the `pubky.app` `fi
 directories (an avatar's blob and file IDs are not known before upload); profiles are read
 publicly. The grant is held in memory for the page session and never changes a client's
 authorization request. Passport revokes it when it closes the connection inside the page (another
-connection replaces it, the identity is removed, or a write is refused). Closing or reloading the
-tab does not revoke it: the grant stays valid on the homeserver, and neither Passport nor Ring can
-list or revoke it. Whether Ring and the homeserver accept the write-only scopes still needs a device
+connection replaces it, the identity is removed, or a write is refused). Revoking on page leave is
+best effort and in practice does not happen: the revocation started on page hide is dropped when
+the page unloads, and closing the tab sends nothing. The grant then stays valid on the homeserver,
+and neither Passport nor Ring can list or revoke it. Whether Ring and the homeserver accept the write-only scopes still needs a device
 test. Closing a connection also deletes the SDK's delegated keys from the browser. See
 [Adding identities and creating accounts](docs/signup-integration.md#client-contract).
 
