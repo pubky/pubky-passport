@@ -1,10 +1,11 @@
 /** @vitest-environment jsdom */
 
-import { act, cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { RingProfileControllerPort } from "@/client/ui/passportCollaborators";
+import { ACCOUNT_SETUP_STEPS, SetupProgressProvider } from "@/client/ui/shared/setupProgress";
 import { RingSignupStep } from "./ringSignupStep";
 
 const INVITE = {
@@ -42,15 +43,18 @@ describe("RingSignupStep", () => {
     vi.useRealTimers();
   });
 
-  it("asks a computer to scan, with the install link and the way on in one compact block", () => {
+  it("asks a computer to scan, with Install Pubky Ring as a side action after the way on", () => {
     usePointer(false);
     renderStep();
 
     expect(screen.getByRole("heading", { name: "Scan QR Code." })).toBeInTheDocument();
     expect(screen.getByRole("img", { name: "Pubky Ring signup QR code" })).toBeInTheDocument();
+    expect(screen.getByText(/After creating your account in Ring/u)).toBeInTheDocument();
+    const next = screen.getByRole("button", { name: "Continue to profile" });
     const install = screen.getByRole("button", { name: "Install Pubky Ring" });
-    expect(install.parentElement).toHaveTextContent(/After creating your account in Ring/u);
-    expect(screen.getByRole("button", { name: "Continue to profile" })).toBeInTheDocument();
+    expect(install.closest('[data-slot="tertiary-actions"]')).not.toBeNull();
+    expect(install).toHaveClass("underline");
+    expect(next.compareDocumentPosition(install) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it("switches a phone to scanning once the link did not open Pubky Ring", async () => {
@@ -67,5 +71,36 @@ describe("RingSignupStep", () => {
     expect(screen.getByRole("heading", { name: "Scan QR Code." })).toBeInTheDocument();
     expect(screen.getByText(/Open Pubky Ring on another phone/u)).toBeInTheDocument();
     expect(screen.getByRole("img", { name: "Pubky Ring signup QR code" })).toBeInTheDocument();
+  });
+
+  it("marks Profile as the current step while Ring connects the new account's profile", async () => {
+    usePointer(false);
+    const ring = {
+      start: vi.fn(() => new Promise<never>(() => undefined)),
+      poll: vi.fn(),
+      confirm: vi.fn(),
+      authorizationUrl: () => "pubkyauth://signin?secret=profile",
+      isConnected: () => false,
+      dispose: vi.fn(),
+    } as unknown as RingProfileControllerPort;
+    render(
+      <SetupProgressProvider steps={ACCOUNT_SETUP_STEPS} current={1}>
+        <RingSignupStep
+          invite={INVITE}
+          onBack={vi.fn()}
+          onComplete={vi.fn()}
+          profileController={ring}
+        />
+      </SetupProgressProvider>,
+    );
+    const current = () =>
+      within(screen.getByRole("navigation", { name: "Account setup progress" }))
+        .getAllByRole("listitem")
+        .find((step) => step.getAttribute("aria-current") === "step");
+    expect(current()).toHaveTextContent("Keys");
+
+    await userEvent.setup().click(screen.getByRole("button", { name: "Continue to profile" }));
+    expect(screen.getByRole("heading", { name: "Connect your Ring." })).toBeInTheDocument();
+    expect(current()).toHaveTextContent("Profile");
   });
 });

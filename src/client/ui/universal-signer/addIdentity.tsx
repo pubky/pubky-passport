@@ -2,27 +2,18 @@ import type { AuthorizationRequestReview } from "@/client/logic/authorization/re
 import type { LocalIdentityMetadata } from "@/client/logic/local-identity/localIdentityModels";
 import { IdentityEstablishmentFlow } from "@/client/ui/onboarding/identityEstablishmentFlow";
 import { ContinueWithGoogle } from "@/client/ui/onboarding/google/continueWithGoogle";
-import Image from "next/image";
 import { RequestHeading } from "@/client/ui/authorization/requestHeading";
 import { PassportScreen } from "@/client/ui/shared/passportScreen";
 import { DisplayHeading, LeadText } from "@/client/ui/shared/primitives/typography";
 import { ProviderTerms, usePassportProvider } from "@/client/ui/passportProviderConfiguration";
 import { BackButton } from "@/client/ui/shared/backButton";
 import { CancelButton } from "@/client/ui/shared/cancelButton";
+import { ChoiceCard } from "@/client/ui/shared/choiceCard";
 import { FolderIcon, UserRoundPlusIcon } from "@/client/ui/shared/icons";
 import { Button } from "@/client/ui/shared/primitives/button";
 import { PubkyBrandIcon } from "@/client/ui/shared/brand/pubkyBrandIcon";
 import { useHomegateAvailability } from "@/client/ui/homegateAvailability";
 import { AvailabilityNotice } from "@/client/ui/verificationAvailability";
-
-/**
- * The illustration sits above the text until xl, then beside it. Beside it, the art and spacing
- * stay small enough to leave the text column room for "Continue with Google" on one line.
- */
-const CARD_CLASS_NAME =
-  "flex min-w-0 flex-col gap-6 rounded-lg bg-card p-6 lg:p-8 xl:flex-row xl:items-start xl:gap-8";
-const ILLUSTRATION_CLASS_NAME =
-  "hidden size-48 shrink-0 object-contain lg:block xl:size-36 xl:self-center";
 
 export function AddIdentity({
   request,
@@ -82,58 +73,32 @@ export function AddIdentity({
           </div>
           <div className={`grid gap-6 ${showGoogle ? "lg:grid-cols-2" : ""}`}>
             {/* The recommended path comes first in the DOM, so reading and tab order match. */}
-            <section aria-labelledby="add-account-heading" className={CARD_CLASS_NAME}>
-              <Image
-                alt=""
-                aria-hidden="true"
-                src="/illustrations/identity-keys.png"
-                width={192}
-                height={192}
-                className={ILLUSTRATION_CLASS_NAME}
-              />
-              <div className="flex min-w-0 flex-1 flex-col gap-3">
-                <h2 id="add-account-heading" className="text-2xl font-bold leading-8">
-                  Hold your own key
-                </h2>
-                <p className="mb-3 text-sm leading-5 text-muted-foreground">
-                  Create an account and keep its key in Pubky Ring or this browser. Already have a
-                  backup file? Import it.
-                </p>
-                <Button className="w-full" onClick={onCreateAccount} size="lg">
-                  <UserRoundPlusIcon /> Create account
-                </Button>
-                <Button className="w-full" onClick={onImport} size="lg" variant="secondary">
-                  <FolderIcon /> Import backup
-                </Button>
-              </div>
-            </section>
+            <ChoiceCard
+              description="Create an account and keep its key in Pubky Ring or this browser. Already have a backup file? Import it."
+              illustration="/illustrations/identity-keys.png"
+              title="Hold your own key"
+            >
+              <Button className="w-full" onClick={onCreateAccount} size="lg">
+                <UserRoundPlusIcon /> Create account
+              </Button>
+              <Button className="w-full" onClick={onImport} size="lg" variant="secondary">
+                <FolderIcon /> Import backup
+              </Button>
+            </ChoiceCard>
             {showGoogle ? (
-              <section aria-labelledby="add-google-heading" className={CARD_CLASS_NAME}>
-                <Image
-                  alt=""
-                  aria-hidden="true"
-                  src="/illustrations/cloud.png"
-                  width={192}
-                  height={192}
-                  className={ILLUSTRATION_CLASS_NAME}
-                />
-                <div className="flex min-w-0 flex-1 flex-col gap-3">
-                  <h2 id="add-google-heading" className="text-2xl font-bold leading-8">
-                    Google account
-                  </h2>
-                  <p className="mb-3 text-sm leading-5 text-muted-foreground">
-                    Create or restore an account with Google. Your key is encrypted before it’s
-                    saved to your Google Drive, and Google never sees it.
+              <ChoiceCard
+                description="Create or restore an account with Google. Your key is encrypted before it’s saved to your Google Drive, and Google never sees it."
+                illustration="/illustrations/cloud.png"
+                title="Google account"
+              >
+                {googleSignupBlocked ? (
+                  <p className="text-sm font-medium leading-5 text-foreground" role="status">
+                    Creating an account with Google isn’t available in your country. You can still
+                    restore an existing one.
                   </p>
-                  {googleSignupBlocked ? (
-                    <p className="text-sm font-medium leading-5 text-foreground" role="status">
-                      Creating an account with Google isn’t available in your country. You can still
-                      restore an existing one.
-                    </p>
-                  ) : null}
-                  <ContinueWithGoogle onContinue={startGoogle} />
-                </div>
-              </section>
+                ) : null}
+                <ContinueWithGoogle onContinue={startGoogle} />
+              </ChoiceCard>
             ) : null}
           </div>
           {/* The Google check's retry stays with the cards it belongs to, above the Ring line. */}
@@ -142,7 +107,7 @@ export function AddIdentity({
             // Quiet on purpose: Ring suits people who already have it, not newcomers.
             <p className="flex flex-wrap items-center justify-center gap-x-1 text-center text-sm leading-5 text-muted-foreground">
               Already use Pubky Ring?
-              <Button className="px-3" onClick={ring.action} variant="ghost">
+              <Button onClick={ring.action} variant="link">
                 <PubkyBrandIcon /> {ring.label}
               </Button>
             </p>

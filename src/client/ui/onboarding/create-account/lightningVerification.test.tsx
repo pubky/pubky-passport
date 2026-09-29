@@ -7,8 +7,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { LightningVerification } from "./lightningVerification";
 
-const MOCKS = vi.hoisted(() => ({ toastInfo: vi.fn() }));
-vi.mock("sonner", () => ({ toast: { info: MOCKS.toastInfo } }));
+const MOCKS = vi.hoisted(() => ({ toastError: vi.fn(), toastInfo: vi.fn() }));
+vi.mock("sonner", () => ({ toast: { error: MOCKS.toastError, info: MOCKS.toastInfo } }));
 
 const invoice = {
   id: "550e8400-e29b-41d4-a716-446655440000",
@@ -79,7 +79,7 @@ describe("LightningVerification", () => {
     Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
     renderInvoice();
 
-    fireEvent.click(screen.getByRole("button", { name: "Copy Invoice" }));
+    fireEvent.click(screen.getByRole("button", { name: "Copy invoice" }));
     expect(writeText).toHaveBeenCalledWith(invoice.bolt11Invoice);
     expect(MOCKS.toastInfo).not.toHaveBeenCalled();
     finishCopy();
@@ -95,20 +95,63 @@ describe("LightningVerification", () => {
     });
     renderInvoice();
 
-    fireEvent.click(screen.getByRole("button", { name: "Copy Invoice" }));
+    fireEvent.click(screen.getByRole("button", { name: "Copy invoice" }));
     await waitFor(() =>
-      expect(MOCKS.toastInfo).toHaveBeenCalledWith("Could not copy invoice", {
-        description: "Select and copy the invoice manually.",
-      }),
+      expect(MOCKS.toastError).toHaveBeenCalledWith(
+        "Could not copy invoice",
+        expect.objectContaining({ description: "Select and copy the invoice manually." }),
+      ),
     );
     expect(MOCKS.toastInfo).not.toHaveBeenCalledWith("Invoice copied to clipboard");
     const manualCopy = screen.getByRole("textbox", { name: "Lightning invoice" });
-    expect(manualCopy).toHaveValue(invoice.bolt11Invoice);
-    expect(manualCopy).toHaveAttribute("readonly");
-    expect(screen.getByRole("link", { name: "Pay Now" })).toHaveAttribute(
-      "href",
-      `lightning:${invoice.bolt11Invoice}`,
+    expect(manualCopy).toHaveTextContent(invoice.bolt11Invoice);
+    expect(manualCopy).toHaveAttribute("aria-readonly", "true");
+    // Read-only text, not a dashed box that looks like a field to type in.
+    expect(manualCopy).not.toHaveClass("border-dashed");
+  });
+
+  it("shows the whole of a real-length invoice to copy by hand, selected at once", async () => {
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText: vi.fn().mockRejectedValue(new Error("Clipboard unavailable")) },
+    });
+    // A BOLT11 invoice runs to several hundred characters.
+    const bolt11Invoice = `lnbc10u1p5x7k2app5${"qg3w9z8n4v6t0e2c7m5r1y8u3a6s9d4f7h2j5k8l0".repeat(9)}gpd4c8tz`;
+    render(
+      <LightningVerification
+        invoice={{ ...invoice, bolt11Invoice }}
+        expired={false}
+        pending={false}
+        error={null}
+        onBack={vi.fn()}
+        onCreateInvoice={vi.fn()}
+        onCheckPayment={vi.fn()}
+      />,
     );
+
+    fireEvent.click(screen.getByRole("button", { name: "Copy invoice" }));
+    const manualCopy = await screen.findByRole("textbox", { name: "Lightning invoice" });
+    // Text that wraps to its full length: no fixed number of rows or height that cuts it off.
+    expect(manualCopy).toHaveTextContent(bolt11Invoice);
+    expect(manualCopy.tagName).not.toBe("TEXTAREA");
+    expect(manualCopy.className).not.toMatch(/(^|\s)(max-h-|h-\d|overflow-|line-clamp-|truncate)/u);
+    expect(manualCopy).toHaveClass("break-all", "select-all");
+    // Focusing it selects the whole invoice, ready to copy.
+    fireEvent.focus(manualCopy);
+    expect(window.getSelection()?.toString()).toBe(bolt11Invoice);
+  });
+
+  it("makes paying the way on, with copying the invoice a secondary action in the card", () => {
+    renderInvoice();
+    const pay = screen.getByRole("link", { name: "Pay now" });
+    expect(pay).toHaveAttribute("href", `lightning:${invoice.bolt11Invoice}`);
+    // The primary, last in the action row after Back; a computer scans the QR code instead.
+    expect(pay).toHaveClass("bg-brand/16", "md:hidden");
+    const back = screen.getByRole("button", { name: "Back" });
+    expect(back.compareDocumentPosition(pay) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const copy = screen.getByRole("button", { name: "Copy invoice" });
+    expect(copy).not.toHaveClass("bg-brand/16");
+    expect(copy.closest("section")).not.toBeNull();
   });
 
   it("shows only the check as busy while an expired invoice's payment is checked", async () => {

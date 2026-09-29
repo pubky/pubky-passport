@@ -41,7 +41,8 @@ export function IdentityManagementScreens({
         googleSubject={navigation.googleSubject}
         identity={navigation.identity}
         onBack={() => onNavigate({ view: "manage", publicKeyZ32 })}
-        onDone={onHome}
+        // Detaching starts in Manage identity, so finishing returns there, like attaching.
+        onDone={() => onNavigate({ view: "manage", publicKeyZ32 })}
       />
     );
   }

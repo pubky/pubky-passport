@@ -19,6 +19,27 @@ describe("Dialog", () => {
     expect(dialog.open).toBe(false);
   });
 
+  it("gives confirmations one shared sheet style that a caller can extend", () => {
+    render(
+      <Dialog
+        aria-label="Discard your changes?"
+        className="text-base"
+        onOpenChange={() => undefined}
+        open
+        variant="sheet"
+      />,
+    );
+
+    // A bottom sheet on a phone, a centred card from sm, with the caller's class added.
+    expect(screen.getByRole("dialog")).toHaveClass(
+      "mt-auto",
+      "rounded-t-xl",
+      "sm:m-auto",
+      "sm:max-w-[375px]",
+      "text-base",
+    );
+  });
+
   it("returns focus to the control that opened it when it is unmounted", () => {
     const rendered = render(
       <>

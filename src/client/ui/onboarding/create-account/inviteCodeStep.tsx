@@ -119,11 +119,10 @@ export function InviteCodeStep({
             <div className="flex items-center justify-between gap-3">
               <Label htmlFor="invite-homeserver">Homeserver</Label>
               <Button
-                className="min-h-0 px-2 py-1"
                 disabled={changingHomeserver && !isPubkyPublicKey(homeserverPubky)}
                 onClick={() => setChangingHomeserver((current) => !current)}
                 type="button"
-                variant="ghost"
+                variant="link"
               >
                 {changingHomeserver ? "Done" : "Change homeserver"}
               </Button>
@@ -142,8 +141,9 @@ export function InviteCodeStep({
                 containerClassName="h-14 border-dashed px-4"
               />
             ) : (
+              // Read-only, like a detail in Manage identity: plain text, not a field-like box.
               <output
-                className="block break-all rounded-lg border border-dashed px-4 py-3 text-xs text-muted-foreground"
+                className="block break-all text-sm font-medium leading-5 text-foreground"
                 id="invite-homeserver"
               >
                 {homeserverPubky}

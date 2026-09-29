@@ -5,14 +5,16 @@ import {
 } from "@/client/ui/googleDrivePermissionPrompt";
 import { googleIdentityErrorMessage } from "@/client/ui/googleIdentityErrorMessage";
 import { GoogleAccessScreen } from "@/client/ui/onboarding/google/googleAccessScreen";
+import { GoogleAccountCard } from "@/client/ui/onboarding/google/googleAccountCard";
+import { VisibleCopyNotice } from "@/client/ui/onboarding/google/visibleCopyNotice";
 import { BackButton } from "@/client/ui/shared/backButton";
 import { GoogleLogo } from "@/client/ui/shared/brand/googleLogo";
-import { RotateCcwIcon } from "@/client/ui/shared/icons";
+import { CheckIcon, RotateCcwIcon } from "@/client/ui/shared/icons";
 import { Notice } from "@/client/ui/shared/notice";
+import { OutcomeScreen } from "@/client/ui/shared/outcomeScreen";
 import { PassportNavigation } from "@/client/ui/shared/passportNavigation";
 import { PassportScreen } from "@/client/ui/shared/passportScreen";
 import { Button } from "@/client/ui/shared/primitives/button";
-import { FieldMessage } from "@/client/ui/shared/primitives/fieldMessage";
 import { DisplayHeading, LeadText } from "@/client/ui/shared/primitives/typography";
 import { useBackupToGoogle } from "./useBackupToGoogle";
 
@@ -45,23 +47,21 @@ export function BackupToGoogle({
   }
   if (state.status === "complete") {
     return (
-      <PassportScreen className="gap-6 md:gap-8">
-        <DisplayHeading accent="attached.">Google account</DisplayHeading>
-        <LeadText>
-          You can now sign in to Passport with this Google account. Your encrypted identity is
-          backed up in Google Drive, and you’re still signed in on this device.
-        </LeadText>
-        {state.backup.visibleRecoveryCopyStatus !== "created" ? (
-          <FieldMessage>
-            {state.backup.visibleRecoveryCopyStatus === "skipped"
-              ? "No visible recovery copy was created. Your private Google Drive backup is ready."
-              : "Your private Google Drive backup is ready, but the visible recovery copy could not be confirmed."}
-          </FieldMessage>
-        ) : null}
-        <Button onClick={onBack} size="lg">
-          Done
-        </Button>
-      </PassportScreen>
+      <OutcomeScreen
+        accent="attached."
+        action={
+          <Button className="w-full" onClick={onBack} size="lg">
+            <CheckIcon />
+            Done
+          </Button>
+        }
+        description="You can now sign in to Passport with this Google account. Your encrypted identity is backed up in Google Drive, and you’re still signed in on this device."
+        label="Google account attached."
+        title="Google account"
+      >
+        <GoogleAccountCard account={state.backup.googleAccount} />
+        <VisibleCopyNotice operation="attach" status={state.backup.visibleRecoveryCopyStatus} />
+      </OutcomeScreen>
     );
   }
   const pending = state.status === "pending";

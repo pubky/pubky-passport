@@ -400,7 +400,10 @@ export class GoogleIdentityController {
       // Name every field so nothing new on the lifecycle result reaches UI state unreviewed.
       (backup) => ({
         status: "backed-up",
-        backup: { visibleRecoveryCopyStatus: backup.visibleRecoveryCopyStatus },
+        backup: {
+          googleAccount: backup.googleAccount,
+          visibleRecoveryCopyStatus: backup.visibleRecoveryCopyStatus,
+        },
       }),
       credentials && { credentials, workingState: { status: "backing-up" } },
     );

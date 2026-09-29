@@ -7,6 +7,7 @@ import { ArrowRightIcon } from "@/client/ui/shared/icons";
 import { PassportNavigation } from "@/client/ui/shared/passportNavigation";
 import { Button } from "@/client/ui/shared/primitives/button";
 import { RingHandoff } from "@/client/ui/shared/ringHandoff";
+import { ACCOUNT_SETUP_STEPS, SetupProgressProvider } from "@/client/ui/shared/setupProgress";
 import { useDeepLinkLauncher, useRingHandoffMode } from "@/client/ui/shared/useRingHandoff";
 import { RingInstallStep } from "./ringInstallStep";
 import { SignupStep } from "./signupStep";
@@ -51,13 +52,16 @@ export function RingSignupStep({
     return <RingInstallStep onBack={() => setStep("scan")} onContinue={() => setStep("scan")} />;
   if (step === "profile")
     return (
-      <RingProfileConnection
-        controller={profileController}
-        setupRequired
-        confirmIdentity
-        onBack={inviteUsed ? onBack : () => setStep("scan")}
-        onComplete={onComplete}
-      />
+      // The account exists in Ring by now; connecting it is for the profile, the last step.
+      <SetupProgressProvider steps={ACCOUNT_SETUP_STEPS} current={2}>
+        <RingProfileConnection
+          controller={profileController}
+          setupRequired
+          confirmIdentity
+          onBack={inviteUsed ? onBack : () => setStep("scan")}
+          onComplete={onComplete}
+        />
+      </SetupProgressProvider>
     );
 
   return (
@@ -72,15 +76,9 @@ export function RingSignupStep({
       }
     >
       <RingHandoff labels={SIGNUP_LABELS} launcher={launcher} url={url} />
-      {/* One row, so Back and Continue stay in view in the app's 760px popup. */}
-      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-        <p className="min-w-0 flex-1 basis-60 text-sm text-muted-foreground">
-          After creating your account in Ring, continue here to set up your public profile.
-        </p>
-        <Button variant="ghost" className="shrink-0" onClick={() => setStep("install")}>
-          Install Pubky Ring
-        </Button>
-      </div>
+      <p className="text-sm text-muted-foreground">
+        After creating your account in Ring, continue here to set up your public profile.
+      </p>
       <PassportNavigation
         className="mt-auto md:mt-0"
         back={<BackButton onClick={onBack} />}
@@ -88,6 +86,11 @@ export function RingSignupStep({
           <Button className="w-full" size="lg" onClick={() => setStep("profile")}>
             <ArrowRightIcon />
             Continue to profile
+          </Button>
+        }
+        tertiary={
+          <Button onClick={() => setStep("install")} variant="link">
+            Install Pubky Ring
           </Button>
         }
       />

@@ -9,6 +9,7 @@ import {
   draftFromProfile,
   linkFieldKey,
   linkUrlLength,
+  profileDraftChanged,
   profileFromDraft,
   profileTextLength,
   validateProfileDraft,
@@ -20,7 +21,7 @@ import {
   type ProfileFieldKey,
 } from "@/client/logic/profile/profileDraft";
 import { BackButton } from "@/client/ui/shared/backButton";
-import { ArrowRightIcon, RotateCcwIcon, TrashIcon } from "@/client/ui/shared/icons";
+import { ArrowRightIcon, CheckIcon, RotateCcwIcon, TrashIcon } from "@/client/ui/shared/icons";
 import { Notice } from "@/client/ui/shared/notice";
 import { PassportNavigation } from "@/client/ui/shared/passportNavigation";
 import { PassportScreen } from "@/client/ui/shared/passportScreen";
@@ -31,7 +32,12 @@ import { Input } from "@/client/ui/shared/primitives/input";
 import { Label } from "@/client/ui/shared/primitives/label";
 import { Spinner } from "@/client/ui/shared/primitives/spinner";
 import { DisplayHeading, LeadText } from "@/client/ui/shared/primitives/typography";
-import { SetupProgressProvider } from "@/client/ui/shared/setupProgress";
+import {
+  ACCOUNT_SETUP_STEPS,
+  GOOGLE_SETUP_STEPS,
+  SetupProgressProvider,
+} from "@/client/ui/shared/setupProgress";
+import { DiscardChangesDialog } from "./discardChangesDialog";
 
 type ProfileSetupFlowProps = {
   identity: LocalIdentityMetadata;
@@ -52,9 +58,7 @@ export function ProfileSetupFlow(props: ProfileSetupFlowProps) {
   // Frozen for this visit: completing setup must not reshape the screen mid-save.
   const [required] = useState(props.identity.profileSetupRequired === true);
   if (!required) return <ProfileEditor {...props} required={false} />;
-  const steps = props.identity.googleAccount
-    ? ["Google backup", "Profile"]
-    : ["Account", "Keys", "Profile"];
+  const steps = props.identity.googleAccount ? GOOGLE_SETUP_STEPS : ACCOUNT_SETUP_STEPS;
   return (
     <SetupProgressProvider steps={steps} current={steps.length - 1}>
       <ProfileEditor {...props} required />
@@ -168,6 +172,9 @@ function ProfileEditor({
 }: ProfileSetupFlowProps & { required: boolean }) {
   const publicKey = identity.publicIdentity.publicKeyZ32;
   const [draft, setDraft] = useState<ProfileDraft>();
+  // The draft as loaded, to tell unpublished changes from none.
+  const [savedDraft, setSavedDraft] = useState<ProfileDraft>();
+  const [confirmingDiscard, setConfirmingDiscard] = useState(false);
   const [avatar, setAvatar] = useState<File>();
   const [preview, setPreview] = useState<string>();
   const [loading, setLoading] = useState(true);
@@ -215,7 +222,9 @@ function ProfileEditor({
       const loaded = Result.isOk(result) ? result.value : null;
       if (loaded?.avatar) objectUrl = URL.createObjectURL(loaded.avatar);
       setPreview(objectUrl);
-      setDraft(draftFromProfile(loaded?.profile, initialGoogleName));
+      const opened = draftFromProfile(loaded?.profile, initialGoogleName);
+      setDraft(opened);
+      setSavedDraft(opened);
     });
     return () => {
       active = false;
@@ -278,19 +287,20 @@ function ProfileEditor({
   }
 
   const finishLater = onDefer ? (
-    <Button disabled={saving} onClick={onDefer} size="lg" type="button" variant="ghost">
+    <Button disabled={saving} onClick={onDefer} type="button" variant="link">
       Finish later
     </Button>
   ) : null;
   // Back never detours through backups: the key was backed up before this step, and further
   // backups live in Manage. Right after an identity is added there is no Back: Finish later is the
-  // one way on without a profile.
+  // one way on without a profile, so it takes Back's place, first in the row and always in view.
   const back = onBack;
-  const leave = back ? (
-    <BackButton className="w-[120px] @max-[17rem]:w-full" disabled={saving} onClick={back} />
-  ) : (
-    finishLater
-  );
+  const changed =
+    avatar !== undefined ||
+    (draft !== undefined && savedDraft !== undefined && profileDraftChanged(draft, savedDraft));
+  // Leaving with unpublished changes asks first; there is nothing to lose otherwise.
+  const leave = back && changed ? () => setConfirmingDiscard(true) : back;
+  const avatarRemoved = Boolean(savedDraft?.image) && draft?.image === null && !avatar;
   const bioLength = draft ? profileTextLength(draft.bio) : 0;
   const bioTooLong = bioLength > PROFILE_LIMITS.bioMaxLength;
   const messages: Partial<Record<ProfileFieldKey, string>> = Object.fromEntries(
@@ -314,7 +324,11 @@ function ProfileEditor({
         <DisplayHeading accent="profile." className="[&>span]:inline">
           {required ? "Create your " : "Your "}
         </DisplayHeading>
-        <LeadText>Add your name, bio, links, and avatar.</LeadText>
+        <LeadText>
+          {required
+            ? "Add your name, bio, links, and avatar."
+            : "Changes are published to your public profile when you save."}
+        </LeadText>
       </div>
       {loading ? (
         <p className="flex items-center gap-2" role="status">
@@ -570,6 +584,10 @@ function ProfileEditor({
                 <FieldMessage className="text-center" error id="profile-avatar-error">
                   {INVALID_AVATAR_MESSAGE}
                 </FieldMessage>
+              ) : avatarRemoved ? (
+                <FieldMessage className="text-center">
+                  Your avatar is removed when you save.
+                </FieldMessage>
               ) : null}
             </section>
           </fieldset>
@@ -584,60 +602,66 @@ function ProfileEditor({
             </Notice>
           ) : null}
           <p className="text-sm text-muted-foreground">Your profile is public.</p>
-          {/* Below md the actions stay pinned to the window, so Finish is in view in the popup;
-              the page's scroll padding keeps focused fields clear of them. */}
+          {/* Below md the actions stay pinned to the window, so Finish and the way out are in
+              view in the popup; one row at every width keeps the bar short over the form, and the
+              page's scroll padding keeps focused fields clear of it. */}
           <div
-            className="@container sticky bottom-0 z-10 -mx-6 flex flex-col gap-2 border-t border-border bg-background/95 px-6 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur md:static md:mx-0 md:border-0 md:bg-transparent md:p-0 md:backdrop-blur-none"
+            className="sticky bottom-0 z-10 -mx-6 border-t border-border bg-background/95 px-6 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur md:static md:mx-0 md:border-0 md:bg-transparent md:p-0 md:backdrop-blur-none"
             data-sticky-actions
           >
-            {/* One row while both fit; in a zoomed popup they stack rather than run off the edge. */}
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              {leave}
-              <Button
-                loading={saving}
-                size="lg"
-                type="submit"
-                className="ml-auto min-w-32 @max-[17rem]:w-full"
-              >
-                <ArrowRightIcon />
-                {unreadable
-                  ? saving
-                    ? "Replacing…"
-                    : "Replace profile"
-                  : saving
-                    ? "Saving…"
-                    : "Finish"}
-              </Button>
-            </div>
-            {back && finishLater ? <div className="self-center">{finishLater}</div> : null}
+            <PassportNavigation
+              back={leave ? <BackButton disabled={saving} onClick={leave} /> : finishLater}
+              confirm={
+                <Button className="w-full" loading={saving} size="lg" type="submit">
+                  {required ? <ArrowRightIcon /> : <CheckIcon />}
+                  {submitLabel(required, unreadable, saving)}
+                </Button>
+              }
+              layout="inline"
+            />
           </div>
         </form>
       )}
       {loading || loadFailed ? (
-        <>
-          <PassportNavigation
-            back={back ? <BackButton onClick={back} /> : undefined}
-            confirm={
-              loadFailed ? (
-                // Stays mounted through the retry, so focus is not lost while it runs.
-                <Button
-                  className="w-full"
-                  loading={loading}
-                  onClick={() => {
-                    setLoading(true);
-                    setAttempt((value) => value + 1);
-                  }}
-                  size="lg"
-                >
-                  <RotateCcwIcon />
-                  Try again
-                </Button>
-              ) : undefined
-            }
-          />
-          {finishLater ? <div className="self-center">{finishLater}</div> : null}
-        </>
+        <PassportNavigation
+          back={back ? <BackButton onClick={back} /> : finishLater}
+          confirm={
+            loadFailed ? (
+              // Stays mounted through the retry, so focus is not lost while it runs.
+              <Button
+                className="w-full"
+                loading={loading}
+                onClick={() => {
+                  setLoading(true);
+                  setAttempt((value) => value + 1);
+                }}
+                size="lg"
+              >
+                <RotateCcwIcon />
+                Try again
+              </Button>
+            ) : undefined
+          }
+          layout="inline"
+        />
+      ) : null}
+      {back ? (
+        <DiscardChangesDialog
+          onDiscard={() => {
+            setConfirmingDiscard(false);
+            back();
+          }}
+          onKeepEditing={() => setConfirmingDiscard(false)}
+          open={confirmingDiscard}
+        />
       ) : null}
     </PassportScreen>
   );
+}
+
+/** Setup finishes a step; editing publishes changes to a profile that is already public. */
+function submitLabel(required: boolean, unreadable: boolean, saving: boolean): string {
+  if (unreadable) return saving ? "Replacing…" : "Replace profile";
+  if (required) return saving ? "Saving…" : "Finish";
+  return saving ? "Publishing…" : "Save";
 }

@@ -1,6 +1,5 @@
 import { type ReactNode, useId, useLayoutEffect, useRef } from "react";
 
-import { cn } from "./mergeClassNames";
 import { PassportNavigation } from "./passportNavigation";
 import { PassportScreen } from "./passportScreen";
 import { DisplayHeading, LeadText } from "./primitives/typography";
@@ -41,7 +40,10 @@ function ErrorScreen({
   back?: ReactNode;
   /** The recovery action, such as Try again. */
   action?: ReactNode;
-  /** A further option under the navigation, such as a destructive restart. */
+  /**
+   * A further option under the navigation, such as a destructive restart: a text action (Button
+   * `link` or `linkDestructive`) on the column's start edge.
+   */
   secondaryAction?: ReactNode;
   /**
    * Illustrated help after the actions, such as the Drive permission guide. The actions come
@@ -78,15 +80,12 @@ function ErrorScreen({
       </div>
       {children}
       {back || action || secondaryAction ? (
-        <div className="mt-auto flex flex-col gap-4 md:mt-0">
-          {back || action ? <PassportNavigation back={back} confirm={action} /> : null}
-          {secondaryAction ? (
-            // Centred under a recovery action; under a lone Back on desktop, it lines up with Back.
-            <div className={cn("flex justify-center", !action && "md:justify-start")}>
-              {secondaryAction}
-            </div>
-          ) : null}
-        </div>
+        <PassportNavigation
+          back={back}
+          className="mt-auto md:mt-0"
+          confirm={action}
+          tertiary={secondaryAction}
+        />
       ) : null}
       {help}
       {details ? <TechnicalDetails {...details} /> : null}

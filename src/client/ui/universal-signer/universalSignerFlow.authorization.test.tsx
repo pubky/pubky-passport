@@ -736,7 +736,13 @@ describe("UniversalSignerFlow with an authorization request", () => {
       screen.getByRole("button", { name: "Continue with Google or import a backup" }),
     );
     await user.click(screen.getByRole("button", { name: "Continue with Google" }));
-    await user.click(await screen.findByRole("button", { name: "Cancel" }));
+    const cancel = await screen.findByRole("button", { name: "Cancel" });
+    // Answering the app is a side action: a text action in the row under Back and Select
+    // identity, not a pill that reads as a second Back.
+    expect(cancel).toHaveClass("underline");
+    expect(cancel).not.toHaveClass("h-15");
+    expect(cancel.closest('[data-slot="tertiary-actions"]')).not.toBeNull();
+    await user.click(cancel);
     expect(MOCKS.cancel).toHaveBeenCalledOnce();
     expect(MOCKS.approve).not.toHaveBeenCalled();
   });

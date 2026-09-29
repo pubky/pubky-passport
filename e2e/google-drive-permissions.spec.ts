@@ -121,8 +121,9 @@ test("detaching removes the Google backup and keeps the identity active in this 
   expect(identity).toMatchObject({ publicKeyZ32: PUBLIC_KEY, secretKey: SECRET_KEY });
   expect(identity).not.toHaveProperty("googleAccount");
 
+  // Done returns to Manage identity, where detaching started.
   await page.getByRole("button", { name: "Done" }).click();
-  await page.getByRole("button", { name: "Manage identity", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Manage identity." })).toBeVisible();
   await expect(
     page.getByRole("region", { name: "Google account" }).getByRole("button", {
       name: "Attach to Google",

@@ -33,3 +33,37 @@ describe("SetupProgress", () => {
     expect(profile).not.toHaveAttribute("aria-current");
   });
 });
+
+describe("SetupProgress position", () => {
+  afterEach(cleanup);
+
+  it("keeps one width and position on compact and wide screens alike", () => {
+    render(
+      <SetupProgressProvider steps={["Account", "Keys", "Profile"]} current={0}>
+        <SetupProgress />
+      </SetupProgressProvider>,
+    );
+
+    expect(screen.getByRole("navigation", { name: "Account setup progress" })).toHaveClass(
+      "mx-auto",
+      "w-full",
+      "max-w-[588px]",
+    );
+  });
+
+  it("starts and ends each line at its circles, whatever a label's length", () => {
+    render(
+      <SetupProgressProvider steps={["Google backup", "Profile"]} current={0}>
+        <SetupProgress />
+      </SetupProgressProvider>,
+    );
+
+    const first = screen.getByText("Google backup");
+    const last = screen.getByText("Profile");
+    // A label takes no width, so the column is only as wide as its circle.
+    expect(first).toHaveClass("w-0", "whitespace-nowrap", "justify-start");
+    expect(first.parentElement).toHaveClass("items-start");
+    expect(last).toHaveClass("w-0", "justify-end");
+    expect(last.parentElement).toHaveClass("items-end");
+  });
+});

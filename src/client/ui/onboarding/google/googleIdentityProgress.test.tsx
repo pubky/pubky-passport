@@ -26,6 +26,21 @@ describe("GoogleIdentityProgress", () => {
     },
   );
 
+  it("heads account creation with the Google setup stepper, and a lookup or restore without it", () => {
+    render(<GoogleIdentityProgress progress={{ flow: "create", step: "signing_up" }} />);
+    const stepper = screen.getByRole("navigation", { name: "Account setup progress" });
+    expect(within(stepper).getByText("Google backup").closest("li")).toHaveAttribute(
+      "aria-current",
+      "step",
+    );
+    // The same space under the stepper as every other step.
+    expect(screen.getByRole("main")).toHaveClass("gap-6", "md:gap-8");
+    cleanup();
+
+    render(<GoogleIdentityProgress progress={{ flow: "restore", step: "restoring" }} />);
+    expect(screen.queryByRole("navigation", { name: "Account setup progress" })).toBeNull();
+  });
+
   it.each([
     [{ flow: "create", step: "preparing" }, "Store encrypted backup"],
     [{ flow: "create", step: "creating" }, "Store encrypted backup"],

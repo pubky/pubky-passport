@@ -202,6 +202,23 @@ test("the first screen renders without loading the Pubky SDK, which comes when n
   await expect.poll(largestScript, { timeout: 15_000 }).toBeGreaterThan(1_000_000);
 });
 
+test("a stale link lands on Passport's own not-found page, with a way back", async ({ page }) => {
+  const response = await page.goto("/no-such-page");
+  expect(response?.status()).toBe(404);
+  await expect(page).toHaveTitle("Page not found | Pubky Passport");
+  await expect(page.getByRole("heading", { level: 1, name: "Page not found." })).toBeVisible();
+  // Passport's dark page, header and footer, not a white default page inside them.
+  expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).not.toBe(
+    "rgb(255, 255, 255)",
+  );
+  await expect(page.getByRole("main")).toHaveCount(1);
+  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.getByRole("link", { name: "Go to Passport" }).click();
+  await expect(page).toHaveURL(/\/$/u);
+  await expect(page.getByRole("heading", { level: 1, name: /Get your pubky/u })).toBeVisible();
+});
+
 test("the signer title keeps its accent color without horizontal overflow", async ({ page }) => {
   for (const viewport of [
     { width: 1280, height: 720 },
@@ -594,7 +611,10 @@ test("overview pubky is plain text; management copying shows the gray info toast
   const icon = toast.locator("[data-icon] svg");
   await expect(icon).toHaveCount(1);
   await expect(icon).toHaveAttribute("viewBox", "0 0 20 20");
+  // Passport's typeface, not the system font Sonner's own stylesheet sets.
+  await expect(toast).toHaveCSS("font-family", /Inter Tight/u);
 
+  // Under the 84px header on a phone, so the logo and Log out stay visible and usable.
   await expect
     .poll(
       async () => {
@@ -602,13 +622,15 @@ test("overview pubky is plain text; management copying shows the gray info toast
         return (
           box !== null &&
           Math.abs(box.x - 24) <= 1 &&
-          Math.abs(box.y - 24) <= 1 &&
+          Math.abs(box.y - 84) <= 1 &&
           Math.abs(box.width - 327) <= 1
         );
       },
       { timeout: 2_000 },
     )
     .toBe(true);
+  const header = await page.getByRole("banner").boundingBox();
+  expect(header!.y + header!.height).toBeLessThanOrEqual((await toast.boundingBox())!.y + 1);
 });
 
 test("management copy controls align with their values and share a right edge", async ({

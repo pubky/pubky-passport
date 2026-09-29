@@ -5,6 +5,7 @@ import {
   progressSteps,
   type ChecklistStep,
 } from "@/client/ui/shared/identityProgress";
+import { GOOGLE_SETUP_STEPS, SetupProgressProvider } from "@/client/ui/shared/setupProgress";
 
 type ProgressPresentation =
   | { heading: "Loading" }
@@ -14,12 +15,18 @@ type ProgressPresentation =
  * One screen for every establishment phase. The Drive lookup and a restore are usually over in a
  * moment, so both stay on one steady "Loading" heading without a checklist; flashing steps past
  * for a few milliseconds reads as a glitch. Setup and repair take longer, so they announce
- * themselves and tick through their steps, starting from the completed Drive lookup.
+ * themselves and tick through their steps, starting from the completed Drive lookup. Creating an
+ * account is the first step of Google setup, so it shows the stepper that "Backup ready." continues.
  */
 function GoogleIdentityProgress({ progress }: { progress: GoogleIdentityProgressState }) {
   const presentation = progressPresentation(progress);
   if (presentation.heading === "Loading") return <IdentityLoading />;
-  return <IdentityProgress {...presentation} />;
+  if (progress.flow !== "create") return <IdentityProgress {...presentation} />;
+  return (
+    <SetupProgressProvider steps={GOOGLE_SETUP_STEPS} current={0}>
+      <IdentityProgress {...presentation} />
+    </SetupProgressProvider>
+  );
 }
 
 const LOOKUP_STEP = "Check Google Drive for a backup";

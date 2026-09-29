@@ -5,6 +5,8 @@ import { isKeyProtected, keyBackup } from "@/client/logic/local-identity/keyBack
 import type { LocalIdentityResult } from "@/client/logic/local-identity/LocalStorageIdentityRepository";
 import type { LocalIdentityMetadata } from "@/client/logic/local-identity/localIdentityModels";
 import { formatBackupDate } from "@/client/ui/identity-dashboard/backupStatus";
+import { PUBKY_COPY_TOASTS } from "@/client/ui/shared/copyToClipboard";
+import { DetailField } from "@/client/ui/shared/detailField";
 import { CheckIcon, DownloadIcon } from "@/client/ui/shared/icons";
 import { Notice } from "@/client/ui/shared/notice";
 import { PassportNavigation } from "@/client/ui/shared/passportNavigation";
@@ -69,14 +71,17 @@ export function LogoutConfirmation({
 
   return (
     <RecoveryScreen
+      variant="confirm"
       title={removesOnlyCopy ? "Remove this key from this browser?" : "Log out of this identity?"}
       description={description}
     >
-      <div className="min-w-0">
+      <div className="flex min-w-0 flex-col gap-3">
         <p className="break-words font-bold">{identity.profile?.name ?? "Your Pubky"}</p>
-        <p className="break-all text-sm text-secondary-foreground">
-          {identity.publicIdentity.publicKeyZ32}
-        </p>
+        <DetailField
+          copy={{ ...PUBKY_COPY_TOASTS, value: identity.publicIdentity.publicKeyZ32 }}
+          label="Pubky"
+          value={identity.publicIdentity.publicKeyZ32}
+        />
       </div>
       {backup.kind === "none" ? (
         <Notice tone="warning">

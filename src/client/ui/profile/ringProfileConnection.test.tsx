@@ -117,10 +117,11 @@ describe("RingProfileConnection", () => {
     expect(alert).not.toHaveTextContent("Could not connect to Ring");
     // The failure takes focus, and the recovery is the primary action beside Back.
     expect(alert).toHaveFocus();
-    expect(screen.getAllByRole("button").map((button) => button.textContent)).toEqual([
-      "Back",
-      "Try again",
-    ]);
+    expect(
+      screen
+        .getAllByRole("button")
+        .map((button) => button.getAttribute("aria-label") ?? button.textContent),
+    ).toEqual(["Copy Pubky", "Back", "Try again"]);
     await userEvent.setup().click(screen.getByRole("button", { name: "Try again" }));
     await waitFor(() => expect(ring.start).toHaveBeenCalledTimes(2));
     expect(ring.dispose).toHaveBeenCalledOnce();
@@ -172,6 +173,10 @@ describe("RingProfileConnection after a Ring signup", () => {
       await screen.findByRole("heading", { name: "Is this your new pubky?" }),
     ).toBeInTheDocument();
     expect(screen.getByText(OTHER)).toBeInTheDocument();
+    // The label names the key to compare with the one in Ring, not a connection status.
+    expect(screen.getByText(OTHER).parentElement?.previousElementSibling).toHaveTextContent(
+      "Pubky from Ring",
+    );
     expect(ring.start).toHaveBeenCalledWith({
       expectedKey: undefined,
       setupRequired: true,
@@ -230,4 +235,21 @@ it("adds an existing Ring identity without asking for setup or a confirmation", 
     confirmIdentity: false,
   });
   expect(screen.queryByRole("button", { name: "Finish later" })).toBeNull();
+});
+
+it("shows the pubky to connect as a detail and Finish later as a side action", async () => {
+  const onDefer = vi.fn();
+  mount(controller(), { expectedKey: KEY, setupRequired: true, onDefer });
+  expect(await screen.findByText("Waiting for approval in Ring…")).toBeInTheDocument();
+
+  // Read-only, like Manage identity: a labelled value with a copy button, not a grey line.
+  expect(screen.getByText(KEY)).toBeInTheDocument();
+  expect(screen.queryByText(`Pubky: ${KEY}`)).toBeNull();
+  expect(screen.getByRole("button", { name: "Copy Pubky" })).toBeEnabled();
+  const back = screen.getByRole("button", { name: "Back" });
+  const finishLater = screen.getByRole("button", { name: "Finish later" });
+  expect(finishLater.closest('[data-slot="tertiary-actions"]')).not.toBeNull();
+  expect(back.compareDocumentPosition(finishLater) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  await userEvent.setup().click(finishLater);
+  expect(onDefer).toHaveBeenCalledOnce();
 });

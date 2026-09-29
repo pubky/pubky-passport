@@ -88,28 +88,28 @@ already started signup:
 Local setup saves the unfinished key, its bound invite, and its backup step in browser local
 storage. Back from verification returns to backup creation, and a reload keeps the saved key:
 **Create account** reopens it at the signer choice. Back from backup creation, choosing Ring, and
-**Cancel** discard a key whose invite has not been submitted yet; the invite stays in the flow, and
-choosing Passport again prepares a fresh key. The draft stays outside the signing catalog until
-registration and sign-in finish; successful completion removes the draft. Backup passwords and
-file selections are not persisted, so resuming verification requires selecting and decrypting the
-backup again; skipping is offered only right after a download in the same session. Once a signup
-attempt starts, its key and invite stay bound, including uncertain outcomes and retries, and Ring is
-no longer offered for that invite. **Start over** after such an attempt drops the key and looks the
-invite up again: `used` or not found forgets it, and when the lookup fails, both signers look it up
-once more before using it.
+**Back** from the signer choice discard a key whose invite has not been submitted yet; the invite
+stays in the flow, and choosing Passport again prepares a fresh key. The draft stays outside the
+signing catalog until registration and sign-in finish; successful completion removes the draft.
+Backup passwords and file selections are not persisted, so resuming verification requires selecting
+and decrypting the backup again; skipping is offered only right after a download in the same
+session. Once a signup attempt starts, its key and invite stay bound, including uncertain outcomes
+and retries, and Ring is no longer offered for that invite. **Start over** after such an attempt
+drops the key and looks the invite up again: `used` or not found forgets it, and when the lookup
+fails, both signers look it up once more before using it.
 
 An SMS verification or a Lightning payment costs the user something, so Passport keeps what Homegate
-returned in browser local storage: the open Lightning invoice until it is paid, and the issued invite.
-**Cancel**, a reload, or a closed popup does not lose either; **Create account** reopens at the signer
-choice with the saved invite, or at the invoice while it is still open. Phone numbers and SMS
-challenges are never stored. The invite is removed once an account uses it, when the homeserver
-rejects it or reports it used, or when the user chooses **Discard invite** and confirms. An account
-created with a different invite leaves it saved. An invoice is removed only once it pays for an invite
-or Homegate no longer knows it: an SMS invite leaves an earlier invoice saved, since it may have been
-paid too, and Lightning offers that invoice again once the invite is gone. An expired invoice is checked
-for a late payment before a new one is created; a replacement is charged only when Homegate confirms
-the old invoice unpaid or no longer knows it. Manual invites are not stored unless a Passport key is
-prepared for them.
+returned in browser local storage: the open Lightning invoice until it is paid, and the issued
+invite. Leaving with **Back**, a reload, or a closed popup does not lose either; **Create account**
+reopens at the signer choice with the saved invite, or at the invoice while it is still open. Phone
+numbers and SMS challenges are never stored. The invite is removed once an account uses it, when the
+homeserver rejects it or reports it used, or when the user chooses **Discard invite** and confirms.
+An account created with a different invite leaves it saved. An invoice is removed only once it pays
+for an invite or Homegate no longer knows it: an SMS invite leaves an earlier invoice saved, since
+it may have been paid too, and Lightning offers that invoice again once the invite is gone. An
+expired invoice is checked for a late payment before a new one is created; a replacement is charged
+only when Homegate confirms the old invoice unpaid or no longer knows it. Manual invites are not
+stored unless a Passport key is prepared for them.
 
 Ring signup also returns to signer choice without discarding the invite. An invite that was shown to
 Ring, or restored from an earlier visit, can still be used in Passport unless the homeserver lookup

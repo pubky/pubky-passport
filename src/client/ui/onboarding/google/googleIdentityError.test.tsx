@@ -30,9 +30,9 @@ describe("GoogleIdentityError", () => {
 
     expect(screen.getByRole("heading", { name: "Identity found elsewhere." })).toBeInTheDocument();
     expect(screen.getByText(googleIdentityErrorMessage("foreign_passport_file"))).toBeVisible();
-    expect(
-      screen.getByRole("group", { name: "Site named in the file (unverified)" }),
-    ).toHaveTextContent("https://other.example");
+    // A read-only detail, labelled as unverified, not a box that looks like a field.
+    const label = screen.getByText("Site named in the file (unverified)");
+    expect(label.parentElement).toHaveTextContent("https://other.example");
     expect(screen.getByText(/cannot confirm which site created this file/)).toBeInTheDocument();
     expect(screen.queryByRole("link")).not.toBeInTheDocument();
     expect(screen.queryByText(/sign in on/i)).not.toBeInTheDocument();

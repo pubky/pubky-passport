@@ -15,7 +15,7 @@ import { BackButton } from "@/client/ui/shared/backButton";
 import { DownloadIcon, CheckIcon } from "@/client/ui/shared/icons";
 import { Notice } from "@/client/ui/shared/notice";
 import { PassportNavigation } from "@/client/ui/shared/passportNavigation";
-import { RecoveryScreen } from "@/client/ui/shared/recoveryScreen";
+import { RecoveryCard, RecoveryScreen } from "@/client/ui/shared/recoveryScreen";
 import { Button } from "@/client/ui/shared/primitives/button";
 import { FieldMessage } from "@/client/ui/shared/primitives/fieldMessage";
 import { FileField } from "@/client/ui/shared/primitives/fileField";
@@ -234,9 +234,11 @@ export function BackupFlow({
   const restores = creatingAccount ? "you can get your account back" : "it can restore your pubky";
   return (
     <RecoveryScreen
-      title={
-        confirming ? "Verify backup." : creatingAccount ? "Protect your key." : "Encrypted backup."
-      }
+      {...(confirming
+        ? { title: "Verify", accent: "backup." }
+        : creatingAccount
+          ? { title: "Protect your", accent: "key." }
+          : { title: "Encrypted", accent: "backup." })}
       description={
         confirming
           ? `Pick ${downloadedHere ? "the file you just downloaded" : "your backup file"} and enter its password. This proves ${restores}.`
@@ -247,118 +249,126 @@ export function BackupFlow({
     >
       <form
         key={step}
-        className="flex flex-col gap-6"
+        className="flex flex-1 flex-col gap-6 md:gap-8"
         aria-busy={pending}
         onSubmit={confirming ? verify : download}
       >
-        {confirming ? (
+        <RecoveryCard illustration="/illustrations/file.png">
+          {confirming ? (
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="backup-file">Backup file</Label>
+              <FileField
+                id="backup-file"
+                accept=".pkarr,application/octet-stream"
+                ref={file}
+                disabled={pending}
+                aria-invalid={fileError ? true : undefined}
+                aria-describedby={
+                  [downloadedFile && "backup-file-help", fileError && "backup-file-error"]
+                    .filter(Boolean)
+                    .join(" ") || undefined
+                }
+                onChange={(event) => {
+                  setHasFile(Boolean(event.currentTarget.files?.length));
+                  setError(undefined);
+                }}
+              />
+              {/* One hint with the retry inline, not a row of its own, keeps the primary in a popup. */}
+              {downloadedFile ? (
+                <FieldMessage id="backup-file-help">
+                  Download started:{" "}
+                  <span className="whitespace-nowrap font-medium text-foreground">
+                    {shortFileName(downloadedFile)}
+                  </span>
+                  . Not in your downloads?{" "}
+                  {/* The shared text action, set in the hint's type and inline in its sentence,
+                      so the line keeps its height (a link in a sentence needs no 44px target). */}
+                  <Button
+                    className="inline min-h-0 py-0 align-baseline text-xs leading-4 pointer-coarse:min-h-0"
+                    disabled={pending}
+                    onClick={downloadAgain}
+                    variant="link"
+                  >
+                    Download again
+                  </Button>
+                </FieldMessage>
+              ) : null}
+              {fileError ? (
+                <FieldMessage id="backup-file-error" error role="alert">
+                  {fileError}
+                </FieldMessage>
+              ) : null}
+            </div>
+          ) : null}
           <div className="flex flex-col gap-2">
-            <Label htmlFor="backup-file">Backup file</Label>
-            <FileField
-              id="backup-file"
-              accept=".pkarr,application/octet-stream"
-              ref={file}
-              disabled={pending}
-              aria-invalid={fileError ? true : undefined}
+            <Label htmlFor="backup-password">
+              {confirming ? "Backup password" : "Enter strong password"}
+            </Label>
+            <Input
+              id="backup-password"
+              type="password"
+              ref={password}
+              required
+              readOnly={pending}
+              minLength={confirming ? undefined : MINIMUM_BACKUP_PASSWORD_LENGTH}
+              maxLength={MAXIMUM_BACKUP_PASSWORD_LENGTH}
+              autoComplete={confirming ? "current-password" : "new-password"}
+              containerClassName="border-dashed"
+              aria-invalid={passwordTooShort || Boolean(passwordError) || undefined}
               aria-describedby={
-                [downloadedFile && "backup-file-help", fileError && "backup-file-error"]
+                [
+                  confirming ? null : "backup-password-help",
+                  passwordError && "backup-password-error",
+                ]
                   .filter(Boolean)
                   .join(" ") || undefined
               }
-              onChange={(event) => {
-                setHasFile(Boolean(event.currentTarget.files?.length));
-                setError(undefined);
-              }}
-            />
-            {/* One hint with the retry inline, not a row of its own, keeps the primary in a popup. */}
-            {downloadedFile ? (
-              <FieldMessage id="backup-file-help">
-                Download started:{" "}
-                <span className="whitespace-nowrap font-medium text-foreground">
-                  {shortFileName(downloadedFile)}
-                </span>
-                . Not in your downloads?{" "}
-                <button
-                  className="cursor-pointer rounded-sm font-semibold text-brand underline decoration-brand/40 underline-offset-4 hover:decoration-brand disabled:cursor-default disabled:opacity-50"
-                  disabled={pending}
-                  onClick={downloadAgain}
-                  type="button"
-                >
-                  Download again
-                </button>
-              </FieldMessage>
-            ) : null}
-            {fileError ? (
-              <FieldMessage id="backup-file-error" error role="alert">
-                {fileError}
-              </FieldMessage>
-            ) : null}
-          </div>
-        ) : null}
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="backup-password">
-            {confirming ? "Backup password" : "Enter strong password"}
-          </Label>
-          <Input
-            id="backup-password"
-            type="password"
-            ref={password}
-            required
-            readOnly={pending}
-            minLength={confirming ? undefined : MINIMUM_BACKUP_PASSWORD_LENGTH}
-            maxLength={MAXIMUM_BACKUP_PASSWORD_LENGTH}
-            autoComplete={confirming ? "current-password" : "new-password"}
-            containerClassName="border-dashed"
-            aria-invalid={passwordTooShort || Boolean(passwordError) || undefined}
-            aria-describedby={
-              [confirming ? null : "backup-password-help", passwordError && "backup-password-error"]
-                .filter(Boolean)
-                .join(" ") || undefined
-            }
-            onInput={updatePasswordState}
-          />
-          {confirming ? null : (
-            <FieldMessage id="backup-password-help" error={passwordTooShort}>
-              {`Minimum ${MINIMUM_BACKUP_PASSWORD_LENGTH} characters.`}
-            </FieldMessage>
-          )}
-          {passwordError ? (
-            <FieldMessage id="backup-password-error" error role="alert">
-              {passwordError}
-            </FieldMessage>
-          ) : null}
-        </div>
-        {needsConfirmation ? (
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="backup-password-confirmation">Confirm password</Label>
-            <Input
-              id="backup-password-confirmation"
-              type="password"
-              ref={passwordConfirmation}
-              required
-              readOnly={pending}
-              maxLength={MAXIMUM_BACKUP_PASSWORD_LENGTH}
-              autoComplete="new-password"
-              containerClassName="border-dashed"
-              aria-invalid={confirmation === "mismatch" || undefined}
-              aria-describedby={
-                confirmation === "mismatch" ? "backup-password-confirmation-error" : undefined
-              }
               onInput={updatePasswordState}
             />
-            {confirmation === "mismatch" ? (
-              <FieldMessage id="backup-password-confirmation-error" error role="alert">
-                Passwords do not match.
+            {confirming ? null : (
+              <FieldMessage id="backup-password-help" error={passwordTooShort}>
+                {`Minimum ${MINIMUM_BACKUP_PASSWORD_LENGTH} characters.`}
+              </FieldMessage>
+            )}
+            {passwordError ? (
+              <FieldMessage id="backup-password-error" error role="alert">
+                {passwordError}
               </FieldMessage>
             ) : null}
           </div>
-        ) : null}
+          {needsConfirmation ? (
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="backup-password-confirmation">Confirm password</Label>
+              <Input
+                id="backup-password-confirmation"
+                type="password"
+                ref={passwordConfirmation}
+                required
+                readOnly={pending}
+                maxLength={MAXIMUM_BACKUP_PASSWORD_LENGTH}
+                autoComplete="new-password"
+                containerClassName="border-dashed"
+                aria-invalid={confirmation === "mismatch" || undefined}
+                aria-describedby={
+                  confirmation === "mismatch" ? "backup-password-confirmation-error" : undefined
+                }
+                onInput={updatePasswordState}
+              />
+              {confirmation === "mismatch" ? (
+                <FieldMessage id="backup-password-confirmation-error" error role="alert">
+                  Passwords do not match.
+                </FieldMessage>
+              ) : null}
+            </div>
+          ) : null}
+        </RecoveryCard>
         {formError ? (
           <Notice focusOnMount tone="error">
             {formError}
           </Notice>
         ) : null}
         <PassportNavigation
+          className="mt-auto md:mt-0"
           layout="paired"
           back={<BackButton disabled={pending} onClick={back} />}
           confirm={
@@ -383,18 +393,15 @@ export function BackupFlow({
                     : "Download backup"}
             </Button>
           }
+          tertiary={
+            // The check is the only proof the file and password open, so skipping comes last.
+            confirming && downloadedHere && allowSkip ? (
+              <Button disabled={pending} onClick={onSkip} variant="link">
+                Skip this check (not recommended)
+              </Button>
+            ) : undefined
+          }
         />
-        {/* The check is the only proof the file and password open, so skipping comes last. */}
-        {confirming && downloadedHere && allowSkip ? (
-          <Button
-            variant="ghost"
-            className="self-center text-muted-foreground"
-            disabled={pending}
-            onClick={onSkip}
-          >
-            Skip this check (not recommended)
-          </Button>
-        ) : null}
       </form>
     </RecoveryScreen>
   );

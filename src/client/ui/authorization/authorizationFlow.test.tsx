@@ -123,3 +123,14 @@ it("never claims an approval Passport handed to Ring", () => {
   expect(screen.queryByText(/Authorization complete/u)).toBeNull();
   cleanup();
 });
+
+it("celebrates an approval like every other finished task, and only an approval", () => {
+  renderFlow({ status: "approved" });
+  expect(document.querySelector('img[src*="checkmark.png"]')).not.toBeNull();
+  expect(screen.getByRole("button", { name: "Continue" })).toHaveClass("w-full");
+  cleanup();
+
+  renderFlow({ status: "handed-off" });
+  expect(document.querySelector('img[src*="checkmark.png"]')).toBeNull();
+  cleanup();
+});

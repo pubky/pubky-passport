@@ -205,7 +205,10 @@ describe("BackupImportFlow", () => {
     expect(
       await screen.findByRole("heading", { name: "Homeserver record missing." }),
     ).toBeInTheDocument();
-    expect(screen.getByText(`Pubky: ${PUBLIC_KEY}`)).toBeInTheDocument();
+    // The pubky is a read-only detail like the homeserver, not a grey line or a field-like box.
+    expect(screen.getByText("Your pubky")).toBeInTheDocument();
+    expect(screen.getByText(PUBLIC_KEY)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Copy Your pubky" })).toBeEnabled();
     const publish = screen.getByRole("button", { name: "Publish record and import" });
     // The button names the homeserver it publishes and the caution that goes with it.
     expect(publish).toHaveAccessibleDescription(

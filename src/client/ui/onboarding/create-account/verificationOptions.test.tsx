@@ -124,6 +124,14 @@ it("shows only supported signup methods and the configured provider terms", asyn
   );
   expect(screen.queryByRole("button", { name: "Continue with Lightning" })).not.toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "Continue with SMS" })).not.toBeInTheDocument();
+  // A lone method keeps the step column rather than one card across the page, with its
+  // illustration beside the text and the button fitted to that column.
+  expect(screen.getByRole("main")).toHaveClass("max-w-[588px]");
+  expect(screen.getByRole("main")).not.toHaveClass("max-w-[1280px]");
+  const card = screen.getByRole("group", { name: "Invite code" }).firstElementChild;
+  expect(card).toHaveClass("lg:flex-row", "lg:items-center");
+  expect(card?.querySelector('img[src*="invite.png"]')).toHaveClass("size-36");
+  expect(card?.querySelector('img[src*="invite.png"]')).not.toHaveClass("mx-auto");
   expect(
     screen.getByRole("link", { name: /^Terms of service of the homeserver provider/u }),
   ).toHaveAttribute("href", "https://provider.example/terms");
@@ -134,6 +142,39 @@ it("shows only supported signup methods and the configured provider terms", asyn
   await userEvent.setup().click(screen.getByRole("button", { name: "Enter invite manually" }));
   expect(onInvite).toHaveBeenCalledOnce();
   expect(onLightning).not.toHaveBeenCalled();
+});
+
+it("keeps two methods in an 800px column and three across the wide page", () => {
+  const view = (lightning: "available" | "unavailable") => (
+    <HomegateAvailabilityContext
+      value={{
+        methods: {
+          google: { status: "available" },
+          sms: { status: "available" },
+          lightning: { status: lightning },
+        },
+        retry: vi.fn(),
+      }}
+    >
+      <VerificationOptions
+        onBack={vi.fn()}
+        onInvite={vi.fn()}
+        onLightning={vi.fn()}
+        onSms={vi.fn()}
+      />
+    </HomegateAvailabilityContext>
+  );
+  const rendered = render(view("unavailable"));
+  expect(screen.getAllByRole("group")).toHaveLength(2);
+  // The heading, the cards and Back share the narrower column, so they keep one edge.
+  expect(screen.getByRole("main")).toHaveClass("max-w-[1280px]", "lg:max-w-[880px]");
+  const card = screen.getByRole("group", { name: "Phone verification" }).firstElementChild;
+  expect(card).not.toHaveClass("lg:flex-row");
+  expect(card?.querySelector('img[src*="sms-verification.png"]')).toHaveClass("size-48");
+
+  rendered.rerender(withGoogleIdentityConfiguration(view("available")));
+  expect(screen.getAllByRole("group")).toHaveLength(3);
+  expect(screen.getByRole("main")).not.toHaveClass("lg:max-w-[880px]");
 });
 
 it("says why accounts are verified and keeps each method's price with its button", () => {

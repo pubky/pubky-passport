@@ -120,6 +120,7 @@ body:has([data-passport-context-band]) {
  */
 @media (width < 48rem) {
   html:has([data-sticky-actions]) {
+    /* The bar is one row (about 5.5rem) at every width; the rest keeps a field's hint in view. */
     scroll-padding-bottom: calc(9rem + env(safe-area-inset-bottom));
   }
 }

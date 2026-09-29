@@ -67,6 +67,8 @@ type GoogleIdentityEstablishmentResult = ResultType<
 type DetachGoogleIdentityResult = ResultType<void, GoogleIdentityLifecycleError>;
 
 export type GoogleIdentityBackup = {
+  /** The Google account the identity is now attached to, named on the completion screen. */
+  googleAccount: GoogleAccountProfile;
   visibleRecoveryCopyStatus: VisibleRecoveryCopyStatus;
 };
 
@@ -1178,7 +1180,7 @@ export class GoogleIdentityLifecycle {
       return Result.err({ code: "google_backup_created_not_linked", cause: linked.error });
     }
     this.unlinkedBackups.delete(key);
-    return Result.ok({ visibleRecoveryCopyStatus });
+    return Result.ok({ googleAccount, visibleRecoveryCopyStatus });
   }
 
   private async deleteVerifiedGoogleDriveFiles(

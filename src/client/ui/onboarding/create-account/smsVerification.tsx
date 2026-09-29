@@ -158,8 +158,9 @@ export function SmsCodeStep({
             <label className="text-xl font-bold leading-7" htmlFor="sms-code">
               Verification code
             </label>
+            {/* The lead already names the number; saying it twice pushes the field down. */}
             <p className="text-base leading-6 text-secondary-foreground" id="sms-help">
-              Enter the verification code sent to {phoneNumber}.
+              Enter the 6-digit code from the SMS.
             </p>
           </div>
           <div className="group/sms-code relative">

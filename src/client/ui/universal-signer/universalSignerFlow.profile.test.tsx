@@ -2,6 +2,7 @@
 import { act, cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Result } from "better-result";
+import { toast } from "sonner";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { UniversalSignerFlow } from "@/client/ui/universal-signer/universalSignerFlow";
 import { fakeLocalIdentityController } from "@test-utils/fakeLocalIdentityController";
@@ -129,6 +130,8 @@ it("returns setup opened from the overview or Manage to where it was opened, kee
   // Opened later, Back is the one way out; Finish later belongs to the step after creation.
   expect(screen.queryByRole("button", { name: "Finish later" })).not.toBeInTheDocument();
   await user.click(screen.getByRole("button", { name: "Back" }));
+  // The typed name is not published, so leaving asks first.
+  await user.click(screen.getByRole("button", { name: "Discard changes" }));
   // Back never detours through backups or Manage.
   expect(await screen.findByRole("heading", { name: "Your pubky." })).toBeInTheDocument();
   expect(screen.queryByRole("heading", { name: "Choose backup method" })).not.toBeInTheDocument();
@@ -143,6 +146,27 @@ it("returns setup opened from the overview or Manage to where it was opened, kee
   expect(await screen.findByRole("heading", { level: 1 })).toHaveTextContent(manage!);
   expect(screen.getByRole("button", { name: "Set up profile" })).toBeInTheDocument();
   expect(save).not.toHaveBeenCalled();
+  expect(approve).not.toHaveBeenCalled();
+});
+it("publishes an edited profile, says so and returns to Manage, where editing started", async () => {
+  const published = vi.spyOn(toast, "success");
+  state.catalog = {
+    activePublicKeyZ32: KEY,
+    identities: [{ publicIdentity: { publicKeyZ32: KEY }, profile: { name: "Satoshi" } }],
+  };
+  load.mockResolvedValue(Result.ok({ profile }));
+  save.mockResolvedValue(Result.ok({ ...profile, name: "Satoshi Nakamoto" }));
+  const user = userEvent.setup();
+  mount();
+  await user.click(await screen.findByRole("button", { name: "Manage identity" }));
+  await user.click(screen.getByRole("button", { name: "Edit profile" }));
+  const name = await screen.findByLabelText("Name");
+  await user.clear(name);
+  await user.type(name, "Satoshi Nakamoto");
+  await user.click(screen.getByRole("button", { name: "Save" }));
+
+  expect(await screen.findByRole("heading", { name: "Manage identity." })).toBeInTheDocument();
+  expect(published).toHaveBeenCalledWith("Profile published");
   expect(approve).not.toHaveBeenCalled();
 });
 it("keeps the first two saved custom link titles editable", async () => {

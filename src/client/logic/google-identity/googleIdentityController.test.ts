@@ -79,7 +79,9 @@ describe("GoogleIdentityController", () => {
     const states = recordStates(controller);
     MOCKS.backupIdentity
       .mockResolvedValueOnce(Result.err({ code: "visible_backup_permission_missing" }))
-      .mockResolvedValueOnce(Result.ok({ visibleRecoveryCopyStatus: "skipped" }));
+      .mockResolvedValueOnce(
+        Result.ok({ googleAccount: GOOGLE_ACCOUNT, visibleRecoveryCopyStatus: "skipped" }),
+      );
     await controller.backupIdentity(PUBLIC_IDENTITY);
     expect(controller.getState()).toEqual({
       status: "failed",
@@ -88,9 +90,10 @@ describe("GoogleIdentityController", () => {
     await controller.continueBackupWithoutVisibleCopy();
     expect(MOCKS.requestAuthorization).toHaveBeenCalledOnce();
     expect(MOCKS.backupIdentity).toHaveBeenLastCalledWith(CREDENTIALS, PUBLIC_IDENTITY, true);
+    // The account is named on the completion screen; nothing else from the lifecycle is kept.
     expect(controller.getState()).toEqual({
       status: "backed-up",
-      backup: { visibleRecoveryCopyStatus: "skipped" },
+      backup: { googleAccount: GOOGLE_ACCOUNT, visibleRecoveryCopyStatus: "skipped" },
     });
     // Reused credentials publish backup progress, never an establishment state.
     expect(states.map((state) => state.status)).not.toContain("establishing");
@@ -136,7 +139,9 @@ describe("GoogleIdentityController", () => {
       .mockResolvedValueOnce(Result.ok(CREDENTIALS));
     MOCKS.backupIdentity
       .mockResolvedValueOnce(Result.err({ code: "visible_backup_permission_missing" }))
-      .mockResolvedValueOnce(Result.ok({ visibleRecoveryCopyStatus: "created" }));
+      .mockResolvedValueOnce(
+        Result.ok({ googleAccount: GOOGLE_ACCOUNT, visibleRecoveryCopyStatus: "created" }),
+      );
 
     await controller.backupIdentity(PUBLIC_IDENTITY);
     expect(Result.isOk(await controller.continueBackupWithoutVisibleCopy())).toBe(true);

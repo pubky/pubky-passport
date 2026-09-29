@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import { preload } from "react-dom";
 import type { PassportAuthorizationViewState } from "@/client/logic/authorization/flow/PassportAuthorizationController";
 import type { LocalIdentityMetadata } from "@/client/logic/local-identity/localIdentityModels";
@@ -8,6 +7,7 @@ import type { AuthorizationController } from "./usePassportAuthorization";
 import { ArrowRightIcon } from "@/client/ui/shared/icons";
 import { BackButton } from "@/client/ui/shared/backButton";
 import { ErrorScreen } from "@/client/ui/shared/errorScreen";
+import { OutcomeScreen } from "@/client/ui/shared/outcomeScreen";
 import { PassportNavigation } from "@/client/ui/shared/passportNavigation";
 import { PassportScreen } from "@/client/ui/shared/passportScreen";
 import { Button } from "@/client/ui/shared/primitives/button";
@@ -98,24 +98,30 @@ const TERMINAL_COPY = {
 } as const;
 
 function AuthorizationTerminal({ outcome }: { outcome: keyof typeof TERMINAL_COPY }) {
-  const approved = outcome === "approved";
   const copy = TERMINAL_COPY[outcome];
+  const label = `${copy.title} ${copy.accent}`;
+  if (outcome === "approved") {
+    return (
+      <OutcomeScreen
+        accent={copy.accent}
+        action={
+          <Button className="w-full" onClick={goHome} size="lg" type="button">
+            <ArrowRightIcon />
+            Continue
+          </Button>
+        }
+        description={copy.lead}
+        label={label}
+        title={copy.title}
+      />
+    );
+  }
   return (
     <PassportScreen className="gap-6">
-      <DisplayHeading accent={copy.accent} aria-label={`${copy.title} ${copy.accent}`}>
+      <DisplayHeading accent={copy.accent} aria-label={label}>
         {copy.title}
       </DisplayHeading>
       <LeadText>{copy.lead}</LeadText>
-      {approved ? (
-        <Image
-          alt=""
-          aria-hidden="true"
-          className="mx-auto size-50"
-          height={200}
-          src="/illustrations/checkmark.png"
-          width={200}
-        />
-      ) : null}
       {outcome !== "cancelled" ? (
         <PassportNavigation
           confirm={

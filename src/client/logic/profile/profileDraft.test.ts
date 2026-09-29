@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   draftFromProfile,
   linkUrlLength,
+  profileDraftChanged,
   profileFromDraft,
   profileTextLength,
   validateProfileDraft,
@@ -78,6 +79,34 @@ describe("profile drafts", () => {
   it("counts text as the specification does: trimmed, in Unicode scalar values", () => {
     expect(profileTextLength("  Al  ")).toBe(2);
     expect(profileTextLength("🔥".repeat(50))).toBe(50);
+  });
+});
+
+describe("profile draft changes", () => {
+  it("counts only what saving would publish", () => {
+    const saved = draft({ bio: "Bitcoin", image: "pubky://key/pub/pubky.app/files/FILE" });
+
+    expect(profileDraftChanged({ ...saved }, saved)).toBe(false);
+    // An empty link row and spaces around an address publish nothing new.
+    expect(profileDraftChanged({ ...saved, links: [...saved.links, link(2, "", "")] }, saved)).toBe(
+      false,
+    );
+    expect(
+      profileDraftChanged(
+        { ...saved, links: saved.links.map((item) => ({ ...item, url: "  " })) },
+        saved,
+      ),
+    ).toBe(false);
+
+    expect(profileDraftChanged({ ...saved, name: "Satoshi Nakamoto" }, saved)).toBe(true);
+    expect(profileDraftChanged({ ...saved, bio: "" }, saved)).toBe(true);
+    expect(profileDraftChanged({ ...saved, image: null }, saved)).toBe(true);
+    expect(
+      profileDraftChanged(
+        { ...saved, links: [...saved.links, link(2, "Blog", "https://b.example")] },
+        saved,
+      ),
+    ).toBe(true);
   });
 });
 

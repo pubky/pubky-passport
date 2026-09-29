@@ -1370,7 +1370,10 @@ describe("Google identity use cases", () => {
     });
     expect(
       expectResultOk(await createSubject().backupIdentity(CREDENTIALS, PUBLIC_IDENTITY)),
-    ).toEqual({ visibleRecoveryCopyStatus: "created" });
+    ).toEqual({
+      googleAccount: CREDENTIALS.googleAccount,
+      visibleRecoveryCopyStatus: "created",
+    });
     expect(MOCKS.createPassportFile).toHaveBeenCalledWith(ENVELOPE);
     expect(MOCKS.repositorySetGoogleAccount).toHaveBeenCalledWith(
       PUBLIC_IDENTITY.publicKeyZ32,
@@ -1426,7 +1429,10 @@ describe("Google identity use cases", () => {
     expect(MOCKS.encryptSecretKeyBytes).not.toHaveBeenCalled();
     expect(
       expectResultOk(await subject.backupIdentity(credentials, PUBLIC_IDENTITY, true)),
-    ).toEqual({ visibleRecoveryCopyStatus: "skipped" });
+    ).toEqual({
+      googleAccount: CREDENTIALS.googleAccount,
+      visibleRecoveryCopyStatus: "skipped",
+    });
     expect(MOCKS.hasPassportFile).toHaveBeenCalledTimes(2);
     expect(MOCKS.readPassportFile).not.toHaveBeenCalled();
     expect(MOCKS.createVisibleRecoveryCopy).not.toHaveBeenCalled();
@@ -1607,6 +1613,7 @@ describe("Google identity use cases", () => {
     MOCKS.hasPassportFile.mockResolvedValue(Result.ok(true));
     MOCKS.repositorySetGoogleAccount.mockReturnValue(Result.ok());
     expect(expectResultOk(await subject.backupIdentity(CREDENTIALS, PUBLIC_IDENTITY))).toEqual({
+      googleAccount: CREDENTIALS.googleAccount,
       visibleRecoveryCopyStatus: "unconfirmed",
     });
     expect(MOCKS.createPassportFile).toHaveBeenCalledOnce();
@@ -1676,6 +1683,7 @@ describe("Google identity use cases", () => {
     const later = createPageScopedSubject();
     // Linking removes the entry, so no page-scoped state outlives this test.
     expect(expectResultOk(await later.backupIdentity(CREDENTIALS, PUBLIC_IDENTITY))).toEqual({
+      googleAccount: CREDENTIALS.googleAccount,
       visibleRecoveryCopyStatus: "created",
     });
     expect(MOCKS.createPassportFile).toHaveBeenCalledOnce();

@@ -1,11 +1,21 @@
 import { type ComponentPropsWithoutRef, useEffect, useRef } from "react";
 
+import { cn } from "@/client/ui/shared/mergeClassNames";
+
+const VARIANTS = {
+  /** A confirmation: a sheet along the bottom of a phone's window, a centred 375px card from sm. */
+  sheet:
+    "mb-0 mt-auto w-full max-w-none rounded-t-xl border bg-popover p-6 text-foreground shadow-[0_50px_100px_rgba(5,5,10,0.75)] backdrop:bg-black/75 sm:m-auto sm:max-w-[375px] sm:rounded-xl",
+} as const;
+
 type DialogProps = Omit<ComponentPropsWithoutRef<"dialog">, "onCancel" | "open"> & {
   onOpenChange: (open: boolean) => void;
   open: boolean;
+  /** A shared look; without one, the caller's `className` styles the dialog alone. */
+  variant?: keyof typeof VARIANTS;
 };
 
-function Dialog({ onOpenChange, open, ...props }: DialogProps) {
+function Dialog({ className, onOpenChange, open, variant, ...props }: DialogProps) {
   const dialog = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {
@@ -32,6 +42,7 @@ function Dialog({ onOpenChange, open, ...props }: DialogProps) {
 
   return (
     <dialog
+      className={variant ? cn(VARIANTS[variant], className) : className}
       onCancel={(event) => {
         event.preventDefault();
         onOpenChange(false);

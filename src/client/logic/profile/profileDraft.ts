@@ -82,6 +82,15 @@ export function profileFromDraft(draft: ProfileDraft): PubkyProfile {
 }
 
 /**
+ * Whether saving `draft` would publish something other than `saved`, the draft the editor opened
+ * with. Only what would be published counts: an empty link row, or spaces around an address, do
+ * not make a change worth confirming before it is thrown away.
+ */
+export function profileDraftChanged(draft: ProfileDraft, saved: ProfileDraft): boolean {
+  return JSON.stringify(profileFromDraft(draft)) !== JSON.stringify(profileFromDraft(saved));
+}
+
+/**
  * The address the specs store for a link, normalised the way `URL` does, or null when it is not a
  * web address without credentials (security invariant 9). The specs WASM alone would accept any
  * scheme, so `localhost:3000` or `javascript:` would be published as a broken link. Plain `http:`

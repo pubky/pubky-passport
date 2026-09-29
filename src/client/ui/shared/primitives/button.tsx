@@ -30,6 +30,12 @@ const buttonVariants = cva(
           "border-0 bg-transparent text-foreground shadow-none hover:bg-accent active:scale-95 active:bg-accent/80",
         outline: "border-border bg-input-surface text-foreground hover:bg-accent",
         secondary: "border-transparent bg-secondary text-secondary-foreground hover:bg-accent",
+        // Text actions (skip, finish later, change) that sit on the column edge like the text
+        // around them; underlined so they read as actions, not labels.
+        link: "text-secondary-foreground decoration-secondary-foreground/50 hover:text-foreground hover:decoration-foreground",
+        // A text action that deletes or throws work away, in the error text colour.
+        linkDestructive:
+          "text-destructive-text decoration-destructive-text/50 hover:decoration-destructive-text",
       },
       size: {
         default: "min-h-10 px-4 py-2 pointer-coarse:min-h-11",
@@ -38,6 +44,15 @@ const buttonVariants = cva(
         icon: "size-10 p-0 pointer-coarse:size-11",
       },
     },
+    compoundVariants: [
+      {
+        // Applied after the size, so a text action stays text-sized whatever size it is given.
+        // Touch screens get a 44px target without growing the row on desktop.
+        variant: ["link", "linkDestructive"],
+        className:
+          "h-auto min-h-8 whitespace-normal md:whitespace-normal rounded-sm border-0 bg-transparent px-0 py-1 text-left text-sm font-semibold leading-5 underline underline-offset-4 shadow-none pointer-coarse:min-h-11",
+      },
+    ],
     defaultVariants: {
       variant: "default",
       size: "default",

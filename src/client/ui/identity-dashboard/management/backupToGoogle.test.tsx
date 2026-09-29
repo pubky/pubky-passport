@@ -24,7 +24,9 @@ describe("BackupToGoogle", () => {
       .mockResolvedValueOnce(Result.err({ code: "visible_backup_permission_missing" }));
     const continueBackupWithoutVisibleCopy = vi
       .fn()
-      .mockResolvedValueOnce(Result.ok({ visibleRecoveryCopyStatus: "skipped" }));
+      .mockResolvedValueOnce(
+        Result.ok({ googleAccount: GOOGLE_ACCOUNT, visibleRecoveryCopyStatus: "skipped" }),
+      );
     const controller = mockGoogleIdentityController({
       backupIdentity,
       continueBackupWithoutVisibleCopy,
@@ -46,9 +48,14 @@ describe("BackupToGoogle", () => {
       await screen.findByRole("button", { name: "Continue without visible backup" }),
     );
     expect(continueBackupWithoutVisibleCopy).toHaveBeenCalledOnce();
+    // The completion names the account and warns about the missing copy as loudly as setup does.
     expect(
-      await screen.findByText(/Your private Google Drive backup is ready/),
+      await screen.findByRole("heading", { name: "Google account attached." }),
     ).toBeInTheDocument();
+    expect(screen.getByText("user@example.com")).toBeInTheDocument();
+    const warning = screen.getByText(/Your private Google Drive backup is ready/);
+    expect(warning.closest("[data-tone]")).toHaveAttribute("data-tone", "warning");
+    expect(document.querySelector('img[src*="checkmark.png"]')).not.toBeNull();
     await user.click(screen.getByRole("button", { name: "Done" }));
     expect(onBack).toHaveBeenCalledOnce();
   });
@@ -136,7 +143,9 @@ describe("BackupToGoogle", () => {
     const backupIdentity = vi
       .fn()
       .mockResolvedValueOnce(Result.err({ code: "google_backup_created_not_linked" }))
-      .mockResolvedValueOnce(Result.ok({ visibleRecoveryCopyStatus: "created" }));
+      .mockResolvedValueOnce(
+        Result.ok({ googleAccount: GOOGLE_ACCOUNT, visibleRecoveryCopyStatus: "created" }),
+      );
     const controller = mockGoogleIdentityController({ backupIdentity });
     render(
       withPassportTestProviders(
@@ -241,6 +250,7 @@ describe("BackupToGoogle attaching through the real Google identity stack", () =
     expect(
       await screen.findByRole("heading", { name: "Google account attached." }),
     ).toBeInTheDocument();
+    expect(screen.getByText(GOOGLE_ACCOUNT.email)).toBeInTheDocument();
     expect(screen.queryByText(/visible recovery copy/)).not.toBeInTheDocument();
     expect(google.uploads.map(({ name, parents }) => ({ name, parents }))).toEqual([
       { name: "passport.json", parents: ["appDataFolder"] },

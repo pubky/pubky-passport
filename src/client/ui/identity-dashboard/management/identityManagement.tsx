@@ -8,6 +8,7 @@ import type { PubkyHomeserverResolutionResult } from "@/client/logic/pubky/pubky
 import { BackupStatusLine, formatBackupDate } from "@/client/ui/identity-dashboard/backupStatus";
 import { BackButton } from "@/client/ui/shared/backButton";
 import { GoogleLogo } from "@/client/ui/shared/brand/googleLogo";
+import { PUBKY_COPY_TOASTS } from "@/client/ui/shared/copyToClipboard";
 import { DetailField } from "@/client/ui/shared/detailField";
 import { shortCopiedValue } from "@/client/ui/shared/formatPublicKey";
 import { GoogleAccountTag } from "@/client/ui/shared/googleAccountTag";
@@ -133,11 +134,9 @@ function IdentityManagement({
           ) : null}
           <DetailField
             copy={{
+              ...PUBKY_COPY_TOASTS,
               value: publicKeyZ32,
-              copied: "Pubky copied to clipboard",
               copiedDescription: shortCopiedValue(publicKeyZ32),
-              failed: "Could not copy pubky",
-              failedDescription: "Select and copy your pubky manually.",
             }}
             label="Pubky"
             value={publicKeyZ32}

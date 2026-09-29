@@ -2,8 +2,9 @@
 
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { Result } from "better-result";
+import { toast } from "sonner";
 import { Button } from "@/client/ui/shared/primitives/button";
-import { RotateCcwIcon } from "@/client/ui/shared/icons";
+import { RotateCcwIcon, XIcon } from "@/client/ui/shared/icons";
 
 import type { PassportAuthorizationViewState } from "@/client/logic/authorization/flow/PassportAuthorizationController";
 import { RingProfileEditor } from "@/client/logic/profile/RingProfileEditor";
@@ -45,6 +46,7 @@ import { BackButton } from "@/client/ui/shared/backButton";
 import { CancelButton } from "@/client/ui/shared/cancelButton";
 import { ErrorScreen } from "@/client/ui/shared/errorScreen";
 import { LoadingScreen } from "@/client/ui/shared/loadingScreen";
+import { ACCOUNT_SETUP_STEPS, SetupProgressProvider } from "@/client/ui/shared/setupProgress";
 import { AddIdentity } from "./addIdentity";
 import { IdentityManagementScreens } from "./identityManagementScreens";
 import { RingSignIn } from "./ringSignIn";
@@ -252,15 +254,24 @@ function ReadyPassport({
               : goHome;
         const reopen = () => navigate({ view: "profile", publicKeyZ32, from });
         if (identity.keySource === "ring" && !ringProfile.isConnected(publicKeyZ32)) {
-          return (
+          const setupRequired = identity.profileSetupRequired === true;
+          const connection = (
             <RingProfileConnection
               controller={ringProfile}
               expectedKey={publicKeyZ32}
-              setupRequired={identity.profileSetupRequired === true}
+              setupRequired={setupRequired}
               onBack={onBack}
               onComplete={reopen}
               onDefer={onDefer}
             />
+          );
+          // Unfinished setup shows the same last step as the profile form this connection opens.
+          return setupRequired ? (
+            <SetupProgressProvider steps={ACCOUNT_SETUP_STEPS} current={2}>
+              {connection}
+            </SetupProgressProvider>
+          ) : (
+            connection
           );
         }
         return (
@@ -271,7 +282,10 @@ function ReadyPassport({
             onBack={onBack}
             onComplete={(profile, avatar) => {
               profiles.published(publicKeyZ32, profile, avatar);
-              selectAddedIdentity(publicKeyZ32);
+              toast.success("Profile published");
+              // Saving returns to where the editor was opened, like its Back.
+              if (from === "manage") navigate({ view: "manage", publicKeyZ32 });
+              else selectAddedIdentity(publicKeyZ32);
             }}
             onReconnect={identity.keySource === "ring" ? reopen : undefined}
             onDefer={onDefer}
@@ -296,7 +310,15 @@ function ReadyPassport({
             back={<BackButton onClick={goHome} />}
             cause="Passport saved your identity but could not select it."
             nextStep="Try again to continue."
-            secondaryAction={cancelRequest ? <CancelButton onClick={cancelRequest} /> : null}
+            secondaryAction={
+              // Answering the app is a side action here, a text action like every other one.
+              cancelRequest ? (
+                <Button onClick={cancelRequest} variant="link">
+                  <XIcon />
+                  Cancel
+                </Button>
+              ) : null
+            }
             title="Identity"
           />
         );

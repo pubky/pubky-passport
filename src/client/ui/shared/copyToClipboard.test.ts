@@ -3,9 +3,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { LOGGER } from "@/libs/logger/logger";
 import { copyToClipboard } from "./copyToClipboard";
 
-const MOCKS = vi.hoisted(() => ({ toastInfo: vi.fn() }));
+const MOCKS = vi.hoisted(() => ({ toastError: vi.fn(), toastInfo: vi.fn() }));
 
-vi.mock("sonner", () => ({ toast: { info: MOCKS.toastInfo } }));
+vi.mock("sonner", () => ({ toast: { error: MOCKS.toastError, info: MOCKS.toastInfo } }));
 
 const TOASTS = {
   copied: "Pubky copied to clipboard",
@@ -19,6 +19,7 @@ describe("copyToClipboard", () => {
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
     MOCKS.toastInfo.mockReset();
+    MOCKS.toastError.mockReset();
   });
 
   it("copies the value and confirms it", async () => {
@@ -53,9 +54,13 @@ describe("copyToClipboard", () => {
 
     await expect(copyToClipboard("value", TOASTS)).resolves.toBe(false);
 
-    expect(MOCKS.toastInfo).toHaveBeenCalledWith("Could not copy pubky", {
+    // A failure is an error, not a confirmation look-alike, and stays until read or closed.
+    expect(MOCKS.toastError).toHaveBeenCalledWith("Could not copy pubky", {
+      closeButton: true,
       description: "Select and copy your pubky manually.",
+      duration: 10_000,
     });
+    expect(MOCKS.toastInfo).not.toHaveBeenCalled();
     expect(info).toHaveBeenCalledWith(
       "clipboard.copy.failed",
       expect.objectContaining({ diagnosticId: expect.any(String), errorName: "Error" }),
@@ -68,8 +73,12 @@ describe("copyToClipboard", () => {
     vi.stubGlobal("navigator", {});
 
     await expect(copyToClipboard("value", TOASTS)).resolves.toBe(false);
-    expect(MOCKS.toastInfo).toHaveBeenCalledWith("Could not copy pubky", {
+    // A failure is an error, not a confirmation look-alike, and stays until read or closed.
+    expect(MOCKS.toastError).toHaveBeenCalledWith("Could not copy pubky", {
+      closeButton: true,
       description: "Select and copy your pubky manually.",
+      duration: 10_000,
     });
+    expect(MOCKS.toastInfo).not.toHaveBeenCalled();
   });
 });

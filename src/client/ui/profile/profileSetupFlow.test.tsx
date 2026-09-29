@@ -69,7 +69,7 @@ describe("ProfileSetupFlow", () => {
     expect(warning).toHaveAttribute("role", "status");
     expect(warning).toHaveTextContent("Saving here replaces it everywhere it’s shown.");
     // The button says it overwrites what other apps show, not just that setup ends.
-    expect(screen.queryByRole("button", { name: "Finish" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Save" })).not.toBeInTheDocument();
     await userEvent.setup().click(screen.getByRole("button", { name: "Replace profile" }));
     expect(save).toHaveBeenCalledWith(
       KEY,
@@ -143,7 +143,7 @@ describe("ProfileSetupFlow", () => {
     const { onComplete } = mount();
     const user = userEvent.setup();
     await user.type(await screen.findByLabelText("Name"), "Satoshi");
-    await user.click(screen.getByRole("button", { name: "Finish" }));
+    await user.click(screen.getByRole("button", { name: "Save" }));
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent(message);
     // The failure appears above the actions and takes focus, so it is not missed.
@@ -183,7 +183,7 @@ describe("ProfileSetupFlow", () => {
     mount({ keySource: "ring" }, { onReconnect });
     const user = userEvent.setup();
     await user.type(await screen.findByLabelText("Name"), "Satoshi");
-    await user.click(screen.getByRole("button", { name: "Finish" }));
+    await user.click(screen.getByRole("button", { name: "Save" }));
     await user.click(await screen.findByRole("button", { name: "Connect Ring" }));
     expect(onReconnect).toHaveBeenCalledOnce();
   });
@@ -193,8 +193,8 @@ describe("ProfileSetupFlow", () => {
     const { onComplete } = mount();
     const user = userEvent.setup();
     await user.type(await screen.findByLabelText("Name"), "Satoshi");
-    await user.click(screen.getByRole("button", { name: "Finish" }));
-    expect(await screen.findByRole("button", { name: "Finish" })).toBeEnabled();
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    expect(await screen.findByRole("button", { name: "Save" })).toBeEnabled();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     expect(onComplete).not.toHaveBeenCalled();
   });
@@ -224,13 +224,87 @@ describe("ProfileSetupFlow", () => {
     const { onDefer } = mount({ profileSetupRequired: true }, { afterAddition: true });
     await screen.findByLabelText("Name");
     expect(screen.queryByRole("button", { name: "Back" })).not.toBeInTheDocument();
-    // Finish later takes Back's place beside Finish, so the pinned bar stays one row.
+    // A text action in Back's empty place: first in the row, with Finish last.
+    const finish = screen.getByRole("button", { name: "Finish" });
     const finishLater = screen.getByRole("button", { name: "Finish later" });
-    expect(finishLater.parentElement).toBe(
-      screen.getByRole("button", { name: "Finish" }).parentElement,
-    );
+    expect(finishLater).toHaveClass("underline");
+    expect(
+      finishLater.compareDocumentPosition(finish) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    // Both are pinned to a phone's or the popup's window, so the way on without a profile is in
+    // view without scrolling past the whole form (e2e/profile.spec.ts measures it). One row.
+    const bar = finish.closest("[data-sticky-actions]");
+    expect(bar).not.toBeNull();
+    expect(finishLater.closest("[data-sticky-actions]")).toBe(bar);
+    expect(finishLater.closest('[data-slot="tertiary-actions"]')).toBeNull();
+    expect(finishLater.parentElement?.parentElement).toHaveClass("grid-cols-[auto_minmax(0,1fr)]");
     await userEvent.setup().click(finishLater);
     expect(onDefer).toHaveBeenCalledOnce();
+  });
+
+  it("says setup finishes and editing publishes, with Back before the primary", async () => {
+    mount({ profileSetupRequired: true });
+    await screen.findByLabelText("Name");
+    expect(screen.getByText("Add your name, bio, links, and avatar.")).toBeInTheDocument();
+    const back = screen.getByRole("button", { name: "Back" });
+    const finish = screen.getByRole("button", { name: "Finish" });
+    expect(back.compareDocumentPosition(finish) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // Back keeps the shared navigation's width, not a narrower one of its own.
+    expect(back).not.toHaveClass("w-[120px]");
+    cleanup();
+
+    mount();
+    await screen.findByLabelText("Name");
+    expect(
+      screen.getByText("Changes are published to your public profile when you save."),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Finish" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save" })).toBeInTheDocument();
+  });
+
+  it("asks before Back throws unpublished changes away", async () => {
+    const { onBack } = mount();
+    const user = userEvent.setup();
+    await user.type(await screen.findByLabelText("Name"), "Satoshi");
+    await user.click(screen.getByRole("button", { name: "Back" }));
+
+    const dialog = screen.getByRole("dialog", { name: "Discard your changes?" });
+    expect(dialog).toHaveAccessibleDescription(
+      "Your changes are not published yet. Going back throws them away.",
+    );
+    // Keeping the edits is the default: it comes first and has focus.
+    expect(screen.getByRole("button", { name: "Keep editing" })).toHaveFocus();
+    await user.click(screen.getByRole("button", { name: "Keep editing" }));
+    expect(onBack).not.toHaveBeenCalled();
+    expect(screen.getByLabelText("Name")).toHaveValue("Satoshi");
+
+    await user.click(screen.getByRole("button", { name: "Back" }));
+    await user.click(screen.getByRole("button", { name: "Discard changes" }));
+    expect(onBack).toHaveBeenCalledOnce();
+  });
+
+  it("says a deleted avatar is only removed once saved", async () => {
+    load.mockResolvedValueOnce(
+      Result.ok({
+        profile: {
+          name: "Satoshi",
+          bio: null,
+          image: `pubky://${KEY}/pub/pubky.app/files/AVATAR`,
+          links: [],
+          status: null,
+        },
+        avatar: new Blob(["png"], { type: "image/png" }),
+      }),
+    );
+    const { onBack } = mount();
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: "Delete" }));
+
+    expect(screen.getByText("Your avatar is removed when you save.")).toBeInTheDocument();
+    // Removing it is a change like any other, so leaving asks first.
+    await user.click(screen.getByRole("button", { name: "Back" }));
+    expect(screen.getByRole("dialog", { name: "Discard your changes?" })).toBeInTheDocument();
+    expect(onBack).not.toHaveBeenCalled();
   });
 
   it("offers only Back, no Finish later, when required setup was opened later", async () => {
@@ -244,9 +318,14 @@ describe("ProfileSetupFlow", () => {
     mount();
     await screen.findByLabelText("Name");
     // The page's scroll padding below md applies while this bar is on screen (globals.css).
-    expect(
-      screen.getByRole("button", { name: "Finish" }).closest("[data-sticky-actions]"),
-    ).not.toBeNull();
+    const save = screen.getByRole("button", { name: "Save" });
+    const bar = save.closest("[data-sticky-actions]");
+    expect(bar).not.toBeNull();
+    // Back and Save share one row at every width, so the bar stays short over the form.
+    const back = screen.getByRole("button", { name: "Back" });
+    expect(back.closest("[data-sticky-actions]")).toBe(bar);
+    expect(back.parentElement?.parentElement).toHaveClass("grid-cols-[auto_minmax(0,1fr)]");
+    expect(save.parentElement).toHaveClass("col-start-2");
   });
 
   it("goes straight back when editing a finished profile", async () => {
@@ -292,7 +371,7 @@ describe("ProfileSetupFlow", () => {
     await user.type(screen.getByLabelText("X (Twitter)"), "@satoshi nakamoto");
     await user.click(screen.getByRole("button", { name: "Add link" }));
     await user.type(screen.getByLabelText("Link 3 URL"), "https://github.com/satoshi");
-    await user.click(screen.getByRole("button", { name: "Finish" }));
+    await user.click(screen.getByRole("button", { name: "Save" }));
 
     expect(save).not.toHaveBeenCalled();
     expect(name).toHaveFocus();
@@ -325,7 +404,7 @@ describe("ProfileSetupFlow", () => {
     expect(screen.queryByText("Give this link a title.")).not.toBeInTheDocument();
 
     // Finish again focuses the first field still marked.
-    await user.click(screen.getByRole("button", { name: "Finish" }));
+    await user.click(screen.getByRole("button", { name: "Save" }));
     expect(screen.getByLabelText("Bio")).toHaveFocus();
     expect(save).not.toHaveBeenCalled();
 
@@ -334,7 +413,7 @@ describe("ProfileSetupFlow", () => {
     await user.type(screen.getByLabelText("Website"), "https://alice.example");
     await user.clear(screen.getByLabelText("X (Twitter)"));
     await user.type(screen.getByLabelText("X (Twitter)"), "@alice");
-    await user.click(screen.getByRole("button", { name: "Finish" }));
+    await user.click(screen.getByRole("button", { name: "Save" }));
     expect(save).toHaveBeenCalledWith(
       KEY,
       expect.objectContaining({
@@ -374,7 +453,7 @@ describe("ProfileSetupFlow", () => {
 
     await user.type(name, "ice");
     await user.clear(screen.getByLabelText("Website"));
-    await user.click(screen.getByRole("button", { name: "Finish" }));
+    await user.click(screen.getByRole("button", { name: "Save" }));
     expect(save).toHaveBeenCalledOnce();
     expect(status).toBeEmptyDOMElement();
   });
@@ -386,7 +465,7 @@ describe("ProfileSetupFlow", () => {
     await user.type(await screen.findByLabelText("Name"), "Satoshi");
     await user.click(screen.getByRole("button", { name: "Add link" }));
     await user.type(screen.getByLabelText("Link 3 URL"), "https://github.com/satoshi");
-    await user.click(screen.getByRole("button", { name: "Finish" }));
+    await user.click(screen.getByRole("button", { name: "Save" }));
     const title = screen.getByLabelText("Link 3 title");
     expect(title).toHaveFocus();
     expect(title).toHaveAccessibleDescription("Give this link a title.");
@@ -395,7 +474,7 @@ describe("ProfileSetupFlow", () => {
     await user.clear(screen.getByLabelText("Link 3 URL"));
     expect(title).not.toHaveAttribute("aria-invalid");
     expect(screen.queryByText("Give this link a title.")).not.toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Finish" }));
+    await user.click(screen.getByRole("button", { name: "Save" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Could not save your profile.");
     expect(document.querySelectorAll('[aria-invalid="true"]')).toHaveLength(0);
   });
@@ -407,14 +486,14 @@ describe("ProfileSetupFlow", () => {
     await user.click(screen.getByRole("button", { name: "Add link" }));
     await user.type(screen.getByLabelText("Link 3 title"), "Twitter");
     await user.type(screen.getByLabelText("Link 3 URL"), "@satoshi");
-    await user.click(screen.getByRole("button", { name: "Finish" }));
+    await user.click(screen.getByRole("button", { name: "Save" }));
     const url = screen.getByLabelText("Link 3 URL");
     expect(url).toHaveAccessibleDescription("Enter a full web address, like https://example.com.");
 
     await user.clear(screen.getByLabelText("Link 3 title"));
     await user.type(screen.getByLabelText("Link 3 title"), "X (Twitter)");
     expect(url).not.toHaveAttribute("aria-invalid");
-    await user.click(screen.getByRole("button", { name: "Finish" }));
+    await user.click(screen.getByRole("button", { name: "Save" }));
     expect(save).toHaveBeenCalledWith(
       KEY,
       expect.objectContaining({
@@ -436,7 +515,7 @@ describe("ProfileSetupFlow", () => {
     await user.paste(`https://example.com/${"a".repeat(278)} b`);
     await user.click(screen.getByLabelText("Website"));
     await user.paste(`https://example.com/${"p".repeat(281)}`);
-    await user.click(screen.getByRole("button", { name: "Finish" }));
+    await user.click(screen.getByRole("button", { name: "Save" }));
 
     expect(screen.getByLabelText("Link 3 title")).toHaveAccessibleDescription(
       "Keep this title to 100 characters or fewer (you have 101).",
@@ -456,10 +535,10 @@ describe("ProfileSetupFlow", () => {
     const user = userEvent.setup();
     const name = await screen.findByLabelText("Name");
     await user.type(name, "Satoshi");
-    await user.click(screen.getByRole("button", { name: "Finish" }));
+    await user.click(screen.getByRole("button", { name: "Save" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Could not save your profile.");
     await user.clear(name);
-    await user.click(screen.getByRole("button", { name: "Finish" }));
+    await user.click(screen.getByRole("button", { name: "Save" }));
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     expect(name).toHaveFocus();
     expect(name).toHaveAccessibleDescription("Enter a name of 3–50 characters.");

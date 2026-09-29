@@ -125,9 +125,9 @@ describe("AddIdentity", () => {
     renderAddIdentity(addIdentity({ onUseRing: vi.fn() }));
 
     const cards = screen.getAllByRole("region");
-    expect(cards.map((card) => card.getAttribute("aria-labelledby"))).toEqual([
-      "add-account-heading",
-      "add-google-heading",
+    expect(cards).toEqual([
+      screen.getByRole("region", { name: "Hold your own key" }),
+      screen.getByRole("region", { name: "Google account" }),
     ]);
     const create = screen.getByRole("button", { name: "Create account" });
     expect(cards[0]).toContainElement(create);
@@ -141,6 +141,8 @@ describe("AddIdentity", () => {
     for (const card of cards) expect(card).not.toContainElement(ring);
     expect(ring).not.toHaveClass("bg-brand/16");
     expect(ring.closest("p")).toHaveTextContent(/^Already use Pubky Ring\?/u);
+    // A quiet text link, not a pill that competes with the cards' buttons.
+    expect(ring).toHaveClass("underline");
     expect(screen.getByRole("main")).toHaveClass("max-w-[1280px]");
     // Create account precedes Google in tab order as well as on screen.
     expect(

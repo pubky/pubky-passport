@@ -1,14 +1,6 @@
 "use client";
 
-import {
-  type ReactNode,
-  useCallback,
-  useEffect,
-  useId,
-  useState,
-  useSyncExternalStore,
-} from "react";
-import Image from "next/image";
+import { useCallback, useEffect, useId, useState, useSyncExternalStore } from "react";
 
 import {
   selectedInvite,
@@ -21,11 +13,11 @@ import { sameInvite } from "@/client/logic/signup/homeserverInvite";
 import { LocalAccountCreationFlow } from "@/client/ui/local-account/localAccountCreationFlow";
 import { UnreadableAccountSetup } from "@/client/ui/local-account/unreadableAccountSetup";
 import { BackButton } from "@/client/ui/shared/backButton";
-import { CancelButton } from "@/client/ui/shared/cancelButton";
 import { ConfirmDeletionDialog } from "@/client/ui/shared/confirmDeletionDialog";
 import { PubkyBrandIcon } from "@/client/ui/shared/brand/pubkyBrandIcon";
+import { ChoiceCard } from "@/client/ui/shared/choiceCard";
 import { KeyRoundIcon } from "@/client/ui/shared/icons";
-import { SetupProgressProvider } from "@/client/ui/shared/setupProgress";
+import { ACCOUNT_SETUP_STEPS, SetupProgressProvider } from "@/client/ui/shared/setupProgress";
 import { VerificationOptions } from "./verificationOptions";
 import {
   usePassportCollaborators,
@@ -44,11 +36,9 @@ import { InviteCodeStep } from "./inviteCodeStep";
 import { PhoneNumberStep, SmsCodeStep } from "./smsVerification";
 import { useHomegateSignup } from "./useHomegateSignup";
 
-const SETUP_STEPS = ["Account", "Keys", "Profile"];
-
 export function CreateAccountFlow({ ...props }: Parameters<typeof AccountCreation>[0]) {
   return (
-    <SetupProgressProvider steps={SETUP_STEPS} current={0}>
+    <SetupProgressProvider steps={ACCOUNT_SETUP_STEPS} current={0}>
       <AccountCreation {...props} />
     </SetupProgressProvider>
   );
@@ -155,7 +145,7 @@ function AccountCreation({
 
   if (invite && destinations.destination === "passport") {
     return (
-      <SetupProgressProvider steps={SETUP_STEPS} current={1}>
+      <SetupProgressProvider steps={ACCOUNT_SETUP_STEPS} current={1}>
         <LocalAccountCreationFlow
           invite={invite}
           onBack={() => destinationController.leavePassport()}
@@ -172,7 +162,7 @@ function AccountCreation({
   }
   if (invite && destinations.destination === "ring") {
     return (
-      <SetupProgressProvider steps={SETUP_STEPS} current={1}>
+      <SetupProgressProvider steps={ACCOUNT_SETUP_STEPS} current={1}>
         <RingSignupStep
           invite={invite}
           inviteUsed={inviteUsed}
@@ -186,7 +176,7 @@ function AccountCreation({
   if (invite) {
     const discardable = usesHomegateInvite && !destinations.registrationStarted;
     return (
-      <SetupProgressProvider steps={SETUP_STEPS} current={1}>
+      <SetupProgressProvider steps={ACCOUNT_SETUP_STEPS} current={1}>
         <InviteDestinationChoice
           checkingInvite={destinations.checkingInvite}
           onPassport={() =>
@@ -202,7 +192,8 @@ function AccountCreation({
               ? () => destinationController.openInviteEntry()
               : undefined
           }
-          onCancel={exit}
+          onLeave={exit}
+          inviteSaved={usesHomegateInvite}
           onDiscardInvite={discardable ? () => setConfirmingDiscard(true) : undefined}
         />
         {discardable ? (
@@ -299,17 +290,22 @@ function InviteDestinationChoice({
   onPassport,
   onRing,
   onBack,
-  onCancel,
+  onLeave,
   onDiscardInvite,
+  inviteSaved,
   registrationStarted,
   checkingInvite,
   error,
 }: {
   onPassport: () => void | Promise<void>;
   onRing: () => void;
+  /** Returns to the invite entry, while the entered invite can still be changed. */
   onBack?: (() => void) | undefined;
-  onCancel: () => void;
+  /** Leaves account creation; an unsubmitted key is dropped. */
+  onLeave: () => void;
   onDiscardInvite?: (() => void) | undefined;
+  /** The invite came from SMS or Lightning verification and is kept for a later visit. */
+  inviteSaved: boolean;
   registrationStarted: boolean;
   checkingInvite: boolean;
   error?: string | undefined;
@@ -323,20 +319,21 @@ function InviteDestinationChoice({
   // The chip also describes the recommended button, so moving between buttons still hears it.
   const recommendationId = useId();
   return (
+    // The step column like every setup step, so the stepper, heading and cards share one edge;
+    // each card lays itself out for that width.
     <SignupStep
       accent="key live?"
       description="Your key proves this account is yours. Keep it somewhere only you control."
       title="Where should your"
-      wide
     >
-      <div className="grid gap-6 lg:grid-cols-2">
-        <DestinationCard
+      <div className="grid gap-6">
+        <ChoiceCard
           description={
             registrationStarted
               ? "Signup has started with the key saved in this browser. Continue with that key."
               : "Keep your key on your phone and approve sign-ins there. Needs the Pubky Ring app."
           }
-          illustration="/illustrations/identity-keys.png"
+          illustration="/illustrations/keychain.png"
           recommendationId={recommendRing ? recommendationId : undefined}
           title="Pubky Ring app"
         >
@@ -354,9 +351,10 @@ function InviteDestinationChoice({
           >
             <PubkyBrandIcon /> {choice === "ring" ? "Checking invite…" : "Keep key in Pubky Ring"}
           </Button>
-        </DestinationCard>
-        <DestinationCard
+        </ChoiceCard>
+        <ChoiceCard
           description="Passport keeps your key in this browser, and you download an encrypted backup next."
+          // Not a key like Ring's keychain: the encrypted backup that comes with this choice.
           illustration="/illustrations/backup-shield.png"
           title="This browser"
         >
@@ -374,78 +372,29 @@ function InviteDestinationChoice({
             <KeyRoundIcon />{" "}
             {choice === "passport" ? "Checking invite…" : "Keep key in this browser"}
           </Button>
-        </DestinationCard>
+        </ChoiceCard>
       </div>
       {error ? (
         <Notice focusOnMount tone="error">
           {error}
         </Notice>
       ) : null}
-      {onDiscardInvite ? (
-        <Button
-          className="self-start"
-          disabled={checkingInvite}
-          onClick={onDiscardInvite}
-          variant="ghost"
-        >
-          Discard invite
-        </Button>
+      {inviteSaved && !onBack ? (
+        <p className="text-sm leading-5 text-muted-foreground">
+          Your verification stays saved in this browser.
+        </p>
       ) : null}
       <PassportNavigation
-        back={onBack ? <BackButton onClick={onBack} /> : <CancelButton onClick={onCancel} />}
+        // Back, not Cancel: leaving account creation does not answer the app's request.
+        back={<BackButton onClick={onBack ?? onLeave} />}
+        tertiary={
+          onDiscardInvite ? (
+            <Button disabled={checkingInvite} onClick={onDiscardInvite} variant="linkDestructive">
+              Discard invite
+            </Button>
+          ) : undefined
+        }
       />
     </SignupStep>
-  );
-}
-
-function DestinationCard({
-  title,
-  description,
-  illustration,
-  recommendationId,
-  children,
-}: {
-  title: string;
-  description: string;
-  illustration: string;
-  /** Marks the recommended card; its chip carries this id for the button to reference. */
-  recommendationId?: string | undefined;
-  children: ReactNode;
-}) {
-  const headingId = useId();
-  return (
-    // Side by side, both headings start at the top and both actions sit at the bottom, whatever
-    // wraps in between.
-    <section
-      aria-labelledby={headingId}
-      className="flex min-w-0 flex-col gap-6 rounded-lg bg-card p-6 lg:p-8 xl:flex-row xl:gap-12 xl:p-12"
-    >
-      <Image
-        alt=""
-        aria-hidden="true"
-        src={illustration}
-        width={192}
-        height={192}
-        className="hidden size-48 shrink-0 object-contain lg:block xl:self-center"
-      />
-      <div className="flex min-w-0 flex-1 flex-col gap-3">
-        {/* The chip sits beside the heading, so the card keeps the heading as its name. */}
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-          <h2 className="text-2xl font-bold leading-8" id={headingId}>
-            {title}
-          </h2>
-          {recommendationId ? (
-            <span
-              className="rounded-full bg-brand/16 px-2 py-0.5 text-xs font-bold uppercase leading-4 tracking-[0.05em] text-brand"
-              id={recommendationId}
-            >
-              Recommended
-            </span>
-          ) : null}
-        </div>
-        <p className="mb-3 text-sm leading-5 text-muted-foreground">{description}</p>
-        <div className="mt-auto">{children}</div>
-      </div>
-    </section>
   );
 }

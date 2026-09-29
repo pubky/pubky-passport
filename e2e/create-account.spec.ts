@@ -348,9 +348,11 @@ test("SMS Back, Cancel, and reload preserve the verified invite", async ({ page 
   expect(sends).toBe(1);
   expect(verifications).toBe(1);
   await page.getByRole("button", { name: "Back", exact: true }).click();
-  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  // Leaving account creation is Back: Cancel is kept for answering the app's request.
+  await expect(page.getByText("Your verification stays saved in this browser.")).toBeVisible();
+  await page.getByRole("button", { name: "Back", exact: true }).click();
   await expect(page.getByRole("button", { name: "Resume account setup" })).toHaveCount(0);
-  // Cancel drops the unsubmitted key, but the verified invite reopens without another SMS.
+  // Back drops the unsubmitted key, but the verified invite reopens without another SMS.
   await page.getByRole("button", { name: "Create account", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Where should your key live?" })).toBeVisible();
   await page.getByRole("button", { name: "Keep key in Pubky Ring" }).click();

@@ -14,7 +14,8 @@ export function IdentityProgress({
 }) {
   const activeStep = steps.find((step) => step.state === "active");
   return (
-    <PassportScreen>
+    // The same space under the setup stepper as every other step (it was 8px here).
+    <PassportScreen className="gap-6 md:gap-8">
       <div className="flex flex-1 flex-col gap-6 md:gap-8">
         <DisplayHeading
           accent="your pubky."

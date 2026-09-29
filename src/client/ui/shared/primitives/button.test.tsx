@@ -141,6 +141,29 @@ describe("Button", () => {
     expect(own.className).not.toMatch(/(^|\s)\S+:px-/u);
   });
 
+  it.each([
+    ["link", "text-secondary-foreground"],
+    ["linkDestructive", "text-destructive-text"],
+  ] as const)(
+    "draws a %s text action on the column edge, whatever size it is given",
+    (variant, colour) => {
+      render(
+        <Button size="lg" variant={variant}>
+          Skip
+        </Button>,
+      );
+
+      const button = screen.getByRole("button", { name: "Skip" });
+      // No padding, border or pill: the text lines up with the labels and text around it.
+      expect(button).toHaveClass("px-0", "border-0", "underline", "text-sm", colour);
+      expect(button).not.toHaveClass(LARGE_PADDING_X, "min-h-15", "rounded-full");
+      // A long text action wraps at every width, like the text around it.
+      expect(button).toHaveClass("whitespace-normal", "md:whitespace-normal");
+      // Touch screens still get a 44px target.
+      expect(button).toHaveClass("pointer-coarse:min-h-11");
+    },
+  );
+
   it("renders an anchor and forwards its anchor ref", () => {
     const ref = createRef<HTMLAnchorElement>();
     render(

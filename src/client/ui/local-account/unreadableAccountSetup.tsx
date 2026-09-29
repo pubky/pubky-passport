@@ -46,12 +46,11 @@ export function UnreadableAccountSetup({
         secondaryAction={
           removable ? (
             <Button
-              className="text-destructive-text"
               onClick={() => {
                 setError(undefined);
                 setConfirming(true);
               }}
-              variant="ghost"
+              variant="linkDestructive"
             >
               <TrashIcon />
               Remove saved setup

@@ -13,6 +13,7 @@ import type { LocalIdentityMetadata } from "@/client/logic/local-identity/localI
 import { BackupFlow } from "@/client/ui/backup/backupFlow";
 import { BackButton } from "@/client/ui/shared/backButton";
 import { ConfirmDeletionDialog } from "@/client/ui/shared/confirmDeletionDialog";
+import { PUBKY_COPY_TOASTS } from "@/client/ui/shared/copyToClipboard";
 import { DetailField } from "@/client/ui/shared/detailField";
 import { ErrorScreen } from "@/client/ui/shared/errorScreen";
 import { ArrowRightIcon, RotateCcwIcon, TrashIcon } from "@/client/ui/shared/icons";
@@ -20,6 +21,7 @@ import { Notice } from "@/client/ui/shared/notice";
 import { PassportNavigation } from "@/client/ui/shared/passportNavigation";
 import { RecoveryScreen } from "@/client/ui/shared/recoveryScreen";
 import { Button } from "@/client/ui/shared/primitives/button";
+import { Spinner } from "@/client/ui/shared/primitives/spinner";
 import { IdentityProgress, progressSteps } from "@/client/ui/shared/identityProgress";
 
 const REGISTRATION_STEP_INDEX = { signing_up: 1, publishing: 2, activating: 3 } satisfies Record<
@@ -127,10 +129,12 @@ export function LocalAccountCreationFlow({
   if (prepared.status === "loading") {
     return (
       <RecoveryScreen
+        accent="key."
         description="Preparing the identity saved in this browser."
-        title="Preparing key…"
+        title="Preparing your"
       >
-        <p aria-live="polite" className="text-sm text-muted-foreground">
+        <p aria-live="polite" className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Spinner className="size-4" decorative />
           Preparing your Pubky…
         </p>
         <PassportNavigation back={<BackButton onClick={onBack} />} />
@@ -268,13 +272,12 @@ export function LocalAccountCreationFlow({
           secondaryAction={
             rejected ? null : (
               <Button
-                className="text-destructive-text"
                 onClick={() => {
                   setAbandonError(undefined);
                   if (failure?.registrationStarted === false) discardSetup();
                   else setConfirmingAbandon(true);
                 }}
-                variant="ghost"
+                variant="linkDestructive"
               >
                 <TrashIcon />
                 Start over
@@ -286,12 +289,7 @@ export function LocalAccountCreationFlow({
           {/* A rejected invite leaves a key that owns nothing and is about to be discarded. */}
           {rejected ? null : (
             <DetailField
-              copy={{
-                value: publicKeyZ32,
-                copied: "Pubky copied to clipboard",
-                failed: "Could not copy pubky",
-                failedDescription: "Select and copy your pubky manually.",
-              }}
+              copy={{ ...PUBKY_COPY_TOASTS, value: publicKeyZ32 }}
               label="Your pubky"
               value={publicKeyZ32}
             />

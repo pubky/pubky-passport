@@ -77,23 +77,13 @@ describe("IdentitySwitcher", () => {
         .getAllByRole("button")
         .filter((button) => ["Back", "Add identity"].includes(button.textContent ?? "")),
     );
-    expect(back.parentElement).toHaveClass("mt-auto", "md:mt-0");
+    // The shared action row, pushed to the bottom of a phone screen.
+    expect(back.parentElement?.parentElement).toHaveClass("mt-auto", "md:mt-0");
     await userEvent.setup().click(back);
     expect(onBack).toHaveBeenCalledOnce();
   });
 
-  it("keeps mobile focus order aligned with the visual action order", () => {
-    vi.stubGlobal(
-      "matchMedia",
-      vi.fn(
-        () =>
-          ({
-            matches: false,
-            addEventListener: vi.fn(),
-            removeEventListener: vi.fn(),
-          }) as unknown as MediaQueryList,
-      ),
-    );
+  it("puts Back first at every width, like every other screen", () => {
     render(
       <IdentitySwitcher
         activePublicKeyZ32="secondidentity5678"
@@ -109,7 +99,7 @@ describe("IdentitySwitcher", () => {
         .getAllByRole("button")
         .filter((button) => ["Back", "Add identity"].includes(button.textContent ?? ""))
         .map((button) => button.textContent),
-    ).toEqual(["Add identity", "Back"]);
+    ).toEqual(["Back", "Add identity"]);
   });
 
   it("shows the shortened Pubky when an identity has no Google account", () => {

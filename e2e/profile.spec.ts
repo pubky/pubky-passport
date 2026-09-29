@@ -1,6 +1,9 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test } from "./helpers/passportTest";
+import { PKARR_RELAY_HOSTS } from "./helpers/network";
+import { expect, test, type Page } from "./helpers/passportTest";
 import {
+  HOMESERVER,
+  homeserverRecord,
   mockPublicProfile,
   seedProfileIdentity,
   IDENTITY_STORAGE_KEY,
@@ -43,8 +46,11 @@ test("profile setup follows Figma, preserves identity on reload and failed saves
   await page.screenshot({ path: info.outputPath("profile-filled.png"), fullPage: true });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
-  // Back leaves setup for the overview, never for a backup detour.
+  // Back leaves setup for the overview, never for a backup detour, once the unpublished
+  // entries are knowingly thrown away.
   await page.getByRole("button", { name: "Back", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "Discard your changes?" })).toBeVisible();
+  await page.getByRole("button", { name: "Discard changes" }).click();
   await expect(page.getByRole("heading", { name: "Your pubky." })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Choose backup method" })).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "Your pubky." })).toBeFocused();
@@ -203,6 +209,9 @@ test("profile form stays accessible in narrow and short windows with five links"
     const mainBox = await page.locator("main").boundingBox();
     const footerBox = await footer.boundingBox();
     expect(footerBox!.y).toBeGreaterThanOrEqual(mainBox!.y + mainBox!.height - 1);
+    // The bar pinned below md keeps Back and Finish in one row, so it covers little of the form.
+    if (viewport.width < 768)
+      expect((await page.locator("[data-sticky-actions]").boundingBox())!.height).toBeLessThan(100);
     await page.screenshot({
       path: info.outputPath(`profile-${viewport.width}.png`),
       fullPage: true,
@@ -240,3 +249,116 @@ test("in the app's popup, a focused field scrolls clear of the actions pinned be
     })
     .toBeLessThanOrEqual((await bar.boundingBox())!.y);
 });
+
+const APP_REQUEST =
+  "pubkyauth://signin?caps=/pub/example.app/:rw&relay=https://relay.client.example/inbox&secret=kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8&x-source=Client%20App";
+
+/**
+ * Plays the network for an account created with an SMS invite: Homegate issues an invite for the
+ * test homeserver, which accepts the signup and signs the new key in; PKARR relays take the new
+ * record; the new pubky has no profile yet.
+ */
+async function mockSmsSignup(page: Page) {
+  // Records published for new keys, served back to later lookups.
+  const published = new Map<string, Buffer>();
+  await page.route(
+    (url) => PKARR_RELAY_HOSTS.has(url.hostname),
+    async (route) => {
+      const key = new URL(route.request().url()).pathname.slice(1);
+      if (route.request().method() !== "GET") {
+        const record = route.request().postDataBuffer();
+        if (record) published.set(key, record);
+        return route.fulfill({ status: 200, body: "" });
+      }
+      const body = published.get(key) ?? homeserverRecord(key);
+      return route.fulfill(
+        body ? { status: 200, body, contentType: "application/octet-stream" } : { status: 404 },
+      );
+    },
+  );
+  await page.route("**/sms_verification/send_code", (route) =>
+    route.fulfill({ status: 200, body: "" }),
+  );
+  await page.route("**/sms_verification/validate_code", (route) =>
+    route.fulfill({
+      json: { valid: "true", signupCode: "SMS1-NV1T-C0DE", homeserverPubky: HOMESERVER },
+    }),
+  );
+  await page.route("https://homeserver.example/**", async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    if (url.pathname.startsWith("/signup_tokens/"))
+      return route.fulfill({ json: { status: "valid" } });
+    if (url.pathname === "/auth/grant/signup") return route.fulfill({ status: 200, body: "" });
+    if (url.pathname === "/auth/grant/session" && request.method() === "POST") {
+      const { grant } = request.postDataJSON() as { grant: string };
+      const claims = JSON.parse(
+        Buffer.from(grant.split(".")[1]!, "base64url").toString("utf8"),
+      ) as { iss: string; client_id: string; caps: string[]; jti: string; exp: number };
+      const now = Math.floor(Date.now() / 1000);
+      return route.fulfill({
+        json: {
+          token: "e2e-bearer",
+          session: {
+            homeserver: HOMESERVER,
+            pubky: claims.iss,
+            client_id: claims.client_id,
+            capabilities: claims.caps,
+            grant_id: claims.jti,
+            token_expires_at: now + 3_600,
+            grant_expires_at: claims.exp,
+            created_at: now,
+          },
+        },
+      });
+    }
+    return route.fulfill({ status: request.method() === "GET" ? 404 : 200, body: "" });
+  });
+}
+
+for (const [name, viewport, entry] of [
+  ["a phone", { width: 390, height: 844 }, "/"],
+  [
+    "the app's popup",
+    { width: 520, height: 760 },
+    `/authorize#d=${encodeURIComponent(APP_REQUEST)}`,
+  ],
+] as const) {
+  test(`right after an account is created, Finish later stays in view in ${name}`, async ({
+    page,
+  }) => {
+    test.setTimeout(60_000);
+    await page.setViewportSize(viewport);
+    await mockSmsSignup(page);
+    await page.goto(entry);
+    await page.getByRole("button", { name: "Create account", exact: true }).click();
+    await page.getByRole("button", { name: "Continue with SMS" }).click();
+    await page.getByLabel("Phone number", { exact: true }).fill("+41791234567");
+    await page.getByRole("button", { name: "Send Code" }).click();
+    await page.getByLabel("Verification code", { exact: true }).fill("123456");
+    await page.getByRole("button", { name: "Verify Code" }).click();
+    await page.getByRole("button", { name: "Keep key in this browser" }).click();
+    await page.getByLabel("Enter strong password").fill("correct horse");
+    await page.getByLabel("Confirm password").fill("correct horse");
+    await page.getByRole("button", { name: "Download encrypted backup" }).click();
+    await page.getByRole("button", { name: "Skip this check (not recommended)" }).click();
+
+    await expect(page.getByRole("heading", { name: "Create your profile." })).toBeVisible({
+      timeout: 20_000,
+    });
+    await expect(page.getByLabel("Name", { exact: true })).toBeVisible();
+    // No Back here: Finish later is the one way on without a profile, so it shares the pinned
+    // bar with Finish, in one row, in the first screenful above the long form.
+    await expect(page.getByRole("button", { name: "Back", exact: true })).toHaveCount(0);
+    const later = (await page.getByRole("button", { name: "Finish later" }).boundingBox())!;
+    const finish = (await page.getByRole("button", { name: "Finish", exact: true }).boundingBox())!;
+    for (const box of [later, finish]) {
+      expect(box.y).toBeGreaterThanOrEqual(0);
+      expect(box.y + box.height).toBeLessThanOrEqual(viewport.height);
+    }
+    expect(later.x + later.width).toBeLessThanOrEqual(finish.x);
+    expect(later.y + later.height).toBeGreaterThan(finish.y);
+    const bar = (await page.locator("[data-sticky-actions]").boundingBox())!;
+    expect(bar.height).toBeLessThan(100);
+  });
+}

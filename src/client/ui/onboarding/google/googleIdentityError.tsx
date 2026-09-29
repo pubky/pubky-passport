@@ -1,4 +1,4 @@
-import { useId, useState } from "react";
+import { useState } from "react";
 
 import type { GoogleIdentityViewError } from "@/client/logic/google-identity/googleIdentityErrors";
 import {
@@ -13,9 +13,9 @@ import { googlePermissionPromptMode } from "@/client/ui/googlePermissionPromptMo
 import { RotateCcwIcon, TrashIcon } from "@/client/ui/shared/icons";
 import { BackButton } from "@/client/ui/shared/backButton";
 import { ConfirmDeletionDialog } from "@/client/ui/shared/confirmDeletionDialog";
+import { DetailField } from "@/client/ui/shared/detailField";
 import { ErrorScreen } from "@/client/ui/shared/errorScreen";
 import { Button } from "@/client/ui/shared/primitives/button";
-import { Label } from "@/client/ui/shared/primitives/label";
 
 /** A confirmed deletion of the Drive identity file followed by creation of a new identity. */
 type PassportFileReplacement = {
@@ -89,10 +89,9 @@ function GoogleIdentityError({
         secondaryAction={
           replacement ? (
             <Button
-              className="text-destructive-text"
               onClick={() => setConfirmationOpen(true)}
               type="button"
-              variant="ghost"
+              variant="linkDestructive"
             >
               <TrashIcon />
               Delete backup &amp; create new pubky
@@ -176,8 +175,6 @@ function ForeignPassportFile({
   onBack: () => void;
   passportFileOrigin: string;
 }) {
-  const originLabelId = useId();
-
   return (
     <ErrorScreen
       accent="elsewhere."
@@ -186,20 +183,7 @@ function ForeignPassportFile({
       nextStep="Passport cannot confirm which site created this file. Only use your identity on a Passport site you already trust. To create a new identity here, go back and choose a different Google account."
       title="Identity found"
     >
-      <div className="flex flex-col gap-2">
-        <Label className="leading-5" id={originLabelId}>
-          Site named in the file (unverified)
-        </Label>
-        <div
-          aria-labelledby={originLabelId}
-          className="flex min-h-14 flex-col justify-center rounded-lg border border-border bg-black/10 py-4 pl-6 pr-5"
-          role="group"
-        >
-          <p className="break-all text-base font-medium leading-6 text-foreground">
-            {passportFileOrigin}
-          </p>
-        </div>
-      </div>
+      <DetailField label="Site named in the file (unverified)" value={passportFileOrigin} />
     </ErrorScreen>
   );
 }

@@ -10,11 +10,12 @@ import {
 } from "@/client/logic/backup/BackupVerifier";
 import type { LocalIdentityMetadata } from "@/client/logic/local-identity/localIdentityModels";
 import { BackButton } from "@/client/ui/shared/backButton";
+import { PUBKY_COPY_TOASTS } from "@/client/ui/shared/copyToClipboard";
 import { DetailField } from "@/client/ui/shared/detailField";
 import { ArrowRightIcon } from "@/client/ui/shared/icons";
 import { Notice } from "@/client/ui/shared/notice";
 import { PassportNavigation } from "@/client/ui/shared/passportNavigation";
-import { RecoveryScreen } from "@/client/ui/shared/recoveryScreen";
+import { RecoveryCard, RecoveryScreen } from "@/client/ui/shared/recoveryScreen";
 import { Button } from "@/client/ui/shared/primitives/button";
 import { FieldMessage } from "@/client/ui/shared/primitives/fieldMessage";
 import { FileField } from "@/client/ui/shared/primitives/fileField";
@@ -157,16 +158,23 @@ export function BackupImportFlow({
   if (unpublished && defaultHomeserver) {
     return (
       <RecoveryScreen
-        title="Homeserver record missing."
+        title="Homeserver record"
+        accent="missing."
         description="The backup opened, but the Pubky network has no homeserver record for this identity, so its account cannot be found."
       >
-        <p className="break-all text-xs text-muted-foreground">Pubky: {unpublished}</p>
-        <p className="text-sm leading-5">
-          Passport can publish a new record that points to this homeserver.
-        </p>
-        <div id="import-homeserver">
-          <DetailField label="Homeserver to publish" value={defaultHomeserver} />
-        </div>
+        <RecoveryCard>
+          <DetailField
+            copy={{ ...PUBKY_COPY_TOASTS, value: unpublished }}
+            label="Your pubky"
+            value={unpublished}
+          />
+          <p className="text-sm leading-5">
+            Passport can publish a new record that points to this homeserver.
+          </p>
+          <div id="import-homeserver">
+            <DetailField label="Homeserver to publish" value={defaultHomeserver} />
+          </div>
+        </RecoveryCard>
         {/* Publishing the wrong homeserver sends apps to the wrong place for this pubky's data. */}
         <Notice id="import-homeserver-warning" tone="warning">
           Only continue if your account was created on this homeserver. If it lives anywhere else,
@@ -179,6 +187,7 @@ export function BackupImportFlow({
           </Notice>
         ) : null}
         <PassportNavigation
+          className="mt-auto md:mt-0"
           back={
             <BackButton
               disabled={pending}
@@ -210,56 +219,63 @@ export function BackupImportFlow({
 
   return (
     <RecoveryScreen
-      title="Import backup."
+      title="Import"
+      accent="backup."
       description="Use your encrypted backup file to restore your identity in this browser."
     >
-      <form className="flex flex-col gap-6" onSubmit={(event) => void submit(event)}>
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="passport-backup">Pubky backup</Label>
-          <FileField
-            accept=".pkarr,application/octet-stream"
-            aria-describedby={fileError ? "passport-backup-error" : undefined}
-            aria-invalid={fileError ? true : undefined}
-            disabled={pending}
-            id="passport-backup"
-            onChange={(event) => {
-              setFileName(event.currentTarget.files?.[0]?.name ?? "");
-              setError(undefined);
-            }}
-            ref={fileInput}
-          />
-          {fileError ? (
-            <FieldMessage error id="passport-backup-error" role="alert">
-              {fileError}
-            </FieldMessage>
-          ) : null}
-        </div>
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="passport-backup-password">Backup password</Label>
-          <Input
-            aria-describedby={passwordError ? "passport-backup-password-error" : undefined}
-            aria-invalid={passwordError ? true : undefined}
-            autoComplete="current-password"
-            containerClassName="border-dashed"
-            id="passport-backup-password"
-            maxLength={MAXIMUM_BACKUP_PASSWORD_LENGTH}
-            onInput={() => setError(undefined)}
-            readOnly={pending}
-            ref={passwordInput}
-            type="password"
-          />
-          {passwordError ? (
-            <FieldMessage error id="passport-backup-password-error" role="alert">
-              {passwordError}
-            </FieldMessage>
-          ) : null}
-        </div>
+      <form
+        className="flex flex-1 flex-col gap-6 md:gap-8"
+        onSubmit={(event) => void submit(event)}
+      >
+        <RecoveryCard illustration="/illustrations/file.png">
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="passport-backup">Pubky backup</Label>
+            <FileField
+              accept=".pkarr,application/octet-stream"
+              aria-describedby={fileError ? "passport-backup-error" : undefined}
+              aria-invalid={fileError ? true : undefined}
+              disabled={pending}
+              id="passport-backup"
+              onChange={(event) => {
+                setFileName(event.currentTarget.files?.[0]?.name ?? "");
+                setError(undefined);
+              }}
+              ref={fileInput}
+            />
+            {fileError ? (
+              <FieldMessage error id="passport-backup-error" role="alert">
+                {fileError}
+              </FieldMessage>
+            ) : null}
+          </div>
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="passport-backup-password">Backup password</Label>
+            <Input
+              aria-describedby={passwordError ? "passport-backup-password-error" : undefined}
+              aria-invalid={passwordError ? true : undefined}
+              autoComplete="current-password"
+              containerClassName="border-dashed"
+              id="passport-backup-password"
+              maxLength={MAXIMUM_BACKUP_PASSWORD_LENGTH}
+              onInput={() => setError(undefined)}
+              readOnly={pending}
+              ref={passwordInput}
+              type="password"
+            />
+            {passwordError ? (
+              <FieldMessage error id="passport-backup-password-error" role="alert">
+                {passwordError}
+              </FieldMessage>
+            ) : null}
+          </div>
+        </RecoveryCard>
         {formError ? (
           <Notice focusOnMount tone="error">
             {formError}
           </Notice>
         ) : null}
         <PassportNavigation
+          className="mt-auto md:mt-0"
           back={<BackButton disabled={pending} onClick={onBack} />}
           layout="paired"
           confirm={

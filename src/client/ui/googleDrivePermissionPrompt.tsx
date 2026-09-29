@@ -47,7 +47,7 @@ function GoogleDrivePermissionPrompt({
       help={<GooglePermissionGuide />}
       secondaryAction={
         mode === "optional" && onContinue ? (
-          <Button onClick={onContinue} size="lg" type="button" variant="ghost">
+          <Button onClick={onContinue} type="button" variant="link">
             Continue without visible backup
           </Button>
         ) : null

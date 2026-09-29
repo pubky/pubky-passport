@@ -1,9 +1,12 @@
 import { copyToClipboard, type CopyToasts } from "./copyToClipboard";
 import { CopyIcon } from "./icons";
-import { cn } from "./mergeClassNames";
 import { IconButton } from "./primitives/iconButton";
 
-/** Labelled value; `copy` adds a copy button, disabled while there is nothing to copy. */
+/**
+ * Labelled read-only value, such as a pubky; `copy` adds a copy button, disabled while there is
+ * nothing to copy. The value is one size with or without the button, so two keys in one place
+ * always match.
+ */
 export function DetailField({
   copy,
   label,
@@ -19,14 +22,7 @@ export function DetailField({
         {label}
       </p>
       <div className="flex min-w-0 items-center gap-3">
-        <p
-          className={cn(
-            "min-w-0 flex-1 break-all font-medium leading-6",
-            copy && "text-sm leading-5",
-          )}
-        >
-          {value}
-        </p>
+        <p className="min-w-0 flex-1 break-all text-sm font-medium leading-5">{value}</p>
         {copy ? (
           <IconButton
             aria-label={`Copy ${label}`}

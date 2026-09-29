@@ -8,7 +8,6 @@ import { copyToClipboard } from "@/client/ui/shared/copyToClipboard";
 import { CopyIcon, RotateCcwIcon } from "@/client/ui/shared/icons";
 import { Button, ButtonLink } from "@/client/ui/shared/primitives/button";
 import { FieldMessage } from "@/client/ui/shared/primitives/fieldMessage";
-import { Label } from "@/client/ui/shared/primitives/label";
 import { Notice } from "@/client/ui/shared/notice";
 import { OnboardingCard } from "@/client/ui/shared/onboardingCard";
 import { PassportNavigation } from "@/client/ui/shared/passportNavigation";
@@ -134,22 +133,14 @@ export function LightningVerification({
                 <FieldMessage>
                   Expires at {new Date(invoice.expiresAt).toLocaleTimeString()}.
                 </FieldMessage>
-                <ButtonLink
-                  className="mt-3 w-full md:hidden"
-                  href={`lightning:${invoice.bolt11Invoice}`}
-                  size="lg"
+                <Button
+                  className="mt-3 w-full md:w-fit"
+                  onClick={() => void copyInvoice()}
                   variant="secondary"
                 >
-                  <Image
-                    alt=""
-                    aria-hidden="true"
-                    src="/icons/wallet.svg"
-                    width={16}
-                    height={16}
-                    className="size-4"
-                  />
-                  Pay Now
-                </ButtonLink>
+                  <CopyIcon />
+                  Copy invoice
+                </Button>
               </div>
             </div>
           )
@@ -178,17 +169,28 @@ export function LightningVerification({
           </Notice>
         ) : null}
         {copyFailed && invoice && !expired ? (
-          // A read-only field: labelled, focusable and easy to select on every device.
+          // The whole invoice as text: never cut off at a fixed height, and not a field-like box.
+          // A labelled read-only textbox that selects all of itself when focused or tapped, so it
+          // is easy to copy by hand on every device.
           <div className="flex flex-col gap-2">
-            <Label htmlFor="lightning-invoice-text">Lightning invoice</Label>
-            <textarea
-              className="w-full resize-none break-all rounded-lg border border-dashed border-input bg-black/10 p-4 text-sm text-foreground outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-foreground"
+            <p
+              className="text-xs font-medium uppercase leading-4 tracking-[0.1em] text-muted-foreground"
+              id="lightning-invoice-label"
+            >
+              Lightning invoice
+            </p>
+            <div
+              aria-labelledby="lightning-invoice-label"
+              aria-multiline="true"
+              aria-readonly="true"
+              className="select-all break-all rounded-sm font-mono text-sm leading-5 text-foreground"
               id="lightning-invoice-text"
-              onFocus={(event) => event.currentTarget.select()}
-              readOnly
-              rows={4}
-              value={invoice.bolt11Invoice}
-            />
+              onFocus={(event) => window.getSelection()?.selectAllChildren(event.currentTarget)}
+              role="textbox"
+              tabIndex={0}
+            >
+              {invoice.bolt11Invoice}
+            </div>
           </div>
         ) : null}
       </OnboardingCard>
@@ -212,10 +214,23 @@ export function LightningVerification({
                 {busyAction === "check" ? "Checking payment…" : "Check payment"}
               </Button>
             ) : (
-              <Button className="w-full" onClick={() => void copyInvoice()} size="lg">
-                <CopyIcon />
-                Copy Invoice
-              </Button>
+              // Paying is the way on. A phone hands the invoice to its wallet app; a computer
+              // has no wallet to open, so it scans the QR code and has no forward action here.
+              <ButtonLink
+                className="w-full md:hidden"
+                href={`lightning:${invoice.bolt11Invoice}`}
+                size="lg"
+              >
+                <Image
+                  alt=""
+                  aria-hidden="true"
+                  src="/icons/wallet.svg"
+                  width={16}
+                  height={16}
+                  className="size-4"
+                />
+                Pay now
+              </ButtonLink>
             )
           ) : pending && busyAction !== "create" ? undefined : (
             // No retry while the first invoice is created; one that was pressed keeps focus.

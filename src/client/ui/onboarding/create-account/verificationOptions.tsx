@@ -1,6 +1,7 @@
 import Image from "next/image";
 import { useId } from "react";
 import { BackButton } from "@/client/ui/shared/backButton";
+import { cn } from "@/client/ui/shared/mergeClassNames";
 import { PassportScreen } from "@/client/ui/shared/passportScreen";
 import { Button } from "@/client/ui/shared/primitives/button";
 import { DisplayHeading, LeadText } from "@/client/ui/shared/primitives/typography";
@@ -77,8 +78,15 @@ export function VerificationOptions({
       .filter((option) => statusOf(option.method) === "available")
       .map((option) => option.name),
   );
+  // A lone method (the others failed their check, or an invite-only provider) keeps the step
+  // column, as one card with its illustration beside the text, instead of stretching across the
+  // page. Two methods share an 800px column, so their cards stay card-shaped.
+  const lone = options.length === 1;
   return (
-    <PassportScreen width="wide" className="gap-6">
+    <PassportScreen
+      width={lone ? "compact" : "wide"}
+      className={cn("gap-6", options.length === 2 && "lg:max-w-[880px]")}
+    >
       <div className="space-y-3">
         <DisplayHeading accent="account." className="[&>span]:inline">
           Create your{" "}
@@ -104,7 +112,10 @@ export function VerificationOptions({
               key={option.method}
               blocked={blocked}
               label={option.title}
-              className="flex min-w-0 flex-col gap-2 lg:gap-6 lg:rounded-lg lg:bg-card lg:p-12"
+              className={cn(
+                "flex min-w-0 flex-col gap-2 lg:gap-6 lg:rounded-lg lg:bg-card",
+                lone ? "lg:flex-row lg:items-center lg:gap-8 lg:p-8" : "lg:p-12",
+              )}
             >
               <Image
                 alt=""
@@ -112,44 +123,49 @@ export function VerificationOptions({
                 src={option.image}
                 width={192}
                 height={192}
-                className="mx-auto hidden size-48 object-contain lg:block"
+                className={cn(
+                  "hidden shrink-0 object-contain lg:block",
+                  lone ? "size-36" : "mx-auto size-48",
+                )}
               />
-              <div className="hidden flex-1 space-y-3 lg:block">
-                <h2 className="text-2xl font-bold leading-8">{option.title}</h2>
+              <div className="flex min-w-0 flex-1 flex-col gap-2 lg:gap-6">
+                <div className="hidden flex-1 space-y-3 lg:block">
+                  <h2 className="text-2xl font-bold leading-8">{option.title}</h2>
+                  <p
+                    className={`text-xs uppercase leading-4 tracking-[0.1em] ${blocked ? "text-foreground" : "text-muted-foreground"}`}
+                  >
+                    {option.detail}
+                  </p>
+                </div>
+                <Button
+                  aria-describedby={`${detailId}-${option.method}`}
+                  className="w-full"
+                  size="lg"
+                  variant="secondary"
+                  disabled={blocked}
+                  // Only the button shows the probe, so the card's text stays readable.
+                  loading={checking}
+                  onClick={option.action}
+                >
+                  <Image
+                    alt=""
+                    data-slot="icon"
+                    src={option.icon}
+                    width={16}
+                    height={16}
+                    className="size-4 shrink-0"
+                  />{" "}
+                  {option.button}
+                </Button>
+                {/* Below lg the cards collapse to buttons; the price and terms stay under each. A
+                    blocked card is dimmed, so its line takes the full text colour to stay legible. */}
                 <p
-                  className={`text-xs uppercase leading-4 tracking-[0.1em] ${blocked ? "text-foreground" : "text-muted-foreground"}`}
+                  className={`text-sm leading-5 lg:hidden ${blocked ? "text-foreground" : "text-muted-foreground"}`}
+                  id={`${detailId}-${option.method}`}
                 >
                   {option.detail}
                 </p>
               </div>
-              <Button
-                aria-describedby={`${detailId}-${option.method}`}
-                className="w-full"
-                size="lg"
-                variant="secondary"
-                disabled={blocked}
-                // Only the button shows the probe, so the card's text stays readable.
-                loading={checking}
-                onClick={option.action}
-              >
-                <Image
-                  alt=""
-                  data-slot="icon"
-                  src={option.icon}
-                  width={16}
-                  height={16}
-                  className="size-4 shrink-0"
-                />{" "}
-                {option.button}
-              </Button>
-              {/* Below lg the cards collapse to buttons; the price and terms stay under each.
-                  A blocked card is dimmed, so its line takes the full text colour to stay legible. */}
-              <p
-                className={`text-sm leading-5 lg:hidden ${blocked ? "text-foreground" : "text-muted-foreground"}`}
-                id={`${detailId}-${option.method}`}
-              >
-                {option.detail}
-              </p>
             </AvailabilityCard>
           );
         })}

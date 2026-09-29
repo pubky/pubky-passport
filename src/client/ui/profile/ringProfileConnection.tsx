@@ -5,6 +5,8 @@ import type { RingConnectionErrorCode } from "@/client/logic/profile/RingProfile
 import type { RingProfileControllerPort } from "@/client/ui/passportCollaborators";
 import { PassportScreen } from "@/client/ui/shared/passportScreen";
 import { BackButton } from "@/client/ui/shared/backButton";
+import { PUBKY_COPY_TOASTS } from "@/client/ui/shared/copyToClipboard";
+import { DetailField } from "@/client/ui/shared/detailField";
 import { PassportNavigation } from "@/client/ui/shared/passportNavigation";
 import { DisplayHeading, LeadText } from "@/client/ui/shared/primitives/typography";
 import { RotateCcwIcon } from "@/client/ui/shared/icons";
@@ -145,7 +147,11 @@ export function RingProfileConnection({
         </LeadText>
       </div>
       {expectedKey ? (
-        <p className="break-all text-xs text-muted-foreground">Pubky: {expectedKey}</p>
+        <DetailField
+          copy={{ ...PUBKY_COPY_TOASTS, value: expectedKey }}
+          label="Pubky"
+          value={expectedKey}
+        />
       ) : null}
       {state.status === "starting" ? (
         <p className="flex items-center gap-2" role="status">
@@ -164,10 +170,7 @@ export function RingProfileConnection({
           <h2 className="text-2xl font-bold leading-8" id={`${id}-confirm`}>
             Is this your new pubky?
           </h2>
-          <p className="text-sm leading-5 text-muted-foreground">Ring connected this pubky:</p>
-          <p className="break-all font-mono text-sm leading-5 text-foreground">
-            {state.publicKeyZ32}
-          </p>
+          <DetailField label="Pubky from Ring" value={state.publicKeyZ32} />
           <p className="text-sm leading-5 text-muted-foreground">
             Continue only if it is the pubky you just created in Ring. Passport saves it and
             publishes your new profile to it.
@@ -198,6 +201,13 @@ export function RingProfileConnection({
       )}
       <PassportNavigation
         back={onBack ? <BackButton onClick={onBack} /> : undefined}
+        tertiary={
+          setupRequired && onDefer ? (
+            <Button onClick={onDefer} type="button" variant="link">
+              Finish later
+            </Button>
+          ) : undefined
+        }
         confirm={
           state.status === "failed" || retryPressed ? (
             <Button
@@ -216,11 +226,6 @@ export function RingProfileConnection({
           ) : undefined
         }
       />
-      {setupRequired && onDefer ? (
-        <Button className="self-center" onClick={onDefer} type="button" variant="ghost">
-          Finish later
-        </Button>
-      ) : null}
     </PassportScreen>
   );
 }

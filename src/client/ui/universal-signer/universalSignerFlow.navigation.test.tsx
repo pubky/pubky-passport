@@ -472,9 +472,9 @@ describe("UniversalSignerFlow identity navigation", () => {
     expect((await screen.findByText("Detached")).closest("h1")).toBeInTheDocument();
     expect(FLOW.catalog.identities).toEqual([{ publicIdentity: { publicKeyZ32: "identity" } }]);
     expect(FLOW.catalog.activePublicKeyZ32).toBe("identity");
+    // Done returns to Manage identity, where detaching started, as attaching does.
     await userEvent.setup().click(screen.getByRole("button", { name: "Done" }));
-    expect(await screen.findByRole("button", { name: "Manage identity" })).toBeInTheDocument();
-    await userEvent.setup().click(screen.getByRole("button", { name: "Manage identity" }));
+    expect(await screen.findByRole("heading", { name: "Manage identity." })).toBeInTheDocument();
     await userEvent.setup().click(screen.getByRole("button", { name: "Attach to Google" }));
     expect(screen.getByRole("heading", { name: "Attach to Google." })).toBeInTheDocument();
   });

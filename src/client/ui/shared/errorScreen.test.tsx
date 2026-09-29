@@ -89,18 +89,25 @@ describe("ErrorScreen", () => {
     ).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
   });
 
-  it("lines a further option up with a lone Back when no retry is offered", () => {
+  it("puts a further option in the side row under the actions, on the column's edge", () => {
     const { rerender } = render(
       <ErrorScreen
         accent="interrupted."
         back={<Button>Back</Button>}
         cause="The file is damaged."
-        secondaryAction={<Button variant="ghost">Delete backup</Button>}
+        secondaryAction={<Button variant="linkDestructive">Delete backup</Button>}
         title="Setup"
       />,
     );
-    const option = () => screen.getByRole("button", { name: "Delete backup" }).parentElement;
-    expect(option()).toHaveClass("justify-center", "md:justify-start");
+    const option = () => screen.getByRole("button", { name: "Delete backup" });
+    const row = () => option().closest('[data-slot="tertiary-actions"]');
+    expect(row()).not.toBeNull();
+    expect(row()).not.toHaveClass("justify-center");
+    // One order whatever the actions: Back first, then the recovery action, then side options.
+    expect(
+      screen.getByRole("button", { name: "Back" }).compareDocumentPosition(option()) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
 
     rerender(
       <ErrorScreen
@@ -108,11 +115,15 @@ describe("ErrorScreen", () => {
         action={<Button>Try again</Button>}
         back={<Button>Back</Button>}
         cause="The file is damaged."
-        secondaryAction={<Button variant="ghost">Delete backup</Button>}
+        secondaryAction={<Button variant="linkDestructive">Delete backup</Button>}
         title="Setup"
       />,
     );
-    expect(option()).not.toHaveClass("md:justify-start");
+    expect(row()).not.toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Try again" }).compareDocumentPosition(option()) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
   });
 
   it("renders no action row or details when there are none", () => {

@@ -175,7 +175,7 @@ describe("CreateAccountFlow", () => {
     expect(keepHere).not.toHaveAttribute("aria-describedby");
   });
 
-  it("keeps a verified SMS invite through Cancel and offers it again without verifying", async () => {
+  it("keeps a verified SMS invite through Back and offers it again without verifying", async () => {
     stubCoarsePointer();
     const user = userEvent.setup();
     const first = mountFlow();
@@ -188,7 +188,15 @@ describe("CreateAccountFlow", () => {
       await screen.findByRole("heading", { name: "Where should your key live?" }),
     ).toBeVisible();
 
-    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    // Leaving account creation is Back, not the Cancel that answers an app; it says the
+    // verification is kept, and Discard invite is a side action after it.
+    expect(screen.queryByRole("button", { name: "Cancel" })).toBeNull();
+    expect(screen.getByText("Your verification stays saved in this browser.")).toBeVisible();
+    const discard = screen.getByRole("button", { name: "Discard invite" });
+    expect(discard.closest('[data-slot="tertiary-actions"]')).not.toBeNull();
+    const back = screen.getByRole("button", { name: "Back" });
+    expect(back.compareDocumentPosition(discard) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    await user.click(back);
     expect(first.onBack).toHaveBeenCalledOnce();
     first.unmount();
 

@@ -221,7 +221,11 @@ describe("BackupFlow", () => {
       "Download started: pubky-1xgt9g…zwsqdy.pkarr. Not in your downloads? Download again",
     );
     expect(help.querySelector("span")).toHaveClass("whitespace-nowrap");
-    expect(help).toContainElement(screen.getByRole("button", { name: "Download again" }));
+    const again = screen.getByRole("button", { name: "Download again" });
+    expect(help).toContainElement(again);
+    // The same text action as Skip this check below it, not a second, brand-coloured style.
+    expect(again).toHaveClass("underline", "text-secondary-foreground", "inline", "text-xs");
+    expect(again).not.toHaveClass("text-brand");
     expect(file).toHaveAttribute("aria-describedby", help.id);
     const verify = screen.getByRole("button", { name: "Verify backup" });
     const skip = screen.getByRole("button", { name: SKIP });
