@@ -1,5 +1,5 @@
 /** @vitest-environment jsdom */
-import { act, cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Result } from "better-result";
 import { toast } from "sonner";
@@ -15,6 +15,7 @@ const EXACT_REQUEST = "pubkyauth://signin?secret=original&relay=https://relay.ex
 const profile = { name: "Satoshi", bio: "Bitcoin", links: [], image: null, status: "busy" };
 const load = vi.fn();
 const save = vi.fn();
+const checkAvatar = vi.fn(async () => Result.ok(undefined));
 const approve = vi.fn();
 let state: { catalog: LocalIdentityCatalog; listener?: (() => void) | undefined };
 
@@ -22,7 +23,7 @@ function mount(request = false) {
   return render(
     withPassportTestProviders(<UniversalSignerFlow />, {
       createLocalIdentityController: () => fakeLocalIdentityController(state),
-      createProfileController: () => ({ load, save }),
+      createProfileController: () => ({ load, save, checkAvatar }),
       createAuthorizationController: () =>
         fakePassportAuthorizationController(
           {
@@ -184,8 +185,13 @@ it("keeps the first two saved custom link titles editable", async () => {
   const user = userEvent.setup();
   mount();
   await user.click(await screen.findByRole("button", { name: "Set up profile" }));
-  const firstTitle = await screen.findByRole("textbox", { name: "Link 1 title" });
-  const secondTitle = screen.getByRole("textbox", { name: "Link 2 title" });
+  const firstTitle = within(await screen.findByRole("group", { name: "Link 1" })).getByRole(
+    "textbox",
+    { name: "Title" },
+  );
+  const secondTitle = within(screen.getByRole("group", { name: "Link 2" })).getByRole("textbox", {
+    name: "Title",
+  });
   await user.clear(firstTitle);
   await user.type(firstTitle, "Writing");
   await user.clear(secondTitle);

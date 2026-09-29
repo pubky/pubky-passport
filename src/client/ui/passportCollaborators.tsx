@@ -109,7 +109,7 @@ type SignupTokenCheck = (
 export type PassportCollaborators = {
   /** `httpRelay` is the instance's configured relay for Passport's own grant requests. */
   createRingProfileController: (httpRelay: string) => RingProfileControllerPort;
-  createProfileController: () => Pick<ProfileController, "load" | "save">;
+  createProfileController: () => Pick<ProfileController, "load" | "save" | "checkAvatar">;
   createAuthorizationController?: () => AuthorizationControllerPort;
   createGoogleIdentityController: (
     googleClientId: string,

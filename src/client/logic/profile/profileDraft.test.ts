@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   draftFromProfile,
   linkUrlLength,
+  nextLinkId,
   profileDraftChanged,
   profileFromDraft,
   profileTextLength,
@@ -74,6 +75,14 @@ describe("profile drafts", () => {
         { title: "Blog", url: "@blog" },
       ],
     });
+  });
+
+  it("numbers an added link after every link the draft has, published ones first", () => {
+    expect(nextLinkId(draft())).toBe(5);
+    // Kept edits can already hold added links; a new one must not reuse their ids.
+    expect(
+      nextLinkId(draft({ links: [link(0, "Website", ""), link(5, "", ""), link(7, "", "")] })),
+    ).toBe(8);
   });
 
   it("counts text as the specification does: trimmed, in Unicode scalar values", () => {

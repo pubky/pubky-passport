@@ -1,11 +1,12 @@
 /** @vitest-environment jsdom */
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Result } from "better-result";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { LocalIdentityMetadata } from "@/client/logic/local-identity/localIdentityModels";
 import type { ProfileErrorCode, ProfileResult } from "@/client/logic/profile/ProfileController";
 import type { LoadedProfile, PubkyProfile } from "@/client/logic/profile/profile";
+import { draftFromProfile, type UnsavedProfileEdits } from "@/client/logic/profile/profileDraft";
 import { ProfileSetupFlow } from "./profileSetupFlow";
 
 const KEY = "1aeh1m9m47shq8ixa7ikaunjb81ierse9by6f7wnkbxzj4dddwdy";
@@ -14,12 +15,20 @@ const save =
   vi.fn<
     (key: string, profile: PubkyProfile, avatar?: File) => Promise<ProfileResult<PubkyProfile>>
   >();
+const checkAvatar = vi.fn<(file: File) => Promise<ProfileResult<void>>>();
+const GOOGLE_ACCOUNT = {
+  name: "Alice Example",
+  email: "alice@example.com",
+  googleSubject: "subject",
+  pictureUrl: null,
+};
 
 /** Opened from Manage or the overview by default; `afterAddition` opens it as creation does. */
 function mount(
   identity: Partial<LocalIdentityMetadata> = {},
   handlers: {
-    onReconnect?: () => void;
+    onReconnect?: (edits: UnsavedProfileEdits) => void;
+    keptEdits?: UnsavedProfileEdits;
     afterAddition?: boolean;
     created?: boolean;
     forRequest?: boolean;
@@ -32,7 +41,7 @@ function mount(
   render(
     <ProfileSetupFlow
       identity={{ publicIdentity: { publicKeyZ32: KEY }, ...identity }}
-      controller={{ load, save }}
+      controller={{ load, save, checkAvatar }}
       onBack={afterAddition ? undefined : onBack}
       onComplete={onComplete}
       onDefer={afterAddition ? onDefer : undefined}
@@ -41,9 +50,19 @@ function mount(
   );
   return { onBack, onComplete, onDefer };
 }
+
+/** A field of an added link, found by its group ("Link 3") and its own visible label. */
+function linkField(number: number, label: "Title" | "Address"): HTMLElement {
+  return within(screen.getByRole("group", { name: `Link ${number}` })).getByLabelText(label);
+}
+
+function pick(picker: HTMLElement, file: File) {
+  fireEvent.change(picker, { target: { files: [file] } });
+}
 beforeEach(() => {
   load.mockResolvedValue(Result.ok(null));
   save.mockResolvedValue(Result.ok({ name: "Satoshi" }));
+  checkAvatar.mockResolvedValue(Result.ok(undefined));
   URL.createObjectURL = vi.fn(() => "blob:avatar");
   URL.revokeObjectURL = vi.fn();
   Element.prototype.scrollIntoView = vi.fn();
@@ -127,10 +146,29 @@ describe("ProfileSetupFlow", () => {
       Result.ok({ profile: { name: "Satoshi" }, avatar: new Blob(["png"], { type: "image/png" }) }),
     );
     mount();
-    expect(await screen.findByRole("img", { name: "Profile avatar preview" })).toHaveAttribute(
+    expect(await screen.findByRole("img", { name: "Your avatar" })).toHaveAttribute(
       "src",
       "blob:avatar",
     );
+  });
+
+  it("gives the placeholder no name, and returns to it when an avatar cannot be drawn", async () => {
+    load.mockResolvedValue(
+      Result.ok({
+        profile: { name: "Satoshi", image: `pubky://${KEY}/pub/pubky.app/files/AVATAR` },
+        avatar: new Blob(["png"], { type: "image/png" }),
+      }),
+    );
+    mount();
+    const avatar = await screen.findByRole("img", { name: "Your avatar" });
+    // A grey circle while it loads, not an empty square with its alt text.
+    expect(avatar).toHaveClass("bg-muted", "rounded-full");
+    fireEvent.error(avatar);
+    expect(screen.queryByRole("img", { name: "Your avatar" })).not.toBeInTheDocument();
+    expect(avatar).toHaveAttribute("alt", "");
+    expect(avatar.getAttribute("src")).toMatch(/profile-avatar\.svg$/u);
+    // The published avatar is still there to delete.
+    expect(screen.getByRole("button", { name: "Delete" })).toBeInTheDocument();
   });
 
   it.each<[ProfileErrorCode, string]>([
@@ -138,11 +176,10 @@ describe("ProfileSetupFlow", () => {
       "invalid_profile",
       "Use a name of 3–50 characters, a bio of up to 160 characters, and valid links with titles (up to 5).",
     ],
-    ["invalid_avatar", "Passport could not use this image."],
     ["identity_unavailable", "no longer available in this browser"],
     ["storage_failed", "Your profile was published"],
     ["save_failed", "Check your connection and try again."],
-    ["disconnected", "Your connection to Ring has ended."],
+    ["disconnected", "Your connection to Pubky Ring has ended. Connect Pubky Ring again"],
   ])("explains a %s save failure", async (code, message) => {
     save.mockResolvedValueOnce(Result.err({ code }));
     const { onComplete } = mount();
@@ -154,7 +191,7 @@ describe("ProfileSetupFlow", () => {
     // The failure appears above the actions and takes focus, so it is not missed.
     expect(alert).toHaveFocus();
     expect(onComplete).not.toHaveBeenCalled();
-    expect(screen.queryByRole("button", { name: "Connect Ring" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Reconnect Pubky Ring" })).not.toBeInTheDocument();
   });
 
   it("shows an unsupported avatar's error by the picker and leaves focus there", async () => {
@@ -166,7 +203,7 @@ describe("ProfileSetupFlow", () => {
       target: { files: [new File(["%PDF"], "avatar.pdf", { type: "application/pdf" })] },
     });
 
-    const message = screen.getByRole("alert");
+    const message = await screen.findByRole("alert");
     expect(message).toHaveTextContent("Choose a PNG, JPEG, WebP, or GIF image up to 5 MB.");
     expect(picker).toHaveAccessibleDescription(
       "Choose a PNG, JPEG, WebP, or GIF image up to 5 MB.",
@@ -179,18 +216,241 @@ describe("ProfileSetupFlow", () => {
     fireEvent.change(picker, {
       target: { files: [new File(["png"], "avatar.png", { type: "image/png" })] },
     });
-    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
   });
 
-  it("offers to reconnect Ring after the grant has ended", async () => {
+  it("names the formats under the picker and refuses a damaged image when it is picked", async () => {
+    checkAvatar.mockResolvedValueOnce(Result.err({ code: "invalid_avatar" }));
+    const { onComplete } = mount();
+    const user = userEvent.setup();
+    await user.type(await screen.findByLabelText("Name"), "Satoshi");
+    const picker = screen.getByLabelText("Choose avatar file");
+    expect(picker).toHaveAccessibleDescription("PNG, JPEG, WebP, or GIF, up to 5 MB.");
+    const damaged = new File(["not an image"], "holiday.png", { type: "image/png" });
+    pick(picker, damaged);
+
+    const message = await screen.findByRole("alert");
+    expect(message).toHaveTextContent(
+      "This image can’t be opened. Choose a PNG, JPEG, WebP, or GIF image up to 5 MB.",
+    );
+    expect(checkAvatar).toHaveBeenCalledWith(damaged);
+    expect(message.closest("section")).toBe(screen.getByRole("region", { name: "Avatar" }));
+    // The avatar stays as it was: no broken preview, nothing to delete, nothing saved with it.
+    expect(picker).toHaveAttribute("aria-invalid", "true");
+    expect(screen.queryByRole("button", { name: "Delete" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("img", { name: "Your avatar" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    expect(save).toHaveBeenCalledWith(KEY, expect.objectContaining({ name: "Satoshi" }), undefined);
+    expect(onComplete).toHaveBeenCalledOnce();
+  });
+
+  it("uses only the file picked last when an earlier check settles later", async () => {
+    let settleFirst!: (result: ProfileResult<void>) => void;
+    checkAvatar
+      .mockReturnValueOnce(
+        new Promise((resolve) => {
+          settleFirst = resolve;
+        }),
+      )
+      .mockResolvedValueOnce(Result.ok(undefined));
+    mount();
+    const user = userEvent.setup();
+    await user.type(await screen.findByLabelText("Name"), "Satoshi");
+    const picker = screen.getByLabelText("Choose avatar file");
+    const first = new File(["first"], "first.png", { type: "image/png" });
+    const second = new File(["second"], "second.png", { type: "image/png" });
+    pick(picker, first);
+    pick(picker, second);
+    expect(await screen.findByRole("button", { name: "Delete" })).toBeInTheDocument();
+    await act(async () => settleFirst(Result.err({ code: "invalid_avatar" })));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    expect(save).toHaveBeenCalledWith(KEY, expect.anything(), second);
+  });
+
+  it("says at the picker when a save refuses the chosen image", async () => {
+    save.mockResolvedValueOnce(Result.err({ code: "invalid_avatar" }));
+    mount();
+    const user = userEvent.setup();
+    await user.type(await screen.findByLabelText("Name"), "Satoshi");
+    pick(
+      screen.getByLabelText("Choose avatar file"),
+      new File(["png"], "a.png", { type: "image/png" }),
+    );
+    await screen.findByRole("button", { name: "Delete" });
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    const message = await screen.findByRole("alert");
+    expect(message).toHaveTextContent("This image can’t be opened.");
+    expect(message.closest("section")).toBe(screen.getByRole("region", { name: "Avatar" }));
+    expect(screen.getByLabelText("Choose avatar file")).toHaveAttribute("aria-invalid", "true");
+  });
+
+  it("makes reconnecting Ring the way on after the grant ended, keeping the edits", async () => {
     save.mockResolvedValueOnce(Result.err({ code: "disconnected" }));
     const onReconnect = vi.fn();
     mount({ keySource: "ring" }, { onReconnect });
     const user = userEvent.setup();
+    await user.type(await screen.findByLabelText("Name"), "Carol");
+    const avatar = new File(["png"], "carol.png", { type: "image/png" });
+    pick(screen.getByLabelText("Choose avatar file"), avatar);
+    await screen.findByRole("button", { name: "Delete" });
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Your connection to Pubky Ring ended before your changes were saved. Reconnect Pubky Ring to publish them. Your edits are kept.",
+    );
+    // Saving cannot work until Ring is connected again, so Save gives way to reconnecting.
+    expect(screen.queryByRole("button", { name: "Save" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Reconnect Pubky Ring" }));
+    expect(onReconnect).toHaveBeenCalledWith({
+      draft: expect.objectContaining({ name: "Carol" }),
+      avatar,
+    });
+  });
+
+  it("keeps reconnecting as the way on when an avatar is chosen after the grant ended", async () => {
+    save.mockResolvedValueOnce(Result.err({ code: "disconnected" }));
+    const onReconnect = vi.fn();
+    mount({ keySource: "ring" }, { onReconnect });
+    const user = userEvent.setup();
+    await user.type(await screen.findByLabelText("Name"), "Carol");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await screen.findByRole("alert");
+
+    const avatar = new File(["png"], "carol.png", { type: "image/png" });
+    pick(screen.getByLabelText("Choose avatar file"), avatar);
+    await screen.findByRole("button", { name: "Delete" });
+    // A new avatar does not bring Pubky Ring back: saving would only fail again.
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Your connection to Pubky Ring ended before your changes were saved.",
+    );
+    expect(screen.queryByRole("button", { name: "Save" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Reconnect Pubky Ring" }));
+    expect(onReconnect).toHaveBeenCalledWith({
+      draft: expect.objectContaining({ name: "Carol" }),
+      avatar,
+    });
+  });
+
+  it("clears a failed save's message once a new avatar is chosen", async () => {
+    save.mockResolvedValueOnce(Result.err({ code: "save_failed" }));
+    mount();
+    const user = userEvent.setup();
     await user.type(await screen.findByLabelText("Name"), "Satoshi");
     await user.click(screen.getByRole("button", { name: "Save" }));
-    await user.click(await screen.findByRole("button", { name: "Connect Ring" }));
-    expect(onReconnect).toHaveBeenCalledOnce();
+    await screen.findByRole("alert");
+    pick(
+      screen.getByLabelText("Choose avatar file"),
+      new File(["png"], "a.png", { type: "image/png" }),
+    );
+    await screen.findByRole("button", { name: "Delete" });
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("saves a chosen image once its check passes when Save is pressed meanwhile", async () => {
+    let settle!: (result: ProfileResult<void>) => void;
+    checkAvatar.mockReturnValueOnce(
+      new Promise((resolve) => {
+        settle = resolve;
+      }),
+    );
+    const { onComplete } = mount();
+    const user = userEvent.setup();
+    await user.type(await screen.findByLabelText("Name"), "Satoshi");
+    const avatar = new File(["png"], "satoshi.png", { type: "image/png" });
+    pick(screen.getByLabelText("Choose avatar file"), avatar);
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    // The press is taken: the save waits for the check, busy, instead of doing nothing.
+    const busy = screen.getByRole("button", { name: /Publishing/u });
+    expect(busy).toHaveAttribute("aria-busy", "true");
+    expect(screen.getByLabelText("Name")).toBeDisabled();
+    expect(save).not.toHaveBeenCalled();
+
+    await act(async () => settle(Result.ok(undefined)));
+    expect(save).toHaveBeenCalledWith(KEY, expect.objectContaining({ name: "Satoshi" }), avatar);
+    expect(onComplete).toHaveBeenCalledWith({ name: "Satoshi" }, avatar);
+  });
+
+  it("stops a save pressed while the chosen image is checked when the check refuses it", async () => {
+    let settle!: (result: ProfileResult<void>) => void;
+    checkAvatar.mockReturnValueOnce(
+      new Promise((resolve) => {
+        settle = resolve;
+      }),
+    );
+    mount();
+    const user = userEvent.setup();
+    await user.type(await screen.findByLabelText("Name"), "Satoshi");
+    pick(
+      screen.getByLabelText("Choose avatar file"),
+      new File(["broken"], "broken.png", { type: "image/png" }),
+    );
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await act(async () => settle(Result.err({ code: "invalid_avatar" })));
+
+    // Nothing is published with or without the image; the picker says why and offers another.
+    expect(save).not.toHaveBeenCalled();
+    expect(await screen.findByRole("alert")).toHaveTextContent("This image can’t be opened.");
+    expect(screen.getByLabelText("Choose avatar file")).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Save" })).toBeEnabled();
+  });
+
+  it("reopens with the edits kept across a reconnect, over the published profile", async () => {
+    load.mockResolvedValue(
+      Result.ok({
+        profile: {
+          name: "Carol",
+          bio: "Keeps her keys on her phone.",
+          image: `pubky://${KEY}/pub/pubky.app/files/AVATAR`,
+          links: [{ title: "Website", url: "https://carol.example/" }],
+          status: null,
+        },
+        avatar: new Blob(["png"], { type: "image/png" }),
+      }),
+    );
+    const published = draftFromProfile(
+      { name: "Carol", links: [{ title: "Website", url: "https://carol.example/" }] },
+      "",
+    );
+    const avatar = new File(["png"], "carol.png", { type: "image/png" });
+    const keptEdits = {
+      draft: {
+        ...published,
+        name: "Carol Danvers",
+        bio: "Pilot.",
+        links: [
+          ...published.links,
+          { id: 5, title: "Blog", url: "https://blog.example/", fixedTitle: false },
+        ],
+      },
+      avatar,
+    };
+    const { onBack } = mount({ keySource: "ring" }, { keptEdits });
+    const user = userEvent.setup();
+
+    expect(await screen.findByLabelText("Name")).toHaveValue("Carol Danvers");
+    expect(screen.getByLabelText("Bio")).toHaveValue("Pilot.");
+    expect(linkField(2, "Title")).toHaveValue("Blog");
+    expect(
+      screen.getByText(
+        "Pubky Ring is connected again. Your changes are still here. Save to publish them.",
+      ),
+    ).toBeInTheDocument();
+    // Nothing is published until the person saves; a new link does not reuse a kept id.
+    expect(save).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "Add link" }));
+    expect(linkField(3, "Title")).toHaveAttribute("id", "profile-link-6-title");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    expect(save).toHaveBeenCalledWith(
+      KEY,
+      expect.objectContaining({ name: "Carol Danvers", bio: "Pilot." }),
+      avatar,
+    );
+    // The kept edits differ from what is published, so leaving still asks first.
+    await user.click(screen.getByRole("button", { name: "Back" }));
+    expect(screen.getByRole("dialog", { name: "Discard your changes?" })).toBeInTheDocument();
+    expect(onBack).not.toHaveBeenCalled();
   });
 
   it("stays silent about a save cancelled by its closed connection", async () => {
@@ -250,9 +510,13 @@ describe("ProfileSetupFlow", () => {
   it("says setup is optional and editing publishes, with Back before the primary", async () => {
     mount({ profileSetupRequired: true });
     await screen.findByLabelText("Name");
+    // Said before anything is filled in, not in small print under the form.
     expect(
-      screen.getByText("Optional. Add a name, bio, links, and avatar that apps can show."),
+      screen.getByText(
+        "Optional. Add a name, bio, links, and avatar. Anyone can see your profile, including apps you sign in to.",
+      ),
     ).toBeInTheDocument();
+    expect(screen.queryByText("Your profile is public.")).not.toBeInTheDocument();
     const back = screen.getByRole("button", { name: "Back" });
     const finish = screen.getByRole("button", { name: "Save profile" });
     expect(back.compareDocumentPosition(finish) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
@@ -277,7 +541,7 @@ describe("ProfileSetupFlow", () => {
 
     const dialog = screen.getByRole("dialog", { name: "Discard your changes?" });
     expect(dialog).toHaveAccessibleDescription(
-      "Your changes are not published yet. Going back throws them away.",
+      "Your changes are not published yet. Leaving now throws them away.",
     );
     // Keeping the edits is the default: it comes first and has focus.
     expect(screen.getByRole("button", { name: "Keep editing" })).toHaveFocus();
@@ -362,6 +626,67 @@ describe("ProfileSetupFlow", () => {
     expect(screen.queryByRole("heading", { name: "Account created." })).not.toBeInTheDocument();
   });
 
+  it("says a name filled in from Google is public until it is changed", async () => {
+    mount({ profileSetupRequired: true, googleAccount: GOOGLE_ACCOUNT });
+    const user = userEvent.setup();
+    const name = await screen.findByLabelText("Name");
+    expect(name).toHaveValue("Alice Example");
+    expect(name).toHaveAccessibleDescription(
+      "From your Google account. Change it if you don’t want it public. 3–50 characters. Shown publicly.",
+    );
+    await user.type(name, "!");
+    expect(name).toHaveAccessibleDescription("3–50 characters. Shown publicly.");
+    expect(screen.queryByText(/From your Google account/u)).not.toBeInTheDocument();
+  });
+
+  it("does not flag a published name that matches the Google account", async () => {
+    load.mockResolvedValue(Result.ok({ profile: { name: "Alice Example" } }));
+    mount({ googleAccount: GOOGLE_ACCOUNT });
+    expect(await screen.findByLabelText("Name")).toHaveValue("Alice Example");
+    expect(screen.queryByText(/From your Google account/u)).not.toBeInTheDocument();
+  });
+
+  it("disables Bio with the other fields while saving", async () => {
+    let finishSave!: () => void;
+    save.mockReturnValueOnce(
+      new Promise((resolve) => {
+        finishSave = () => resolve(Result.ok({ name: "Satoshi" }));
+      }),
+    );
+    mount();
+    const user = userEvent.setup();
+    await user.type(await screen.findByLabelText("Name"), "Satoshi");
+    const bio = screen.getByLabelText("Bio");
+    // The shared multi-line field, described by its counter.
+    expect(bio.tagName).toBe("TEXTAREA");
+    expect(bio).toHaveAccessibleDescription("0 of 160 characters");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    expect(bio).toBeDisabled();
+    expect(screen.getByLabelText("Name")).toBeDisabled();
+    await act(async () => finishSave());
+  });
+
+  it("labels both fields of an added link and names the link its remove button removes", async () => {
+    mount();
+    const user = userEvent.setup();
+    await screen.findByLabelText("Name");
+    await user.click(screen.getByRole("button", { name: "Add link" }));
+    const link = screen.getByRole("group", { name: "Link 3" });
+    const title = within(link).getByLabelText("Title");
+    const address = within(link).getByLabelText("Address");
+    // Visible labels name the fields, so none is left to a placeholder or a hidden label.
+    expect(title).not.toHaveAttribute("aria-label");
+    expect(address).not.toHaveAttribute("aria-label");
+    expect(within(link).getByText("Title", { selector: "label" })).toBeVisible();
+    expect(within(link).getByRole("button", { name: "Remove link 3" })).toBeInTheDocument();
+    await user.type(title, "GitHub");
+    expect(
+      within(link).getByRole("button", { name: "Remove link 3 (GitHub)" }),
+    ).toBeInTheDocument();
+    // The standard links keep their own label and remove button.
+    expect(screen.getByRole("button", { name: "Remove Website" })).toBeInTheDocument();
+  });
+
   it("offers only Back, no Skip for now, when required setup was opened later", async () => {
     mount({ profileSetupRequired: true });
     await screen.findByLabelText("Name");
@@ -425,7 +750,7 @@ describe("ProfileSetupFlow", () => {
     await user.type(screen.getByLabelText("Website"), "my website");
     await user.type(screen.getByLabelText("X (Twitter)"), "@satoshi nakamoto");
     await user.click(screen.getByRole("button", { name: "Add link" }));
-    await user.type(screen.getByLabelText("Link 3 URL"), "https://github.com/satoshi");
+    await user.type(linkField(3, "Address"), "https://github.com/satoshi");
     await user.click(screen.getByRole("button", { name: "Save" }));
 
     expect(save).not.toHaveBeenCalled();
@@ -439,13 +764,13 @@ describe("ProfileSetupFlow", () => {
         screen.getByLabelText("X (Twitter)"),
         "Enter an X handle, like @satoshi, or a full web address.",
       ],
-      [screen.getByLabelText("Link 3 title"), "Give this link a title."],
+      [linkField(3, "Title"), "Give this link a title."],
     ];
     for (const [control, message] of expected) {
       expect(control).toHaveAttribute("aria-invalid", "true");
       expect(control).toHaveAccessibleDescription(message);
     }
-    expect(screen.getByLabelText("Link 3 URL")).not.toHaveAttribute("aria-invalid");
+    expect(linkField(3, "Address")).not.toHaveAttribute("aria-invalid");
     // Focus reads the first message out; the others are read as each field is reached.
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
 
@@ -519,14 +844,14 @@ describe("ProfileSetupFlow", () => {
     const user = userEvent.setup();
     await user.type(await screen.findByLabelText("Name"), "Satoshi");
     await user.click(screen.getByRole("button", { name: "Add link" }));
-    await user.type(screen.getByLabelText("Link 3 URL"), "https://github.com/satoshi");
+    await user.type(linkField(3, "Address"), "https://github.com/satoshi");
     await user.click(screen.getByRole("button", { name: "Save" }));
-    const title = screen.getByLabelText("Link 3 title");
+    const title = linkField(3, "Title");
     expect(title).toHaveFocus();
     expect(title).toHaveAccessibleDescription("Give this link a title.");
 
     // Without its URL the link is dropped, so it needs no title.
-    await user.clear(screen.getByLabelText("Link 3 URL"));
+    await user.clear(linkField(3, "Address"));
     expect(title).not.toHaveAttribute("aria-invalid");
     expect(screen.queryByText("Give this link a title.")).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Save" }));
@@ -539,14 +864,14 @@ describe("ProfileSetupFlow", () => {
     const user = userEvent.setup();
     await user.type(await screen.findByLabelText("Name"), "Satoshi");
     await user.click(screen.getByRole("button", { name: "Add link" }));
-    await user.type(screen.getByLabelText("Link 3 title"), "Twitter");
-    await user.type(screen.getByLabelText("Link 3 URL"), "@satoshi");
+    await user.type(linkField(3, "Title"), "Twitter");
+    await user.type(linkField(3, "Address"), "@satoshi");
     await user.click(screen.getByRole("button", { name: "Save" }));
-    const url = screen.getByLabelText("Link 3 URL");
+    const url = linkField(3, "Address");
     expect(url).toHaveAccessibleDescription("Enter a full web address, like https://example.com.");
 
-    await user.clear(screen.getByLabelText("Link 3 title"));
-    await user.type(screen.getByLabelText("Link 3 title"), "X (Twitter)");
+    await user.clear(linkField(3, "Title"));
+    await user.type(linkField(3, "Title"), "X (Twitter)");
     expect(url).not.toHaveAttribute("aria-invalid");
     await user.click(screen.getByRole("button", { name: "Save" }));
     expect(save).toHaveBeenCalledWith(
@@ -563,19 +888,19 @@ describe("ProfileSetupFlow", () => {
     const user = userEvent.setup();
     await user.type(await screen.findByLabelText("Name"), "Satoshi");
     await user.click(screen.getByRole("button", { name: "Add link" }));
-    await user.click(screen.getByLabelText("Link 3 title"));
+    await user.click(linkField(3, "Title"));
     await user.paste("t".repeat(101));
-    await user.click(screen.getByLabelText("Link 3 URL"));
+    await user.click(linkField(3, "Address"));
     // 300 characters as typed; the space is stored as %20.
     await user.paste(`https://example.com/${"a".repeat(278)} b`);
     await user.click(screen.getByLabelText("Website"));
     await user.paste(`https://example.com/${"p".repeat(281)}`);
     await user.click(screen.getByRole("button", { name: "Save" }));
 
-    expect(screen.getByLabelText("Link 3 title")).toHaveAccessibleDescription(
+    expect(linkField(3, "Title")).toHaveAccessibleDescription(
       "Keep this title to 100 characters or fewer (you have 101).",
     );
-    expect(screen.getByLabelText("Link 3 URL")).toHaveAccessibleDescription(
+    expect(linkField(3, "Address")).toHaveAccessibleDescription(
       "Keep this address to 300 characters or fewer (it is 302 once encoded).",
     );
     expect(screen.getByLabelText("Website")).toHaveAccessibleDescription(

@@ -1,5 +1,5 @@
 /** @vitest-environment jsdom */
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Result } from "better-result";
 import { afterEach, expect, it, vi } from "vitest";
@@ -70,16 +70,33 @@ it("keeps the Ring grant when saving its identity opens the profile editor", asy
   );
 });
 
-it("returns to the Ring connection when the profile grant has been revoked", async () => {
+it("returns to the Ring connection when the profile grant has been revoked, keeping the edits", async () => {
   const repository = new LocalStorageIdentityRepository();
   expectResultOk(repository.saveExternal(KEY, true));
-  const connection = {
-    authorizationUrl: () => "pubkyauth://signin?secret=passport-profile-only",
-    poll: vi.fn().mockResolvedValueOnce(Result.ok(KEY)).mockResolvedValue(Result.ok(undefined)),
+  const authorizationUrl = () => "pubkyauth://signin?secret=passport-profile-only";
+  const revoked = {
+    authorizationUrl,
+    poll: vi.fn(async () => Result.ok(KEY)),
     publish: vi.fn(async () => Result.err({ code: "publish_unauthorized" as const })),
     dispose: vi.fn(async () => undefined),
   };
-  const start = vi.fn(async () => Result.ok(connection as unknown as RingProfileGrant));
+  // Ring approves the new request when the test says so.
+  let approveAgain!: () => void;
+  const renewed = {
+    authorizationUrl,
+    poll: vi.fn(
+      () =>
+        new Promise((resolve) => {
+          approveAgain = () => resolve(Result.ok(KEY));
+        }),
+    ),
+    publish: vi.fn(async () => Result.ok()),
+    dispose: vi.fn(async () => undefined),
+  };
+  const start = vi
+    .fn()
+    .mockResolvedValueOnce(Result.ok(revoked as unknown as RingProfileGrant))
+    .mockResolvedValueOnce(Result.ok(renewed as unknown as RingProfileGrant));
   const ring = new RingProfileController(RELAY, repository, { start });
   render(
     withPassportTestProviders(<UniversalSignerFlow />, {
@@ -94,12 +111,93 @@ it("returns to the Ring connection when the profile grant has been revoked", asy
   await user.click(await screen.findByRole("button", { name: "Set up profile" }));
   await user.type(await screen.findByLabelText("Name"), "Ring Satoshi");
   await user.click(screen.getByRole("button", { name: "Save profile" }));
-  expect(await screen.findByRole("alert")).toHaveTextContent("Your connection to Ring has ended");
-  expect(connection.dispose).toHaveBeenCalledOnce();
-  await user.click(screen.getByRole("button", { name: "Connect Ring" }));
-  expect(await screen.findByText("Waiting for approval in Ring…")).toBeInTheDocument();
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "Your connection to Pubky Ring ended before your changes were saved.",
+  );
+  expect(revoked.dispose).toHaveBeenCalledOnce();
+  // Saving cannot work until Ring is connected again, so reconnecting takes its place.
+  expect(screen.queryByRole("button", { name: "Save profile" })).not.toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Reconnect Pubky Ring" }));
+  expect(await screen.findByText("Waiting for approval in Pubky Ring…")).toBeInTheDocument();
   expect(start).toHaveBeenCalledTimes(2);
   expect(expectResultOk(repository.list()).identities[0]?.profileSetupRequired).toBe(true);
+
+  // Ring approves again: the editor comes back with what was typed, and publishes nothing yet.
+  await act(async () => approveAgain());
+  expect(await screen.findByLabelText("Name")).toHaveValue("Ring Satoshi");
+  expect(
+    screen.getByText(
+      "Pubky Ring is connected again. Your changes are still here. Save to publish them.",
+    ),
+  ).toBeInTheDocument();
+  expect(renewed.publish).not.toHaveBeenCalled();
+  await user.click(screen.getByRole("button", { name: "Save profile" }));
+  await waitFor(() => expect(renewed.publish).toHaveBeenCalledOnce());
+});
+
+it("asks before leaving the reconnect with kept edits, and drops them once discarded", async () => {
+  const repository = new LocalStorageIdentityRepository();
+  expectResultOk(repository.saveExternal(KEY, true));
+  const authorizationUrl = () => "pubkyauth://signin?secret=passport-profile-only";
+  const revoked = {
+    authorizationUrl,
+    poll: vi.fn(async () => Result.ok(KEY)),
+    publish: vi.fn(async () => Result.err({ code: "publish_unauthorized" as const })),
+    dispose: vi.fn(async () => undefined),
+  };
+  // Ring approves every later request at once.
+  const renewed = {
+    authorizationUrl,
+    poll: vi.fn(async () => Result.ok(KEY)),
+    publish: vi.fn(async () => Result.ok()),
+    dispose: vi.fn(async () => undefined),
+  };
+  // The reconnect waits until the test lets Ring approve it, so its screen can be left first.
+  const pending = {
+    authorizationUrl,
+    poll: vi.fn(() => new Promise(() => undefined)),
+    publish: vi.fn(),
+    dispose: vi.fn(async () => undefined),
+  };
+  const start = vi
+    .fn()
+    .mockResolvedValueOnce(Result.ok(revoked as unknown as RingProfileGrant))
+    .mockResolvedValueOnce(Result.ok(pending as unknown as RingProfileGrant))
+    .mockResolvedValue(Result.ok(renewed as unknown as RingProfileGrant));
+  const ring = new RingProfileController(RELAY, repository, { start });
+  render(
+    withPassportTestProviders(<UniversalSignerFlow />, {
+      createLocalIdentityController: () => new LocalIdentityController(repository),
+      createRingProfileController: () => ring,
+      createAuthorizationController: () =>
+        fakePassportAuthorizationController({ current: { status: "manual-entry" } }),
+    }),
+  );
+
+  const user = userEvent.setup();
+  await user.click(await screen.findByRole("button", { name: "Set up profile" }));
+  await user.type(await screen.findByLabelText("Name"), "Ring Satoshi");
+  await user.click(screen.getByRole("button", { name: "Save profile" }));
+  await user.click(await screen.findByRole("button", { name: "Reconnect Pubky Ring" }));
+  // The connection says the edits wait for it, and Back asks before throwing them away.
+  expect(
+    await screen.findByText("Your unsaved profile changes are kept until you leave."),
+  ).toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Back" }));
+  expect(screen.getByRole("dialog", { name: "Discard your changes?" })).toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Keep editing" }));
+  expect(screen.getByRole("heading", { name: "Connect Pubky Ring." })).toBeInTheDocument();
+
+  await user.click(screen.getByRole("button", { name: "Back" }));
+  await user.click(screen.getByRole("button", { name: "Discard changes" }));
+  expect(await screen.findByRole("button", { name: "Set up profile" })).toBeInTheDocument();
+
+  // Opened again, the editor shows what is published, not the discarded edits.
+  await user.click(screen.getByRole("button", { name: "Set up profile" }));
+  expect(screen.queryByText(/Your unsaved profile changes/u)).not.toBeInTheDocument();
+  expect(await screen.findByLabelText("Name", {}, { timeout: 3_000 })).toHaveValue("");
+  expect(screen.queryByText(/Your changes are still here/u)).not.toBeInTheDocument();
+  expect(renewed.publish).not.toHaveBeenCalled();
 });
 
 it("reviews an app request before Passport's own profile request, then hands the unchanged request to Ring", async () => {
@@ -192,7 +290,7 @@ it("adds an existing Ring identity from the home page without an invite or a pro
   expect(await screen.findByRole("heading", { name: "Get your pubky." })).toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "Open in Pubky Ring" })).toBeNull();
   await user.click(screen.getByRole("button", { name: "Sign in with Pubky Ring" }));
-  expect(await screen.findByRole("heading", { name: "Connect your Ring." })).toBeInTheDocument();
+  expect(await screen.findByRole("heading", { name: "Connect Pubky Ring." })).toBeInTheDocument();
   expect(
     screen.getByRole("img", { name: "Pubky Ring profile connection QR code" }),
   ).toBeInTheDocument();

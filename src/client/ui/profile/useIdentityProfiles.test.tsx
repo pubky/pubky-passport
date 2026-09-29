@@ -26,6 +26,7 @@ function wrapper({ children }: { children: ReactNode }) {
     createProfileController: () => ({
       load,
       save: async () => Result.err({ code: "save_failed" as const }),
+      checkAvatar: async () => Result.ok(undefined),
     }),
   });
 }

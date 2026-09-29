@@ -4,7 +4,7 @@ import { Button } from "@/client/ui/shared/primitives/button";
 import { Dialog } from "@/client/ui/shared/primitives/dialog";
 
 /**
- * Asked when Back would leave the profile editor with changes that were never published. Keep
+ * Asked when Back (or Skip for now) would leave profile edits that were never published. Keep
  * editing comes first and takes focus, so Enter or Escape never throws the changes away.
  */
 export function DiscardChangesDialog({
@@ -37,7 +37,7 @@ export function DiscardChangesDialog({
             Discard your changes?
           </h2>
           <p className="text-sm leading-5 text-muted-foreground" id={`${id}-description`}>
-            Your changes are not published yet. Going back throws them away.
+            Your changes are not published yet. Leaving now throws them away.
           </p>
         </div>
         <div className="flex flex-col gap-3">

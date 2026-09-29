@@ -4,15 +4,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { LocalIdentityResult } from "@/client/logic/local-identity/LocalStorageIdentityRepository";
 import type { PubkyRingMigration } from "@/client/logic/pubky/PubkySdkAdapter";
 import { PubkyBrandIcon } from "@/client/ui/shared/brand/pubkyBrandIcon";
-import { PubkyRingLogo } from "@/client/ui/shared/brand/pubkyRingLogo";
-import { PubkyRingStoreBadges } from "@/client/ui/shared/brand/pubkyRingStoreBadges";
 import { CheckIcon, ScanIcon } from "@/client/ui/shared/icons";
 import { BackButton } from "@/client/ui/shared/backButton";
 import { Notice } from "@/client/ui/shared/notice";
 import { PassportNavigation } from "@/client/ui/shared/passportNavigation";
-import { PassportScreen } from "@/client/ui/shared/passportScreen";
 import { Button } from "@/client/ui/shared/primitives/button";
-import { DisplayHeading, LeadText } from "@/client/ui/shared/primitives/typography";
+import { RingHandoffScreen, RingHandoffStatus } from "@/client/ui/shared/ringHandoffScreen";
 import { useDeepLinkLauncher, useRingHandoffMode } from "@/client/ui/shared/useRingHandoff";
 import { PubkyRingQrCode } from "./pubkyRingQrCode";
 import { PubkyRingQrDialog } from "./pubkyRingQrDialog";
@@ -163,23 +160,36 @@ function MigrateToPubkyRing({
   const desktopQr = state.status === "ready" && state.mode === "desktop";
 
   return (
-    <PassportScreen className="gap-6 md:gap-8">
-      <div className="flex flex-col gap-6 md:gap-3">
-        <DisplayHeading accent="Pubky Ring." aria-label="Use in Pubky Ring.">
-          Use in
-        </DisplayHeading>
-        <LeadText>
-          Pubky Ring is a phone app that keeps your key. Scan a code with Ring, or open this pubky
-          in Ring on your phone, to add it there.
-        </LeadText>
-      </div>
-
-      <section className="flex w-full flex-col gap-6 rounded-lg bg-card p-6 md:flex-row md:p-8">
+    <RingHandoffScreen
+      action="Use in"
+      instruction="Pubky Ring is a phone app that keeps your key. Scan a code with Pubky Ring, or open this pubky in Pubky Ring on your phone, to add it there."
+      navigation={
+        navigationAction === "back" ? (
+          <PassportNavigation back={<BackButton onClick={back} />} />
+        ) : (
+          // Ring cannot report the import, so this only returns to the screen that sent the person.
+          <PassportNavigation
+            confirm={
+              <Button className="w-full" onClick={back} size="lg" type="button">
+                <CheckIcon />
+                Done
+              </Button>
+            }
+          />
+        )
+      }
+      status={
+        <RingHandoffStatus>
+          Once Pubky Ring has it, your key is in both places. To keep it only in Pubky Ring, remove
+          it from this browser afterwards.
+        </RingHandoffStatus>
+      }
+    >
+      <section
+        aria-label="Copy your key to Pubky Ring"
+        className="flex w-full flex-col gap-6 rounded-lg bg-card p-6 md:flex-row md:p-8"
+      >
         <div className="flex min-w-0 flex-1 flex-col gap-6 md:justify-center">
-          <div className="flex justify-center md:justify-start">
-            <PubkyRingLogo />
-          </div>
-          <PubkyRingStoreBadges />
           <Notice tone="warning">{QR_WARNING}</Notice>
           {exportFailed ? (
             <Notice focusOnMount tone="error">
@@ -216,10 +226,6 @@ function MigrateToPubkyRing({
               </Button>
             ) : null}
           </div>
-          <p className="text-sm leading-5 text-muted-foreground">
-            Once Ring has it, your key is in both places. To keep it only in Ring, remove it from
-            this browser afterwards.
-          </p>
         </div>
         {desktopQr ? (
           <PubkyRingQrCode className="size-48 shrink-0" migration={state.migration} />
@@ -230,24 +236,10 @@ function MigrateToPubkyRing({
           </div>
         )}
       </section>
-
-      {navigationAction === "back" ? (
-        <PassportNavigation back={<BackButton onClick={back} />} />
-      ) : (
-        // Ring cannot report the import, so this only returns to the screen that sent the person.
-        <PassportNavigation
-          confirm={
-            <Button className="w-full" onClick={back} size="lg" type="button">
-              <CheckIcon />
-              Done
-            </Button>
-          }
-        />
-      )}
       {state.status === "ready" && state.mode === "dialog" ? (
         <PubkyRingQrDialog migration={state.migration} onClose={invalidate} warning={QR_WARNING} />
       ) : null}
-    </PassportScreen>
+    </RingHandoffScreen>
   );
 }
 

@@ -9,6 +9,7 @@ import {
   draftFromProfile,
   linkFieldKey,
   linkUrlLength,
+  nextLinkId,
   profileDraftChanged,
   profileFromDraft,
   profileTextLength,
@@ -19,8 +20,10 @@ import {
   type ProfileFieldErrorCode,
   type ProfileFieldErrors,
   type ProfileFieldKey,
+  type UnsavedProfileEdits,
 } from "@/client/logic/profile/profileDraft";
 import { BackButton } from "@/client/ui/shared/backButton";
+import { PubkyBrandIcon } from "@/client/ui/shared/brand/pubkyBrandIcon";
 import { ArrowRightIcon, CheckIcon, RotateCcwIcon, TrashIcon } from "@/client/ui/shared/icons";
 import { Notice } from "@/client/ui/shared/notice";
 import { PassportNavigation } from "@/client/ui/shared/passportNavigation";
@@ -31,6 +34,7 @@ import { IconButton } from "@/client/ui/shared/primitives/iconButton";
 import { Input } from "@/client/ui/shared/primitives/input";
 import { Label } from "@/client/ui/shared/primitives/label";
 import { Spinner } from "@/client/ui/shared/primitives/spinner";
+import { Textarea } from "@/client/ui/shared/primitives/textarea";
 import { DisplayHeading, LeadText } from "@/client/ui/shared/primitives/typography";
 import {
   ACCOUNT_SETUP_STEPS,
@@ -42,7 +46,7 @@ import { DiscardChangesDialog } from "./discardChangesDialog";
 
 type ProfileSetupFlowProps = {
   identity: LocalIdentityMetadata;
-  controller: Pick<ProfileController, "load" | "save">;
+  controller: Pick<ProfileController, "load" | "save" | "checkAvatar">;
   /** Returns to where the form was opened from; absent right after an identity was added. */
   onBack?: (() => void) | undefined;
   onComplete: (profile: PubkyProfile, avatar?: File) => void;
@@ -58,8 +62,10 @@ type ProfileSetupFlowProps = {
   created?: boolean;
   /** An app's sign-in request waits, so skipping the profile goes on to it. */
   forRequest?: boolean;
-  /** Returns to the Ring connection after its grant has ended. */
-  onReconnect?: (() => void) | undefined;
+  /** Returns to the Ring connection after its grant has ended, keeping the unpublished `edits`. */
+  onReconnect?: ((edits: UnsavedProfileEdits) => void) | undefined;
+  /** Edits kept across a Ring reconnect: the form opens with them over the published profile. */
+  keptEdits?: UnsavedProfileEdits | undefined;
 };
 
 export function ProfileSetupFlow({
@@ -92,6 +98,8 @@ const NAME_HINT = `${PROFILE_LIMITS.nameMinLength}–${PROFILE_LIMITS.nameMaxLen
 // The fallback for a profile the specs WASM refuses although every field passed its own check.
 const INVALID_PROFILE_MESSAGE = `Use a name of ${PROFILE_LIMITS.nameMinLength}–${PROFILE_LIMITS.nameMaxLength} characters, a bio of up to ${PROFILE_LIMITS.bioMaxLength} characters, and valid links with titles (up to ${PROFILE_LIMITS.linksMaxCount}).`;
 const INVALID_AVATAR_MESSAGE = "Choose a PNG, JPEG, WebP, or GIF image up to 5 MB.";
+const DAMAGED_AVATAR_MESSAGE = `This image can’t be opened. ${INVALID_AVATAR_MESSAGE}`;
+const AVATAR_HINT = "PNG, JPEG, WebP, or GIF, up to 5 MB.";
 
 type FieldMessageContext = {
   /** The field's length as the specs measure it. */
@@ -142,7 +150,7 @@ function describeFieldErrors(
       length: profileTextLength(link.title),
     });
     const url = linkUrlLength(link);
-    add(linkFieldKey(link.id, "url"), link.fixedTitle ? link.title : `Link ${index + 1} URL`, {
+    add(linkFieldKey(link.id, "url"), link.fixedTitle ? link.title : `Link ${index + 1} address`, {
       length: url?.stored ?? 0,
       encoded: url !== null && url.stored !== url.typed,
       xLink: link.title === X_TWITTER,
@@ -165,16 +173,20 @@ function withoutFields(errors: ProfileFieldErrors, fields: ProfileFieldKey[]): P
   return rest;
 }
 
-function saveErrorMessage(code: Exclude<ProfileErrorCode, "cancelled">): string {
+/** A failed save, about the whole form; a refused avatar is told by its picker instead. */
+function saveErrorMessage(
+  code: Exclude<ProfileErrorCode, "cancelled" | "invalid_avatar">,
+  canReconnect: boolean,
+): string {
   switch (code) {
     case "invalid_profile":
       return INVALID_PROFILE_MESSAGE;
-    case "invalid_avatar":
-      return `Passport could not use this image. ${INVALID_AVATAR_MESSAGE}`;
     case "identity_unavailable":
       return "This identity is no longer available in this browser. Your profile was not changed.";
     case "disconnected":
-      return "Your connection to Ring has ended. Connect Ring again to save your profile.";
+      return canReconnect
+        ? "Your connection to Pubky Ring ended before your changes were saved. Reconnect Pubky Ring to publish them. Your edits are kept."
+        : "Your connection to Pubky Ring has ended. Connect Pubky Ring again to save your profile.";
     case "storage_failed":
       return "Your profile was published, but Passport could not finish setup in this browser. Try Save profile again.";
     case "load_failed":
@@ -191,6 +203,7 @@ function ProfileEditor({
   onComplete,
   onDefer,
   onReconnect,
+  keptEdits,
 }: ProfileSetupFlowProps & { required: boolean }) {
   const publicKey = identity.publicIdentity.publicKeyZ32;
   const [draft, setDraft] = useState<ProfileDraft>();
@@ -205,9 +218,17 @@ function ProfileEditor({
   const [attempt, setAttempt] = useState(0);
   const [saving, setSaving] = useState(false);
   const busy = useRef(false);
-  // A failed save, about the whole form; an unsupported avatar is the picker's own error.
+  // A failed save, about the whole form; a refused avatar is the picker's own error.
   const [error, setError] = useState<{ message: string; reconnect?: boolean }>();
-  const [avatarError, setAvatarError] = useState(false);
+  const [avatarError, setAvatarError] = useState<"unsupported" | "damaged">();
+  // Each chosen file is checked before it is used; only the latest choice may land, and a save
+  // pressed meanwhile waits for its check (`pending`, the file once it passed).
+  const avatarCheck = useRef<{ latest: number; pending: Promise<File | undefined> | undefined }>({
+    latest: 0,
+    pending: undefined,
+  });
+  // A name suggested from the Google account while nothing is published yet.
+  const [suggestedName, setSuggestedName] = useState<string>();
   // Fields the last save found invalid; each clears when its field, or its link, changes.
   const [fieldErrors, setFieldErrors] = useState<ProfileFieldErrors>({});
   // Spoken for every refused save, since focus may already be on the first invalid field (Enter
@@ -242,17 +263,24 @@ function ProfileEditor({
       setLoadFailed(false);
       setUnreadable(invalid);
       const loaded = Result.isOk(result) ? result.value : null;
-      if (loaded?.avatar) objectUrl = URL.createObjectURL(loaded.avatar);
+      // An avatar deleted before a reconnect stays deleted.
+      if (loaded?.avatar && keptEdits?.draft.image !== null)
+        objectUrl = URL.createObjectURL(loaded.avatar);
       setPreview(objectUrl);
       const opened = draftFromProfile(loaded?.profile, initialGoogleName);
-      setDraft(opened);
+      const draft = keptEdits?.draft ?? opened;
+      setDraft(draft);
       setSavedDraft(opened);
+      setAvatar(keptEdits?.avatar);
+      nextLink.current = nextLinkId(draft);
+      // A published name is public already; only one Passport filled in is worth pointing out.
+      setSuggestedName(loaded === null && initialGoogleName ? initialGoogleName : undefined);
     });
     return () => {
       active = false;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [controller, publicKey, initialGoogleName, attempt]);
+  }, [controller, publicKey, initialGoogleName, keptEdits, attempt]);
   // A retry that loads the profile replaces the focused Try again with the form.
   useLayoutEffect(() => {
     if (attempt > 0 && !loading && !loadFailed) nameInput.current?.focus();
@@ -290,21 +318,64 @@ function ProfileEditor({
     setRefusal(undefined);
     busy.current = true;
     setSaving(true);
+    // A file still being checked is saved once it passes; a refused one stops the save, and its
+    // picker says why.
+    let chosen = avatar;
+    const checking = avatarCheck.current.pending;
+    if (checking) {
+      chosen = await checking;
+      if (!mounted.current) return;
+      if (!chosen) {
+        busy.current = false;
+        setSaving(false);
+        return;
+      }
+    }
     setError(undefined);
-    setAvatarError(false);
-    const result = await controller.save(publicKey, profileFromDraft(draft), avatar);
+    setAvatarError(undefined);
+    const result = await controller.save(publicKey, profileFromDraft(draft), chosen);
     busy.current = false;
     if (!mounted.current) return;
     setSaving(false);
     if (Result.isOk(result)) {
-      onComplete(result.value, avatar);
+      onComplete(result.value, chosen);
       return;
     }
     // A cancelled save belongs to a connection this screen no longer shows.
     if (result.error.code === "cancelled") return;
-    setError({
-      message: saveErrorMessage(result.error.code),
-      reconnect: result.error.code === "disconnected" && onReconnect !== undefined,
+    // Checked when chosen, so rare: the picker says so and offers another choice.
+    if (result.error.code === "invalid_avatar") {
+      setAvatar(undefined);
+      setFilePreview(undefined);
+      setAvatarError("damaged");
+      return;
+    }
+    const reconnect = result.error.code === "disconnected" && onReconnect !== undefined;
+    setError({ message: saveErrorMessage(result.error.code, reconnect), reconnect });
+  }
+
+  /** Uses `file` only once it passes the checks a save runs; a refused file keeps the avatar. */
+  function chooseAvatar(file: File) {
+    const check = ++avatarCheck.current.latest;
+    // The error stays by the picker, which keeps focus for another choice.
+    if (!isAvatarFile(file)) {
+      avatarCheck.current.pending = undefined;
+      setAvatarError("unsupported");
+      return;
+    }
+    avatarCheck.current.pending = controller.checkAvatar(file).then((checked) => {
+      if (!mounted.current || check !== avatarCheck.current.latest) return undefined;
+      avatarCheck.current.pending = undefined;
+      if (Result.isError(checked)) {
+        setAvatarError("damaged");
+        return undefined;
+      }
+      setAvatar(file);
+      setAvatarError(undefined);
+      // A new avatar answers a failed save's message, but not an ended connection: saving still
+      // needs Pubky Ring connected again first.
+      setError((current) => (current?.reconnect ? current : undefined));
+      return file;
     });
   }
 
@@ -324,6 +395,8 @@ function ProfileEditor({
   const leave = back && changed ? () => setConfirmingDiscard(true) : back;
   const avatarRemoved = Boolean(savedDraft?.image) && draft?.image === null && !avatar;
   const bioLength = draft ? profileTextLength(draft.bio) : 0;
+  const nameSuggested = suggestedName !== undefined && draft?.name === suggestedName;
+  const avatarSrc = avatar ? filePreview : preview;
   const bioTooLong = bioLength > PROFILE_LIMITS.bioMaxLength;
   const messages: Partial<Record<ProfileFieldKey, string>> = Object.fromEntries(
     draft ? describeFieldErrors(draft, fieldErrors).map(({ key, message }) => [key, message]) : [],
@@ -348,7 +421,7 @@ function ProfileEditor({
         </DisplayHeading>
         <LeadText>
           {required
-            ? "Optional. Add a name, bio, links, and avatar that apps can show."
+            ? "Optional. Add a name, bio, links, and avatar. Anyone can see your profile, including apps you sign in to."
             : "Changes are published to your public profile when you save."}
         </LeadText>
       </div>
@@ -369,6 +442,11 @@ function ProfileEditor({
           <p className="sr-only" role="status">
             {refusal ? <span key={refusal.attempt}>{refusal.text}</span> : null}
           </p>
+          {keptEdits && !error ? (
+            <Notice tone="info">
+              Pubky Ring is connected again. Your changes are still here. Save to publish them.
+            </Notice>
+          ) : null}
           {unreadable ? (
             // Saving over a published profile cannot be undone, so it is a callout, not a hint.
             <Notice tone="warning">
@@ -393,7 +471,9 @@ function ProfileEditor({
               <div className="flex flex-col gap-2">
                 <Label htmlFor="profile-name">Name</Label>
                 <Input
-                  aria-describedby={messages.name ? "profile-name-error" : "profile-name-hint"}
+                  aria-describedby={`${nameSuggested ? "profile-name-source " : ""}${
+                    messages.name ? "profile-name-error" : "profile-name-hint"
+                  }`}
                   aria-invalid={messages.name ? true : undefined}
                   aria-required
                   autoComplete="nickname"
@@ -404,6 +484,11 @@ function ProfileEditor({
                   onChange={(event) => edit({ ...draft, name: event.target.value }, "name")}
                   placeholder="Your name"
                 />
+                {nameSuggested ? (
+                  <FieldMessage id="profile-name-source">
+                    From your Google account. Change it if you don’t want it public.
+                  </FieldMessage>
+                ) : null}
                 {messages.name ? (
                   <FieldMessage announce={false} error id="profile-name-error">
                     {messages.name}
@@ -414,11 +499,11 @@ function ProfileEditor({
               </div>
               <div className="flex flex-col gap-2">
                 <Label htmlFor="profile-bio">Bio</Label>
-                <textarea
+                <Textarea
                   aria-describedby={messages.bio ? "profile-bio-error" : "profile-bio-count"}
                   aria-invalid={messages.bio || bioTooLong ? true : undefined}
                   id="profile-bio"
-                  className="min-h-26 w-full resize-y rounded-lg border border-dashed border-input bg-black/10 px-5 py-4 text-base leading-6 placeholder:text-muted-foreground aria-invalid:border-destructive"
+                  className="border-dashed"
                   placeholder="Tell a bit about yourself."
                   value={draft.bio}
                   onChange={(event) => edit({ ...draft, bio: event.target.value }, "bio")}
@@ -457,22 +542,89 @@ function ProfileEditor({
                 const urlKey = linkFieldKey(link.id, "url");
                 const titleError = messages[titleKey];
                 const urlError = messages[urlKey];
-                return (
-                  <div key={link.id} className="flex flex-col gap-2">
-                    {link.fixedTitle ? (
+                const remove = () =>
+                  edit(
+                    { ...draft, links: draft.links.filter((item) => item.id !== link.id) },
+                    titleKey,
+                    urlKey,
+                  );
+                const url = (
+                  <>
+                    <Input
+                      aria-describedby={urlError ? `profile-link-${link.id}-error` : undefined}
+                      aria-invalid={urlError ? true : undefined}
+                      id={`profile-link-${link.id}`}
+                      containerClassName="border-dashed"
+                      placeholder={link.title === X_TWITTER ? "@user" : "https://"}
+                      value={link.url}
+                      onChange={(event) => editLink(link.id, { url: event.target.value })}
+                      action={
+                        link.fixedTitle ? (
+                          // A 40px target (44px by touch) whose icon stays where the field's
+                          // padding put it.
+                          <IconButton
+                            type="button"
+                            variant="ghost"
+                            className="-mr-3"
+                            aria-label={`Remove ${link.title}`}
+                            onClick={remove}
+                          >
+                            <TrashIcon />
+                          </IconButton>
+                        ) : undefined
+                      }
+                    />
+                    {urlError ? (
+                      <FieldMessage announce={false} error id={`profile-link-${link.id}-error`}>
+                        {urlError}
+                      </FieldMessage>
+                    ) : null}
+                  </>
+                );
+                if (link.fixedTitle)
+                  return (
+                    <div key={link.id} className="flex flex-col gap-2">
                       <Label htmlFor={`profile-link-${link.id}`}>{link.title}</Label>
-                    ) : (
-                      <>
+                      {url}
+                    </div>
+                  );
+                // An added link is a titled group, so each of its two fields keeps a visible
+                // label once filled, and its remove button says which link it removes.
+                const number = index + 1;
+                const title = link.title.trim();
+                return (
+                  // Below md a box would cost its fields their width in the narrow column, so
+                  // a rule above the group sets it apart instead.
+                  <fieldset
+                    key={link.id}
+                    className="min-w-0 border-t border-border pt-4 md:rounded-lg md:border md:p-4"
+                  >
+                    <legend className="sr-only">Link {number}</legend>
+                    <div className="flex flex-col gap-4">
+                      <div className="-my-2 flex items-center justify-between gap-3">
+                        <span aria-hidden="true" className="text-sm font-bold leading-5">
+                          Link {number}
+                        </span>
+                        <IconButton
+                          type="button"
+                          variant="ghost"
+                          className="-mr-2"
+                          aria-label={`Remove link ${number}${title ? ` (${title})` : ""}`}
+                          onClick={remove}
+                        >
+                          <TrashIcon />
+                        </IconButton>
+                      </div>
+                      <div className="flex flex-col gap-2">
+                        <Label htmlFor={`profile-link-${link.id}-title`}>Title</Label>
                         <Input
                           aria-describedby={
                             titleError ? `profile-link-${link.id}-title-error` : undefined
                           }
                           aria-invalid={titleError ? true : undefined}
-                          aria-label={`Link ${index + 1} title`}
                           id={`profile-link-${link.id}-title`}
                           value={link.title}
-                          placeholder="Link title"
-                          containerClassName="h-9 border-dashed pointer-coarse:h-11"
+                          containerClassName="border-dashed"
                           onChange={(event) => editLink(link.id, { title: event.target.value })}
                         />
                         {titleError ? (
@@ -484,46 +636,13 @@ function ProfileEditor({
                             {titleError}
                           </FieldMessage>
                         ) : null}
-                      </>
-                    )}
-                    <Input
-                      aria-describedby={urlError ? `profile-link-${link.id}-error` : undefined}
-                      aria-invalid={urlError ? true : undefined}
-                      id={`profile-link-${link.id}`}
-                      aria-label={link.fixedTitle ? undefined : `Link ${index + 1} URL`}
-                      containerClassName="border-dashed"
-                      placeholder={link.title === X_TWITTER ? "@user" : "https://"}
-                      value={link.url}
-                      onChange={(event) => editLink(link.id, { url: event.target.value })}
-                      action={
-                        // A 40px target (44px by touch) whose icon stays where the field's
-                        // padding put it.
-                        <IconButton
-                          type="button"
-                          variant="ghost"
-                          className="-mr-3"
-                          aria-label={`Remove ${link.title || `link ${index + 1}`}`}
-                          onClick={() =>
-                            edit(
-                              {
-                                ...draft,
-                                links: draft.links.filter((item) => item.id !== link.id),
-                              },
-                              titleKey,
-                              urlKey,
-                            )
-                          }
-                        >
-                          <TrashIcon />
-                        </IconButton>
-                      }
-                    />
-                    {urlError ? (
-                      <FieldMessage announce={false} error id={`profile-link-${link.id}-error`}>
-                        {urlError}
-                      </FieldMessage>
-                    ) : null}
-                  </div>
+                      </div>
+                      <div className="flex flex-col gap-2">
+                        <Label htmlFor={`profile-link-${link.id}`}>Address</Label>
+                        {url}
+                      </div>
+                    </div>
+                  </fieldset>
                 );
               })}
               {draft.links.length < PROFILE_LIMITS.linksMaxCount ? (
@@ -554,13 +673,22 @@ function ProfileEditor({
                 Avatar
               </h2>
               <Image
-                alt="Profile avatar preview"
+                alt={avatarSrc ? "Your avatar" : ""}
                 // Square at any width: a column narrower than 192px shrinks the whole circle.
-                className="aspect-square h-auto w-48 rounded-full object-cover"
+                className="aspect-square h-auto w-48 rounded-full bg-muted object-cover"
                 width={192}
                 height={192}
                 unoptimized
-                src={(avatar ? filePreview : preview) ?? "/illustrations/profile-avatar.svg"}
+                src={avatarSrc ?? "/illustrations/profile-avatar.svg"}
+                // An image the browser cannot draw gives way to the placeholder, not an empty
+                // circle; a chosen file is then refused like one that failed its check.
+                onError={() => {
+                  if (avatar && filePreview) {
+                    setAvatar(undefined);
+                    setFilePreview(undefined);
+                    setAvatarError("damaged");
+                  } else if (preview) setPreview(undefined);
+                }}
               />
               {avatar || draft.image ? (
                 <Button
@@ -580,8 +708,8 @@ function ProfileEditor({
                 <label className="relative flex h-8 cursor-pointer items-center gap-2 rounded-full pointer-coarse:h-11 bg-secondary px-3 text-xs font-bold text-secondary-foreground has-[input:focus-visible]:outline-2 has-[input:focus-visible]:outline-offset-2 has-[input:focus-visible]:outline-foreground">
                   <Image alt="" src="/icons/profile-file.svg" width={16} height={16} /> Choose file
                   <input
-                    aria-describedby={avatarError ? "profile-avatar-error" : undefined}
-                    aria-invalid={avatarError || undefined}
+                    aria-describedby={avatarError ? "profile-avatar-error" : "profile-avatar-hint"}
+                    aria-invalid={avatarError ? true : undefined}
                     aria-label="Choose avatar file"
                     className="absolute inset-0 w-full cursor-pointer opacity-0"
                     type="file"
@@ -589,24 +717,21 @@ function ProfileEditor({
                     onChange={(event) => {
                       const file = event.target.files?.[0];
                       event.target.value = "";
-                      if (!file) return;
-                      // The error stays by the picker, which keeps focus for another choice.
-                      if (!isAvatarFile(file)) {
-                        setAvatarError(true);
-                        return;
-                      }
-                      setAvatar(file);
-                      setAvatarError(false);
-                      setError(undefined);
+                      if (file) chooseAvatar(file);
                     }}
                   />
                 </label>
               )}
               {avatarError ? (
                 <FieldMessage className="text-center" error id="profile-avatar-error">
-                  {INVALID_AVATAR_MESSAGE}
+                  {avatarError === "damaged" ? DAMAGED_AVATAR_MESSAGE : INVALID_AVATAR_MESSAGE}
                 </FieldMessage>
-              ) : avatarRemoved ? (
+              ) : avatar || draft.image ? null : (
+                <FieldMessage className="text-center" id="profile-avatar-hint">
+                  {AVATAR_HINT}
+                </FieldMessage>
+              )}
+              {avatarRemoved ? (
                 <FieldMessage className="text-center">
                   Your avatar is removed when you save.
                 </FieldMessage>
@@ -616,14 +741,8 @@ function ProfileEditor({
           {error ? (
             <Notice focusOnMount tone="error">
               {error.message}
-              {error.reconnect ? (
-                <Button type="button" size="sm" variant="secondary" onClick={onReconnect}>
-                  Connect Ring
-                </Button>
-              ) : null}
             </Notice>
           ) : null}
-          <p className="text-sm text-muted-foreground">Your profile is public.</p>
           {/* Below md the actions stay pinned to the window, so the save and the way out are in
               view in the popup; one row at every width keeps the bar short over the form, and the
               page's scroll padding keeps focused fields clear of it. */}
@@ -634,10 +753,23 @@ function ProfileEditor({
             <PassportNavigation
               back={leave ? <BackButton disabled={saving} onClick={leave} /> : skip}
               confirm={
-                <Button className="w-full" loading={saving} size="lg" type="submit">
-                  {required ? <ArrowRightIcon /> : <CheckIcon />}
-                  {submitLabel(required, unreadable, saving)}
-                </Button>
+                // Saving cannot succeed until Ring is connected again, so that is the way on.
+                error?.reconnect && onReconnect ? (
+                  <Button
+                    className="w-full"
+                    onClick={() => onReconnect({ draft, avatar })}
+                    size="lg"
+                    type="button"
+                  >
+                    <PubkyBrandIcon />
+                    Reconnect Pubky Ring
+                  </Button>
+                ) : (
+                  <Button className="w-full" loading={saving} size="lg" type="submit">
+                    {required ? <ArrowRightIcon /> : <CheckIcon />}
+                    {submitLabel(required, unreadable, saving)}
+                  </Button>
+                )
               }
               layout="inline"
             />

@@ -141,6 +141,17 @@ export class ProfileController {
     }
   }
 
+  /**
+   * Whether `file` can be published as an avatar, by the same type, size and decoding checks a save
+   * runs, so a damaged image is refused when it is chosen instead of when the profile is saved.
+   */
+  async checkAvatar(file: File): Promise<ProfileResult<void>> {
+    const prepared = await prepareAvatar(file);
+    return Result.isError(prepared)
+      ? Result.err({ code: "invalid_avatar", cause: prepared.error })
+      : Result.ok(undefined);
+  }
+
   async save(
     publicKey: string,
     input: PubkyProfile,

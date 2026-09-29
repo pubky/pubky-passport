@@ -9,12 +9,10 @@ import { BackButton } from "@/client/ui/shared/backButton";
 import { ArrowRightIcon } from "@/client/ui/shared/icons";
 import { PassportNavigation } from "@/client/ui/shared/passportNavigation";
 import { Button } from "@/client/ui/shared/primitives/button";
-import { Spinner } from "@/client/ui/shared/primitives/spinner";
 import { RingHandoff } from "@/client/ui/shared/ringHandoff";
+import { RingHandoffScreen, RingHandoffStatus } from "@/client/ui/shared/ringHandoffScreen";
 import { ACCOUNT_SETUP_STEPS, SetupProgressProvider } from "@/client/ui/shared/setupProgress";
 import { useDeepLinkLauncher, useRingHandoffMode } from "@/client/ui/shared/useRingHandoff";
-import { RingInstallStep } from "./ringInstallStep";
-import { SignupStep } from "./signupStep";
 import { RingProfileConnection } from "@/client/ui/profile/ringProfileConnection";
 import type { RingProfileControllerPort } from "@/client/ui/passportCollaborators";
 import type { LocalIdentityMetadata } from "@/client/logic/local-identity/localIdentityModels";
@@ -47,7 +45,7 @@ export function RingSignupStep({
   onComplete: (identity: LocalIdentityMetadata) => void;
   profileController: RingProfileControllerPort;
 }) {
-  const [step, setStep] = useState<"scan" | "install" | "profile">(inviteUsed ? "profile" : "scan");
+  const [step, setStep] = useState<"scan" | "profile">(inviteUsed ? "profile" : "scan");
   // Ring has used the invite, so the signup code is spent and Back leaves the Ring signup.
   const [signedUp, setSignedUp] = useState(inviteUsed);
   const mode = useRingHandoffMode();
@@ -66,8 +64,6 @@ export function RingSignupStep({
     });
   }, [checkSignupToken, homeserverPubky, signupToken, step]);
 
-  if (step === "install")
-    return <RingInstallStep onBack={() => setStep("scan")} onContinue={() => setStep("scan")} />;
   if (step === "profile")
     return (
       // The account exists in Ring by now; connecting it is for the profile, the last step.
@@ -83,52 +79,41 @@ export function RingSignupStep({
     );
 
   return (
-    <SignupStep
+    <RingHandoffScreen
+      action="Create your account in"
       // The pointer, not the width, decides: a computer scans, a phone opens Ring directly.
-      title={scanning ? "Scan" : "Tap to"}
-      accent={scanning ? "QR Code." : "Authorize."}
-      description={
-        <>
-          {scanning
-            ? `Open Pubky Ring on ${mode === "scan" ? "your" : "another"} phone, tap ‘Add Pubky’, then ‘Scan signup QR’.`
-            : "Open Pubky Ring to create your account."}{" "}
-          {/* Someone without the app needs it before the code or link below can work. */}
-          No Pubky Ring yet?{" "}
-          <Button
-            className="inline min-h-0 py-0 align-baseline text-[length:inherit] leading-[inherit] pointer-coarse:min-h-0"
-            onClick={() => setStep("install")}
-            variant="link"
-          >
-            Install it
-          </Button>
-        </>
+      instruction={
+        scanning
+          ? `Open Pubky Ring on ${mode === "scan" ? "your" : "another"} phone, tap ‘Add Pubky’, then ‘Scan signup QR’.`
+          : "Continue in Pubky Ring on this phone to create your account. Your private key stays in Pubky Ring."
+      }
+      navigation={
+        <PassportNavigation
+          back={<BackButton onClick={onBack} />}
+          confirm={
+            // Secondary: Passport notices the signup itself, this only covers a lookup that can't.
+            <Button
+              className="w-full"
+              onClick={() => setStep("profile")}
+              size="lg"
+              variant="secondary"
+            >
+              <ArrowRightIcon />
+              I’ve finished in Pubky Ring
+            </Button>
+          }
+        />
+      }
+      // Passport polls the invite, so the line spins; it also warns of the second approval, which
+      // comes as a surprise otherwise: signup alone does not connect.
+      status={
+        <RingHandoffStatus waiting>
+          Waiting for Pubky Ring. It asks you twice: to create the account, then to let Passport
+          edit your profile.
+        </RingHandoffStatus>
       }
     >
       <RingHandoff labels={SIGNUP_LABELS} launcher={launcher} url={url} />
-      {/* The second approval comes as a surprise otherwise: signup alone does not connect. */}
-      <p className="flex gap-2 text-sm leading-5 text-muted-foreground" role="status">
-        <Spinner className="mt-0.5 size-4 shrink-0" decorative />
-        <span>
-          Waiting for Pubky Ring. It asks you twice: to create the account, then to let Passport
-          edit your profile.
-        </span>
-      </p>
-      <PassportNavigation
-        className="mt-auto md:mt-0"
-        back={<BackButton onClick={onBack} />}
-        confirm={
-          // Secondary: Passport notices the signup itself, this only covers a lookup that can't.
-          <Button
-            className="w-full"
-            onClick={() => setStep("profile")}
-            size="lg"
-            variant="secondary"
-          >
-            <ArrowRightIcon />
-            I’ve finished in Pubky Ring
-          </Button>
-        }
-      />
-    </SignupStep>
+    </RingHandoffScreen>
   );
 }

@@ -39,7 +39,7 @@ test("adds an existing Ring identity from the home page with a write-only grant,
   await emulateCoarsePointer(page);
   await page.goto("/");
   await page.getByRole("button", { name: "Sign in with Pubky Ring" }).click();
-  await expect(page.getByRole("heading", { name: "Connect your Ring." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Connect Pubky Ring." })).toBeVisible();
   await expect(page.getByRole("button", { name: "Skip for now" })).toHaveCount(0);
 
   const request = await profileConnectionRequest(page);
@@ -60,6 +60,69 @@ test("adds an existing Ring identity from the home page with a write-only grant,
       RING_KEY,
     ),
   ).toEqual({ v: 1, publicKeyZ32: RING_KEY, keySource: "ring" });
+});
+
+test("keeps profile edits across a Ring reconnect and publishes them only on Save", async ({
+  page,
+}) => {
+  const net = await mockRingNetwork(page, {
+    profile: {
+      name: "Carol",
+      bio: "Keeps her keys on her phone.",
+      links: [{ title: "Website", url: "https://carol.example/" }],
+      image: null,
+      status: null,
+    },
+  });
+  await emulateCoarsePointer(page);
+  await seedRingIdentity(page);
+  await page.goto("/");
+  await page.getByRole("button", { name: "Manage identity" }).click();
+  await page.getByRole("button", { name: "Edit profile" }).click();
+  // The shared Ring hand-off: what to do, Passport waiting, and where to get Pubky Ring.
+  await expect(page.getByRole("heading", { name: "Connect Pubky Ring." })).toBeVisible();
+  await expect(page.getByRole("status").filter({ hasText: "Waiting for approval" })).toHaveText(
+    "Waiting for approval in Pubky Ring…",
+  );
+  await expect(
+    page.getByRole("link", { name: "Download Pubky Ring on the App Store" }),
+  ).toBeVisible();
+  await ringApproves(net, (await profileConnectionRequest(page)).href);
+
+  const name = page.getByLabel("Name", { exact: true });
+  await expect(name).toHaveValue("Carol");
+  await name.fill("Carol Danvers");
+  await page.getByLabel("Bio", { exact: true }).fill("Pilot. Keeps her keys on her phone.");
+  // The homeserver refuses the grant's first write: the grant has ended.
+  let refused = false;
+  await page.route("https://homeserver.example/**", async (route) => {
+    if (route.request().method() !== "PUT" || refused) return route.fallback();
+    refused = true;
+    return route.fulfill({ status: 403, body: "grant expired" });
+  });
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(page.locator("main").getByRole("alert")).toContainText("Your edits are kept.");
+  await expect(page.getByRole("button", { name: "Save", exact: true })).toHaveCount(0);
+  await page.getByRole("button", { name: "Reconnect Pubky Ring" }).click();
+  // The edits wait for this connection, so leaving it asks first.
+  await expect(
+    page.getByText("Your unsaved profile changes are kept until you leave."),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Back", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "Discard your changes?" })).toBeVisible();
+  await page.getByRole("button", { name: "Keep editing" }).click();
+  await expect(page.getByRole("heading", { name: "Connect Pubky Ring." })).toBeVisible();
+  await ringApproves(net, (await profileConnectionRequest(page)).href);
+
+  await expect(name).toHaveValue("Carol Danvers");
+  await expect(page.getByLabel("Bio", { exact: true })).toHaveValue(
+    "Pilot. Keeps her keys on her phone.",
+  );
+  await expect(page.getByText("Pubky Ring is connected again.", { exact: false })).toBeVisible();
+  expect(net.writes).toEqual([]);
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Manage identity." })).toBeVisible();
+  expect(net.writes.some((write) => write.endsWith("/pub/pubky.app/profile.json"))).toBe(true);
 });
 
 /** WebKit can take several seconds to write the SDK's IndexedDB key; the other engines take well under one. */
@@ -95,7 +158,7 @@ test("says so when the homeserver refuses the grant after Ring approved", async 
   await ringApproves(net, (await profileConnectionRequest(page)).href);
 
   await expect(page.locator("main").getByRole("alert")).toContainText(
-    "Ring approved, but your homeserver did not accept the connection.",
+    "Pubky Ring approved, but your homeserver did not accept the connection.",
   );
   expect(await page.evaluate(() => Object.keys(localStorage))).toEqual([]);
   await expect(page.getByRole("button", { name: "Try again" })).toBeVisible();
@@ -114,7 +177,7 @@ test("an unfinished Ring identity opens the app's request first, with one Ring a
 
   await expect(page.getByRole("heading", { name: "Sign in to Client App" })).toBeVisible();
   // Passport's own profile request never stands in front of the app's request.
-  await expect(page.getByRole("heading", { name: "Connect your Ring." })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Connect Pubky Ring." })).toHaveCount(0);
   await expect(
     page.getByRole("img", { name: "Pubky Ring profile connection QR code", includeHidden: true }),
   ).toHaveCount(0);

@@ -83,12 +83,15 @@ describe("MigrateToPubkyRing", () => {
       />,
     );
 
-    const heading = screen.getByRole("heading", { name: "Use in Pubky Ring." });
-    expect(heading.parentElement).toHaveClass("gap-6", "md:gap-3");
-    expect(heading.closest("main")).toHaveClass("gap-6", "md:gap-8");
+    expect(screen.getByRole("heading", { name: "Use in Pubky Ring." })).toBeInTheDocument();
+    // The shared Ring hand-off layout: the store links close the screen, after its actions.
+    const store = screen.getByRole("link", { name: "Download Pubky Ring on the App Store" });
+    expect(store).toHaveAttribute("href", "https://apps.apple.com/us/app/pubky-ring/id6739356756");
+    expect(store.closest('[data-slot="ring-install"]')).toHaveTextContent("Don't have Pubky Ring?");
     expect(
-      screen.getByRole("link", { name: "Download Pubky Ring on the App Store" }),
-    ).toHaveAttribute("href", "https://apps.apple.com/us/app/pubky-ring/id6739356756");
+      screen.getByRole("button", { name: "Back" }).compareDocumentPosition(store) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
     expect(screen.getByRole("link", { name: "Get Pubky Ring on Google Play" })).toHaveAttribute(
       "href",
       "https://play.google.com/store/apps/details?id=to.pubky.ring&hl=en-US",
@@ -98,10 +101,12 @@ describe("MigrateToPubkyRing", () => {
     expect(
       screen.queryByRole("button", { name: "Continue with Pubky Ring" }),
     ).not.toBeInTheDocument();
-    expect(screen.getByAltText("Pubky Ring")).toHaveClass("h-[30px]", "w-[137px]");
     const warning = screen.getByText(QR_WARNING);
     expect(warning.closest("[data-tone]")).toHaveAttribute("data-tone", "warning");
-    expect(screen.getByText(/To keep it only in Ring, remove it from this browser/u)).toBeVisible();
+    // What follows the export is the screen's status line.
+    expect(
+      screen.getByText(/To keep it only in Pubky Ring, remove it from this browser/u),
+    ).toHaveAttribute("role", "status");
 
     // The secret-bearing code is not created, let alone shown, until the person asks for it.
     await act(async () => undefined);

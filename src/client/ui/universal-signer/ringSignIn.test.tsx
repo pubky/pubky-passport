@@ -107,4 +107,19 @@ describe("RingSignIn", () => {
     );
     expect(screen.getByRole("alert")).toHaveTextContent("access to all your data");
   });
+
+  it("says what follows the approval and where to get Pubky Ring, without a spinner", () => {
+    usePointer(false);
+    renderRingSignIn(undefined);
+
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Sign in with Pubky Ring." }),
+    ).toBeInTheDocument();
+    // The app, not Passport, waits for Ring's approval, so nothing spins here.
+    const status = screen.getByRole("status");
+    expect(status).toHaveTextContent("Once you approve in Pubky Ring, Acme Notes signs you in.");
+    expect(status.querySelector('[data-slot="spinner"]')).toBeNull();
+    expect(screen.getByText("Don't have Pubky Ring?")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Get Pubky Ring on Google Play" })).toBeInTheDocument();
+  });
 });

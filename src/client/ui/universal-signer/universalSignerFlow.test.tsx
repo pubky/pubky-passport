@@ -691,7 +691,7 @@ describe("required Ring profile setup", () => {
     expect(
       await screen.findByRole("heading", { name: "Sign in to Original app" }),
     ).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "Connect your Ring." })).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Connect Pubky Ring." })).toBeNull();
     expect(screen.queryByRole("img", { name: "Pubky Ring profile connection QR code" })).toBeNull();
     expect(ring.start).not.toHaveBeenCalled();
     await user.click(screen.getByRole("button", { name: /Key in Pubky Ring/u }));
@@ -717,7 +717,7 @@ describe("required Ring profile setup", () => {
 
     expect(await screen.findByRole("heading", { name: "Your pubky." })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Set up profile" }));
-    expect(await screen.findByRole("heading", { name: "Connect your Ring." })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Connect Pubky Ring." })).toBeInTheDocument();
     // Opened from the overview, Back is the one way out and returns there.
     expect(screen.queryByRole("button", { name: "Skip for now" })).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Back" }));
@@ -726,7 +726,7 @@ describe("required Ring profile setup", () => {
     await user.click(screen.getByRole("button", { name: "Manage identity" }));
     const manage = screen.getByRole("heading", { level: 1 }).textContent;
     await user.click(screen.getByRole("button", { name: "Set up profile" }));
-    expect(await screen.findByRole("heading", { name: "Connect your Ring." })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Connect Pubky Ring." })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Back" }));
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(manage!);
     await user.click(screen.getByRole("button", { name: "Back" }));

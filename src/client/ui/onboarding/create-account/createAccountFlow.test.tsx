@@ -353,7 +353,7 @@ describe("CreateAccountFlow", () => {
 
     await user.click(screen.getByRole("button", { name: /Keep key in Pubky Ring/u }));
 
-    expect(await screen.findByRole("heading", { name: /Connect your/u })).toBeVisible();
+    expect(await screen.findByRole("heading", { name: "Connect Pubky Ring." })).toBeVisible();
     expect(screen.queryByRole("img", { name: "Pubky Ring signup QR code" })).toBeNull();
     expect(checkSignupToken).toHaveBeenCalledWith(INVITE, expect.any(AbortSignal));
     expect(storage.length).toBe(0);

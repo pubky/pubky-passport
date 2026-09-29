@@ -51,6 +51,7 @@ export function withPassportTestProviders(
         createProfileController: () => ({
           load: async () => Result.ok(null),
           save: async () => Result.err({ code: "save_failed" as const }),
+          checkAvatar: async () => Result.ok(undefined),
         }),
         checkSignupToken: async () => "valid" as const,
         ...collaborators,

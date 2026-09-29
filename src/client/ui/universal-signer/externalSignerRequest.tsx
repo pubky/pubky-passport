@@ -32,7 +32,10 @@ export function ExternalSignerRequest({
   purpose = "app-request",
 }: {
   getAuthorizationUrl: () => string | undefined;
-  /** A launch that already followed the request's deep link, from the button that opened Ring. */
+  /**
+   * Follows the request's deep link when the caller tracks the launch: one the button that opened
+   * Ring already started, or the caller's own, whose state its copy follows.
+   */
   launcher?: DeepLinkLauncher | undefined;
   /** An app's request handed to Ring unchanged, or Passport's own profile connection. */
   purpose?: keyof typeof LABELS;

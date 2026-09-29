@@ -1,4 +1,5 @@
 import AxeBuilder from "@axe-core/playwright";
+import { storeLocalIdentities } from "./helpers/localIdentities";
 import { PKARR_RELAY_HOSTS } from "./helpers/network";
 import { expect, test, type Page } from "./helpers/passportTest";
 import {
@@ -9,6 +10,11 @@ import {
   IDENTITY_STORAGE_KEY,
   PROFILE_KEY,
 } from "./helpers/pubkyProfile";
+
+/** A field of an added link, by the link's group ("Link 3") and the field's visible label. */
+function linkField(page: Page, number: number, label: "Title" | "Address") {
+  return page.getByRole("group", { name: `Link ${number}` }).getByLabel(label, { exact: true });
+}
 
 const PROFILE = {
   name: "Satoshi",
@@ -39,10 +45,7 @@ test("profile setup follows Figma, preserves identity on reload and failed saves
   await page.getByLabel("X (Twitter)", { exact: true }).fill("@satoshi");
   await page.getByLabel("Choose avatar file").setInputFiles("e2e/fixtures/profile-avatar.png");
   await expect(page.getByRole("button", { name: "Delete", exact: true })).toBeVisible();
-  await expect(page.getByRole("img", { name: "Profile avatar preview" })).toHaveAttribute(
-    "src",
-    /^blob:/,
-  );
+  await expect(page.getByRole("img", { name: "Your avatar" })).toHaveAttribute("src", /^blob:/);
   await page.screenshot({ path: info.outputPath("profile-filled.png"), fullPage: true });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
@@ -107,7 +110,7 @@ test("marks each invalid field where it is, with the limits shown before saving"
   await expect(page.getByText("161/160")).toBeVisible();
   await website.fill("my website");
   await page.getByRole("button", { name: "Add link" }).click();
-  await page.getByLabel("Link 3 URL").fill("https://github.com/satoshi");
+  await linkField(page, 3, "Address").fill("https://github.com/satoshi");
 
   // The popup: Save profile sits far below the Name field it has to point back to.
   await page.setViewportSize({ width: 520, height: 760 });
@@ -124,7 +127,7 @@ test("marks each invalid field where it is, with the limits shown before saving"
     [name, "Enter a name of 3–50 characters."],
     [bio, "Keep your bio to 160 characters (you have 161)."],
     [website, "Enter a full web address, like https://example.com."],
-    [page.getByLabel("Link 3 title"), "Give this link a title."],
+    [linkField(page, 3, "Title"), "Give this link a title."],
   ] as const) {
     await expect(control).toHaveAttribute("aria-invalid", "true");
     await expect(control).toHaveAccessibleDescription(message);
@@ -135,7 +138,7 @@ test("marks each invalid field where it is, with the limits shown before saving"
   await expect(name).not.toHaveAttribute("aria-invalid");
   await bio.fill("Bitcoin");
   await website.fill("https://bitcoin.org");
-  await page.getByLabel("Link 3 title").fill("GitHub");
+  await linkField(page, 3, "Title").fill("GitHub");
   expect(writes).toEqual([]);
   // Every field passes, so the save runs and meets the unavailable homeserver.
   await page.getByRole("button", { name: "Save profile", exact: true }).click();
@@ -144,6 +147,69 @@ test("marks each invalid field where it is, with the limits shown before saving"
     { timeout: 15000 },
   );
   await expect(refusal).toBeEmpty();
+});
+
+test("says the profile is public before it is filled in, and flags a name taken from Google", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 520, height: 760 });
+  await mockPublicProfile(page, null);
+  await page.goto("/terms-of-service");
+  await storeLocalIdentities(
+    page,
+    [
+      {
+        publicKeyZ32: PROFILE_KEY,
+        googleAccount: {
+          googleSubject: "google-1",
+          name: "Alice Example",
+          email: "alice@example.com",
+          pictureUrl: null,
+        },
+        profileSetupRequired: true,
+      },
+    ],
+    { active: PROFILE_KEY },
+  );
+  await page.goto("/");
+  await page.getByRole("button", { name: "Set up profile" }).click();
+  const name = page.getByLabel("Name", { exact: true });
+  await expect(name).toHaveValue("Alice Example");
+  // In the popup's first screenful, before anything is filled in or published.
+  await expect(
+    page.getByText("Anyone can see your profile, including apps you sign in to."),
+  ).toBeInViewport();
+  await expect(page.getByText("Your profile is public.", { exact: true })).toHaveCount(0);
+  await expect(name).toHaveAccessibleDescription(
+    "From your Google account. Change it if you don’t want it public. 3–50 characters. Shown publicly.",
+  );
+  await name.fill("Alice");
+  await expect(name).toHaveAccessibleDescription("3–50 characters. Shown publicly.");
+});
+
+test("refuses a damaged avatar as soon as it is picked, beside the picker", async ({ page }) => {
+  await mockPublicProfile(page, null);
+  await seedProfileIdentity(page);
+  await page.getByRole("button", { name: "Set up profile" }).click();
+  const picker = page.getByLabel("Choose avatar file");
+  await expect(picker).toHaveAccessibleDescription("PNG, JPEG, WebP, or GIF, up to 5 MB.");
+  // An image type and name over bytes no browser can decode.
+  await picker.setInputFiles({
+    name: "holiday.png",
+    mimeType: "image/png",
+    buffer: Buffer.from("this is not really a png image"),
+  });
+  const message = page.getByRole("region", { name: "Avatar" }).getByRole("alert");
+  await expect(message).toHaveText(
+    "This image can’t be opened. Choose a PNG, JPEG, WebP, or GIF image up to 5 MB.",
+  );
+  // The placeholder stays, with nothing to delete.
+  await expect(page.getByRole("button", { name: "Delete", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("img", { name: "Your avatar" })).toHaveCount(0);
+
+  await picker.setInputFiles("e2e/fixtures/profile-avatar.png");
+  await expect(page.getByRole("img", { name: "Your avatar" })).toHaveAttribute("src", /^blob:/);
+  await expect(message).toHaveCount(0);
 });
 
 test("an unreadable published profile opens an empty editor instead of blocking setup", async ({
@@ -229,7 +295,10 @@ test("in the app's popup, a focused field scrolls clear of the actions pinned be
   await expect(page.getByLabel("Name", { exact: true })).toBeVisible();
   for (let index = 0; index < 3; index++)
     await page.getByRole("button", { name: "Add link" }).click();
-  const lastLink = page.getByRole("textbox", { name: /^Link \d+ URL$/u }).last();
+  const lastLink = page
+    .getByRole("group", { name: /^Link \d+$/u })
+    .last()
+    .getByLabel("Address", { exact: true });
   const bar = page.locator("[data-sticky-actions]");
 
   // Park the field in the window but under the bar, where focusing it would otherwise leave it.

@@ -228,6 +228,40 @@ describe("public Pubky profiles", () => {
     expect(transport.writeProfile).not.toHaveBeenCalled();
   });
 
+  it("checks a chosen avatar as a save would, without keys or the network", async () => {
+    const read = vi.spyOn(repository, "read");
+    const controller = new ProfileController(repository, transport);
+    // A PNG name and type over bytes that are not an image.
+    const damaged = new File(["<svg/>"], "avatar.png", { type: "image/png" });
+    expect(await controller.checkAvatar(damaged)).toMatchObject({
+      error: { code: "invalid_avatar" },
+    });
+    const unsupported = new File(["<svg/>"], "avatar.svg", { type: "image/svg+xml" });
+    expect(await controller.checkAvatar(unsupported)).toMatchObject({
+      error: { code: "invalid_avatar" },
+    });
+    vi.stubGlobal(
+      "createImageBitmap",
+      vi.fn(async () => ({ width: 64, height: 64, close: vi.fn() })),
+    );
+    vi.stubGlobal(
+      "OffscreenCanvas",
+      class {
+        getContext() {
+          return { drawImage: vi.fn() };
+        }
+        async convertToBlob() {
+          return new Blob([PNG], { type: "image/png" });
+        }
+      },
+    );
+    const readable = new File([PNG], "holiday.png", { type: "image/png" });
+    expect(await controller.checkAvatar(readable)).toEqual(Result.ok(undefined));
+    expect(read).not.toHaveBeenCalled();
+    expect(transport.readJson).not.toHaveBeenCalled();
+    expect(transport.writeProfile).not.toHaveBeenCalled();
+  });
+
   it("retains unfinished setup on a write failure, including after restore", async () => {
     transport.writeProfile.mockResolvedValue(Result.err({ code: "publish_failed" }));
     expect(await new ProfileController(repository, transport).save(KEY, PROFILE)).toMatchObject({

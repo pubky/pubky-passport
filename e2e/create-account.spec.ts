@@ -54,7 +54,7 @@ test("keeps request context and requires a separate profile approval after Ring 
   await page.getByRole("button", { name: "Continue" }).click();
   await page.getByRole("button", { name: "Keep key in Pubky Ring" }).click();
   await page.getByRole("button", { name: "I’ve finished in Pubky Ring" }).click();
-  await expect(page.getByRole("heading", { name: "Connect your Ring." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Connect Pubky Ring." })).toBeVisible();
 
   await expect(page.getByLabel("Signing in to client.example")).toBeVisible();
   // Passport's own profile request is labelled apart from the app's sign-in request.
@@ -98,7 +98,7 @@ test("the profile grant after a Ring signup on the home page polls only the conf
   await reachDestinationChoice(page);
   await page.getByRole("button", { name: "Keep key in Pubky Ring" }).click();
   await page.getByRole("button", { name: "I’ve finished in Pubky Ring" }).click();
-  await expect(page.getByRole("heading", { name: "Connect your Ring." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Connect Pubky Ring." })).toBeVisible();
   await expect(page).toHaveURL(/\/$/u);
 
   const profileRequestLink = page.getByRole("link", { name: "Connect in Pubky Ring" });
@@ -437,9 +437,10 @@ test("shared account creation offers Ring after verification and Back keeps its 
   const link = ringSignupLink(page);
   const url = `pubkyauth://direct_signup?hs=${E2E_SIGNUP_HOMESERVER}&st=${RING_INVITE}`;
   await expect(link).toHaveAttribute("href", url);
-  await page.getByRole("button", { name: "Install it", exact: true }).click();
-  await page.getByRole("button", { name: "Back", exact: true }).click();
-  await expect(link).toHaveAttribute("href", url);
+  // Where to get Pubky Ring is on the hand-off itself, not a separate step.
+  await expect(
+    page.getByRole("link", { name: "Download Pubky Ring on the App Store" }),
+  ).toBeVisible();
   await page.getByRole("button", { name: "Back", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Where should your key live?" })).toBeVisible();
   // Passport stays available; the invite is checked with the homeserver before reuse.
@@ -615,7 +616,9 @@ test.describe("in the app's 520x760 popup", () => {
     await page.getByRole("button", { name: "Keep key in Pubky Ring" }).click();
 
     await expect(page.getByRole("img", { name: "Pubky Ring signup QR code" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Install it" })).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Create your account in Pubky Ring." }),
+    ).toBeVisible();
     for (const name of ["Back", "I’ve finished in Pubky Ring"]) {
       const box = (await page.getByRole("button", { name, exact: true }).boundingBox())!;
       expect(box.y + box.height).toBeLessThanOrEqual(760);

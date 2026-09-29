@@ -86,12 +86,14 @@ submitted its signup, there is nothing left to choose: Passport shows **Finish y
 **Continue**, which finishes the registration with that key.
 
 - **Keep key in Pubky Ring.** Passport shows a distinct `pubkyauth://direct_signup?hs=…&st=…`
-  signup QR/deeplink, with installation help offered above it, and says Ring will ask for two
-  approvals. While it waits, Passport looks the invite up on its homeserver every 3 seconds with
-  the read-only `GET /signup_tokens/{token}` (less often while the homeserver gives no answer, down
-  to every 30 seconds); once that reports the invite used, it goes on by itself, and **I've
-  finished in Pubky Ring** goes on when the lookup cannot tell. Either way Ring
-  is then asked to approve a separate limited grant for Passport's profile editor. Only a returned SDK session proves control. Ring returns nothing from the signup, so
+  signup QR/deeplink on the same hand-off layout as every other Ring screen, with App Store and
+  Google Play links for people without Ring, and says Ring will ask for two approvals. While it
+  waits, Passport looks the invite up on its homeserver every 3 seconds with the read-only
+  `GET /signup_tokens/{token}` (less often while the homeserver gives no answer, down to every 30
+  seconds); once that reports the invite used, it goes on by itself, and **I've finished in Pubky
+  Ring** goes on when the lookup cannot tell. Either way Ring is then asked to approve a separate
+  limited grant for Passport's profile editor. Only a returned SDK session proves control. Ring
+  returns nothing from the signup, so
   Passport cannot know the new key: it shows the pubky Ring connected and asks the user to confirm
   that it is the one just created. Only then does it add the Ring identity to the catalog; **No,
   choose again in Ring** closes that grant and starts a new request. Passport stores the public key

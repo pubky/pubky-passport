@@ -10,6 +10,9 @@ export type ProfileDraft = {
   status: string | null;
 };
 
+/** Edits not published yet: the form's draft and an avatar chosen for it. */
+export type UnsavedProfileEdits = { draft: ProfileDraft; avatar?: File | undefined };
+
 /** A form control a draft can be refused for: a link's controls are named by the link's `id`. */
 export type ProfileFieldKey = "name" | "bio" | `link-${number}-title` | `link-${number}-url`;
 export type ProfileFieldErrorCode =
@@ -58,6 +61,11 @@ export function draftFromProfile(
     image: profile?.image ?? null,
     status: profile?.status ?? null,
   };
+}
+
+/** An id no link of `draft` has, for a link added to it. Published links take the first ones. */
+export function nextLinkId(draft: ProfileDraft): number {
+  return Math.max(PROFILE_LIMITS.linksMaxCount, ...draft.links.map((link) => link.id + 1));
 }
 
 /** The URL a link publishes: trimmed, with a bare X handle expanded to its profile address. */

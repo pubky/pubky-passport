@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode, useEffect, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { Result } from "better-result";
 import { toast } from "sonner";
 import { Button } from "@/client/ui/shared/primitives/button";
@@ -147,10 +147,12 @@ function ReadyPassport({
       dispose();
     };
   }, [ringProfile]);
-  const ringEditor = useMemo(
-    () => new RingProfileEditor(profiles.controller, ringProfile),
-    [profiles.controller, ringProfile],
-  );
+  // State, not a memo: it keeps unpublished profile edits while Ring reconnects.
+  const [ringEditor] = useState(() => new RingProfileEditor(profiles.controller, ringProfile));
+  // Kept edits last while their identity's editor, or its Ring connection, is open; leaving it
+  // any way (a discarded Back or Skip for now, a save, a removed identity) drops them.
+  const editingKey = navigation.view === "profile" ? navigation.publicKeyZ32 : undefined;
+  useEffect(() => ringEditor.forgetEditsExcept(editingKey), [ringEditor, editingKey]);
   // Follows the request's deep link to Pubky Ring on a phone, and notices when Ring did not open.
   const [ringLauncher, launchRing] = useRingRequestLauncher(controller);
   const [selectionFailed, setSelectionFailed] = useState(false);
@@ -230,13 +232,16 @@ function ReadyPassport({
               ? () => navigate({ view: "manage", publicKeyZ32 })
               : goHome;
         const reopen = () => navigate({ view: "profile", publicKeyZ32, from });
+        const keptEdits =
+          identity.keySource === "ring" ? ringEditor.keptEdits(publicKeyZ32) : undefined;
         if (identity.keySource === "ring" && !ringProfile.isConnected(publicKeyZ32)) {
           const setupRequired = identity.profileSetupRequired === true;
           const connection = (
             <RingProfileConnection
               controller={ringProfile}
-              expectedKey={publicKeyZ32}
+              identity={identity}
               setupRequired={setupRequired}
+              unsavedEdits={keptEdits !== undefined}
               onBack={onBack}
               onComplete={reopen}
               onDefer={onDefer}
@@ -261,6 +266,7 @@ function ReadyPassport({
             forRequest={hasRequest}
             identity={identity}
             controller={identity.keySource === "ring" ? ringEditor : profiles.controller}
+            keptEdits={keptEdits}
             onBack={onBack}
             onComplete={(profile, avatar) => {
               profiles.published(publicKeyZ32, profile, avatar);
@@ -269,7 +275,15 @@ function ReadyPassport({
               if (from === "manage") navigate({ view: "manage", publicKeyZ32 });
               else selectAddedIdentity(publicKeyZ32);
             }}
-            onReconnect={identity.keySource === "ring" ? reopen : undefined}
+            // The grant ended before a save: Ring connects again and the edits come back with it.
+            onReconnect={
+              identity.keySource === "ring"
+                ? (edits) => {
+                    ringEditor.keepEdits(publicKeyZ32, edits);
+                    reopen();
+                  }
+                : undefined
+            }
             onDefer={onDefer}
           />
         );

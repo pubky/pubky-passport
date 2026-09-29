@@ -242,7 +242,12 @@ for (const viewport of NARROW) {
     const finish = await page.getByRole("button", { name: "Save profile" }).boundingBox();
     expect(back!.x + back!.width).toBeLessThanOrEqual(viewport.width);
     expect(finish!.x + finish!.width).toBeLessThanOrEqual(viewport.width);
-    const avatar = await page.getByRole("img", { name: "Profile avatar preview" }).boundingBox();
+    // The placeholder is decoration (no name), so it is found as the avatar section's image.
+    const avatar = await page
+      .getByRole("region", { name: "Avatar" })
+      .locator("img")
+      .first()
+      .boundingBox();
     expect(Math.abs(avatar!.width - avatar!.height)).toBeLessThanOrEqual(1);
   });
 }
