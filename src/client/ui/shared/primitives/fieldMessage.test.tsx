@@ -28,6 +28,19 @@ describe("FieldMessage", () => {
     expect(error.querySelector('[data-slot="icon"]')).toHaveAttribute("aria-hidden", "true");
   });
 
+  it("styles an error without announcing it when asked, for text that changes as people type", () => {
+    render(
+      <FieldMessage announce={false} error id="count">
+        161/160
+      </FieldMessage>,
+    );
+
+    const count = screen.getByText("161/160").parentElement!;
+    expect(count).toHaveClass("text-destructive-text");
+    expect(count).not.toHaveAttribute("role");
+    expect(count.querySelector('[data-slot="icon"]')).toHaveAttribute("aria-hidden", "true");
+  });
+
   it("keeps inline markup in an error's sentence rather than splitting it into flex columns", () => {
     render(
       <FieldMessage error>

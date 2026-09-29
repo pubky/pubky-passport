@@ -41,6 +41,7 @@ beforeEach(() => {
   save.mockResolvedValue(Result.ok({ name: "Satoshi" }));
   URL.createObjectURL = vi.fn(() => "blob:avatar");
   URL.revokeObjectURL = vi.fn();
+  Element.prototype.scrollIntoView = vi.fn();
 });
 afterEach(() => {
   cleanup();
@@ -59,9 +60,13 @@ describe("ProfileSetupFlow", () => {
       },
     });
     expect(await screen.findByLabelText("Name")).toHaveValue("Google name");
-    const warning = screen.getByRole("status");
+    // The form's own status line (refused Finish announcements) is empty; the warning is found by
+    // its tone.
+    const warning = screen
+      .getByText("We couldn’t read your current profile.")
+      .closest("[data-tone]");
     expect(warning).toHaveAttribute("data-tone", "warning");
-    expect(warning).toHaveTextContent("We couldn’t read your current profile.");
+    expect(warning).toHaveAttribute("role", "status");
     expect(warning).toHaveTextContent("Saving here replaces it everywhere it’s shown.");
     // The button says it overwrites what other apps show, not just that setup ends.
     expect(screen.queryByRole("button", { name: "Finish" })).not.toBeInTheDocument();
@@ -249,6 +254,216 @@ describe("ProfileSetupFlow", () => {
     await screen.findByLabelText("Name");
     await userEvent.setup().click(screen.getByRole("button", { name: "Back" }));
     expect(onBack).toHaveBeenCalledOnce();
+  });
+
+  it("shows the name and bio limits before anything is typed", async () => {
+    mount();
+    const user = userEvent.setup();
+    const name = await screen.findByLabelText("Name");
+    const bio = screen.getByLabelText("Bio");
+    expect(name).toHaveAccessibleDescription("3–50 characters. Shown publicly.");
+    // Required for assistive technology, without the browser's own fading bubble.
+    expect(name).toHaveAttribute("aria-required", "true");
+    expect(name).not.toHaveAttribute("required");
+    expect(bio).toHaveAccessibleDescription("0 of 160 characters");
+    expect(screen.getByText("0/160")).toBeVisible();
+
+    await user.click(bio);
+    await user.paste(`${"b".repeat(160)}  `);
+    // Counted as the specification counts: trailing spaces are trimmed away.
+    expect(bio).toHaveAccessibleDescription("160 of 160 characters");
+    expect(bio).not.toHaveAttribute("aria-invalid");
+    await user.type(bio, "!");
+    expect(bio).toHaveAccessibleDescription("163 of 160 characters");
+    expect(bio).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByText("163/160").closest("p")).toHaveClass("text-destructive-text");
+    // The counter changes with every keystroke, so it is not an alert.
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("marks each invalid field where it is, focuses the first and saves nothing", async () => {
+    mount();
+    const user = userEvent.setup();
+    const name = await screen.findByLabelText("Name");
+    await user.type(name, "Al");
+    await user.click(screen.getByLabelText("Bio"));
+    await user.paste("b".repeat(161));
+    await user.type(screen.getByLabelText("Website"), "my website");
+    await user.type(screen.getByLabelText("X (Twitter)"), "@satoshi nakamoto");
+    await user.click(screen.getByRole("button", { name: "Add link" }));
+    await user.type(screen.getByLabelText("Link 3 URL"), "https://github.com/satoshi");
+    await user.click(screen.getByRole("button", { name: "Finish" }));
+
+    expect(save).not.toHaveBeenCalled();
+    expect(name).toHaveFocus();
+    expect(Element.prototype.scrollIntoView).toHaveBeenCalledWith({ block: "center" });
+    const expected: [HTMLElement, string][] = [
+      [name, "Enter a name of 3–50 characters."],
+      [screen.getByLabelText("Bio"), "Keep your bio to 160 characters (you have 161)."],
+      [screen.getByLabelText("Website"), "Enter a full web address, like https://example.com."],
+      [
+        screen.getByLabelText("X (Twitter)"),
+        "Enter an X handle, like @satoshi, or a full web address.",
+      ],
+      [screen.getByLabelText("Link 3 title"), "Give this link a title."],
+    ];
+    for (const [control, message] of expected) {
+      expect(control).toHaveAttribute("aria-invalid", "true");
+      expect(control).toHaveAccessibleDescription(message);
+    }
+    expect(screen.getByLabelText("Link 3 URL")).not.toHaveAttribute("aria-invalid");
+    // Focus reads the first message out; the others are read as each field is reached.
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+
+    // Changing a field clears its own message only.
+    await user.type(name, "ice");
+    expect(name).not.toHaveAttribute("aria-invalid");
+    expect(name).toHaveAccessibleDescription("3–50 characters. Shown publicly.");
+    expect(screen.getByLabelText("Website")).toHaveAttribute("aria-invalid", "true");
+    // Removing a link clears its messages with it.
+    await user.click(screen.getByRole("button", { name: "Remove link 3" }));
+    expect(screen.queryByText("Give this link a title.")).not.toBeInTheDocument();
+
+    // Finish again focuses the first field still marked.
+    await user.click(screen.getByRole("button", { name: "Finish" }));
+    expect(screen.getByLabelText("Bio")).toHaveFocus();
+    expect(save).not.toHaveBeenCalled();
+
+    await user.clear(screen.getByLabelText("Bio"));
+    await user.clear(screen.getByLabelText("Website"));
+    await user.type(screen.getByLabelText("Website"), "https://alice.example");
+    await user.clear(screen.getByLabelText("X (Twitter)"));
+    await user.type(screen.getByLabelText("X (Twitter)"), "@alice");
+    await user.click(screen.getByRole("button", { name: "Finish" }));
+    expect(save).toHaveBeenCalledWith(
+      KEY,
+      expect.objectContaining({
+        name: "Alice",
+        links: [
+          { title: "Website", url: "https://alice.example" },
+          { title: "X (Twitter)", url: "https://x.com/alice" },
+        ],
+      }),
+      undefined,
+    );
+  });
+
+  it("says why Finish was refused when Enter submits from the field already focused", async () => {
+    mount();
+    const user = userEvent.setup();
+    const name = await screen.findByLabelText("Name");
+    // Focus cannot move to the field it is on, so the reason is spoken instead.
+    await user.type(name, "Al{Enter}");
+    expect(save).not.toHaveBeenCalled();
+    expect(name).toHaveFocus();
+    const status = screen.getByRole("status");
+    expect(status).toHaveTextContent(
+      "1 field needs a change. Name: Enter a name of 3–50 characters.",
+    );
+    // The same refusal again is a new announcement, not an unchanged region.
+    const announcement = status.firstElementChild;
+    await user.keyboard("{Enter}");
+    expect(status.firstElementChild).not.toBe(announcement);
+    expect(status).toHaveTextContent("1 field needs a change.");
+
+    await user.type(screen.getByLabelText("Website"), "localhost:3000{Enter}");
+    expect(status).toHaveTextContent(
+      "2 fields need changes. Name: Enter a name of 3–50 characters.",
+    );
+    expect(save).not.toHaveBeenCalled();
+
+    await user.type(name, "ice");
+    await user.clear(screen.getByLabelText("Website"));
+    await user.click(screen.getByRole("button", { name: "Finish" }));
+    expect(save).toHaveBeenCalledOnce();
+    expect(status).toBeEmptyDOMElement();
+  });
+
+  it("clears a message whose cause was fixed through another field", async () => {
+    save.mockResolvedValueOnce(Result.err({ code: "save_failed" }));
+    mount();
+    const user = userEvent.setup();
+    await user.type(await screen.findByLabelText("Name"), "Satoshi");
+    await user.click(screen.getByRole("button", { name: "Add link" }));
+    await user.type(screen.getByLabelText("Link 3 URL"), "https://github.com/satoshi");
+    await user.click(screen.getByRole("button", { name: "Finish" }));
+    const title = screen.getByLabelText("Link 3 title");
+    expect(title).toHaveFocus();
+    expect(title).toHaveAccessibleDescription("Give this link a title.");
+
+    // Without its URL the link is dropped, so it needs no title.
+    await user.clear(screen.getByLabelText("Link 3 URL"));
+    expect(title).not.toHaveAttribute("aria-invalid");
+    expect(screen.queryByText("Give this link a title.")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Finish" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Could not save your profile.");
+    expect(document.querySelectorAll('[aria-invalid="true"]')).toHaveLength(0);
+  });
+
+  it("clears a handle's message when its link takes the X title", async () => {
+    mount();
+    const user = userEvent.setup();
+    await user.type(await screen.findByLabelText("Name"), "Satoshi");
+    await user.click(screen.getByRole("button", { name: "Add link" }));
+    await user.type(screen.getByLabelText("Link 3 title"), "Twitter");
+    await user.type(screen.getByLabelText("Link 3 URL"), "@satoshi");
+    await user.click(screen.getByRole("button", { name: "Finish" }));
+    const url = screen.getByLabelText("Link 3 URL");
+    expect(url).toHaveAccessibleDescription("Enter a full web address, like https://example.com.");
+
+    await user.clear(screen.getByLabelText("Link 3 title"));
+    await user.type(screen.getByLabelText("Link 3 title"), "X (Twitter)");
+    expect(url).not.toHaveAttribute("aria-invalid");
+    await user.click(screen.getByRole("button", { name: "Finish" }));
+    expect(save).toHaveBeenCalledWith(
+      KEY,
+      expect.objectContaining({
+        links: [{ title: "X (Twitter)", url: "https://x.com/satoshi" }],
+      }),
+      undefined,
+    );
+  });
+
+  it("gives the length of an overlong link title and address, as the specs count it", async () => {
+    mount();
+    const user = userEvent.setup();
+    await user.type(await screen.findByLabelText("Name"), "Satoshi");
+    await user.click(screen.getByRole("button", { name: "Add link" }));
+    await user.click(screen.getByLabelText("Link 3 title"));
+    await user.paste("t".repeat(101));
+    await user.click(screen.getByLabelText("Link 3 URL"));
+    // 300 characters as typed; the space is stored as %20.
+    await user.paste(`https://example.com/${"a".repeat(278)} b`);
+    await user.click(screen.getByLabelText("Website"));
+    await user.paste(`https://example.com/${"p".repeat(281)}`);
+    await user.click(screen.getByRole("button", { name: "Finish" }));
+
+    expect(screen.getByLabelText("Link 3 title")).toHaveAccessibleDescription(
+      "Keep this title to 100 characters or fewer (you have 101).",
+    );
+    expect(screen.getByLabelText("Link 3 URL")).toHaveAccessibleDescription(
+      "Keep this address to 300 characters or fewer (it is 302 once encoded).",
+    );
+    expect(screen.getByLabelText("Website")).toHaveAccessibleDescription(
+      "Keep this address to 300 characters or fewer (you have 301).",
+    );
+    expect(save).not.toHaveBeenCalled();
+  });
+
+  it("replaces a failed save's message with the fields to fix", async () => {
+    save.mockResolvedValueOnce(Result.err({ code: "save_failed" }));
+    mount();
+    const user = userEvent.setup();
+    const name = await screen.findByLabelText("Name");
+    await user.type(name, "Satoshi");
+    await user.click(screen.getByRole("button", { name: "Finish" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Could not save your profile.");
+    await user.clear(name);
+    await user.click(screen.getByRole("button", { name: "Finish" }));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(name).toHaveFocus();
+    expect(name).toHaveAccessibleDescription("Enter a name of 3–50 characters.");
+    expect(save).toHaveBeenCalledOnce();
   });
 
   it("caps links at the specification's limit", async () => {

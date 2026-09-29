@@ -70,6 +70,76 @@ test("profile setup follows Figma, preserves identity on reload and failed saves
   await expect(page.getByRole("button", { name: "Set up profile" })).toBeVisible();
 });
 
+test("marks each invalid field where it is, with the limits shown before saving", async ({
+  page,
+}) => {
+  await mockPublicProfile(page, null);
+  await seedProfileIdentity(page);
+  // Setup is offered from the overview once the identity exists.
+  await page.getByRole("button", { name: "Set up profile" }).click();
+  const writes: string[] = [];
+  page.on("request", (request) => {
+    if (new URL(request.url()).hostname === "homeserver.example" && request.method() !== "GET")
+      writes.push(`${request.method()} ${request.url()}`);
+  });
+  const name = page.getByLabel("Name", { exact: true });
+  const bio = page.getByLabel("Bio", { exact: true });
+  const website = page.getByLabel("Website", { exact: true });
+  await expect(name).toHaveAccessibleDescription("3–50 characters. Shown publicly.");
+  await expect(bio).toHaveAccessibleDescription("0 of 160 characters");
+  // Enter submits from the invalid Name field itself, where focus already is, so the form's status
+  // says why nothing was saved.
+  const refusal = page.locator("form").getByRole("status");
+  await name.fill("Al");
+  await name.press("Enter");
+  await expect(refusal).toHaveText(
+    "1 field needs a change. Name: Enter a name of 3–50 characters.",
+  );
+  await expect(name).toBeFocused();
+  await name.fill("");
+  await bio.fill("b".repeat(161));
+  await expect(page.getByText("161/160")).toBeVisible();
+  await website.fill("my website");
+  await page.getByRole("button", { name: "Add link" }).click();
+  await page.getByLabel("Link 3 URL").fill("https://github.com/satoshi");
+
+  // The popup: Finish sits far below the Name field it has to point back to.
+  await page.setViewportSize({ width: 520, height: 760 });
+  await page.getByRole("button", { name: "Finish", exact: true }).click();
+  await expect(name).toBeFocused();
+  await expect(refusal).toHaveText("4 fields need changes. Name: Enter a name of 3–50 characters.");
+  await expect(name).toBeInViewport({ ratio: 1 });
+  await expect(
+    page.getByText("Enter a name of 3–50 characters.", { exact: true }),
+  ).toBeInViewport();
+  // No browser bubble: the page's own message describes the field.
+  expect(await name.evaluate((input: HTMLInputElement) => input.validationMessage)).toBe("");
+  for (const [control, message] of [
+    [name, "Enter a name of 3–50 characters."],
+    [bio, "Keep your bio to 160 characters (you have 161)."],
+    [website, "Enter a full web address, like https://example.com."],
+    [page.getByLabel("Link 3 title"), "Give this link a title."],
+  ] as const) {
+    await expect(control).toHaveAttribute("aria-invalid", "true");
+    await expect(control).toHaveAccessibleDescription(message);
+  }
+  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+
+  await name.fill("Satoshi");
+  await expect(name).not.toHaveAttribute("aria-invalid");
+  await bio.fill("Bitcoin");
+  await website.fill("https://bitcoin.org");
+  await page.getByLabel("Link 3 title").fill("GitHub");
+  expect(writes).toEqual([]);
+  // Every field passes, so the save runs and meets the unavailable homeserver.
+  await page.getByRole("button", { name: "Finish", exact: true }).click();
+  await expect(page.locator("main").getByRole("alert")).toContainText(
+    "Could not save your profile",
+    { timeout: 15000 },
+  );
+  await expect(refusal).toBeEmpty();
+});
+
 test("an unreadable published profile opens an empty editor instead of blocking setup", async ({
   page,
 }) => {

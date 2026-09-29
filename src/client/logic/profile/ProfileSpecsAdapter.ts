@@ -14,12 +14,17 @@ import type { PreparedAvatar, ProfilePublication, ProfileWrite, PubkyProfile } f
  * TypeScript copy of the schema. The WASM loads on first use; the limits file is WASM-free.
  */
 
-/** Limits of the pinned specs release, for form hints only; the WASM remains the validator. */
+/**
+ * Limits of the pinned specs release, for form hints and per-field checks; the WASM still
+ * validates every document before it is written.
+ */
 export const PROFILE_LIMITS = {
   nameMinLength: SPECS_LIMITS.userNameMinLength,
   nameMaxLength: SPECS_LIMITS.userNameMaxLength,
   bioMaxLength: SPECS_LIMITS.userBioMaxLength,
   linksMaxCount: SPECS_LIMITS.userLinksMaxCount,
+  linkTitleMaxLength: SPECS_LIMITS.userLinkTitleMaxLength,
+  linkUrlMaxLength: SPECS_LIMITS.userLinkUrlMaxLength,
 } as const;
 
 export type ProfileSpecsErrorCode =

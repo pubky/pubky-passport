@@ -18,6 +18,8 @@ describe("pubky-app-specs profile boundary", () => {
       nameMaxLength: 50,
       bioMaxLength: 160,
       linksMaxCount: 5,
+      linkTitleMaxLength: 100,
+      linkUrlMaxLength: 300,
     });
   });
 

@@ -5,15 +5,18 @@ import { cn } from "@/client/ui/shared/mergeClassNames";
 
 /**
  * A hint or error under one control. Errors are red with an alert icon, so colour is not the
- * only cue; a failure of a whole form or screen uses `Notice` instead.
+ * only cue; a failure of a whole form or screen uses `Notice` instead. An error is an alert
+ * unless `announce` is false: for text that changes with each keystroke, such as a counter, or
+ * an error on a control that focus moves to, which its description already reads out.
  */
 function FieldMessage({
+  announce = true,
   children,
   className,
   error = false,
   role,
   ...props
-}: ComponentPropsWithRef<"p"> & { error?: boolean }) {
+}: ComponentPropsWithRef<"p"> & { announce?: boolean; error?: boolean }) {
   return (
     <p
       className={cn(
@@ -21,7 +24,7 @@ function FieldMessage({
         error && "flex items-start gap-1.5 text-destructive-text",
         className,
       )}
-      role={role ?? (error ? "alert" : undefined)}
+      role={role ?? (error && announce ? "alert" : undefined)}
       {...props}
     >
       {/* 14px, centred on the first 16px line; long messages wrap beside it. */}
