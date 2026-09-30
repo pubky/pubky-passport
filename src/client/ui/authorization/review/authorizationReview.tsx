@@ -1,7 +1,10 @@
 import { type ReactNode, useId } from "react";
 
 import type { AuthorizationOutcome } from "@/client/logic/authorization/flow/authorizationOutcomeHandoff";
-import type { AuthorizationRequestReview } from "@/client/logic/authorization/request/ValidatedPubkyAuthRequest";
+import {
+  capabilityReach,
+  type AuthorizationRequestReview,
+} from "@/client/logic/authorization/request/ValidatedPubkyAuthRequest";
 import type { LocalIdentityMetadata } from "@/client/logic/local-identity/localIdentityModels";
 import { CheckIcon, XIcon } from "@/client/ui/shared/icons";
 import { PubkyBrandIcon } from "@/client/ui/shared/brand/pubkyBrandIcon";
@@ -154,13 +157,14 @@ function describeBroadGrant(
 ): BroadGrant | undefined {
   const broad = capabilities.filter((capability) => capability.scope === "broad");
   if (broad.length === 0) return undefined;
-  const paths = new Set(broad.map((capability) => capability.path));
-  const both = paths.has("/pub/") && paths.has("/priv/");
-  // A broad path Passport does not know by name is read as the widest reach.
+  const reaches = new Set(broad.map((capability) => capabilityReach(capability.path)));
+  // A broad path whose reach Passport cannot name is read as the widest reach.
   const reach =
-    paths.has("/") || both || [...paths].some((path) => path !== "/pub/" && path !== "/priv/")
+    reaches.has("all") ||
+    reaches.has(undefined) ||
+    (reaches.has("public") && reaches.has("private"))
       ? "all"
-      : paths.has("/pub/")
+      : reaches.has("public")
         ? "public"
         : "private";
   return {

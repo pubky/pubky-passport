@@ -1,3 +1,5 @@
+import { capabilityReach } from "@/client/logic/authorization/request/ValidatedPubkyAuthRequest";
+
 /**
  * Folders of the Pubky App (`/pub/pubky.app/`, the pubky-app-specs layout) that a person knows by
  * what is in them: the title for the whole folder, and for a path inside it.
@@ -29,9 +31,11 @@ export type CapabilityTitle = { text: string; folder?: string | undefined };
  * replacement for what is granted.
  */
 export function describeCapabilityPath(path: string, callbackHost?: string): CapabilityTitle {
-  if (path === "/") return { text: "All your data" };
-  if (path === "/pub/") return { text: "All your public data" };
-  if (path === "/priv/") return { text: "All your private data" };
+  // `/pub` and `/priv` without their slash reach as far as `/pub/` and `/priv/`, and `/p` as `/`.
+  const reach = capabilityReach(path);
+  if (reach === "all") return { text: "All your data" };
+  if (reach === "public") return { text: "All your public data" };
+  if (reach === "private") return { text: "All your private data" };
   if (path === PUBKY_APP) return { text: "All your Pubky App data" };
   if (path.startsWith(PUBKY_APP))
     return { text: describePubkyAppPath(path.slice(PUBKY_APP.length)) };

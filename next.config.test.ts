@@ -13,6 +13,7 @@ describe("next config headers", () => {
     expect(globalHeaders).toEqual(
       expect.arrayContaining([
         { key: "X-Content-Type-Options", value: "nosniff" },
+        { key: "X-Frame-Options", value: "DENY" },
         expect.objectContaining({ key: "Permissions-Policy" }),
       ]),
     );

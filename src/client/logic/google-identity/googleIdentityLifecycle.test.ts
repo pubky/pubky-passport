@@ -1172,6 +1172,17 @@ describe("Google identity use cases", () => {
     await vi.waitFor(() => expect(MOCKS.disposeIdentityKey).toHaveBeenCalledWith(KEY_HANDLE));
   });
 
+  it("keeps a Ring-held pubky in Ring instead of saving its restored key", async () => {
+    foundPassportFile();
+    MOCKS.repositorySave.mockReturnValue(Result.err({ code: "external_key" }));
+
+    expectResultError(await createSubject().establishIdentity(CREDENTIALS, () => undefined), {
+      code: "local_identity_held_by_ring",
+    });
+    expect(MOCKS.repositorySave).toHaveBeenCalledOnce();
+    await vi.waitFor(() => expect(MOCKS.disposeIdentityKey).toHaveBeenCalledWith(KEY_HANDLE));
+  });
+
   it("keeps a new identity when its background republish fails", async () => {
     const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
     MOCKS.readPassportFile.mockResolvedValue(Result.ok({ status: "missing" }));

@@ -74,14 +74,17 @@ describe("LocalIdentityController", () => {
       read: vi.fn(),
       recordBackup: vi.fn(() => Result.ok()),
     };
-    const controller = new LocalIdentityController(repository);
+    const drafts = { remove: vi.fn(() => Result.ok()) };
+    const controller = new LocalIdentityController(repository, drafts);
 
     expect(controller.listIdentities()).toEqual(
       Result.ok({ activePublicKeyZ32: null, identities: [] }),
     );
     expect(controller.selectIdentity(PUBLIC_KEY)).toEqual(Result.ok());
     expect(controller.removeIdentity(PUBLIC_KEY)).toEqual(Result.ok());
-    expect(repository.list).toHaveBeenCalledOnce();
+    // The key is not saved, so no draft of it is touched: it may be a setup still under way.
+    expect(drafts.remove).not.toHaveBeenCalled();
+    expect(repository.list).toHaveBeenCalledTimes(2);
     expect(repository.select).toHaveBeenCalledWith(PUBLIC_KEY);
     expect(repository.remove).toHaveBeenCalledWith(PUBLIC_KEY);
   });

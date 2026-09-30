@@ -96,10 +96,16 @@ function createContentSecurityPolicy(input: {
   ].join("; ");
 }
 
+/**
+ * Every page gets its policy, and only what is never a page is skipped: the one API route, Next's
+ * build assets and its image endpoint, each matched exactly. An unanchored prefix (`api`,
+ * `favicon.ico`) would also skip pages such as `/apix` or `/favicon.icox`, whose 404 then renders
+ * the app shell with no policy at all: no `frame-ancestors`, nonce or `connect-src`.
+ */
 export const config = {
   matcher: [
     {
-      source: "/((?!api|_next/static|_next/image|favicon.ico).*)",
+      source: "/((?!api/wrapping-key/google$|_next/static/|_next/image$).*)",
       missing: [
         { type: "header", key: "next-router-prefetch" },
         { type: "header", key: "purpose", value: "prefetch" },

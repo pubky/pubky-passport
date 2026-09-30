@@ -1,4 +1,7 @@
-import type { AuthorizationRequestReview } from "@/client/logic/authorization/request/ValidatedPubkyAuthRequest";
+import {
+  capabilityReach,
+  type AuthorizationRequestReview,
+} from "@/client/logic/authorization/request/ValidatedPubkyAuthRequest";
 import { Notice } from "@/client/ui/shared/notice";
 
 /**
@@ -23,21 +26,18 @@ export function BroadAccessWarning({
 function describeBroadAccess(
   capabilities: AuthorizationRequestReview["capabilities"],
 ): string | undefined {
-  const broadPaths = new Set(
-    capabilities
-      .filter((capability) => capability.scope === "broad")
-      .map((capability) => capability.path),
-  );
-  if (broadPaths.has("/") || (broadPaths.has("/pub/") && broadPaths.has("/priv/"))) {
+  const broad = capabilities.filter((capability) => capability.scope === "broad");
+  const reaches = new Set(broad.map((capability) => capabilityReach(capability.path)));
+  if (reaches.has("all") || (reaches.has("public") && reaches.has("private"))) {
     return "This app asks for access to all your data, public and private.";
   }
-  if (broadPaths.has("/pub/")) {
+  if (reaches.has("public")) {
     return "This app asks for all your public data, including the folders other apps keep for you.";
   }
-  if (broadPaths.has("/priv/")) {
+  if (reaches.has("private")) {
     return "This app asks for all your private data, including the folders other apps keep for you.";
   }
-  return broadPaths.size > 0
+  return broad.length > 0
     ? "This app asks for more than its own folder. It could reach the data other apps keep for you."
     : undefined;
 }

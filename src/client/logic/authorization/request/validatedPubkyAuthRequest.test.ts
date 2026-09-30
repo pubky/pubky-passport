@@ -2,7 +2,7 @@ import { Result } from "better-result";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { LOGGER } from "@/libs/logger/logger";
-import { ValidatedPubkyAuthRequest } from "./ValidatedPubkyAuthRequest";
+import { capabilityReach, ValidatedPubkyAuthRequest } from "./ValidatedPubkyAuthRequest";
 
 const REQUEST =
   "pubkyauth://signin?caps=/pub/pubky.app/:rw,/:r&relay=https://relay.example/inbox&secret=kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8&x-source=Pubky%20App&x-success=https://pubky.app/success?token=private&x-error=https://pubky.app/error&x-cancel=https://pubky.app/cancel";
@@ -141,10 +141,10 @@ describe("ValidatedPubkyAuthRequest", () => {
     expect(validated.value.review.callbackHost).toBe("app.example:8443");
   });
 
-  it("warns only for namespace-wide capability paths", () => {
+  it("warns for every path that reaches a whole namespace, with or without its slash", () => {
     const validated = ValidatedPubkyAuthRequest.fromEncoded(
       encodeURIComponent(
-        "pubkyauth://signin?caps=/:r,/pub:r,/pub/:r,/priv:r,/priv/:r,/priv/app/:r&relay=https://relay.example/inbox&secret=kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8",
+        "pubkyauth://signin?caps=/:r,/pub:r,/pub/:r,/priv:r,/priv/:r,/priv/app/:r,/p:r,/pu:r,/pubx/:r&relay=https://relay.example/inbox&secret=kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8",
       ),
     );
     if (Result.isError(validated)) throw new Error(validated.error.code);
@@ -152,13 +152,31 @@ describe("ValidatedPubkyAuthRequest", () => {
     expect(validated.value.review.capabilities.map(({ path, scope }) => ({ path, scope }))).toEqual(
       [
         { path: "/", scope: "broad" },
-        { path: "/pub", scope: "specific" },
+        { path: "/pub", scope: "broad" },
         { path: "/pub/", scope: "broad" },
-        { path: "/priv", scope: "specific" },
+        { path: "/priv", scope: "broad" },
         { path: "/priv/", scope: "broad" },
         { path: "/priv/app/", scope: "specific" },
+        { path: "/p", scope: "broad" },
+        { path: "/pu", scope: "broad" },
+        { path: "/pubx/", scope: "specific" },
       ],
     );
+  });
+
+  it.each([
+    ["/", "all"],
+    ["/p", "all"],
+    ["/pub", "public"],
+    ["/pub/", "public"],
+    ["/pr", "private"],
+    ["/priv", "private"],
+    ["/priv/", "private"],
+    ["/pub/app/", undefined],
+    ["/pubx", undefined],
+    ["/private/", undefined],
+  ] as const)("reads the reach of %s as %s", (path, reach) => {
+    expect(capabilityReach(path)).toBe(reach);
   });
 
   it("does not present the relay host as a callback host", () => {

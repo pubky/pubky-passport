@@ -371,6 +371,56 @@ test("keeps remote images to Google avatars and homeservers and relays to the si
   }
 });
 
+test("gives every page that renders the app shell its policy, so none can be framed", async ({
+  request,
+}) => {
+  // Paths that only start like the API route or a framework asset still render the 404 page.
+  for (const route of ["/apix", "/api", "/api/x", "/favicon.ico", "/favicon.icox", "/_next/x"]) {
+    const response = await request.get(route);
+    expect(response.status(), route).toBe(404);
+    expect(response.headers()["content-type"], route).toContain("text/html");
+    const policy = response.headers()["content-security-policy"] ?? "";
+    expect(cspSources(policy, "frame-ancestors"), route).toEqual(["'none'"]);
+    expect(cspSources(policy, "script-src"), route).toContain("'strict-dynamic'");
+    expect(cspSources(policy, "connect-src"), route).not.toContain("https:");
+    expect(response.headers()["x-frame-options"], route).toBe("DENY");
+  }
+});
+
+test("keeps stacked combining marks from drawing over the website line or other rows", async ({
+  page,
+}) => {
+  const marks = "\u0332".repeat(100);
+  await installLocalIdentityFixture(page);
+  confirmLeaving(page);
+  await page.goto(
+    authorizationUrl(
+      authorizationRequest(`${RELAY_ORIGIN}/inbox`, "cookie", `Acme${marks}`, {
+        capabilities: `/pub/evil${marks}.example/:r,/pub/example.app/:rw`,
+      }),
+    ),
+  );
+  await chooseSavedIdentity(page);
+
+  const requester = page.getByRole("heading", { level: 1 }).locator("bdi");
+  await expect(requester).toHaveText(`Acme${"\u0332".repeat(3)}`);
+  const website = page.getByText(/^Website:/u);
+  await expect(website).toContainText("client.example");
+  await page.evaluate(async () => document.fonts.ready);
+  const requesterBox = await requester.boundingBox();
+  const websiteBox = await website.boundingBox();
+  expect(requesterBox!.y + requesterBox!.height).toBeLessThanOrEqual(websiteBox!.y);
+  expect(await requester.evaluate((element) => getComputedStyle(element).overflow)).toBe("hidden");
+
+  const rows = page.getByRole("list", { name: /^Requested permissions/u }).getByRole("listitem");
+  const evilPath = rows.locator("bdi.font-mono").filter({ hasText: "/pub/evil" });
+  await expect(evilPath).toHaveText(`/pub/evil${"\u0332".repeat(3)}.example/`);
+  expect(await evilPath.evaluate((element) => getComputedStyle(element).overflow)).toBe("hidden");
+  const pathBox = await evilPath.boundingBox();
+  const rowBox = await evilPath.locator("xpath=ancestor::li[1]").boundingBox();
+  expect(pathBox!.y + pathBox!.height).toBeLessThanOrEqual(rowBox!.y + rowBox!.height + 0.5);
+});
+
 test("an entry without a request continues on the home page", async ({ page }) => {
   await installLocalIdentityFixture(page);
   for (const entry of ["/authorize", "/authorize?utm_source=newsletter"]) {

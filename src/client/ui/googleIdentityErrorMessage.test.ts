@@ -53,6 +53,8 @@ const EXPECTED_COPY: Record<GoogleIdentityViewError["code"], string> = {
     "Passport couldn’t delete the damaged backup from Google Drive, so no new pubky was created.",
   undecryptable_passport_file_delete_failed:
     "Passport couldn’t delete the backup it can no longer unlock from Google Drive, so no new pubky was created.",
+  local_identity_held_by_ring:
+    "This pubky is connected through Pubky Ring in this browser, so Passport left it there and did not save the key from your Google Drive backup. To keep the key in this browser instead, remove the Pubky Ring entry, then continue with Google again.",
   local_identity_unavailable:
     "Passport could not read this identity from this browser, so nothing was removed from Google Drive. Reload the page and try again.",
   local_identity_not_bound:

@@ -12,6 +12,7 @@ import {
   verifyBackupFile,
   type BackupVerificationErrorCode,
 } from "@/client/logic/backup/BackupVerifier";
+import { LocalAccountDraftRepository } from "@/client/logic/local-account/LocalAccountDraftRepository";
 import type { LocalIdentityCatalog } from "./localIdentityModels";
 import {
   LocalStorageIdentityRepository,
@@ -45,18 +46,21 @@ type LocalIdentityRepositoryPort = Pick<
   LocalStorageIdentityRepository,
   "list" | "select" | "remove" | "subscribe" | "read" | "recordBackup"
 >;
+type LocalAccountDraftPort = Pick<LocalAccountDraftRepository, "remove">;
 
 /**
  * Browser entry point for identities stored in localStorage.
  *
- * Optional `repository` replaces {@link LocalStorageIdentityRepository}.
- * Production omits it.
+ * Optional `repository` replaces {@link LocalStorageIdentityRepository} and `drafts` replaces
+ * {@link LocalAccountDraftRepository}. Production omits them.
  */
 export class LocalIdentityController {
   private readonly repository: LocalIdentityRepositoryPort;
+  private readonly drafts: LocalAccountDraftPort;
 
-  constructor(repository?: LocalIdentityRepositoryPort) {
+  constructor(repository?: LocalIdentityRepositoryPort, drafts?: LocalAccountDraftPort) {
     this.repository = repository ?? new LocalStorageIdentityRepository();
+    this.drafts = drafts ?? new LocalAccountDraftRepository();
   }
 
   listIdentities(): LocalIdentityResult<LocalIdentityCatalog> {
@@ -67,7 +71,31 @@ export class LocalIdentityController {
     return this.repository.select(publicKeyZ32);
   }
 
+  /**
+   * Removes an identity after the person confirmed it, together with an account-setup draft of
+   * the same key. Such a draft outlives its finished setup when the tab closed before the draft
+   * was released; it still holds the secret key, and once the identity is gone it would come back
+   * as an unfinished setup that anyone using this browser could resume. A draft of any other key
+   * is never touched, and neither is any draft while the identity is not saved: then the draft
+   * may be the only copy of a key still being set up. The draft goes first, so a failure leaves
+   * the identity in place rather than a key the person believes removed.
+   */
   removeIdentity(publicKeyZ32: string): LocalIdentityResult<void> {
+    const catalog = this.repository.list();
+    if (Result.isError(catalog)) return Result.err(catalog.error);
+    const saved = catalog.value.identities.some(
+      (identity) => identity.publicIdentity.publicKeyZ32 === publicKeyZ32,
+    );
+    if (!saved) return this.repository.remove(publicKeyZ32);
+    const draft = this.drafts.remove(publicKeyZ32);
+    // `draft_conflict` is a draft of another key; `invalid_draft` one whose key cannot be read.
+    if (Result.isError(draft) && draft.error.code === "storage_unavailable") {
+      LOGGER.warn("identity.local_store.failed", {
+        operation: "remove_account_draft",
+        code: draft.error.code,
+      });
+      return Result.err({ code: "storage_unavailable", cause: draft.error });
+    }
     return this.repository.remove(publicKeyZ32);
   }
 

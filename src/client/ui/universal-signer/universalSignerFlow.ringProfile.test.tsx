@@ -273,7 +273,10 @@ it("reviews an app request before Passport's own profile request, then hands the
 
   await user.click(screen.getByRole("button", { name: "Continue in Pubky Ring" }));
   expect(screen.getByRole("heading", { name: "Sign in with Pubky Ring." })).toBeInTheDocument();
-  expect(screen.getByText(/approve the sign-in to Original app/u)).toBeVisible();
+  // Ring's hand-off names the app as the review does: its label with the website beside it.
+  expect(screen.getByText(/approve the sign-in/u)).toHaveTextContent(
+    "approve the sign-in to Original app (original.app).",
+  );
   expect(screen.getByRole("region", { name: "Sign in with Pubky Ring" })).toBeInTheDocument();
   expect(screen.getByRole("img", { name: "Pubky authorization QR code" })).toBeInTheDocument();
   await user.click(screen.getByRole("button", { name: "I approved in Pubky Ring" }));

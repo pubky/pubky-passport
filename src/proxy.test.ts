@@ -35,15 +35,33 @@ describe("request CSP proxy", () => {
     vi.unstubAllEnvs();
   });
 
-  it("uses the configured matcher to exclude API and framework asset requests", () => {
-    expect(unstable_doesMiddlewareMatch({ config, nextConfig: {}, url: "/" })).toBe(true);
-    expect(unstable_doesMiddlewareMatch({ config, nextConfig: {}, url: "/authorize" })).toBe(true);
-    expect(
-      unstable_doesMiddlewareMatch({ config, nextConfig: {}, url: "/api/wrapping-key/google" }),
-    ).toBe(false);
-    expect(
-      unstable_doesMiddlewareMatch({ config, nextConfig: {}, url: "/_next/static/app.js" }),
-    ).toBe(false);
+  it.each([
+    "/api/wrapping-key/google",
+    "/_next/static/app.js",
+    "/_next/static/chunks/app/page.js",
+    "/_next/image",
+  ])("skips %s, which is never a page", (url) => {
+    expect(unstable_doesMiddlewareMatch({ config, nextConfig: {}, url })).toBe(false);
+  });
+
+  it.each([
+    "/",
+    "/authorize",
+    "/privacy-policy",
+    "/api",
+    "/apix",
+    "/api/x",
+    "/api/wrapping-key",
+    "/api/wrapping-key/googlex",
+    "/api/wrapping-key/google/x",
+    "/favicon.ico",
+    "/favicon.icox",
+    "/_next",
+    "/_next/staticx",
+    "/_next/imagex",
+    "/_next/image/x",
+  ])("gives %s, which renders a page, its policy", (url) => {
+    expect(unstable_doesMiddlewareMatch({ config, nextConfig: {}, url })).toBe(true);
   });
 
   it("allows HTTPS relays without adding cross-origin WebSocket schemes", () => {

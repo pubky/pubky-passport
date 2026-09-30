@@ -125,7 +125,7 @@ describe("RingSignIn", () => {
     const status = screen.getByRole("status");
     expect(status.querySelector('[data-slot="spinner"]')).not.toBeNull();
     expect(status).toHaveTextContent(
-      "Waiting for your approval in Pubky Ring. Passport continues by itself once Acme Notes has it.",
+      "Waiting for your approval in Pubky Ring. Passport continues by itself once Acme Notes (notes.example) has it.",
     );
     // A new render does not restart the watch; the button stays as the secondary fallback.
     rerender(<RingSignIn {...props} watchApproval={() => vi.fn()} />);
@@ -138,6 +138,47 @@ describe("RingSignIn", () => {
     expect(stop).toHaveBeenCalledOnce();
   });
 
+  it("never names a request without a website after its own label, and says it names none", () => {
+    usePointer(false);
+    renderRingSignIn(undefined, {
+      authenticationMethod: "cookie",
+      capabilities: REVIEW.capabilities,
+      requesterName: "Pubky App",
+    });
+
+    expect(screen.queryByText(/Pubky App/u)).not.toBeInTheDocument();
+    expect(screen.getByText(/approve the sign-in/u)).toHaveTextContent(
+      "Scan this code with Pubky Ring on your phone, then choose an identity and approve the sign-in.",
+    );
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Once you approve in Pubky Ring, the app signs you in.",
+    );
+    expect(
+      screen.getByText(
+        "This request doesn't name a website. Only continue if you just started signing in on another device.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("names the website alone when the label is the website, isolated from the sentence", () => {
+    usePointer(false);
+    renderRingSignIn(undefined, { ...REVIEW, requesterName: "notes.example" });
+
+    const instruction = screen.getByText(/approve the sign-in/u);
+    expect(instruction).toHaveTextContent("approve the sign-in to notes.example.");
+    expect(instruction.querySelector("bdi")).toHaveTextContent("notes.example");
+    expect(screen.queryByText(/doesn't name a website/u)).not.toBeInTheDocument();
+  });
+
+  it("shows a label's long stack of combining marks cut to a few", () => {
+    usePointer(false);
+    renderRingSignIn(undefined, { ...REVIEW, requesterName: `Acme${"\u0332".repeat(80)}` });
+
+    expect(screen.getByText(/approve the sign-in/u).querySelector("bdi")?.textContent).toBe(
+      `Acme${"\u0332".repeat(3)}`,
+    );
+  });
+
   it("says what follows the approval and where to get Pubky Ring, without a spinner", () => {
     usePointer(false);
     renderRingSignIn(undefined);
@@ -147,7 +188,9 @@ describe("RingSignIn", () => {
     ).toBeInTheDocument();
     // Without a relay Passport can watch, only the app waits for Ring's approval: nothing spins.
     const status = screen.getByRole("status");
-    expect(status).toHaveTextContent("Once you approve in Pubky Ring, Acme Notes signs you in.");
+    expect(status).toHaveTextContent(
+      "Once you approve in Pubky Ring, Acme Notes (notes.example) signs you in.",
+    );
     expect(status.querySelector('[data-slot="spinner"]')).toBeNull();
     // Only the person can then report the approval, so the button is the primary action.
     expect(screen.getByRole("button", { name: "I approved in Pubky Ring" })).not.toHaveClass(

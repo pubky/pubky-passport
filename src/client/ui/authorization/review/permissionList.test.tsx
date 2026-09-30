@@ -47,6 +47,23 @@ describe("PermissionList", () => {
     expect(list).toHaveAttribute("role", "list");
   });
 
+  it("shows a path's long stacks of combining marks cut, clipped to its own row", () => {
+    const marks = "\u0336".repeat(60);
+    const list = renderList([
+      { path: `/pub/evil${marks}.example/`, read: true, write: false, scope: "specific" },
+    ]);
+
+    const [row] = within(list!).getAllByRole("listitem");
+    const shown = `/pub/evil${"\u0336".repeat(3)}.example/`;
+    expect(row?.textContent).toBe(
+      `An app's data: “evil${"\u0336".repeat(3)}.example”, ${shown}, Read only`,
+    );
+    const path = row?.querySelector("bdi.font-mono");
+    expect(path).toHaveTextContent(shown);
+    expect(path).toHaveClass("overflow-hidden");
+    expect(path?.previousElementSibling?.previousElementSibling).toHaveClass("overflow-hidden");
+  });
+
   it("keeps the card neutral when every capability is scoped to an app", () => {
     renderList([NOTES]);
 

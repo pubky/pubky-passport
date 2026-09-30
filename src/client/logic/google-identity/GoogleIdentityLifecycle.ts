@@ -970,7 +970,14 @@ export class GoogleIdentityLifecycle {
         secretKey.value,
       );
       if (Result.isError(saved)) {
-        return Result.err({ code: "local_save_failed", cause: saved.error });
+        // A Ring entry of this pubky keeps its key in Ring: Passport does not quietly move it here.
+        return Result.err({
+          code:
+            saved.error.code === "external_key"
+              ? "local_identity_held_by_ring"
+              : "local_save_failed",
+          cause: saved.error,
+        });
       }
       LOGGER.info("identity.local_save.completed", { activation });
       return Result.ok();

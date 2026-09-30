@@ -96,6 +96,64 @@ describe("parseEncodedPubkyAuthRequest", () => {
     );
   });
 
+  it.each([
+    ["a tab inside the caps name", "ca\tps"],
+    ["a line feed inside the caps name", "ca\nps"],
+    ["a carriage return inside the caps name", "c\raps"],
+  ])("rejects %s, which the URL parser would drop", (_label, name) => {
+    const request = VALID_REQUEST.replace("caps=/pub/pubky.app/", `${name}=/pub/cafe\u0301/`);
+
+    expectError(encodeRequest(request), "invalid_url");
+  });
+
+  it.each([
+    ["a tab in a value", `${VALID_REQUEST}&x-source=Acme\tNotes`],
+    ["a control character in a value", `${VALID_REQUEST}&x-source=Acme\u0000Notes`],
+    ["a leading space", ` ${VALID_REQUEST}`],
+    ["a trailing space", `${VALID_REQUEST} `],
+  ])("rejects a request with %s", (_label, request) => {
+    expectError(encodeRequest(request), "invalid_url");
+  });
+
+  it.each(["c%61ps", "CAPS", "caps%20", "x-s%6Furce"])(
+    "rejects the parameter name variant %s instead of reading it as a supported name",
+    (name) => {
+      const request = VALID_REQUEST.includes(`${name}=`)
+        ? VALID_REQUEST
+        : name === "x-s%6Furce"
+          ? `${VALID_REQUEST}&${name}=Acme`
+          : VALID_REQUEST.replace("caps=", `${name}=`);
+
+      expectError(encodeRequest(request), "unsupported_parameter");
+    },
+  );
+
+  it("skips empty query pairs like the URL parser does", () => {
+    const result = parseEncodedPubkyAuthRequest(encodeRequest(`${VALID_REQUEST}&&`));
+
+    expect(Result.isOk(result)).toBe(true);
+  });
+
+  it.each([
+    "/pub/cafe\u0301/:rw",
+    "/pub/cafe\u0301/:rw,/pub/n\u0303o/:r",
+    "/pub/caf\u00e9/:rw",
+    "/pub/\u1100\u1161/:w",
+    "/pub/pubky.app/:rw",
+  ])("shows exactly the caps the signed URL carries: %s", (caps) => {
+    const request = `${VALID_REQUEST.replace("/pub/pubky.app/:rw", caps)}&x-source=Example%20App`;
+    const result = parseEncodedPubkyAuthRequest(encodeRequest(request));
+
+    if (Result.isError(result)) throw new Error(result.error.code);
+    const signedCaps = new URL(result.value.sensitivePubkyAuthUrl).searchParams.get("caps");
+    const shown = result.value.capabilities
+      .map(({ path, read, write }) => `${path}:${read ? "r" : ""}${write ? "w" : ""}`)
+      .join(",");
+    expect(shown).toBe(signedCaps);
+    expect(signedCaps).toBe(caps.normalize("NFC"));
+    expect(result.value.sensitivePubkyAuthUrl).toContain("&x-source=Example%20App");
+  });
+
   it("preserves a literal plus while decoding an x-source percent-encoded space", () => {
     const request = `${VALID_REQUEST}&x-source=Bitkit+Wallet%20Mobile`;
     const result = parseEncodedPubkyAuthRequest(encodeRequest(request));

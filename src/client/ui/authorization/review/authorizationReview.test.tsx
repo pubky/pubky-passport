@@ -105,6 +105,16 @@ describe("AuthorizationReview", () => {
       ["/priv/"],
       "This app asks for all your private data, including the folders other apps keep for you.",
     ],
+    // Without the slash a grant still covers every folder on that side.
+    [
+      ["/pub"],
+      "This app asks for all your public data, including the folders other apps keep for you.",
+    ],
+    [
+      ["/priv"],
+      "This app asks for all your private data, including the folders other apps keep for you.",
+    ],
+    [["/pub", "/priv"], "This app asks for access to all your data, public and private."],
     // Any other path the request model may come to mark broad still gets a warning.
     [
       ["/pub/shared/"],
@@ -182,6 +192,8 @@ describe("AuthorizationReview", () => {
     [["/pub/:r"], "Allow reading all public data", "read all your public data."],
     [["/priv/:w"], "Allow changing all private data", "change all your private data."],
     [["/pub/:r", "/priv/:rw"], "Allow changing all your data", "read and change all your data."],
+    [["/pub:r"], "Allow reading all public data", "read all your public data."],
+    [["/priv:w"], "Allow changing all private data", "change all your private data."],
   ])(
     "names what the broad capabilities %j give, in the action and the sentence",
     (caps, label, effect) => {

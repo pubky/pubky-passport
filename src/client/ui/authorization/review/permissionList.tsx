@@ -1,6 +1,7 @@
 import { Fragment, type ReactNode, useId, useState } from "react";
 
 import type { AuthorizationRequestReview } from "@/client/logic/authorization/request/ValidatedPubkyAuthRequest";
+import { limitCombiningMarks } from "@/libs/text/limitCombiningMarks";
 import { FolderIcon, TriangleAlertIcon } from "@/client/ui/shared/icons";
 import { cn } from "@/client/ui/shared/mergeClassNames";
 import { Button } from "@/client/ui/shared/primitives/button";
@@ -100,6 +101,9 @@ function PermissionRow({
 }) {
   const broad = capability.scope === "broad";
   const title = describeCapabilityPath(capability.path, callbackHost);
+  // Shown with long stacks of combining marks cut, and clipped to its own lines, so a path cannot
+  // draw over the warning or the rows around it. The request keeps the path it signs.
+  const path = limitCombiningMarks(capability.path);
 
   return (
     <li className="flex items-start gap-2">
@@ -115,7 +119,7 @@ function PermissionRow({
       <span className="min-w-0 flex-1">
         <span
           className={cn(
-            "block text-sm font-medium leading-5 [overflow-wrap:anywhere]",
+            "block overflow-hidden text-sm font-medium leading-5 [overflow-wrap:anywhere]",
             broad && "text-destructive-text",
           )}
         >
@@ -123,17 +127,17 @@ function PermissionRow({
           {title.folder === undefined ? null : (
             <>
               {": “"}
-              <bdi dir="ltr">{withPathBreaks(title.folder)}</bdi>
+              <bdi dir="ltr">{withPathBreaks(limitCombiningMarks(title.folder))}</bdi>
               {"”"}
             </>
           )}
         </span>
         <span className="sr-only">, </span>
         <bdi
-          className="block font-mono text-xs leading-4 text-muted-foreground [overflow-wrap:anywhere]"
+          className="block overflow-hidden font-mono text-xs leading-4 text-muted-foreground [overflow-wrap:anywhere]"
           dir="ltr"
         >
-          {withPathBreaks(capability.path)}
+          {withPathBreaks(path)}
         </bdi>
       </span>
       <span className="shrink-0 rounded-full border border-input px-2 text-xs font-medium leading-[18px] text-secondary-foreground">

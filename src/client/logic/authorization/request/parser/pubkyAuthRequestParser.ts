@@ -95,6 +95,12 @@ type ParseValueResult<Value> = ResultType<Value, PubkyAuthParseError>;
 const PUBKY_AUTH_PROTOCOL = "pubkyauth:";
 const UNSAFE_SOURCE_CHARACTERS =
   /[\p{Cc}\p{Zl}\p{Zp}\u061c\u200b\u200e\u200f\u202a-\u202e\u2060\u2066-\u2069\ufeff]/u;
+/**
+ * What the URL parser silently drops from a request: TAB, LF and CR anywhere, and C0 controls or
+ * spaces at either end. A parser that does not drop them (a raw-string rewrite, another signer)
+ * would read different parameters than the review, so a request carrying them is rejected.
+ */
+const URL_STRIPPED_CHARACTERS = /[\u0000-\u001f\u007f]|^ | $/u;
 
 /**
  * Parses and bounds one encoded Pubky Auth URL without issuing signing
@@ -124,6 +130,10 @@ export function parseEncodedPubkyAuthRequest(encodedRequest: unknown): PubkyAuth
     return Result.err<never, PubkyAuthParseError>({ code: "invalid_encoding" });
   }
 
+  if (URL_STRIPPED_CHARACTERS.test(decoded.value)) {
+    return Result.err<never, PubkyAuthParseError>({ code: "invalid_url" });
+  }
+
   const authUrl = parseUrl(decoded.value);
   if (Result.isError(authUrl)) {
     return Result.err(authUrl.error);
@@ -150,10 +160,7 @@ export function parseEncodedPubkyAuthRequest(encodedRequest: unknown): PubkyAuth
     return Result.err<never, PubkyAuthParseError>({ code: "invalid_secret" });
   }
 
-  const parameters = validatePubkyAuthRequestParameters(
-    authUrl.value.searchParams,
-    authenticationMethod.value,
-  );
+  const parameters = validatePubkyAuthRequestParameters(authUrl.value, authenticationMethod.value);
   if (Result.isError(parameters)) {
     return Result.err(parameters.error);
   }
@@ -180,16 +187,26 @@ export function parseEncodedPubkyAuthRequest(encodedRequest: unknown): PubkyAuth
     return Result.err<never, PubkyAuthParseError>({ code: "missing_capabilities" });
   }
 
-  const capabilities = parsePubkyAuthCapabilities(requestedCapabilities);
-  if (Result.isError(capabilities)) {
-    return Result.err<never, PubkyAuthParseError>({ code: "invalid_capability" });
-  }
-
+  // The review shows exactly the caps the signed URL carries: the URL is built first, then its
+  // caps are read back with the same parser the review and the SDK use, and only those are shown.
   const normalizedCapabilities = requestedCapabilities.normalize("NFC");
   const sensitivePubkyAuthUrl =
     normalizedCapabilities === requestedCapabilities
       ? decoded.value
       : replaceCapabilities(decoded.value, normalizedCapabilities);
+  const signedCapabilities = readSignedCapabilities(
+    authUrl.value,
+    sensitivePubkyAuthUrl,
+    normalizedCapabilities,
+  );
+  if (signedCapabilities === undefined) {
+    return Result.err<never, PubkyAuthParseError>({ code: "invalid_capability" });
+  }
+
+  const capabilities = parsePubkyAuthCapabilities(signedCapabilities);
+  if (Result.isError(capabilities)) {
+    return Result.err<never, PubkyAuthParseError>({ code: "invalid_capability" });
+  }
 
   return Result.ok({
     authenticationMethod: authenticationMethod.value,
@@ -211,7 +228,8 @@ export function validateEncodedPubkyAuthRequest(
 /**
  * Rewrites only the `caps` value and leaves every other byte of the request as the app sent it.
  * Re-serialising through URLSearchParams would form-encode the other values (`%20` becomes `+`),
- * and Pubky Ring decodes with decodeURIComponent, which keeps the `+`.
+ * and Pubky Ring decodes with decodeURIComponent, which keeps the `+`. Every parameter name was
+ * already checked to be spelled exactly as supported, so the one `caps` pair is found by name.
  */
 function replaceCapabilities(authUrl: string, capabilities: string): string {
   const queryStart = authUrl.indexOf("?");
@@ -219,19 +237,52 @@ function replaceCapabilities(authUrl: string, capabilities: string): string {
   const queryEnd = hashStart === -1 ? authUrl.length : hashStart;
   const pairs = authUrl.slice(queryStart + 1, queryEnd).split("&");
   const encoded = encodeURIComponent(capabilities).replace(/%2F|%3A|%2C/gi, decodeURIComponent);
-  const replaced = pairs.map((pair) => {
-    const separator = pair.indexOf("=");
-    const name = separator === -1 ? pair : pair.slice(0, separator);
-    return queryParameterName(name) === PUBKY_AUTH_REQUEST_PARAMETERS.capabilities
-      ? `${name}=${encoded}`
-      : pair;
-  });
+  const replaced = pairs.map((pair) =>
+    rawParameterName(pair) === PUBKY_AUTH_REQUEST_PARAMETERS.capabilities
+      ? `${PUBKY_AUTH_REQUEST_PARAMETERS.capabilities}=${encoded}`
+      : pair,
+  );
   return `${authUrl.slice(0, queryStart + 1)}${replaced.join("&")}${authUrl.slice(queryEnd)}`;
 }
 
-/** A query name as URLSearchParams reads it, so `c%61ps` is found as `caps`. */
-function queryParameterName(name: string): string {
-  return new URLSearchParams(`${name}=`).keys().next().value ?? "";
+/**
+ * The caps the signed URL carries, read back as the SDK will parse it, or `undefined` unless they
+ * are the NFC caps the review is built from and every other parameter reads exactly as before.
+ * Each capability must also be NFC on its own, so parsing one by one cannot change a path again.
+ */
+function readSignedCapabilities(
+  requestUrl: URL,
+  signedUrl: string,
+  normalizedCapabilities: string,
+): string | undefined {
+  let signed: URL;
+  try {
+    signed = new URL(signedUrl);
+  } catch {
+    return undefined;
+  }
+  const expected = [...requestUrl.searchParams].map(([name, value]) =>
+    name === PUBKY_AUTH_REQUEST_PARAMETERS.capabilities
+      ? [name, normalizedCapabilities]
+      : [name, value],
+  );
+  const actual = [...signed.searchParams];
+  const same =
+    actual.length === expected.length &&
+    actual.every(
+      ([name, value], index) => expected[index]?.[0] === name && expected[index]?.[1] === value,
+    );
+  const capabilities = signed.searchParams.get(PUBKY_AUTH_REQUEST_PARAMETERS.capabilities);
+  if (!same || capabilities !== normalizedCapabilities) return undefined;
+  return capabilities.split(",").every((capability) => capability === capability.normalize("NFC"))
+    ? capabilities
+    : undefined;
+}
+
+/** The raw name of one `name=value` query pair, before any percent decoding. */
+function rawParameterName(pair: string): string {
+  const separator = pair.indexOf("=");
+  return separator === -1 ? pair : pair.slice(0, separator);
 }
 
 function decodeDParam(d: string): ParseValueResult<string> {
@@ -290,15 +341,22 @@ function parseSource(authUrl: URL): ParseValueResult<string | undefined> {
   return Result.ok(source);
 }
 
+/**
+ * Accepts only supported parameter names, each once and spelled exactly (`c%61ps` or `x-s%6Furce`
+ * is rejected), so a raw-string reader and a URL parser always find the same parameters.
+ */
 function validatePubkyAuthRequestParameters(
-  searchParams: URLSearchParams,
+  url: URL,
   authenticationMethod: PubkyAuthenticationMethod,
 ): ParseValueResult<void> {
   const seen = new Set<string>();
   const supportedParameters =
     authenticationMethod === "grant" ? GRANT_PARAMETERS : COMMON_PARAMETERS;
+  const query = url.search.startsWith("?") ? url.search.slice(1) : url.search;
 
-  for (const [name] of searchParams) {
+  // URLSearchParams skips empty pairs (`&&`, a trailing `&`) as well.
+  for (const pair of query.split("&").filter((pair) => pair.length > 0)) {
+    const name = rawParameterName(pair);
     if (!supportedParameters.has(name)) {
       return Result.err<never, PubkyAuthParseError>({ code: "unsupported_parameter" });
     }

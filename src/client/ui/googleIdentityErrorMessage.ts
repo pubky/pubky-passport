@@ -96,6 +96,8 @@ function googleIdentityErrorMessage(
       return "Passport couldn’t publish your pubky, so apps can’t find it yet.";
     case "local_save_failed":
       return "Your pubky is set up and backed up to Google Drive, but this browser didn’t let Passport save it (storage may be full or blocked).";
+    case "local_identity_held_by_ring":
+      return "This pubky is connected through Pubky Ring in this browser, so Passport left it there and did not save the key from your Google Drive backup. To keep the key in this browser instead, remove the Pubky Ring entry, then continue with Google again.";
     case "local_identity_unavailable":
       return "Passport could not read this identity from this browser, so nothing was removed from Google Drive. Reload the page and try again.";
     case "local_identity_not_bound":
@@ -186,6 +188,9 @@ function googleIdentityErrorRecovery(
       };
     case "foreign_passport_file":
       return { nextStep: ANOTHER_GOOGLE_ACCOUNT, retryHelps: false };
+    // Trying again restores into the same Ring entry; the cause says how to go on.
+    case "local_identity_held_by_ring":
+      return { retryHelps: false };
     case "homeserver_invite_rejected":
       return {
         nextStep: "Try again later, or go back and create your account another way.",

@@ -48,6 +48,11 @@ export type GoogleIdentityLifecycleError =
       | "local_identity_not_bound"
       | "local_identity_unavailable"
       | "local_save_failed"
+      /**
+       * The restored pubky is saved in this browser as held by Pubky Ring; its key from Drive was
+       * not written over that entry.
+       */
+      | "local_identity_held_by_ring"
       | "local_unlink_failed"
       | "restore_failed"
       | "signin_failed"

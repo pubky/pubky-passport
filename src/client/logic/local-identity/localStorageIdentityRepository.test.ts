@@ -422,6 +422,34 @@ describe("LocalStorageIdentityRepository", () => {
     });
   });
 
+  it("never turns a Ring entry into a browser-held key", () => {
+    const repository = new LocalStorageIdentityRepository();
+    expectResultOk(repository.saveExternal(FIRST_KEY));
+    const ringEntry = localStorage.getItem(`${IDENTITY_PREFIX}${FIRST_KEY}`);
+    const googleAccount = {
+      googleSubject: "subject",
+      email: "person@example.com",
+      name: "Person",
+      pictureUrl: null,
+    };
+
+    expectResultError(
+      repository.save({ publicIdentity: FIRST_IDENTITY, googleAccount }, secret(7)),
+      { code: "external_key" },
+    );
+    expect(localStorage.getItem(`${IDENTITY_PREFIX}${FIRST_KEY}`)).toBe(ringEntry);
+    const stored = Array.from({ length: localStorage.length }, (_, index) =>
+      localStorage.getItem(localStorage.key(index) ?? ""),
+    );
+    expect(stored).toHaveLength(2);
+    expect(JSON.stringify(stored)).not.toContain(
+      Buffer.from(new Uint8Array(32).fill(7)).toString("base64url"),
+    );
+    expect(expectResultOk(repository.list()).identities).toEqual([
+      { publicIdentity: FIRST_IDENTITY, keySource: "ring" },
+    ]);
+  });
+
   it("keeps a Ring entry's pending profile setup when it reconnects", () => {
     const repository = new LocalStorageIdentityRepository();
     expectResultOk(repository.saveExternal(FIRST_KEY, true));

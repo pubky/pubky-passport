@@ -6,6 +6,7 @@ import type { PassportAuthorizationViewState } from "@/client/logic/authorizatio
 import type { ExternalApprovalObservation } from "@/client/logic/authorization/flow/externalApprovalWatch";
 import type { AuthorizationRequestReview } from "@/client/logic/authorization/request/ValidatedPubkyAuthRequest";
 import type { LocalIdentityMetadata } from "@/client/logic/local-identity/localIdentityModels";
+import { limitCombiningMarks } from "@/libs/text/limitCombiningMarks";
 import type { AuthorizationController } from "./usePassportAuthorization";
 import { ErrorScreen } from "@/client/ui/shared/errorScreen";
 import { identityDisplayName, profileName } from "@/client/ui/shared/identityDisplay";
@@ -97,7 +98,8 @@ function outcomeRequester({
   requesterName,
   callbackHost,
 }: AuthorizationRequestReview): string | undefined {
-  return callbackHost ? (requesterName ?? callbackHost) : undefined;
+  if (!callbackHost) return undefined;
+  return requesterName === undefined ? callbackHost : limitCombiningMarks(requesterName);
 }
 
 /**

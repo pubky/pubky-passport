@@ -1,9 +1,9 @@
-import { useEffect, useEffectEvent } from "react";
+import { type ReactNode, useEffect, useEffectEvent } from "react";
 
 import type { AuthorizationRequestReview } from "@/client/logic/authorization/request/ValidatedPubkyAuthRequest";
 import type { DeepLinkLauncher } from "@/client/logic/universal-signer/deepLinkLauncher";
 import { BroadAccessWarning } from "@/client/ui/authorization/broadAccessWarning";
-import { describeRequester } from "@/client/ui/authorization/requestHeading";
+import { describeRequester, NoWebsiteNotice } from "@/client/ui/authorization/requestHeading";
 import { BackButton } from "@/client/ui/shared/backButton";
 import { CheckIcon } from "@/client/ui/shared/icons";
 import { PassportNavigation } from "@/client/ui/shared/passportNavigation";
@@ -21,6 +21,10 @@ import { ExternalSignerRequest } from "./externalSignerRequest";
  * relay Passport cannot watch, or an answer it missed): secondary while Passport watches, and while
  * Ring is still opening, when no approval can have happened yet. Either way Passport only hands the
  * person back to the app, which finishes the sign-in itself.
+ *
+ * The app is named as the review names it: its label with the website beside it when the two
+ * differ. A request that names no website is never named after its own label here either; the copy
+ * says "the app" and the same notice as under the review's heading says so.
  */
 export function RingSignIn({
   getAuthorizationUrl,
@@ -42,7 +46,7 @@ export function RingSignIn({
   const [launch, handoffLauncher] = useDeepLinkLauncher(launcher);
   const scanning = mode === "scan" || launch === "failed";
   const approvalPossible = scanning || launch === "opened";
-  const { requester } = describeRequester(review);
+  const requester = ringRequester(review);
   const watching = watchApproval !== undefined;
   const startWatching = useEffectEvent(() => watchApproval?.());
   // Watches only while this screen is shown: Back or any other way out stops it.
@@ -51,9 +55,12 @@ export function RingSignIn({
     <RingHandoffScreen
       action="Sign in with"
       instruction={
-        scanning
-          ? `Scan this code with Pubky Ring on ${mode === "scan" ? "your" : "another"} phone, then choose an identity and approve the sign-in to ${requester}.`
-          : `Choose an identity in Pubky Ring and approve the sign-in to ${requester}.`
+        <>
+          {scanning
+            ? `Scan this code with Pubky Ring on ${mode === "scan" ? "your" : "another"} phone, then choose an identity and approve the sign-in`
+            : "Choose an identity in Pubky Ring and approve the sign-in"}
+          {requester ? <> to {requester}</> : null}.
+        </>
       }
       navigation={
         <PassportNavigation
@@ -72,14 +79,36 @@ export function RingSignIn({
       }
       status={
         <RingHandoffStatus waiting={watching}>
-          {watching
-            ? `Waiting for your approval in Pubky Ring. Passport continues by itself once ${requester} has it.`
-            : `Once you approve in Pubky Ring, ${requester} signs you in.`}
+          {watching ? (
+            <>
+              Waiting for your approval in Pubky Ring. Passport continues by itself once{" "}
+              {requester ?? "the app"} has it.
+            </>
+          ) : (
+            <>Once you approve in Pubky Ring, {requester ?? "the app"} signs you in.</>
+          )}
         </RingHandoffStatus>
       }
     >
+      {review.callbackHost === undefined ? <NoWebsiteNotice /> : null}
       <BroadAccessWarning capabilities={review.capabilities} />
       <ExternalSignerRequest getAuthorizationUrl={getAuthorizationUrl} launcher={handoffLauncher} />
     </RingHandoffScreen>
+  );
+}
+
+/**
+ * The app as the Ring hand-off names it, isolated from the sentence around it: its label with the
+ * website beside it when the two differ, or `undefined` for a request that names no website.
+ */
+function ringRequester(review: AuthorizationRequestReview): ReactNode {
+  if (review.callbackHost === undefined) return undefined;
+  const { requester, labelledHost } = describeRequester(review);
+  return labelledHost ? (
+    <>
+      <bdi>{requester}</bdi> (<bdi>{labelledHost}</bdi>)
+    </>
+  ) : (
+    <bdi>{requester}</bdi>
   );
 }

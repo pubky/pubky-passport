@@ -30,8 +30,13 @@ function permissionsPolicy(cameraAllowlist: string): string {
   ].join(", ");
 }
 
+/**
+ * `X-Frame-Options` backs up the proxy's `frame-ancestors 'none'` for any response the proxy does
+ * not reach (a prefetch, which it skips), so no Passport page can be framed.
+ */
 const BASELINE_SECURITY_HEADERS = [
   { key: "X-Content-Type-Options", value: "nosniff" },
+  { key: "X-Frame-Options", value: "DENY" },
   { key: "Permissions-Policy", value: permissionsPolicy("()") },
 ];
 const AUTHORIZE_TRANSPORT_HEADERS = [

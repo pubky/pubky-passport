@@ -65,7 +65,8 @@ computer cannot open the link. When Ring runs on the same device, it opens your 
 by itself; **I approved in Pubky Ring** does the same by hand (see
 [Outcome messages](#outcome-messages)). Switching identities or creating an
 account preserves the original request; a new account is asked for its public profile once, and
-**Skip for now** there goes on to the review. A request for broad access (for example `/:rw`) is
+**Skip for now** there goes on to the review. A request for broad access (for example `/:rw`, or
+`/pub` and `/priv` with or without their trailing slash, which reach every app's folder) is
 flagged on the list, on the request's start page and on the Pubky Ring screen as well as on the
 review, where its primary action names what it gives, such as **Allow changing all your data** or
 **Allow reading all public data**, and the sentence above it says the same. Each permission shows a
@@ -100,6 +101,12 @@ Passport accepts only sign-in requests: `pubkyauth://signin_grant?…` from
 `AuthFlowKind.signin()`, and the legacy `pubkyauth://signin?…` and `pubkyauth:///?…` forms.
 Sign-up requests (`signup`, `signup_grant` from `AuthFlowKind.signup(…)`, and `direct_signup`) are
 rejected as invalid; new users create their account inside Passport instead.
+
+Each supported parameter must appear at most once, with its name spelled exactly (`caps`, never
+`c%61ps` or `CAPS`). A decoded request that contains a TAB, CR, LF or other control character, or
+starts or ends with a space, is rejected: URL parsers drop those, so they could make Passport and
+the signer read different parameters. Passport normalises `caps` to NFC and changes nothing else;
+the permissions it shows are read back from the exact request it signs.
 
 `/authorize#d=…` is the only entry that accepts a request. Passport forwards a request that
 arrives at `/#d=…` to `/authorize` before any of its code runs, but that is a convenience, not a
@@ -380,7 +387,7 @@ return to your app. `error` and `cancel` end the attempt. None of these messages
   if you need COOP.
 - Allow the HTTP relay, the pkarr relays, and the homeservers the SDK contacts in your CSP
   `connect-src`.
-- Do not embed Passport in an iframe; it sends `frame-ancestors 'none'`.
+- Do not embed Passport in an iframe; every page sends `frame-ancestors 'none'` and `X-Frame-Options: DENY`.
 
 ## Same-tab navigation
 

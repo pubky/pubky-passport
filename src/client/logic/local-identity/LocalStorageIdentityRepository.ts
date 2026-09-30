@@ -49,7 +49,12 @@ type StoredLocalIdentity = {
 type StoredIdentityBackup = { v: 1; createdAt?: string; verifiedAt?: string };
 
 export type LocalIdentityErrorCode =
-  "invalid_identity" | "invalid_secret_key" | "invalid_store" | "storage_unavailable";
+  | "invalid_identity"
+  | "invalid_secret_key"
+  | "invalid_store"
+  | "storage_unavailable"
+  /** The key is saved as held by Pubky Ring; Passport does not take its secret over silently. */
+  | "external_key";
 
 export type LocalIdentityResult<Success> = ResultType<
   Success,
@@ -183,6 +188,12 @@ export class LocalStorageIdentityRepository {
     try {
       previousIdentity = storage.getItem(storedKey);
       const previous = previousIdentity ? parseStoredIdentity(previousIdentity) : null;
+      // The person chose to keep this key in Pubky Ring. Writing its secret here would move it
+      // into the browser behind their back; they must remove the Ring entry first.
+      if (previous?.keySource === "ring") {
+        LOGGER.warn("identity.local_store.failed", { operation: "save", code: "external_key" });
+        return Result.err({ code: "external_key" });
+      }
       // Restoring an unfinished account must not bypass its profile setup.
       if (previous?.profileSetupRequired) stored.profileSetupRequired = true;
       // Restoring a key without signing it up again keeps the homeserver it was created on.

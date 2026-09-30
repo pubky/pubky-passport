@@ -1,17 +1,25 @@
 import { useLayoutEffect, useRef } from "react";
 
 import type { AuthorizationRequestReview } from "@/client/logic/authorization/request/ValidatedPubkyAuthRequest";
+import { limitCombiningMarks } from "@/libs/text/limitCombiningMarks";
 import { cn } from "@/client/ui/shared/mergeClassNames";
 import { SHORT_WINDOW_HEADING } from "@/client/ui/shared/shortWindow";
 import { DisplayHeading } from "@/client/ui/shared/primitives/typography";
 
-/** How a request names who asks: the app's own label, and its callback host when that differs. */
+/**
+ * How a request names who asks: the app's own label, and its callback host when that differs. The
+ * label is shown with long stacks of combining marks cut (see `limitCombiningMarks`), so it cannot
+ * draw over the website line or a warning.
+ */
 export function describeRequester({ callbackHost, requesterName }: AuthorizationRequestReview): {
   requester: string;
   labelledHost: string | undefined;
 } {
   return {
-    requester: requesterName ?? callbackHost ?? "this service",
+    requester:
+      (requesterName === undefined ? undefined : limitCombiningMarks(requesterName)) ??
+      callbackHost ??
+      "this service",
     // The app picks its own label; the callback host is named beside it whenever the two differ.
     labelledHost:
       requesterName && callbackHost && requesterName !== callbackHost ? callbackHost : undefined,
@@ -79,13 +87,21 @@ export function RequestHeading({
           <bdi className="font-bold text-foreground [overflow-wrap:anywhere]">{labelledHost}</bdi>
         </p>
       ) : null}
-      {review.callbackHost === undefined ? (
-        <p className="text-sm font-medium leading-5 text-muted-foreground" id={hostId}>
-          This request doesn&apos;t name a website. Only continue if you just started signing in on
-          another device.
-        </p>
-      ) : null}
+      {review.callbackHost === undefined ? <NoWebsiteNotice id={hostId} /> : null}
     </div>
+  );
+}
+
+/**
+ * Says a request names no website, so the app's own label is not taken as who asks. Shown under
+ * the request's heading and on the Pubky Ring hand-off, wherever such a request can go on.
+ */
+export function NoWebsiteNotice({ id }: { id?: string | undefined }) {
+  return (
+    <p className="text-sm font-medium leading-5 text-muted-foreground" id={id}>
+      This request doesn&apos;t name a website. Only continue if you just started signing in on
+      another device.
+    </p>
   );
 }
 
@@ -100,7 +116,8 @@ const FITTED_LINE_HEIGHT = "1.1";
 
 /**
  * An app-supplied name as a heading accent: shrunk to fit the column down to 32px, then wrapped,
- * never cut, since cutting could hide words of the name.
+ * never cut, since cutting could hide words of the name. Whatever its marks draw more than 0.15em
+ * above or below its lines is clipped, so it never covers the lines around the heading.
  */
 export function FittedRequester({ children }: { children: string }) {
   const requesterRef = useRef<HTMLElement>(null);
@@ -150,7 +167,7 @@ export function FittedRequester({ children }: { children: string }) {
   }, [children]);
 
   return (
-    <bdi className="block break-words" ref={requesterRef}>
+    <bdi className="-my-[0.15em] block overflow-hidden break-words py-[0.15em]" ref={requesterRef}>
       {children}
     </bdi>
   );
