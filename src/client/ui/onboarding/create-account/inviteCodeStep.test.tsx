@@ -28,8 +28,10 @@ function renderStep(
   onContinue: Parameters<typeof InviteCodeStep>[0]["onContinue"] = vi.fn(),
   homeserver = HOMESERVER,
   props: Partial<Parameters<typeof InviteCodeStep>[0]> = {},
+  reachable: (homeserverPubky: string) => boolean = () => true,
 ) {
   const checkSignupToken = vi.fn(async () => status);
+  const checkHomeserver = vi.fn(async (homeserverPubky: string) => reachable(homeserverPubky));
   render(
     withPassportTestProviders(
       <InviteCodeStep
@@ -38,10 +40,10 @@ function renderStep(
         onContinue={onContinue}
         {...props}
       />,
-      { checkSignupToken },
+      { checkHomeserver, checkSignupToken },
     ),
   );
-  return { checkSignupToken };
+  return { checkHomeserver, checkSignupToken };
 }
 
 it("prefills the instance homeserver and lets the person change it", () => {
@@ -64,10 +66,10 @@ it("shows the homeserver before the invite code and focuses the code when one is
   expect(screen.getByLabelText("Homeserver public key")).toHaveFocus();
 });
 
-it("contacts a homeserver the person entered only after they confirm it", async () => {
+it("checks an entered homeserver when the person leaves the field, once per value", async () => {
   const onContinue = vi.fn();
   const user = userWithFakeClock();
-  const { checkSignupToken } = renderStep("valid", onContinue);
+  const { checkHomeserver, checkSignupToken } = renderStep("valid", onContinue);
   await user.click(screen.getByLabelText("Enter invite code"));
   await user.paste(CODE);
   await screen.findByText("Invite verified with the homeserver.");
@@ -79,30 +81,47 @@ it("contacts a homeserver the person entered only after they confirm it", async 
   expect(editable.tagName).toBe("TEXTAREA");
   expect(editable).toHaveAttribute("rows", "2");
   expect(editable).toHaveValue(HOMESERVER);
+  expect(screen.queryByRole("button", { name: "Use this homeserver" })).not.toBeInTheDocument();
+  // The key already in the field is checked as the field opens.
+  await screen.findByText("Homeserver found.");
+  expect(checkHomeserver).toHaveBeenCalledExactlyOnceWith(HOMESERVER, expect.any(AbortSignal));
+  expect(editable).toHaveClass("border-brand");
+  expect(editable).toHaveAccessibleDescription("Homeserver found.");
+
   await user.clear(editable);
   await user.type(editable, "not-a-homeserver");
-  // Not flagged while typed; using it says what a key looks like and keeps the person there.
+  // Not judged while typed; leaving the field says what a key looks like, with no lookup.
   expect(editable).not.toHaveAttribute("aria-invalid");
-  await user.click(screen.getByRole("button", { name: "Use this homeserver" }));
+  expect(screen.queryByText("Homeserver found.")).not.toBeInTheDocument();
+  await user.tab();
   expect(screen.getByRole("alert")).toHaveTextContent(
     "A homeserver public key is 52 letters and digits.",
   );
   expect(editable).toHaveAttribute("aria-invalid", "true");
-  expect(editable).toHaveFocus();
+  expect(checkHomeserver).toHaveBeenCalledOnce();
+
   await user.clear(editable);
   await user.paste(CUSTOM_HOMESERVER);
-  expect(screen.getByText(/Choose Use this homeserver to check this invite/u)).toBeInTheDocument();
+  expect(
+    screen.getByText("Passport checks this invite once the homeserver key above is checked."),
+  ).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Continue" })).toBeDisabled();
   await vi.advanceTimersByTimeAsync(400);
   expect(checkSignupToken).toHaveBeenCalledOnce();
 
-  await user.click(screen.getByRole("button", { name: "Use this homeserver" }));
-  expect(screen.getByLabelText("Homeserver")).toHaveTextContent(CUSTOM_HOMESERVER);
+  await user.tab();
+  await screen.findByText("Homeserver found.");
   await screen.findByText("Invite verified with the homeserver.");
+  expect(checkHomeserver).toHaveBeenLastCalledWith(CUSTOM_HOMESERVER, expect.any(AbortSignal));
   expect(checkSignupToken).toHaveBeenLastCalledWith(
     { homeserverPubky: CUSTOM_HOMESERVER, signupToken: CODE },
     expect.any(AbortSignal),
   );
+  // Coming back and leaving again without a change asks nobody anything.
+  await user.click(editable);
+  await user.tab();
+  expect(checkHomeserver).toHaveBeenCalledTimes(2);
+
   await user.click(screen.getByRole("button", { name: "Continue" }));
   expect(onContinue).toHaveBeenCalledWith({
     homeserverPubky: CUSTOM_HOMESERVER,
@@ -110,28 +129,48 @@ it("contacts a homeserver the person entered only after they confirm it", async 
   });
 });
 
-it("asks for the homeserver when the provider has none, and Enter uses it", async () => {
+it("says under the field when an entered homeserver does not answer", async () => {
+  const user = userWithFakeClock();
+  const { checkSignupToken } = renderStep("unknown", vi.fn(), "", {}, () => false);
+  const editable = screen.getByLabelText("Homeserver public key");
+  await user.paste(CUSTOM_HOMESERVER);
+  await user.tab();
+
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "Passport could not reach this homeserver. Check the key, or your connection.",
+  );
+  expect(editable).toHaveAttribute("aria-invalid", "true");
+  expect(editable).toHaveAccessibleDescription(/could not reach this homeserver/u);
+  // As with any homeserver that cannot be asked, the invite is checked again at signup.
+  await user.paste(CODE);
+  await screen.findByText(/^Could not check this invite with the homeserver\./u);
+  expect(checkSignupToken).toHaveBeenCalledOnce();
+  expect(screen.getByRole("button", { name: "Continue" })).toBeEnabled();
+});
+
+it("asks for the homeserver when the provider has none, and Enter moves on to the code", async () => {
   const onContinue = vi.fn();
   const user = userWithFakeClock();
-  const { checkSignupToken } = renderStep("valid", onContinue, "");
+  const { checkHomeserver, checkSignupToken } = renderStep("valid", onContinue, "");
   const editable = screen.getByLabelText("Homeserver public key");
   expect(editable).toHaveValue("");
   expect(editable).toHaveFocus();
-  // The way on comes after the field, in reading and Tab order.
-  const use = screen.getByRole("button", { name: "Use this homeserver" });
-  expect(editable.compareDocumentPosition(use) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(editable).toHaveAccessibleDescription(
+    "The key of the homeserver that gave you the invite.",
+  );
 
-  await user.click(screen.getByLabelText("Enter invite code"));
-  await user.paste(CODE);
-  await user.click(editable);
   // A key pasted across lines keeps no spaces or breaks.
   await user.paste(`${CUSTOM_HOMESERVER.slice(0, 26)}\n${CUSTOM_HOMESERVER.slice(26)} `);
   expect(editable).toHaveValue(CUSTOM_HOMESERVER);
   await vi.advanceTimersByTimeAsync(400);
-  expect(checkSignupToken).not.toHaveBeenCalled();
+  expect(checkHomeserver).not.toHaveBeenCalled();
 
   await user.keyboard("{Enter}");
+  expect(screen.getByLabelText("Enter invite code")).toHaveFocus();
+  await screen.findByText("Homeserver found.");
+  await user.paste(CODE);
   await screen.findByText("Invite verified with the homeserver.");
+  expect(checkSignupToken).toHaveBeenCalledOnce();
   await user.click(screen.getByRole("button", { name: "Continue" }));
   expect(onContinue).toHaveBeenCalledWith({
     homeserverPubky: CUSTOM_HOMESERVER,

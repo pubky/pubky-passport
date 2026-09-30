@@ -241,7 +241,6 @@ test("Back and reload keep local setup resumable without forcing it", async ({
   expect(key).not.toBe(firstKey);
   await expect(page.getByRole("button", { name: "Keep key in Pubky Ring" })).toHaveCount(0);
   await page.getByLabel("Enter strong password").fill("correct horse");
-  await page.getByLabel("Confirm password").fill("correct horse");
   const downloadPromise = page.waitForEvent("download");
   await page.getByRole("button", { name: "Download recovery file" }).click();
   const download = await downloadPromise;
@@ -311,7 +310,6 @@ test("decrypts the downloaded backup before starting local registration", async 
   await page.getByRole("button", { name: /Keep key in this browser/u }).click();
 
   await page.getByLabel("Enter strong password").fill("correct horse");
-  await page.getByLabel("Confirm password").fill("correct horse");
   const downloadPromise = page.waitForEvent("download");
   await page.getByRole("button", { name: "Download recovery file" }).click();
   const download = await downloadPromise;
@@ -342,8 +340,8 @@ test("decrypts the downloaded backup before starting local registration", async 
   await page.getByRole("button", { name: "Verify and create account" }).click();
   await expect(page.getByRole("heading", { name: "Setting up your pubky." })).toBeVisible();
   await expect(page.getByRole("list", { name: "Steps to set up your pubky" })).toBeVisible();
-  // The account is created on the homeserver Homegate issued the code for, and says so.
-  await expect(page.getByText(TEST_HOMESERVER, { exact: true })).toBeVisible();
+  // The homeserver is named once the account exists, not while it is being set up.
+  await expect(page.getByText(TEST_HOMESERVER, { exact: true })).toHaveCount(0);
 });
 
 test("SMS validates codes and retains Homegate's homeserver for the destination choice", async ({
@@ -380,9 +378,8 @@ test("SMS validates codes and retains Homegate's homeserver for the destination 
   await page.getByRole("button", { name: "Verify code" }).click();
 
   await expect(page.getByRole("button", { name: "Keep key in Pubky Ring" })).toBeVisible();
-  // The choice names Homegate's homeserver, not the one this Passport offers for invites.
-  await expect(page.getByText(HOMEGATE_HOMESERVER, { exact: true })).toBeVisible();
-  await expect(page.getByText(E2E_SIGNUP_HOMESERVER, { exact: true })).toHaveCount(0);
+  // The choice names no homeserver; the account-created screen does.
+  await expect(page.getByText(HOMEGATE_HOMESERVER, { exact: true })).toHaveCount(0);
   await openRingSignup(page);
   await expect(ringSignupLink(page)).toHaveAttribute(
     "href",
@@ -599,7 +596,6 @@ test("Lightning payment uses the homeserver returned with its token", async ({ p
   await expect(page.getByRole("button", { name: "Keep key in Pubky Ring" })).toBeVisible({
     timeout: 10_000,
   });
-  await expect(page.getByText(HOMEGATE_HOMESERVER, { exact: true })).toBeVisible();
   await openRingSignup(page);
   await expect(ringSignupLink(page)).toHaveAttribute(
     "href",
@@ -676,15 +672,11 @@ test("can skip the backup check and keeps the attempted signup bound to its key"
   // Pressed early, the download says what is missing instead of doing nothing.
   await page.getByRole("button", { name: "Download recovery file" }).click();
   await expect(page.getByRole("main").getByRole("alert")).toContainText(
-    "Enter a password of at least 12 characters.",
+    "Enter a password of at least 6 characters.",
   );
+  // One password field: the file check below is what catches a typo.
+  await expect(page.getByLabel("Confirm password")).toHaveCount(0);
   await page.getByLabel("Enter strong password").fill("correct horse");
-  // Skipping the file check relies on the password having been typed twice.
-  await page.getByRole("button", { name: "Download recovery file" }).click();
-  await expect(page.getByRole("main").getByRole("alert")).toContainText(
-    "Type the password again to confirm it.",
-  );
-  await page.getByLabel("Confirm password").fill("correct horse");
   await page.getByRole("button", { name: "Download recovery file" }).click();
   await expect(page.getByRole("heading", { name: "Verify recovery file." })).toBeVisible();
   await expect(page.getByRole("button", { name: "Download again" })).toBeVisible();

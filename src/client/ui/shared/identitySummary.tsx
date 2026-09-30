@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import type { LocalIdentityMetadata } from "@/client/logic/local-identity/localIdentityModels";
 import { shortPublicKey } from "./formatPublicKey";
 import { identityDisplayName, profileName } from "./identityDisplay";
-import { KeyCustodyTag } from "./keyCustodyTag";
+import { hasKeyCustodyTag, KeyCustodyTag } from "./keyCustodyTag";
 import { cn } from "./mergeClassNames";
 import { Avatar } from "./primitives/avatar";
 
@@ -75,7 +75,8 @@ export function IdentitySummary({
 /**
  * A saved identity as every list and confirmation shows it: its avatar (its picture, else
  * pubky.app's face for its key), its name (or, without a profile, a name made from its key, which
- * then is not repeated underneath), its short key in the key's own case, and where its key lives.
+ * then is not repeated underneath), its short key in the key's own case, and where its key lives
+ * when that is Pubky Ring or a Google account.
  */
 export function SavedIdentitySummary({
   attachmentInline,
@@ -90,7 +91,7 @@ export function SavedIdentitySummary({
   const named = profileName(identity);
   return (
     <IdentitySummary
-      attachment={<KeyCustodyTag identity={identity} />}
+      attachment={hasKeyCustodyTag(identity) ? <KeyCustodyTag identity={identity} /> : undefined}
       attachmentInline={attachmentInline}
       avatarSrc={identity.avatarUrl ?? undefined}
       detail={named ? shortPublicKey(publicKey) : undefined}

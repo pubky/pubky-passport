@@ -1,6 +1,6 @@
 import { isKeyProtected, keyBackup } from "@/client/logic/local-identity/keyBackup";
 import type { LocalIdentityMetadata } from "@/client/logic/local-identity/localIdentityModels";
-import { BackupStatusLine, formatBackupDate } from "@/client/ui/identity-dashboard/backupStatus";
+import { formatBackupDate } from "@/client/ui/identity-dashboard/backupStatus";
 import { identityDisplayName, profileName } from "@/client/ui/shared/identityDisplay";
 import {
   CheckIcon,
@@ -9,9 +9,9 @@ import {
   SettingsIcon,
   SquareUserRoundIcon,
 } from "@/client/ui/shared/icons";
+import { KeyCustodyTag } from "@/client/ui/shared/keyCustodyTag";
 import { Notice } from "@/client/ui/shared/notice";
 import { PassportScreen } from "@/client/ui/shared/passportScreen";
-import { KeyCustodyTag } from "@/client/ui/shared/keyCustodyTag";
 import { Avatar } from "@/client/ui/shared/primitives/avatar";
 import { Button } from "@/client/ui/shared/primitives/button";
 import { DisplayHeading } from "@/client/ui/shared/primitives/typography";
@@ -37,6 +37,7 @@ function IdentityOverview({
   // A browser key nothing is known to bring back is one cleared site away from being lost: say
   // so where the person lands, with the fix one tap away.
   const backupDue = !isKeyProtected(identity);
+  // When the backup was last checked is Manage's to show; this card warns only when one is due.
   // The main card is the Pubky profile; Google only appears as the attached-account tag.
   const name = identityDisplayName(identity);
   const publicKey = identity.publicIdentity.publicKeyZ32;
@@ -62,20 +63,9 @@ function IdentityOverview({
             <p className="w-full break-all text-xs font-medium leading-4 tracking-[0.1em] text-muted-foreground md:text-left">
               {publicKey}
             </p>
-            {/* Where the key lives, in the tag every list and the review use. */}
-            <div className="flex w-full min-w-0 justify-center pt-3 md:justify-start">
-              <KeyCustodyTag identity={identity} />
-            </div>
-            {/* A key that needs a backup gets one warning: the notice below, not a line here. */}
-            {backup.kind === "google" ? (
-              <BackupStatusLine className="pt-2 text-muted-foreground" tone="ok">
-                Key in this browser, backed up to Google Drive
-              </BackupStatusLine>
-            ) : backup.kind === "file" && !backupDue ? (
-              <BackupStatusLine className="pt-2 text-muted-foreground" tone="ok">
-                {`Recovery file checked ${formatBackupDate(backup.at)}`}
-              </BackupStatusLine>
-            ) : null}
+            {/* A Google or Pubky Ring key gets the tag every list uses; a key only in this
+                browser gets none. */}
+            <KeyCustodyTag className="mt-3" identity={identity} showGoogle={false} />
           </div>
         </div>
         {backupDue ? (

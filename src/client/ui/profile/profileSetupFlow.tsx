@@ -86,6 +86,7 @@ export function ProfileSetupFlow({
       {announcing && props.onDefer ? (
         <AccountCreated
           forRequest={forRequest}
+          homeserverPubky={props.identity.homeserverPubky}
           onAddProfile={() => setAnnouncing(false)}
           onSkip={props.onDefer}
           publicKeyZ32={props.identity.publicIdentity.publicKeyZ32}

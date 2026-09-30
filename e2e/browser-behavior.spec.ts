@@ -478,9 +478,11 @@ test("saved identities stay available when active identity changes across tabs",
     },
   );
   await page.goto("/");
-  // Without profile.json the Google name is not shown; the attached email identifies each one.
-  await expect(page.getByText("First@example.com", { exact: true })).toBeVisible();
-  await expect(page.getByText("Second@example.com", { exact: true })).toHaveCount(0);
+  // Without profile.json the Google name is not shown; the overview names each one by its key
+  // and leaves the Google badge to the switcher.
+  await expect(page.getByText(FIRST_KEY, { exact: true })).toBeVisible();
+  await expect(page.getByText(SECOND_KEY, { exact: true })).toHaveCount(0);
+  await expect(page.getByText("First@example.com", { exact: true })).toHaveCount(0);
 
   const otherTab = await context.newPage();
   await otherTab.goto("/");
@@ -489,7 +491,7 @@ test("saved identities stay available when active identity changes across tabs",
     { storageRoot: STORAGE_ROOT, secondKey: SECOND_KEY },
   );
 
-  await expect(page.getByText("Second@example.com", { exact: true })).toBeVisible();
+  await expect(page.getByText(SECOND_KEY, { exact: true })).toBeVisible();
   await otherTab.close();
 });
 
@@ -499,7 +501,7 @@ test("saved identity rows do not overflow mobile or desktop", async ({ page }) =
   await page.goto("/");
 
   await page.getByRole("button", { name: "Manage identity" }).click();
-  // The account shows in its own section and, as where the key lives, under the profile name.
+  // The account shows in its own section only; the profile leaves the Google badge out.
   const accountRow = page
     .getByRole("region", { name: "Google account" })
     .getByText("First@example.com", { exact: true });
@@ -508,7 +510,7 @@ test("saved identity rows do not overflow mobile or desktop", async ({ page }) =
     page
       .getByRole("region", { name: "Public profile" })
       .getByText("First@example.com", { exact: true }),
-  ).toBeVisible();
+  ).toHaveCount(0);
   await page.evaluate(async () => document.fonts.ready);
 
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
@@ -519,7 +521,7 @@ test("saved identity rows do not overflow mobile or desktop", async ({ page }) =
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(1280);
 });
 
-test("backup password guidance enforces the twelve-character minimum responsively", async ({
+test("backup password guidance enforces the six-character minimum responsively", async ({
   page,
 }) => {
   await seedLocalIdentity(page);
@@ -536,10 +538,12 @@ test("backup password guidance enforces the twelve-character minimum responsivel
     const password = page.getByLabel("Enter strong password");
     // The message element itself: an error wraps its text beside the alert icon.
     const requirement = page.locator("#backup-password-help");
-    const download = page.getByRole("button", { name: "Download recovery file" });
-    await expect(password).toHaveAttribute("minlength", "12");
+    await expect(password).toHaveAttribute("minlength", "6");
     await expect(password).toHaveAttribute("aria-describedby", "backup-password-help");
-    await expect(requirement).toHaveText("Minimum 12 characters.");
+    await expect(password).toHaveAccessibleDescription("Minimum 6 characters.");
+    await expect(requirement).toHaveText("Minimum 6 characters.");
+    // One password field: the file check that follows catches a typo.
+    await expect(page.getByLabel("Confirm password")).toHaveCount(0);
     await expect(requirement).toBeVisible();
 
     const [passwordBox, requirementBox] = await Promise.all([
@@ -553,24 +557,17 @@ test("backup password guidance enforces the twelve-character minimum responsivel
     );
 
     // Too short is said once the field is left, not while it is typed.
-    await password.fill("12345678901");
+    await password.fill("12345");
     await expect(password).not.toHaveAttribute("aria-invalid", "true");
     await password.blur();
     await expect(password).toHaveAttribute("aria-invalid", "true");
     await expect(requirement).toHaveAttribute("role", "alert");
-    await expect(requirement).toHaveText("Too short: use at least 12 characters.");
+    await expect(requirement).toHaveText("Too short: use at least 6 characters.");
+    await expect(password).toHaveAccessibleDescription("Too short: use at least 6 characters.");
 
-    await password.fill("123456789012");
+    await password.fill("123456");
     await expect(password).not.toHaveAttribute("aria-invalid", "true");
     await expect(requirement).not.toHaveAttribute("role", "alert");
-    // Every new backup's password is typed twice, so a typo cannot lock the file; pressing the
-    // download before that says so at the second field.
-    await download.click();
-    const confirmation = page.getByLabel("Confirm password");
-    await expect(confirmation).toBeFocused();
-    await expect(confirmation).toHaveAttribute("aria-invalid", "true");
-    await confirmation.fill("123456789012");
-    await expect(confirmation).not.toHaveAttribute("aria-invalid", "true");
   }
 });
 
@@ -629,7 +626,7 @@ test("overview pubky is plain text; management copying shows the gray info toast
   // Passport's typeface, not the system font Sonner's own stylesheet sets.
   await expect(toast).toHaveCSS("font-family", /Inter Tight/u);
 
-  // Under the 84px header on a phone, so the logo and Log out stay visible and usable.
+  // Under the 84px header on a phone, so the logo and header actions stay visible and usable.
   await expect
     .poll(
       async () => {
@@ -702,9 +699,11 @@ test("management backup confirms its password, verifies the file and records the
   await page.getByRole("button", { name: "Manage identity" }).click();
   const keys = page.getByRole("region", { name: "Backup & key access" });
   await expect(keys).toContainText("No backup yet.");
+  // Checking a file stays offered on its own row, which says none has been checked yet.
+  await expect(keys).toContainText("Never checked");
+  await expect(keys.getByRole("button", { name: "Check recovery file" })).toBeVisible();
   await keys.getByRole("button", { name: "Download recovery file" }).click();
   await page.getByLabel("Enter strong password").fill("correct horse");
-  await page.getByLabel("Confirm password").fill("correct horse");
   const downloadPromise = page.waitForEvent("download");
   await page.getByRole("button", { name: "Download recovery file" }).click();
   const backup = await downloadPromise;
@@ -728,8 +727,12 @@ test("management backup confirms its password, verifies the file and records the
   await page.getByRole("button", { name: "Verify recovery file" }).click();
   await expect(page.getByRole("heading", { name: "Manage identity." })).toBeVisible();
   // The check is remembered: the card says so and leaving is a logout again, not a removal.
-  await expect(keys).toContainText("Recovery file checked on");
-  await page.getByRole("banner").getByRole("button", { name: "Log out" }).click();
+  await expect(keys).toContainText("Last checked");
+  await expect(keys.getByRole("button", { name: "Check recovery file" })).toBeVisible();
+  await page
+    .getByRole("region", { name: "Public profile" })
+    .getByRole("button", { name: "Log out" })
+    .click();
   await expect(page.getByRole("heading", { name: "Log out of this identity?" })).toBeVisible();
   await expect(page.getByRole("main")).toContainText("You checked a recovery file of this key on");
 });

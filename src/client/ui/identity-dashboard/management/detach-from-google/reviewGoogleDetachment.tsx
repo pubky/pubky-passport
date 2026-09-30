@@ -70,7 +70,7 @@ function ReviewGoogleDetachment({
             variant="destructive"
           >
             <TrashIcon />
-            Detach from Google…
+            Detach from Google
           </Button>
         }
       />

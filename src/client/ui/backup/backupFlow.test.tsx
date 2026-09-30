@@ -30,7 +30,6 @@ function mockDownload() {
 
 async function enterNewPassword(user: ReturnType<typeof userEvent.setup>) {
   await user.type(screen.getByLabelText("Enter strong password"), PASSWORD);
-  await user.type(screen.getByLabelText("Confirm password"), PASSWORD);
 }
 
 describe("BackupFlow", () => {
@@ -89,7 +88,7 @@ describe("BackupFlow", () => {
     ]);
   });
 
-  it("requires a matching confirmation, and says so when the download is pressed without it", async () => {
+  it("asks for the password once, and says so when the download is pressed without it", async () => {
     const createBackup = vi.fn(() =>
       Result.ok({ bytes: new Uint8Array([1, 2, 3]), fileName: "pubky-identity.pkarr" }),
     );
@@ -105,44 +104,29 @@ describe("BackupFlow", () => {
     );
     const user = userEvent.setup();
     const password = screen.getByLabelText("Enter strong password");
-    const confirmation = screen.getByLabelText("Confirm password");
     const download = screen.getByRole("button", { name: "Download recovery file" });
-    expect(screen.getByText(`Minimum ${MINIMUM_BACKUP_PASSWORD_LENGTH} characters.`)).toBeVisible();
-    expect(password).toHaveAttribute("minlength", String(MINIMUM_BACKUP_PASSWORD_LENGTH));
+    // One field: the file check that follows opens the file with this password.
+    expect(screen.queryByLabelText("Confirm password")).not.toBeInTheDocument();
+    expect(MINIMUM_BACKUP_PASSWORD_LENGTH).toBe(6);
+    expect(screen.getByText("Minimum 6 characters.")).toBeVisible();
+    expect(password).toHaveAccessibleDescription("Minimum 6 characters.");
+    expect(password).toHaveAttribute("minlength", "6");
     expect(password).toHaveAttribute("autocomplete", "new-password");
-    expect(confirmation).toHaveAttribute("autocomplete", "new-password");
     // The primary stays reachable; pressing it early says what is missing, where it is missing.
     expect(download).toBeEnabled();
-
-    await user.type(password, PASSWORD);
     await user.click(download);
     expect(createBackup).not.toHaveBeenCalled();
-    expect(confirmation).toHaveFocus();
-    expect(screen.getByRole("alert")).toHaveTextContent("Type the password again to confirm it.");
-    // A partial second entry is not flagged while typed, even after that early press, only once
-    // the field is left; a diverging one is flagged at once.
-    await user.type(confirmation, PASSWORD.slice(0, 4));
-    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
-    expect(confirmation).not.toHaveAttribute("aria-invalid");
-    await user.tab();
-    expect(screen.getByRole("alert")).toHaveTextContent("Passwords do not match.");
-    await user.click(confirmation);
-    await user.type(confirmation, PASSWORD.slice(4, 6));
-    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
-    await user.type(confirmation, "X");
-    const mismatch = screen.getByRole("alert");
-    expect(mismatch).toHaveTextContent("Passwords do not match.");
-    expect(confirmation).toHaveAttribute("aria-invalid", "true");
-    expect(confirmation).toHaveAttribute("aria-describedby", mismatch.id);
+    expect(password).toHaveFocus();
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Enter a password of at least 6 characters.",
+    );
 
-    await user.clear(confirmation);
-    await user.type(confirmation, PASSWORD);
+    await user.type(password, "sixsix");
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     await user.click(download);
-    expect(createBackup).toHaveBeenCalledWith(PASSWORD);
+    expect(createBackup).toHaveBeenCalledWith("sixsix");
     expect(screen.getByRole("heading", { name: "Verify recovery file." })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: SKIP })).toBeEnabled();
-    expect(screen.queryByLabelText("Confirm password")).not.toBeInTheDocument();
     expect(screen.getByLabelText("Recovery file password")).toHaveAttribute(
       "autocomplete",
       "current-password",
@@ -198,12 +182,9 @@ describe("BackupFlow", () => {
     await user.type(password, "x");
     expect(password).not.toHaveAttribute("aria-invalid");
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
-    // Management backups are typed twice too: a typo would make the file useless.
+    // Management backups take one field too: the file check catches a typo.
     await user.click(download);
-    expect(createBackup).not.toHaveBeenCalled();
-    await user.type(screen.getByLabelText("Confirm password"), "x".repeat(12));
-    await user.click(download);
-    expect(createBackup).toHaveBeenCalledWith("x".repeat(12));
+    expect(createBackup).toHaveBeenCalledWith("x".repeat(MINIMUM_BACKUP_PASSWORD_LENGTH));
   });
 
   it("keeps the length hint quiet while typing and marks it once the field is left", async () => {
@@ -226,7 +207,7 @@ describe("BackupFlow", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("Too short");
   });
 
-  it("shows and hides both new passwords with one toggle", async () => {
+  it("shows and hides the new password", async () => {
     render(
       <BackupFlow
         createBackup={vi.fn()}
@@ -237,18 +218,15 @@ describe("BackupFlow", () => {
     );
     const user = userEvent.setup();
     const password = screen.getByLabelText("Enter strong password");
-    const confirmation = screen.getByLabelText("Confirm password");
     const reveal = screen.getByRole("button", { name: "Show password" });
     expect(reveal).toHaveAttribute("aria-pressed", "false");
-    expect(reveal).toHaveAttribute("aria-controls", `${password.id} ${confirmation.id}`);
+    expect(reveal).toHaveAttribute("aria-controls", password.id);
     expect(password).toHaveAttribute("type", "password");
     await user.click(reveal);
     expect(reveal).toHaveAttribute("aria-pressed", "true");
     expect(password).toHaveAttribute("type", "text");
-    expect(confirmation).toHaveAttribute("type", "text");
     await user.click(reveal);
     expect(password).toHaveAttribute("type", "password");
-    expect(confirmation).toHaveAttribute("type", "password");
   });
 
   it("checks a half-typed password with the toggle without leaving the field", async () => {
@@ -323,13 +301,16 @@ describe("BackupFlow", () => {
 
     const file = screen.getByLabelText("Recovery file");
     const help = screen.getByText(/Download started/u);
-    // One line names the file and offers the retry inline, so the primary stays in view.
+    // The file is named first; the retry follows, together, on a line of its own.
     expect(help).toHaveTextContent(
       "Download started: pubky-1xgt9g…zwsqdy.pkarr. Not in your downloads? Download again",
     );
     expect(help.querySelector("span")).toHaveClass("whitespace-nowrap");
     const again = screen.getByRole("button", { name: "Download again" });
-    expect(help).toContainElement(again);
+    const retryLine = screen.getByText(/^Not in your downloads\?/u);
+    expect(retryLine).toHaveClass("block");
+    expect(retryLine).toContainElement(again);
+    expect(help).toContainElement(retryLine);
     // The same text action as Skip this check below it, not a second, brand-coloured style.
     expect(again).toHaveClass("underline", "text-secondary-foreground", "inline", "text-xs");
     expect(again).not.toHaveClass("text-brand");

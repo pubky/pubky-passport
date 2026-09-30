@@ -11,18 +11,15 @@ import { GoogleLogo } from "@/client/ui/shared/brand/googleLogo";
 import { PUBKY_COPY_TOASTS } from "@/client/ui/shared/copyToClipboard";
 import { DetailField } from "@/client/ui/shared/detailField";
 import { shortCopiedValue } from "@/client/ui/shared/formatPublicKey";
-import { GoogleAccountTag } from "@/client/ui/shared/googleAccountTag";
 import { identityDisplayName, profileName } from "@/client/ui/shared/identityDisplay";
 import {
   CheckIcon,
   DownloadIcon,
   KeyRoundIcon,
-  LinkOffIcon,
   LogOutIcon,
   SquareUserRoundIcon,
   TrashIcon,
 } from "@/client/ui/shared/icons";
-import { PassportHeaderAction } from "@/client/ui/shared/passportHeaderAction";
 import { PassportNavigation } from "@/client/ui/shared/passportNavigation";
 import { PassportScreen } from "@/client/ui/shared/passportScreen";
 import { ProfileLinks } from "@/client/ui/profile/profileLinks";
@@ -30,6 +27,7 @@ import { KeyCustodyTag } from "@/client/ui/shared/keyCustodyTag";
 import { Avatar } from "@/client/ui/shared/primitives/avatar";
 import { Button } from "@/client/ui/shared/primitives/button";
 import { DisplayHeading } from "@/client/ui/shared/primitives/typography";
+import { GoogleAccountRow } from "./googleAccountRow";
 import { HomeserverRecord } from "./homeserverRecord";
 import { IdentityProviderSection } from "./identityProviderSection";
 import { LogoutConfirmation } from "./logoutConfirmation";
@@ -82,7 +80,6 @@ function IdentityManagement({
   // Leaving this browser may delete the only copy of a key nothing is known to bring back: a file
   // Passport made but never saw open may not exist.
   const unbacked = !isKeyProtected(identity);
-  // The accessible name starts with the visible text, so "Remove key" also works by voice.
   const leaveLabel = unbacked ? "Remove key from this browser" : "Log out";
 
   if (confirmingLogout)
@@ -99,18 +96,6 @@ function IdentityManagement({
 
   return (
     <PassportScreen width="wide" className="gap-6">
-      <PassportHeaderAction>
-        <Button
-          aria-label={leaveLabel}
-          title={leaveLabel}
-          className="size-10 p-0 pointer-coarse:min-w-11 min-[375px]:w-auto min-[375px]:px-4"
-          onClick={() => setConfirmingLogout(true)}
-          variant="secondary"
-        >
-          {unbacked ? <TrashIcon /> : <LogOutIcon />}
-          <span className="hidden min-[375px]:inline">{unbacked ? "Remove key" : "Log out"}</span>
-        </Button>
-      </PassportHeaderAction>
       <DisplayHeading accent="identity." aria-label="Manage identity.">
         Manage
       </DisplayHeading>
@@ -131,7 +116,7 @@ function IdentityManagement({
             />
             <div className="flex min-w-0 flex-col items-start gap-1">
               <p className="min-w-0 max-w-full break-words text-xl font-bold">{name}</p>
-              <KeyCustodyTag identity={identity} />
+              <KeyCustodyTag identity={identity} showGoogle={false} />
             </div>
           </div>
           {identity.profile?.bio ? (
@@ -156,12 +141,19 @@ function IdentityManagement({
             resolveHomeserver={resolveHomeserver}
             {...(browserKey ? { republishHomeserver } : {})}
           />
-          {onEditProfile ? (
-            <Button onClick={onEditProfile} variant="secondary">
-              <SquareUserRoundIcon />{" "}
-              {identity.profileSetupRequired ? "Set up profile" : "Edit profile"}
+          <div className="flex w-full flex-wrap gap-3">
+            {onEditProfile ? (
+              <Button onClick={onEditProfile} variant="secondary">
+                <SquareUserRoundIcon />{" "}
+                {identity.profileSetupRequired ? "Set up profile" : "Edit profile"}
+              </Button>
+            ) : null}
+            {/* The accessible name starts with the visible text, so it also works by voice. */}
+            <Button onClick={() => setConfirmingLogout(true)} variant="secondary">
+              {unbacked ? <TrashIcon /> : <LogOutIcon />}
+              {leaveLabel}
             </Button>
-          ) : null}
+          </div>
         </section>
         <section
           aria-labelledby="manage-keys"
@@ -177,11 +169,8 @@ function IdentityManagement({
                 ? "Your key is saved in this browser and backed up, encrypted, to Google Drive. For a copy that doesn’t depend on Google, download a recovery file or use Pubky Ring."
                 : "Your key is saved only in this browser. Keep a recovery file so you can restore it if this browser’s data is cleared or you switch devices."}
           </p>
-          {backupFile?.verified ? (
-            <BackupStatusLine tone="ok">
-              Recovery file checked on {formatBackupDate(backupFile.at)}.
-            </BackupStatusLine>
-          ) : backupFile ? (
+          {/* A checked file is dated next to "Check recovery file" below. */}
+          {backupFile?.verified ? null : backupFile ? (
             <BackupStatusLine tone="warning">
               Passport made a recovery file on {formatBackupDate(backupFile.at)}, but it was never
               checked.
@@ -192,16 +181,24 @@ function IdentityManagement({
             </BackupStatusLine>
           ) : null}
           {browserKey ? (
-            <div className="flex w-full flex-wrap gap-3">
+            // Checking stays available on its own row, with when a file of this key last opened.
+            <div className="flex w-full flex-wrap items-center gap-x-3 gap-y-2">
               {/* A file already made is quicker to check than a new one is to make and check. */}
-              {uncheckedFile ? (
-                <Button
-                  onClick={() => onDownloadRecoveryFile("manage", true)}
-                  variant={unbacked ? "default" : "secondary"}
-                >
-                  <CheckIcon /> Check recovery file
-                </Button>
-              ) : null}
+              <Button
+                onClick={() => onDownloadRecoveryFile("manage", true)}
+                variant={unbacked && uncheckedFile ? "default" : "secondary"}
+              >
+                <CheckIcon /> Check recovery file
+              </Button>
+              <p className="text-sm leading-5 text-secondary-foreground">
+                {backupFile?.verified
+                  ? `Last checked ${formatBackupDate(backupFile.at)}`
+                  : "Never checked"}
+              </p>
+            </div>
+          ) : null}
+          {browserKey ? (
+            <div className="flex w-full flex-wrap gap-3">
               <Button
                 onClick={() => onDownloadRecoveryFile("manage")}
                 variant={unbacked && !uncheckedFile ? "default" : "secondary"}
@@ -216,16 +213,7 @@ function IdentityManagement({
           {account || (browserKey && onBackupToGoogle) ? (
             <IdentityProviderSection name="Google account">
               {account ? (
-                <>
-                  <GoogleAccountTag account={account} />
-                  <p className="text-sm leading-5 text-secondary-foreground">
-                    Use this Google account to sign in to Passport and restore your encrypted
-                    identity.
-                  </p>
-                  <Button onClick={onDetachFromGoogle} variant="outline">
-                    <LinkOffIcon /> Detach from Google
-                  </Button>
-                </>
+                <GoogleAccountRow account={account} onDetach={onDetachFromGoogle} />
               ) : (
                 <>
                   <p className="text-sm leading-5 text-secondary-foreground">

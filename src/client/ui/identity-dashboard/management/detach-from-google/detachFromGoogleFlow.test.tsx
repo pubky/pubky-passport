@@ -97,7 +97,7 @@ describe("DetachFromGoogleFlow", () => {
     expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Continue to detach" }));
     expect(screen.getByRole("heading", { name: "Detach from Google." })).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Detach from Google…" }));
+    await user.click(screen.getByRole("button", { name: "Detach from Google" }));
     expect(screen.queryByLabelText("Type ONLY COPY to confirm")).not.toBeInTheDocument();
     expect(screen.getByRole("dialog")).not.toHaveAccessibleDescription(/only copy/u);
     await user.type(screen.getByLabelText("Type DETACH to confirm"), "DETACH");
@@ -119,7 +119,7 @@ describe("DetachFromGoogleFlow", () => {
       "No recovery file of this key has been checked.",
     );
     await user.click(screen.getByRole("button", { name: "Continue to detach" }));
-    await user.click(screen.getByRole("button", { name: "Detach from Google…" }));
+    await user.click(screen.getByRole("button", { name: "Detach from Google" }));
     const dialog = screen.getByRole("dialog", { name: "Detach from Google?" });
     expect(dialog).toHaveAccessibleDescription(
       /^No recovery file of this key has been checked, so this browser will keep the only copy of your key\./u,
@@ -136,7 +136,7 @@ describe("DetachFromGoogleFlow", () => {
 
     // Cancelling forgets what was typed; the next attempt starts from an empty field.
     await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
-    await user.click(screen.getByRole("button", { name: "Detach from Google…" }));
+    await user.click(screen.getByRole("button", { name: "Detach from Google" }));
     expect(screen.getByLabelText("Type ONLY COPY to confirm")).toHaveValue("");
     expect(detachIdentity).not.toHaveBeenCalled();
 
@@ -181,7 +181,6 @@ describe("DetachFromGoogleFlow", () => {
 
     await user.click(screen.getByRole("button", { name: "Download recovery file" }));
     await user.type(screen.getByLabelText("Enter strong password"), "correct horse battery");
-    await user.type(screen.getByLabelText("Confirm password"), "correct horse battery");
     await user.click(screen.getByRole("button", { name: "Download recovery file" }));
     await user.upload(
       screen.getByLabelText("Recovery file"),
@@ -199,7 +198,7 @@ describe("DetachFromGoogleFlow", () => {
     expect(
       screen.getByRole("group", { name: "Attached Google account: user@example.com" }),
     ).toBeVisible();
-    await user.click(screen.getByRole("button", { name: "Detach from Google…" }));
+    await user.click(screen.getByRole("button", { name: "Detach from Google" }));
     expect(screen.getByLabelText("Type DETACH to confirm")).toBeInTheDocument();
     expect(screen.queryByLabelText("Type ONLY COPY to confirm")).not.toBeInTheDocument();
   });
@@ -270,7 +269,7 @@ async function confirmDetachment(user: ReturnType<typeof userEvent.setup>) {
   if (screen.queryByRole("button", { name: "Continue to detach" })) {
     await user.click(screen.getByRole("button", { name: "Continue to detach" }));
   }
-  await user.click(screen.getByRole("button", { name: "Detach from Google…" }));
+  await user.click(screen.getByRole("button", { name: "Detach from Google" }));
   await user.type(screen.getByLabelText("Type ONLY COPY to confirm"), "ONLY COPY");
   await user.click(screen.getByRole("button", { name: "Confirm detachment" }));
 }

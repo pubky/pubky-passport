@@ -123,6 +123,8 @@ export type PassportCollaborators = {
   readAccountDraft: () => ReturnType<LocalAccountDraftRepository["read"]>;
   /** Read-only invite lookup on the homeserver; resolves `unknown` instead of rejecting. */
   checkSignupToken: SignupTokenCheck;
+  /** Whether a homeserver answers, by a read-only lookup; resolves `false` instead of rejecting. */
+  checkHomeserver: (homeserverPubky: string, signal: AbortSignal) => Promise<boolean>;
   /** An empty base URL means this instance has no Homegate; requests then fail as unavailable. */
   createHomegateSignupController: (homegateBaseUrl: string) => HomegateSignupControllerPort;
   createHomegateAvailabilityClient: (
@@ -146,6 +148,10 @@ const DEFAULT_PASSPORT_COLLABORATORS: PassportCollaborators = {
   checkSignupToken: (invite, signal) => {
     signupTokenChecker ??= new SignupTokenChecker();
     return signupTokenChecker.check(invite, signal);
+  },
+  checkHomeserver: (homeserverPubky, signal) => {
+    signupTokenChecker ??= new SignupTokenChecker();
+    return signupTokenChecker.reaches(homeserverPubky, signal);
   },
   createHomegateSignupController: (homegateBaseUrl) =>
     new HomegateSignupController(

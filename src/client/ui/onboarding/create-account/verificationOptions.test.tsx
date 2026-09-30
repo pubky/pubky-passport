@@ -142,10 +142,11 @@ it("shows only supported signup methods and the configured provider terms", asyn
   expect(
     screen.getByRole("link", { name: /^Terms of Service of the homeserver provider/u }),
   ).toHaveAttribute("href", "https://provider.example/terms");
-  // The invite option names no provider.
-  expect(screen.getByRole("button", { name: "Enter invite manually" })).toHaveAccessibleDescription(
-    "Use an invite from a homeserver",
+  // Only the button: no description under the invite option.
+  expect(screen.getByRole("button", { name: "Enter invite manually" })).not.toHaveAttribute(
+    "aria-describedby",
   );
+  expect(screen.queryByText("Use an invite from a homeserver")).toBeNull();
   await userEvent.setup().click(screen.getByRole("button", { name: "Enter invite manually" }));
   expect(onInvite).toHaveBeenCalledOnce();
   expect(onLightning).not.toHaveBeenCalled();
@@ -212,9 +213,11 @@ it("says why accounts are verified and keeps each method's price with its button
   const below = document.getElementById(price.getAttribute("aria-describedby")!);
   expect(below).toHaveClass("lg:hidden");
   expect(below?.previousElementSibling).toBe(price);
-  expect(screen.getByRole("button", { name: "Continue with SMS" })).toHaveAccessibleDescription(
-    "Verify with your phone number",
+  // SMS is just its button: no description under it.
+  expect(screen.getByRole("button", { name: "Continue with SMS" })).not.toHaveAttribute(
+    "aria-describedby",
   );
+  expect(screen.queryByText("Verify with your phone number")).toBeNull();
 });
 
 it("names each blocked method under its button and announces the blocks once", () => {

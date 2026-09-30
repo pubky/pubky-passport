@@ -239,9 +239,13 @@ it("shows existing public profiles on overview, switcher and authorization, with
   const user = userEvent.setup();
   const mounted = mount();
   expect(await screen.findByRole("heading", { name: "Satoshi" })).toBeInTheDocument();
-  expect(screen.getByText("google@example.com")).toBeInTheDocument();
+  // The overview leaves the Google badge out; the switcher's list shows it.
+  expect(screen.queryByText("google@example.com")).not.toBeInTheDocument();
   await user.click(screen.getByRole("button", { name: "Switch identity" }));
   expect(screen.getByRole("button", { name: /Satoshi/ })).toBeInTheDocument();
+  expect(
+    screen.getByRole("group", { name: "Attached Google account: google@example.com" }),
+  ).toHaveTextContent("google@example.com");
   mounted.unmount();
   window.dispatchEvent(new PageTransitionEvent("pagehide"));
   // The request's list names the identity from the summary kept by that read.

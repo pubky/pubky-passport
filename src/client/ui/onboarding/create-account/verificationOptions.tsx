@@ -51,7 +51,7 @@ export function VerificationOptions({
       method: "sms" as const,
       title: "Phone verification",
       name: "SMS",
-      detail: "Verify with your phone number",
+      detail: undefined,
       button: "Continue with SMS",
       image: "/illustrations/sms-verification.png",
       icon: "/icons/verification-phone.svg",
@@ -61,7 +61,7 @@ export function VerificationOptions({
       method: "invite" as const,
       title: "Invite code",
       name: "an invite code",
-      detail: "Use an invite from a homeserver",
+      detail: undefined,
       button: "Enter invite manually",
       image: "/illustrations/invite.png",
       icon: "/icons/verification-invite.svg",
@@ -136,14 +136,16 @@ export function VerificationOptions({
               <div className="flex min-w-0 flex-1 flex-col gap-2 lg:gap-6">
                 <div className="hidden flex-1 space-y-3 lg:block">
                   <h2 className="text-2xl font-bold leading-8">{option.title}</h2>
-                  <p
-                    className={`text-xs uppercase leading-4 tracking-[0.1em] ${blocked ? "text-foreground" : "text-muted-foreground"}`}
-                  >
-                    {option.detail}
-                  </p>
+                  {option.detail ? (
+                    <p
+                      className={`text-xs uppercase leading-4 tracking-[0.1em] ${blocked ? "text-foreground" : "text-muted-foreground"}`}
+                    >
+                      {option.detail}
+                    </p>
+                  ) : null}
                 </div>
                 <Button
-                  aria-describedby={`${detailId}-${option.method}`}
+                  aria-describedby={option.detail ? `${detailId}-${option.method}` : undefined}
                   className="w-full"
                   size="lg"
                   variant="secondary"
@@ -164,12 +166,14 @@ export function VerificationOptions({
                 </Button>
                 {/* Below lg the cards collapse to buttons; the price and terms stay under each. A
                     blocked card is dimmed, so its line takes the full text colour to stay legible. */}
-                <p
-                  className={`text-sm leading-5 lg:hidden ${blocked ? "text-foreground" : "text-muted-foreground"}`}
-                  id={`${detailId}-${option.method}`}
-                >
-                  {option.detail}
-                </p>
+                {option.detail ? (
+                  <p
+                    className={`text-sm leading-5 lg:hidden ${blocked ? "text-foreground" : "text-muted-foreground"}`}
+                    id={`${detailId}-${option.method}`}
+                  >
+                    {option.detail}
+                  </p>
+                ) : null}
               </div>
             </AvailabilityCard>
           );

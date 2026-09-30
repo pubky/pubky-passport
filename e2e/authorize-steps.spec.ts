@@ -175,15 +175,11 @@ test.describe("choosing an identity first", () => {
       0,
     );
     await page.getByRole("button", { name: "Use another identity", exact: true }).click();
-    // Still addressed to the waiting app, with every way in.
+    // Still addressed to the waiting app, with every way in but Pubky Ring, which the list offers.
     await expect(page.getByRole("heading", { name: "Sign in to Acme Notes" })).toBeVisible();
-    for (const name of [
-      "Create account",
-      "Import recovery file",
-      "Continue with Google",
-      "Continue with Pubky Ring",
-    ])
+    for (const name of ["Create account", "Import recovery file", "Continue with Google"])
       await expect(page.getByRole("button", { name, exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Pubky Ring/u })).toHaveCount(0);
     await page.getByRole("button", { name: "Back", exact: true }).click();
     await expect(identityList(page).getByRole("button")).toHaveCount(3);
   });

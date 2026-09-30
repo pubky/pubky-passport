@@ -28,7 +28,6 @@ type BackupResult<T> = ResultType<T, { code: string }>;
 type FlowError = { target: "password" | "file" | "form"; message: string };
 /** Which backup file the check asks for, so its messages name the right one. */
 type FileSource = "downloaded" | "earlier" | "check";
-type Confirmation = "empty" | "typing" | "mismatch" | "match";
 
 /** Browsers may start the download asynchronously; revoking at once can cancel it. */
 const BLOB_URL_REVOKE_DELAY_MS = 1_000;
@@ -73,12 +72,9 @@ export function BackupFlow({
   const [step, setStep] = useState(checkOnly ? "confirm" : initialStep);
   const [pending, setPending] = useState(false);
   const [passwordLength, setPasswordLength] = useState(0);
-  const [confirmation, setConfirmation] = useState<Confirmation>("empty");
   // Set once the password field is left or the form sent, so a short password is not flagged
-  // while it is still being typed. The repeated password is the same, except that typing in it
-  // clears the flag again: a half-typed repetition is only called wrong once it is left.
+  // while it is still being typed.
   const [lengthChecked, setLengthChecked] = useState(false);
-  const [confirmationChecked, setConfirmationChecked] = useState(false);
   const [passwordShown, setPasswordShown] = useState(false);
   const [error, setError] = useState<FlowError>();
   // The file this session downloaded; skipping its check is only offered for such a file.
@@ -89,7 +85,6 @@ export function BackupFlow({
   // The file the check wants, when its name is known, so a wrong pick can be told which one.
   const expectedFileName = downloadedFile ?? backupFileName;
   const password = useRef<HTMLInputElement>(null);
-  const passwordConfirmation = useRef<HTMLInputElement>(null);
   const file = useRef<HTMLInputElement>(null);
   const active = useRef(true);
   const busy = useRef(false);
@@ -100,18 +95,9 @@ export function BackupFlow({
   const validPassword = confirming
     ? passwordLength > 0
     : passwordLength >= MINIMUM_BACKUP_PASSWORD_LENGTH;
+  // A new backup's password is typed once: the file check that follows opens the file with it,
+  // which catches a typo while the key is still here (the maintainer's decision, 2026-09-30).
   const passwordTooShort = !confirming && lengthChecked && !validPassword;
-  // Every new backup's password is typed twice: the file check below may be skipped, and a typo
-  // would leave the file unreadable, possibly as the key's only copy outside this browser.
-  const needsConfirmation = !confirming;
-  const confirmationError =
-    confirmation === "mismatch" ||
-    (confirmationChecked && confirmation === "typing") ||
-    (confirmationChecked && validPassword && confirmation === "empty")
-      ? confirmation === "empty"
-        ? "Type the password again to confirm it."
-        : "Passwords do not match."
-      : undefined;
 
   useEffect(() => {
     active.current = true;
@@ -131,18 +117,12 @@ export function BackupFlow({
 
   function clearPasswordField() {
     if (password.current) password.current.value = "";
-    if (passwordConfirmation.current) passwordConfirmation.current.value = "";
     setPasswordLength(0);
-    setConfirmation("empty");
     setLengthChecked(false);
-    setConfirmationChecked(false);
   }
 
   function updatePasswordState() {
-    const value = password.current?.value ?? "";
-    const repeated = passwordConfirmation.current?.value ?? "";
-    setPasswordLength(value.length);
-    setConfirmation(confirmationState(value, repeated));
+    setPasswordLength(password.current?.value.length ?? 0);
     setError(undefined);
   }
 
@@ -152,11 +132,6 @@ export function BackupFlow({
     if (!validPassword) {
       setLengthChecked(true);
       password.current?.focus();
-      return;
-    }
-    if (confirmation !== "match") {
-      setConfirmationChecked(true);
-      passwordConfirmation.current?.focus();
       return;
     }
     busy.current = true;
@@ -263,9 +238,7 @@ export function BackupFlow({
     }
     setError(undefined);
     setPasswordLength(0);
-    setConfirmation("empty");
     setLengthChecked(false);
-    setConfirmationChecked(false);
     setDownloadedFile(undefined);
     lastDownload.current = null;
     setStep("password");
@@ -317,24 +290,27 @@ export function BackupFlow({
                 }
                 onChange={() => setError(undefined)}
               />
-              {/* One hint with the retry inline, not a row of its own, keeps the primary in a popup. */}
+              {/* The file first, then the retry together on a line of its own. */}
               {downloadedFile ? (
                 <FieldMessage id="backup-file-help">
                   Download started:{" "}
                   <span className="whitespace-nowrap font-medium text-foreground">
                     {shortFileName(downloadedFile)}
                   </span>
-                  . Not in your downloads?{" "}
-                  {/* The shared text action, set in the hint's type and inline in its sentence,
-                      so the line keeps its height (a link in a sentence needs no 44px target). */}
-                  <Button
-                    className="inline min-h-0 py-0 align-baseline text-xs leading-4 pointer-coarse:min-h-0"
-                    disabled={pending}
-                    onClick={downloadAgain}
-                    variant="link"
-                  >
-                    Download again
-                  </Button>
+                  .{" "}
+                  <span className="block">
+                    Not in your downloads?{" "}
+                    {/* The shared text action, set in the hint's type and inline in its sentence,
+                        so the line keeps its height (a link in a sentence needs no 44px target). */}
+                    <Button
+                      className="inline min-h-0 py-0 align-baseline text-xs leading-4 pointer-coarse:min-h-0"
+                      disabled={pending}
+                      onClick={downloadAgain}
+                      variant="link"
+                    >
+                      Download again
+                    </Button>
+                  </span>
                 </FieldMessage>
               ) : fileSource === "earlier" ? (
                 // A lost file is no dead end: a new backup of the same key replaces it.
@@ -384,11 +360,7 @@ export function BackupFlow({
               aria-invalid={passwordTooShort || Boolean(passwordError) || undefined}
               action={
                 <RevealPasswordButton
-                  controls={
-                    needsConfirmation
-                      ? "backup-password backup-password-confirmation"
-                      : "backup-password"
-                  }
+                  controls="backup-password"
                   onToggle={() => setPasswordShown((shown) => !shown)}
                   shown={passwordShown}
                 />
@@ -421,37 +393,6 @@ export function BackupFlow({
               </FieldMessage>
             ) : null}
           </div>
-          {needsConfirmation ? (
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="backup-password-confirmation">Confirm password</Label>
-              <Input
-                id="backup-password-confirmation"
-                type={passwordShown ? "text" : "password"}
-                ref={passwordConfirmation}
-                required
-                readOnly={pending}
-                maxLength={MAXIMUM_BACKUP_PASSWORD_LENGTH}
-                autoComplete="new-password"
-                containerClassName="border-dashed"
-                aria-invalid={confirmationError ? true : undefined}
-                aria-describedby={
-                  confirmationError ? "backup-password-confirmation-error" : undefined
-                }
-                onBlur={(event) => {
-                  if (event.currentTarget.value) setConfirmationChecked(true);
-                }}
-                onInput={() => {
-                  setConfirmationChecked(false);
-                  updatePasswordState();
-                }}
-              />
-              {confirmationError ? (
-                <FieldMessage id="backup-password-confirmation-error" error role="alert">
-                  {confirmationError}
-                </FieldMessage>
-              ) : null}
-            </div>
-          ) : null}
         </RecoveryCard>
         {formError ? (
           <Notice focusOnMount tone="error">
@@ -488,12 +429,6 @@ export function BackupFlow({
       </form>
     </RecoveryScreen>
   );
-}
-
-function confirmationState(value: string, repeated: string): Confirmation {
-  if (!repeated) return "empty";
-  if (repeated === value) return "match";
-  return value.startsWith(repeated) ? "typing" : "mismatch";
 }
 
 /**

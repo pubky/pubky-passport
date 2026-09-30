@@ -117,7 +117,8 @@ describe("IdentitySwitcher", () => {
     );
 
     // The name already carries the key, so no key line repeats it; the face is not read out.
-    const first = screen.getByRole("button", { name: "Pubky loca…1234Key in this browser" });
+    // A key only in this browser gets no tag.
+    const first = screen.getByRole("button", { name: "Pubky loca…1234" });
     const second = screen.getByRole("button", { name: /Pubky othe…9876/u });
     expect(screen.queryByText(/Your Pubky/u)).toBeNull();
     // No placeholder initials: pubky.app's face for each key, which the row's name covers.
@@ -129,7 +130,7 @@ describe("IdentitySwitcher", () => {
       expect(row.querySelector(".lowercase, .uppercase")).toBeNull();
   });
 
-  it("shows where each identity's key lives in one tag style", () => {
+  it("tags a Ring-held key and leaves a key only in this browser untagged", () => {
     render(
       <IdentitySwitcher
         activePublicKeyZ32={null}
@@ -148,10 +149,10 @@ describe("IdentitySwitcher", () => {
     );
 
     const ring = screen.getByText("Key in Pubky Ring");
-    const browser = screen.getByText("Key in this browser");
-    expect(ring.className).toBe(browser.className);
+    expect(ring).toHaveClass("rounded-2xl", "border");
     expect(screen.getByRole("button", { name: /^Ring/u })).toContainElement(ring);
     expect(screen.getByRole("button", { name: /^Ring/u })).toHaveTextContent("ring…1234");
-    expect(screen.getByRole("button", { name: /^Local/u })).toContainElement(browser);
+    expect(screen.getByRole("button", { name: /^Local/u })).not.toHaveTextContent(/Key in/u);
+    expect(screen.queryByText("Key in this browser")).not.toBeInTheDocument();
   });
 });

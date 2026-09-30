@@ -17,6 +17,13 @@ export const PUBKY_COPY_TOASTS = {
   failedDescription: "Select and copy your pubky manually.",
 } as const satisfies CopyToasts;
 
+/** What copying a homeserver's key says, wherever one is shown. */
+export const HOMESERVER_COPY_TOASTS = {
+  copied: "Homeserver copied",
+  failed: "Could not copy homeserver",
+  failedDescription: "Select and copy the homeserver manually.",
+} as const satisfies CopyToasts;
+
 /** A failed copy asks the person to copy by hand, so it stays until closed or read. */
 const FAILED_COPY_DURATION_MS = 10_000;
 

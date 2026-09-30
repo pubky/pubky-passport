@@ -31,8 +31,8 @@ describe("IdentityOverview", () => {
   it("asks to back up a browser key that has no backup, with one warning", () => {
     const { onBackup } = renderOverview({ publicIdentity: PUBLIC_IDENTITY });
 
-    // The status line only says where the key is; the notice alone carries the warning.
-    expect(screen.getByText("Key in this browser")).toBeInTheDocument();
+    // A key only in this browser gets no tag; the notice alone carries the warning.
+    expect(screen.queryByText("Key in this browser")).toBeNull();
     expect(document.querySelectorAll('[data-tone="warning"]')).toHaveLength(1);
     const reminder = screen
       .getByText(/This key is saved only in this browser/u)
@@ -49,7 +49,6 @@ describe("IdentityOverview", () => {
       backup: { createdAt: BACKUP_AT },
     });
 
-    expect(screen.getByText("Key in this browser")).toBeInTheDocument();
     const reminder = screen.getByText(/but it was never checked/u).closest("[data-tone]");
     expect(reminder).toHaveAttribute("data-tone", "warning");
     expect(reminder).toHaveTextContent(
@@ -62,14 +61,21 @@ describe("IdentityOverview", () => {
     expect(onBackup).toHaveBeenLastCalledWith(false);
   });
 
+  it("leaves a checked backup file to Manage and shows no tag for a key only in this browser", () => {
+    renderOverview({ publicIdentity: PUBLIC_IDENTITY, backup: { verifiedAt: BACKUP_AT } });
+
+    expect(screen.queryByText(/Recovery file checked/u)).toBeNull();
+    expect(screen.queryByText(/Key in this browser/u)).toBeNull();
+    expect(document.querySelector('[data-tone="warning"]')).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Download recovery file" }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Check recovery file" })).not.toBeInTheDocument();
+  });
+
   it.each([
     [
-      "a checked backup file",
-      { backup: { verifiedAt: BACKUP_AT } },
-      `Recovery file checked ${formatBackupDate(new Date(BACKUP_AT))}`,
-    ],
-    [
-      "a Google Drive copy",
+      "a Google account",
       {
         googleAccount: {
           googleSubject: "subject",
@@ -78,26 +84,20 @@ describe("IdentityOverview", () => {
           pictureUrl: null,
         },
       },
-      "Key in this browser, backed up to Google Drive",
+      null,
     ],
     ["Pubky Ring", { keySource: "ring" } as const, "Key in Pubky Ring"],
-  ])("only states where the key is when %s protects it", (_, protection, line) => {
+  ])("shows at most the Ring tag when %s holds the key", (_, protection, tag) => {
     renderOverview({ publicIdentity: PUBLIC_IDENTITY, ...protection });
 
-    expect(screen.getByText(line)).toBeInTheDocument();
+    // The Google card below names the account; the overview leaves the Google badge out.
+    expect(screen.queryByRole("group", { name: /^Attached Google account/u })).toBeNull();
+    if (tag) expect(screen.getByText(tag)).toBeInTheDocument();
+    expect(screen.queryByText(/backed up to Google Drive/u)).toBeNull();
     expect(document.querySelector('[data-tone="warning"]')).toBeNull();
     expect(
       screen.queryByRole("button", { name: "Download recovery file" }),
     ).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Check recovery file" })).not.toBeInTheDocument();
-  });
-
-  it("shows where the key lives in the tag every list uses", () => {
-    renderOverview({ publicIdentity: PUBLIC_IDENTITY, backup: { verifiedAt: BACKUP_AT } });
-
-    const tag = screen.getByText("Key in this browser");
-    expect(tag).toHaveClass("rounded-2xl", "border");
-    expect(screen.queryByText(/^Key in this browser, /u)).toBeNull();
   });
 
   it("names an identity without a profile after its key, with pubky.app's face for the key", () => {

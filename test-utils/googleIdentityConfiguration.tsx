@@ -54,6 +54,7 @@ export function withPassportTestProviders(
           checkAvatar: async () => Result.ok(undefined),
         }),
         checkSignupToken: async () => "valid" as const,
+        checkHomeserver: async () => true,
         ...collaborators,
       }}
     >

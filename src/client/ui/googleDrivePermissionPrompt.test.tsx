@@ -13,47 +13,36 @@ const CAPTION = "In Google’s window, tick Select all (or both Drive boxes), th
 afterEach(cleanup);
 
 describe("GooglePermissionGuide", () => {
-  it("shows a still, captioned illustration until the person plays the animation", async () => {
+  it("always plays the animation and shows the still only with reduced motion", () => {
     render(<GooglePermissionGuide />);
 
     const figure = screen.getByRole("figure");
     expect(within(figure).getByText(CAPTION).tagName).toBe("FIGCAPTION");
+    // No Play or Pause control: the animation plays on its own.
+    expect(within(figure).queryByRole("button")).not.toBeInTheDocument();
+    const animation = within(figure).getByRole("img", { name: /^Animation/ });
+    expect(animation).toHaveAttribute("src", ANIMATION);
+    expect(animation).toHaveClass("motion-reduce:hidden");
     const still = within(figure).getByRole("img", { name: /both Google Drive boxes ticked/ });
     expect(still).toHaveAttribute("src", STILL);
+    expect(still).toHaveClass("hidden", "motion-reduce:block");
     // Cropped above Google's own Cancel and Continue, so they are not taken for Passport's.
     expect(still).toHaveClass("aspect-[960/640]", "object-cover", "object-top");
-    expect(within(figure).queryByRole("img", { name: /^Animation/ })).not.toBeInTheDocument();
     expect(still.parentElement).toHaveClass(
       "rounded-2xl",
       "ring-1",
       "ring-border",
       "max-w-[480px]",
     );
-
-    const user = userEvent.setup();
-    await user.click(within(figure).getByRole("button", { name: "Play animation" }));
-    const animation = within(figure).getByRole("img", { name: /^Animation/ });
-    expect(animation).toHaveAttribute("src", ANIMATION);
-    // Reduced motion keeps the still even while playing.
-    expect(animation).toHaveClass("motion-reduce:hidden");
-    expect(still).toHaveClass("hidden", "motion-reduce:block");
-
-    await user.click(within(figure).getByRole("button", { name: "Pause animation" }));
-    expect(within(figure).queryByRole("img", { name: /^Animation/ })).not.toBeInTheDocument();
-    expect(still).not.toHaveClass("hidden");
   });
 
-  it("offers no animation with reduced motion and takes a shorter caption", () => {
+  it("takes a shorter caption and a narrower frame when compact", () => {
     render(<GooglePermissionGuide caption="What to tick in Google’s window" compact />);
 
     const figure = screen.getByRole("figure");
-    expect(within(figure).getByRole("button", { name: "Play animation" })).toHaveClass(
-      "motion-reduce:hidden",
-      "min-h-11",
-    );
     expect(within(figure).getByText("What to tick in Google’s window").tagName).toBe("FIGCAPTION");
     expect(figure).not.toHaveTextContent(CAPTION);
-    expect(within(figure).getByRole("img").parentElement).toHaveClass("max-w-[360px]");
+    expect(within(figure).getAllByRole("img")[0]?.parentElement).toHaveClass("max-w-[360px]");
   });
 });
 
@@ -78,7 +67,6 @@ describe("GoogleDrivePermissionPrompt", () => {
       "Back",
       "Try again",
       "Skip the folder copy",
-      "Play",
     ]);
     const user = userEvent.setup();
     await user.tab();

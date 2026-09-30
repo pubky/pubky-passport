@@ -53,25 +53,20 @@ describe("GoogleIdentityProgress", () => {
     { flow: "create", step: "signing_up", homeserverPubky: HOMESERVER },
     { flow: "repair", step: "publishing", homeserverPubky: HOMESERVER },
   ] satisfies GoogleIdentityProgressState[])(
-    "names the homeserver Homegate issued the invite for while it is used ($flow)",
+    "names no homeserver while the account is set up ($flow)",
     (progress) => {
       render(<GoogleIdentityProgress progress={progress} />);
-      expect(screen.getByText("Homeserver")).toBeInTheDocument();
-      expect(screen.getByText(HOMESERVER)).toBeInTheDocument();
+      expect(screen.queryByText("Homeserver")).not.toBeInTheDocument();
+      expect(screen.queryByText(HOMESERVER)).not.toBeInTheDocument();
     },
   );
-
-  it("names no homeserver before Homegate has issued the invite", () => {
-    render(<GoogleIdentityProgress progress={{ flow: "create", step: "preparing" }} />);
-    expect(screen.queryByText("Homeserver")).not.toBeInTheDocument();
-  });
 
   it.each([
     [{ flow: "create", step: "preparing" }, "Save encrypted backup to Google Drive"],
     [{ flow: "create", step: "creating" }, "Save encrypted backup to Google Drive"],
     [{ flow: "create", step: "storing_passport_file" }, "Save encrypted backup to Google Drive"],
     [{ flow: "create", step: "signing_up" }, "Create your account"],
-    [{ flow: "create", step: "publishing" }, "Publish your pubky so apps can find it"],
+    [{ flow: "create", step: "publishing" }, "Publish PKDNS records"],
     [{ flow: "create", step: "activating" }, "Finish setup"],
   ] satisfies Array<[GoogleIdentityProgressState, string]>)(
     "presents %s as the active setup step",
@@ -100,7 +95,7 @@ describe("GoogleIdentityProgress", () => {
 
   it.each([
     [{ flow: "repair", step: "signing_up" }, "Finish your earlier setup"],
-    [{ flow: "repair", step: "publishing" }, "Publish your pubky so apps can find it"],
+    [{ flow: "repair", step: "publishing" }, "Publish PKDNS records"],
     [{ flow: "repair", step: "signing_in" }, "Sign in"],
   ] satisfies Array<[GoogleIdentityProgressState, string]>)(
     "presents %s as the active repair step",

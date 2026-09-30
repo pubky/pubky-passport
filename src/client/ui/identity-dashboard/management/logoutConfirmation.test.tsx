@@ -153,9 +153,8 @@ describe("LogoutConfirmation", () => {
       identity: { publicIdentity: PUBLIC_IDENTITY, googleAccount: GOOGLE_ACCOUNT },
     });
     expect(screen.getByText("Pubky x8jp…4mra")).toBeInTheDocument();
-    expect(
-      screen.getByRole("group", { name: `Attached Google account: ${GOOGLE_ACCOUNT.email}` }),
-    ).toBeInTheDocument();
+    // No Google badge here: the Google card on Manage already names the account.
+    expect(screen.queryByRole("group", { name: /^Attached Google account/u })).toBeNull();
     expect(screen.getByText(PUBLIC_IDENTITY.publicKeyZ32)).toBeInTheDocument();
     expect(screen.queryByText("Satoshi Google")).not.toBeInTheDocument();
 

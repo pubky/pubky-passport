@@ -1,6 +1,7 @@
 import Image from "next/image";
 import type { ReactNode } from "react";
 
+import { cn } from "./mergeClassNames";
 import { PassportScreen } from "./passportScreen";
 import { DisplayHeading, LeadText } from "./primitives/typography";
 
@@ -13,6 +14,7 @@ export function OutcomeScreen({
   accent,
   action,
   children,
+  compactArt = false,
   description,
   label,
   title,
@@ -30,6 +32,11 @@ export function OutcomeScreen({
   description: ReactNode;
   /** What the person should know now, such as the account used or a missing copy. */
   children?: ReactNode;
+  /**
+   * Draws the checkmark smaller below the desktop breakpoint, for a screen whose details would
+   * otherwise push the action below the fold in a phone or an app's popup.
+   */
+  compactArt?: boolean;
   /** The way on, usually a full-width Done. */
   action: ReactNode;
 }) {
@@ -45,7 +52,7 @@ export function OutcomeScreen({
       <Image
         alt=""
         aria-hidden="true"
-        className="mx-auto size-40 md:size-48"
+        className={cn("mx-auto size-40 md:size-48", compactArt && "size-20")}
         height={192}
         src="/illustrations/checkmark.png"
         width={192}

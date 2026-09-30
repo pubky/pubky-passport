@@ -411,7 +411,6 @@ for (const [name, viewport, entry] of [
     await page.getByRole("button", { name: "Verify code" }).click();
     await page.getByRole("button", { name: "Keep key in this browser" }).click();
     await page.getByLabel("Enter strong password").fill("correct horse");
-    await page.getByLabel("Confirm password").fill("correct horse");
     await page.getByRole("button", { name: "Download recovery file" }).click();
     await page.getByRole("button", { name: "Skip this check (not recommended)" }).click();
 
@@ -420,6 +419,9 @@ for (const [name, viewport, entry] of [
       timeout: 20_000,
     });
     await expect(page.getByText(/Your key is saved in this browser/u)).toBeVisible();
+    // The homeserver Homegate issued the code for is named here, under the new pubky.
+    await expect(page.getByText(HOMESERVER, { exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Copy Homeserver" })).toBeVisible();
     // During the app's request it also says that skipping goes on to that sign-in.
     await expect(page.getByText(/skip it and continue signing in/u)).toHaveCount(
       entry === "/" ? 0 : 1,

@@ -119,7 +119,7 @@ test("detaching names the attached account and reports another account as such",
   await expect(
     page.getByRole("group", { name: "Attached Google account: test@example.com" }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "Detach from Google…" }).click();
+  await page.getByRole("button", { name: "Detach from Google" }).click();
   const dialog = page.getByRole("dialog", { name: "Detach from Google?" });
   await expect(dialog).toContainText("this browser will keep the only copy of your key");
   await expect(dialog).toContainText("sign in as test@example.com");
@@ -353,10 +353,10 @@ test("the Drive permission guide stays still until played and never pushes the a
 
   const guide = page.getByRole("figure");
   await expect(guide).toContainText(PERMISSION_CAPTION);
-  await expect(guide.getByRole("img")).toHaveAttribute(
-    "src",
-    "/illustrations/google-drive-permissions-still.png",
-  );
+  // The animation always plays, with no Play or Pause control; the still is for reduced motion.
+  const animation = guide.getByRole("img", { name: /^Animation/ });
+  await expect(animation).toHaveAttribute("src", "/illustrations/google-drive-permissions.gif");
+  await expect(guide.getByRole("button")).toHaveCount(0);
   const actions = ["Back", "Try again", "Skip the folder copy"];
   for (const viewport of [POPUP, { width: 1440, height: 900 }]) {
     await page.setViewportSize(viewport);
@@ -364,19 +364,8 @@ test("the Drive permission guide stays still until played and never pushes the a
     await heading.focus();
     await page.keyboard.press("Tab");
     await expect(page.getByRole("button", { name: "Back", exact: true })).toBeFocused();
+    // The animation follows the actions, so it pushes none of them below the fold.
     await expectAboveFold(page, actions);
-    // The animation is taller than the still; it follows the actions, so it moves none of them.
-    await guide.getByRole("button", { name: "Play animation" }).click();
-    await expect(guide.getByRole("img", { name: /^Animation/ })).toHaveAttribute(
-      "src",
-      "/illustrations/google-drive-permissions.gif",
-    );
-    await expectAboveFold(page, actions);
-    await guide.getByRole("button", { name: "Pause animation" }).click();
-    await expect(guide.getByRole("img")).toHaveAttribute(
-      "src",
-      "/illustrations/google-drive-permissions-still.png",
-    );
   }
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
   await page.setViewportSize(POPUP);
@@ -386,7 +375,11 @@ test("the Drive permission guide stays still until played and never pushes the a
   });
 
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await expect(guide.getByRole("button", { name: "Play animation" })).toBeHidden();
+  await expect(animation).toBeHidden();
+  await expect(guide.getByRole("img")).toHaveAttribute(
+    "src",
+    "/illustrations/google-drive-permissions-still.png",
+  );
 });
 
 test("new identities reach optional backup consent only after a Drive lookup", async ({
@@ -620,7 +613,7 @@ async function confirmDetachment(page: Page) {
  */
 async function finishDetachment(page: Page, word: "ONLY COPY" | "DETACH") {
   await page.getByRole("button", { name: "Continue to detach" }).click();
-  await page.getByRole("button", { name: "Detach from Google…" }).click();
+  await page.getByRole("button", { name: "Detach from Google" }).click();
   await page.getByLabel(`Type ${word} to confirm`).fill(word);
   await page.getByRole("button", { name: "Confirm detachment" }).click();
 }

@@ -1,7 +1,5 @@
 import Image from "next/image";
-import { useState } from "react";
-
-import { PauseIcon, PlayIcon, RotateCcwIcon } from "@/client/ui/shared/icons";
+import { RotateCcwIcon } from "@/client/ui/shared/icons";
 import { BackButton } from "@/client/ui/shared/backButton";
 import { ErrorScreen } from "@/client/ui/shared/errorScreen";
 import { cn } from "@/client/ui/shared/mergeClassNames";
@@ -63,12 +61,11 @@ const GUIDE_CAPTION =
 
 /**
  * What to tick in Google's consent window, as an illustration rather than a copy of Google's
- * controls: a still picture of both Drive boxes ticked, cropped above Google's own Cancel and
- * Continue so they are not mistaken for Passport's, with the instruction as real text in the
- * caption. The animation plays only on request and can be paused again (WCAG 2.2.2); with
- * reduced motion there is no animation to play. Screens place it after their actions, so the
- * actions come first in reading and focus order and stay above the fold in an app's popup,
- * and playing the taller animation moves none of them.
+ * controls, with the instruction as real text in the caption. The animation always plays; with
+ * reduced motion a still picture of both Drive boxes ticked takes its place, cropped above
+ * Google's own Cancel and Continue so they are not mistaken for Passport's. Screens place it
+ * after their actions, so the actions come first in reading and focus order and stay above the
+ * fold in an app's popup.
  */
 function GooglePermissionGuide({
   caption = GUIDE_CAPTION,
@@ -78,46 +75,26 @@ function GooglePermissionGuide({
   caption?: string;
   compact?: boolean;
 }) {
-  const [playing, setPlaying] = useState(false);
   const width = compact ? "max-w-[360px]" : "max-w-[480px]";
-  const still = (
-    <Image
-      alt="Google’s permission window with Select all and both Google Drive boxes ticked."
-      className={cn(
-        "block aspect-[960/640] h-auto w-full object-cover object-top",
-        playing && "hidden motion-reduce:block",
-      )}
-      height={776}
-      src="/illustrations/google-drive-permissions-still.png"
-      unoptimized
-      width={960}
-    />
-  );
   return (
     <figure className="flex w-full flex-col items-center gap-3">
-      <div className={cn("relative w-full overflow-hidden rounded-2xl ring-1 ring-border", width)}>
-        {playing ? (
-          <Image
-            alt="Animation of a pointer ticking Select all, which ticks both Google Drive boxes, then pressing Continue."
-            className="block h-auto w-full motion-reduce:hidden"
-            height={776}
-            src="/illustrations/google-drive-permissions.gif"
-            unoptimized
-            width={960}
-          />
-        ) : null}
-        {still}
-        <Button
-          aria-label={playing ? "Pause animation" : "Play animation"}
-          className="absolute right-2 top-2 min-h-11 motion-reduce:hidden"
-          onClick={() => setPlaying(!playing)}
-          size="sm"
-          type="button"
-          variant="outline"
-        >
-          {playing ? <PauseIcon /> : <PlayIcon />}
-          {playing ? "Pause" : "Play"}
-        </Button>
+      <div className={cn("w-full overflow-hidden rounded-2xl ring-1 ring-border", width)}>
+        <Image
+          alt="Animation of a pointer ticking Select all, which ticks both Google Drive boxes, then pressing Continue."
+          className="block h-auto w-full motion-reduce:hidden"
+          height={776}
+          src="/illustrations/google-drive-permissions.gif"
+          unoptimized
+          width={960}
+        />
+        <Image
+          alt="Google’s permission window with Select all and both Google Drive boxes ticked."
+          className="hidden aspect-[960/640] h-auto w-full object-cover object-top motion-reduce:block"
+          height={776}
+          src="/illustrations/google-drive-permissions-still.png"
+          unoptimized
+          width={960}
+        />
       </div>
       <figcaption className={cn("text-center text-sm leading-5 text-muted-foreground", width)}>
         {caption}

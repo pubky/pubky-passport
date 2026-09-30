@@ -80,7 +80,6 @@ function renderFlow(controller: LocalAccountSetupPort, inviteSource: InviteSourc
 
 async function downloadAndSkip(user: ReturnType<typeof userEvent.setup>) {
   await user.type(await screen.findByLabelText("Enter strong password"), PASSWORD);
-  await user.type(screen.getByLabelText("Confirm password"), PASSWORD);
   await user.click(screen.getByRole("button", { name: "Download recovery file" }));
   await user.click(
     await screen.findByRole("button", { name: "Skip this check (not recommended)" }),
@@ -382,7 +381,7 @@ describe("LocalAccountCreationFlow", () => {
     expect(onComplete).toHaveBeenCalledWith({ publicIdentity: { publicKeyZ32: PUBLIC_KEY } });
   });
 
-  it("names the invite's homeserver while the account is created on it", async () => {
+  it("names no homeserver while the account is created on it", async () => {
     vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:backup");
     vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined);
     vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
@@ -397,8 +396,9 @@ describe("LocalAccountCreationFlow", () => {
     await downloadAndSkip(userEvent.setup());
 
     expect(await screen.findByRole("heading", { name: "Setting up your pubky." })).toBeVisible();
-    expect(screen.getByText("Homeserver")).toBeVisible();
-    expect(screen.getByText(INVITE.homeserverPubky)).toBeVisible();
+    // "Account created." names it once the account exists.
+    expect(screen.queryByText("Homeserver")).toBeNull();
+    expect(screen.queryByText(INVITE.homeserverPubky)).toBeNull();
     finish();
   });
 

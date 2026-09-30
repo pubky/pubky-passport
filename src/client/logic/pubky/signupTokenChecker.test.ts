@@ -76,6 +76,29 @@ describe("SignupTokenChecker", () => {
     ).toEqual(expected);
   });
 
+  it.each([
+    ["a 404 for the probe code", new Response("", { status: 404 }), true],
+    ["an error status", new Response("", { status: 503 }), true],
+    ["a transport failure", new TypeError("Failed to fetch"), false],
+  ] as const)("says a homeserver answers after %s", async (_label, response, expected) => {
+    vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+    const fetch = vi.fn(async () => {
+      if (response instanceof Error) throw response;
+      return response;
+    });
+    expect(
+      await new SignupTokenChecker(fetch).reaches(
+        INVITE.homeserverPubky,
+        new AbortController().signal,
+      ),
+    ).toBe(expected);
+    // The same read-only lookup, for a placeholder code.
+    expect(fetch).toHaveBeenCalledWith(
+      `https://${INVITE.homeserverPubky}/signup_tokens/0000-0000-0000`,
+      expect.objectContaining({ method: "GET" }),
+    );
+  });
+
   it("reports a cancelled lookup as unanswered without logging it", async () => {
     const warn = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
     const cancelled = new AbortController();

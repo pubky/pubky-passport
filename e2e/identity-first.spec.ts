@@ -33,12 +33,9 @@ for (const count of [0, 1, 2]) {
     await expect(
       page.getByRole("heading", { name: count ? "Your pubky." : "Get your pubky." }),
     ).toBeVisible();
+    // The overview names the active identity by its key; its Google badge is left to the lists.
     if (count)
-      await expect(
-        page.getByText(count === 1 ? "identity-0@example.com" : "identity-1@example.com", {
-          exact: true,
-        }),
-      ).toBeVisible();
+      await expect(page.getByText(count === 1 ? FIRST : SECOND, { exact: true })).toBeVisible();
     await page.reload();
     await expect(
       page.getByRole("heading", { name: count ? "Your pubky." : "Get your pubky." }),
@@ -86,14 +83,15 @@ test("switching persists immediately and removing the last identity returns to s
   // Each screen names itself: its heading takes focus and titles the window.
   await expect(page.getByRole("heading", { name: "Switch identity." })).toBeFocused();
   await expect(page).toHaveTitle("Switch identity | Pubky Passport");
+  // The switcher's rows carry the Google badge; the overview names the identity by its key.
   await page.getByRole("button", { name: /identity-0@example\.com/ }).click();
-  await expect(page.getByText("identity-0@example.com", { exact: true })).toBeVisible();
+  await expect(page.getByText(FIRST, { exact: true })).toBeVisible();
   await page.reload();
-  await expect(page.getByText("identity-0@example.com", { exact: true })).toBeVisible();
+  await expect(page.getByText(FIRST, { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Manage identity" }).click();
   await page.getByRole("button", { name: "Log out" }).click();
   await page.getByRole("button", { name: "Log out" }).click();
-  await expect(page.getByText("identity-1@example.com", { exact: true })).toBeVisible();
+  await expect(page.getByText(SECOND, { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Manage identity" }).click();
   await page.getByRole("button", { name: "Log out" }).click();
   await page.getByRole("button", { name: "Log out" }).click();
@@ -166,11 +164,9 @@ test("screens remain accessible, scroll naturally and have one footer at each vi
     await expect(page.getByRole("heading", { name: "Sign in to Example App" })).toBeVisible();
     await page.getByRole("button", { name: "Use another identity" }).click();
     await inspect("add-with-request");
-    // The start page, still addressed to the app, with Pubky Ring below its cards.
+    // The start page, still addressed to the app; Pubky Ring stays on the list before it.
     await expect(page.getByRole("button", { name: "Create account", exact: true })).toBeVisible();
-    await expect(
-      page.getByRole("button", { name: "Continue with Pubky Ring", exact: true }),
-    ).toBeVisible();
+    await expect(page.getByRole("button", { name: /Pubky Ring/u })).toHaveCount(0);
     await page.getByRole("button", { name: "Back", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Sign in to Example App" })).toBeVisible();
 

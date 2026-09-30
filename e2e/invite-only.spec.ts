@@ -1,8 +1,11 @@
 import { INVITE_ONLY_PROVIDER } from "./helpers/e2eServer";
 import { expect, test } from "./helpers/passportTest";
+import { HOMESERVER, mockHomeserverRecords } from "./helpers/pubkyProfile";
 
 // Runs only in the `invite-only` project, against a server without Google, Homegate or a keyring.
 test("offers only manual invites on a provider without Google or Homegate", async ({ page }) => {
+  // The test homeserver's record is served; the provider's is not.
+  await mockHomeserverRecords(page);
   await page.goto("/");
 
   await expect(page.getByRole("heading", { name: "Get your pubky." })).toBeVisible();
@@ -27,14 +30,23 @@ test("offers only manual invites on a provider without Google or Homegate", asyn
   await page.getByRole("button", { name: "Change homeserver" }).click();
   const homeserver = page.getByLabel("Homeserver public key");
   await expect(homeserver).toHaveValue(INVITE_ONLY_PROVIDER.homeserver);
-  // A key that is not one is explained where it was typed; Enter uses the entry.
+  await expect(page.getByRole("button", { name: "Use this homeserver" })).toHaveCount(0);
+  // The key already in the field is checked as it opens; no record is served for this one.
+  await expect(
+    page.getByText("Passport could not reach this homeserver.", { exact: false }),
+  ).toBeVisible();
+  await expect(homeserver).toHaveAttribute("aria-invalid", "true");
+  // A key that is not one is explained where it was typed, without asking any server.
   await homeserver.fill("my-homeserver.example");
   await homeserver.press("Enter");
   await expect(page.getByText(/A homeserver public key is 52 letters and digits/u)).toBeVisible();
   await expect(homeserver).toBeFocused();
-  await homeserver.fill(INVITE_ONLY_PROVIDER.homeserver);
-  await homeserver.press("Enter");
-  await expect(page.locator("#invite-homeserver")).toHaveText(INVITE_ONLY_PROVIDER.homeserver);
+  // A reachable homeserver turns the field green once the person leaves it.
+  await homeserver.fill(HOMESERVER);
+  await homeserver.press("Tab");
+  await expect(page.getByText("Homeserver found.")).toBeVisible();
+  await expect(homeserver).not.toHaveAttribute("aria-invalid");
+  await expect(page.getByLabel("Enter invite code")).toBeFocused();
 
   // Back leaves account creation, as there is no method list to return to.
   await page.getByRole("button", { name: "Back", exact: true }).click();

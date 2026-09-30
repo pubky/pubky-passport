@@ -9,7 +9,7 @@ import { ReviewGoogleDetachment } from "./reviewGoogleDetachment";
 describe("ReviewGoogleDetachment", () => {
   afterEach(cleanup);
 
-  it("names what detaching keeps and gates confirmation behind Detach from Google…", async () => {
+  it("names what detaching keeps and gates confirmation behind Detach from Google", async () => {
     const onBack = vi.fn();
     const onRemove = vi.fn();
     const { container } = render(
@@ -36,7 +36,7 @@ describe("ReviewGoogleDetachment", () => {
     expect(redLine).toHaveAttribute("width", "282");
     expect(redLine).toHaveAttribute("height", "8");
 
-    await userEvent.setup().click(screen.getByRole("button", { name: "Detach from Google…" }));
+    await userEvent.setup().click(screen.getByRole("button", { name: "Detach from Google" }));
     expect(onRemove).toHaveBeenCalledOnce();
     await userEvent.setup().click(screen.getByRole("button", { name: "Back" }));
     expect(onBack).toHaveBeenCalledOnce();

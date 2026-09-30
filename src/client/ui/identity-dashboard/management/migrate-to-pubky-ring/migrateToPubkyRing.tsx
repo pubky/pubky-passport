@@ -8,7 +8,9 @@ import { CheckIcon, ScanIcon } from "@/client/ui/shared/icons";
 import { BackButton } from "@/client/ui/shared/backButton";
 import { Notice } from "@/client/ui/shared/notice";
 import { PassportNavigation } from "@/client/ui/shared/passportNavigation";
+import { cn } from "@/client/ui/shared/mergeClassNames";
 import { Button } from "@/client/ui/shared/primitives/button";
+import { Spinner } from "@/client/ui/shared/primitives/spinner";
 import { RingHandoffScreen, RingHandoffStatus } from "@/client/ui/shared/ringHandoffScreen";
 import { useDeepLinkLauncher, useRingHandoffMode } from "@/client/ui/shared/useRingHandoff";
 import { PubkyRingQrCode } from "./pubkyRingQrCode";
@@ -158,6 +160,7 @@ function MigrateToPubkyRing({
 
   const exportFailed = state.status === "failed";
   const desktopQr = state.status === "ready" && state.mode === "desktop";
+  const qrLoading = pending && pressed === "qr";
 
   return (
     <RingHandoffScreen
@@ -198,19 +201,8 @@ function MigrateToPubkyRing({
             </Notice>
           ) : null}
 
-          <div className="flex flex-col gap-3 md:flex-row">
-            <Button
-              disabled={pending && pressed !== "qr"}
-              loading={pending && pressed === "qr"}
-              onClick={desktopQr ? invalidate : showQr}
-              size="lg"
-              type="button"
-              variant="secondary"
-            >
-              <ScanIcon />
-              {desktopQr ? "Hide QR code" : "Show QR code"}
-            </Button>
-            {mode === "open" ? (
+          {mode === "open" ? (
+            <div className="flex flex-col gap-3 md:flex-row">
               <Button
                 disabled={pending && pressed !== "import"}
                 loading={pending && pressed === "import"}
@@ -224,17 +216,40 @@ function MigrateToPubkyRing({
                 <PubkyBrandIcon />
                 Open in Pubky Ring
               </Button>
-            ) : null}
-          </div>
+            </div>
+          ) : null}
         </div>
-        {desktopQr ? (
-          <PubkyRingQrCode className="size-48 shrink-0" migration={state.migration} />
-        ) : (
-          <div className="hidden size-48 shrink-0 flex-col items-center justify-center gap-2 self-center rounded-lg border border-dashed border-border p-4 text-center text-xs leading-4 text-muted-foreground md:flex">
-            <ScanIcon />
-            The QR code stays hidden until you choose Show QR code.
-          </div>
-        )}
+        {/* The square is the control: a placeholder until pressed, then the code, which hides
+            again when pressed. One button throughout, so focus stays on it; the code is its
+            sibling, so it keeps its own name. */}
+        <div className="relative size-48 shrink-0 self-center">
+          {desktopQr ? <PubkyRingQrCode className="size-full" migration={state.migration} /> : null}
+          <button
+            aria-busy={qrLoading || undefined}
+            aria-expanded={desktopQr}
+            aria-label={desktopQr ? "Hide QR code" : "Show QR code"}
+            className={cn(
+              "absolute inset-0 flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg p-4 text-center text-xs leading-4 text-muted-foreground transition-colors disabled:cursor-default disabled:opacity-50 [&_svg]:size-4",
+              !desktopQr &&
+                "border border-dashed border-border hover:border-foreground/40 hover:text-foreground",
+            )}
+            disabled={pending && pressed !== "qr"}
+            onClick={qrLoading ? undefined : desktopQr ? invalidate : showQr}
+            type="button"
+          >
+            {desktopQr ? null : qrLoading ? (
+              <Spinner decorative />
+            ) : (
+              <>
+                <ScanIcon />
+                <span aria-hidden="true">
+                  <span className="pointer-coarse:hidden">Click</span>
+                  <span className="hidden pointer-coarse:inline">Tap</span> to show QR code
+                </span>
+              </>
+            )}
+          </button>
+        </div>
       </section>
       {state.status === "ready" && state.mode === "dialog" ? (
         <PubkyRingQrDialog migration={state.migration} onClose={invalidate} warning={QR_WARNING} />

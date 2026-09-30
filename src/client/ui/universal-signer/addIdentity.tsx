@@ -22,10 +22,10 @@ import { GoogleSignupAvailability } from "@/client/ui/verificationAvailability";
 
 /**
  * The start page: create an account, import a recovery file, Google, and Pubky Ring. During an
- * app's request it is the request's first step when nothing is saved, and Use another identity
- * opens it from the identity list; there Pubky Ring is a full button below an "or", because it
- * answers the waiting app directly. Without a request, Ring is a quiet link for people who
- * already use it.
+ * app's request it is the request's first step when nothing is saved, and there Pubky Ring is a
+ * full button below an "or", because it answers the waiting app directly. Opened through Use
+ * another identity from the identity list, it leaves Ring out: the list already offers Continue
+ * with Pubky Ring. Without a request, Ring is a quiet link for people who already use it.
  */
 export function AddIdentity({
   request,
@@ -127,9 +127,10 @@ export function AddIdentity({
               </ChoiceCard>
             ) : null}
           </div>
-          {onUseRing ? (
-            // Only for an app's request: Ring answers the waiting app itself, named as on the
-            // identity list and the review.
+          {onUseRing && !onBack ? (
+            // Only when this page is the request's first step (nothing saved): Ring answers the
+            // waiting app itself. Opened through Use another identity, the identity list before it
+            // already offers Continue with Pubky Ring, so it is not repeated here.
             <div className="flex flex-col gap-4 [@media(max-height:50rem)]:gap-3">
               <OrDivider />
               <Button
@@ -141,7 +142,7 @@ export function AddIdentity({
                 <PubkyBrandIcon /> Continue with Pubky Ring
               </Button>
             </div>
-          ) : onConnectRing ? (
+          ) : onConnectRing && !request ? (
             // Quiet on purpose: Ring suits people who already have it, not newcomers. Connecting
             // a Ring identity signs the person in to Passport with it.
             <p className="flex flex-wrap items-center justify-center gap-x-1 text-center text-sm leading-5 text-muted-foreground">

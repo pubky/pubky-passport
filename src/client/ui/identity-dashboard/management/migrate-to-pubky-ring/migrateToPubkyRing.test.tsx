@@ -114,29 +114,39 @@ describe("MigrateToPubkyRing", () => {
     expect(
       screen.queryByRole("img", { name: "Pubky Ring migration QR code" }),
     ).not.toBeInTheDocument();
-    expect(screen.getByText(/stays hidden until you choose Show QR code/u)).toBeInTheDocument();
+    // The square itself is the control: no separate Show or Hide button beside it.
+    const square = screen.getByRole("button", { name: "Show QR code" });
+    expect(screen.getAllByRole("button", { name: /QR code/u })).toEqual([square]);
+    expect(square).toHaveAttribute("aria-expanded", "false");
+    expect(square).toHaveTextContent("to show QR code");
+    expect(square.parentElement).toHaveClass("size-48");
 
     const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: "Show QR code" }));
+    // A real button: the keyboard reaches and presses it.
+    square.focus();
+    await user.keyboard("{Enter}");
     const qrCode = await screen.findByRole("img", { name: "Pubky Ring migration QR code" });
     expect(createMigration).toHaveBeenCalledOnce();
+    // The same button, now over the code, hides it again; focus never leaves it.
+    expect(square).toHaveAccessibleName("Hide QR code");
+    expect(square).toHaveAttribute("aria-expanded", "true");
+    expect(square).toHaveFocus();
+    expect(square).not.toContainElement(qrCode);
     expect(qrCode).toHaveClass("size-full");
     expect(qrCode.parentElement).toHaveClass("inset-[4.66%]");
-    expect(qrCode.parentElement?.parentElement).toHaveClass("size-48");
-    expect(qrCode.parentElement?.parentElement?.parentElement).toHaveClass(
-      "rounded-lg",
-      "md:flex-row",
-      "md:p-8",
-    );
+    expect(qrCode.parentElement?.parentElement?.parentElement).toBe(square.parentElement);
+    expect(square.parentElement?.parentElement).toHaveClass("rounded-lg", "md:flex-row", "md:p-8");
     expect(
       qrCode.parentElement?.parentElement?.querySelector('img[src="/brand/pubky-brand-mark.svg"]'),
     ).toHaveAttribute("width", "15");
     expect(screen.queryByRole("dialog", { name: "Scan with Pubky Ring" })).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "Hide QR code" }));
+    await user.click(square);
     expect(
       screen.queryByRole("img", { name: "Pubky Ring migration QR code" }),
     ).not.toBeInTheDocument();
+    expect(square).toHaveAccessibleName("Show QR code");
+    expect(square).toHaveAttribute("aria-expanded", "false");
   });
 
   it("hides and disposes a shown QR code when the page is hidden", async () => {

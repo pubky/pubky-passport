@@ -8,10 +8,11 @@ import type { PubkySdkAdapter } from "@/client/logic/pubky/PubkySdkAdapter";
 
 export const MAXIMUM_BACKUP_BYTES = 1024 * 1024;
 /**
- * Minimum for passwords that protect a new backup. The SDK derives a recovery file's key with a
- * fixed salt, so the passphrase is the file's only protection against offline guessing.
+ * Minimum for passwords that protect a new backup, as the maintainer set it (2026-09-30). The SDK
+ * derives a recovery file's key with a fixed salt, so the passphrase is the file's only protection
+ * against offline guessing: a longer one is still better, and the screen asks for a strong one.
  */
-export const MINIMUM_BACKUP_PASSWORD_LENGTH = 12;
+export const MINIMUM_BACKUP_PASSWORD_LENGTH = 6;
 export const MAXIMUM_BACKUP_PASSWORD_LENGTH = 1024;
 
 export type BackupInputErrorCode = "invalid_password" | "invalid_backup";

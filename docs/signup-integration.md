@@ -108,7 +108,7 @@ submitted its signup, there is nothing left to choose: Passport shows **Finish y
   cannot tell, treats the pubky as new; the setup form opens over whatever profile it can read. The client's original request still needs explicit approval in Ring;
   connecting the profile does not authorize the client.
 - **Keep key in this browser.** Passport generates one SDK key, requires a `.pkarr` download
-  protected by a password entered twice, then offers a file check: select and decrypt that backup
+  protected by a password of at least 6 characters, then offers a file check: select and decrypt that backup
   to confirm the public key matches, or explicitly **Skip this check (not recommended)**, offered
   below the primary action. Passport registers, publishes, verifies sign-in, and stores that same
   identity locally, recording whether its backup was checked or only created. An uncertain attempt can be retried with the same key; no
@@ -174,8 +174,8 @@ permission review for explicit approval. Without a pending request, completion o
 identity overview. Google completion still requires the user to
 choose **Continue**; local registration and profile publication must finish before returning.
 
-**Download recovery file** in identity management uses the same password and file-check screens, and the
-password is entered twice there too. Verification decrypts the selected file and compares its
+**Download recovery file** in identity management uses the same password and file-check screens,
+with the same single password field. Verification decrypts the selected file and compares its
 public key with the selected identity, without signing in or importing another identity. Back
 returns to the password screen; successful verification or skipping the check returns to
 management. A backup requested by the removal confirmation cannot skip its check, because the key

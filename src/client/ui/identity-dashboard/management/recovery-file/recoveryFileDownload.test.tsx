@@ -117,7 +117,6 @@ describe("RecoveryFileDownload", () => {
 
 async function enterNewPassword(user: ReturnType<typeof userEvent.setup>) {
   await user.type(screen.getByLabelText("Enter strong password"), RECOVERY_PASSWORD);
-  await user.type(screen.getByLabelText("Confirm password"), RECOVERY_PASSWORD);
 }
 
 function backupFile() {

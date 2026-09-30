@@ -3,21 +3,30 @@ import type { ReactNode } from "react";
 import type { LocalIdentityMetadata } from "@/client/logic/local-identity/localIdentityModels";
 import { PubkyBrandIcon } from "./brand/pubkyBrandIcon";
 import { GoogleAccountTag } from "./googleAccountTag";
-import { KeyRoundIcon } from "./icons";
 import { cn } from "./mergeClassNames";
+
+type Custody = Pick<LocalIdentityMetadata, "googleAccount" | "keySource">;
+
+/** Whether `KeyCustodyTag` shows anything for this identity. */
+export function hasKeyCustodyTag(identity: Custody): boolean {
+  return identity.keySource === "ring" || identity.googleAccount !== undefined;
+}
 
 /**
  * Where an identity's private key lives, in one tag style wherever identities are listed or
  * confirmed, because it decides what signing in, backing up and logging out do: in Pubky Ring
- * (Passport cannot sign with it; Ring approves), in this browser backed by a Google account (the
- * account's tag), or in this browser alone.
+ * (Passport cannot sign with it; Ring approves) or in this browser backed by a Google account (the
+ * account's tag). A key held only in this browser is the ordinary case and gets no tag.
  */
 export function KeyCustodyTag({
   className,
   identity,
+  showGoogle = true,
 }: {
   className?: string | undefined;
-  identity: Pick<LocalIdentityMetadata, "googleAccount" | "keySource">;
+  identity: Custody;
+  /** Screens that already show the Google account (Manage, the overview) leave its tag out. */
+  showGoogle?: boolean;
 }) {
   if (identity.keySource === "ring")
     return (
@@ -25,13 +34,9 @@ export function KeyCustodyTag({
         Key in Pubky Ring
       </CustodyTag>
     );
-  if (identity.googleAccount)
+  if (identity.googleAccount && showGoogle)
     return <GoogleAccountTag account={identity.googleAccount} className={className} />;
-  return (
-    <CustodyTag className={className} icon={<KeyRoundIcon />}>
-      Key in this browser
-    </CustodyTag>
-  );
+  return null;
 }
 
 function CustodyTag({

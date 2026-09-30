@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { GoogleAccountTag } from "./googleAccountTag";
@@ -19,21 +19,37 @@ describe("GoogleAccountTag", () => {
     expect(address).toHaveClass("[overflow-wrap:anywhere]");
   });
 
-  it("leads with a legible Google mark and never shows the Google picture or its initials", () => {
+  it("shows the round Google picture, then the address, with no Google mark", () => {
     const { container } = render(
       <GoogleAccountTag
-        account={
-          {
-            email: "al@example.com",
-            pictureUrl: "https://lh3.googleusercontent.com/a/photo",
-          } as { email: string }
-        }
+        account={{
+          email: "al@example.com",
+          pictureUrl: "https://lh3.googleusercontent.com/a/photo",
+        }}
       />,
     );
 
-    const mark = container.querySelector("svg");
-    expect(mark).toHaveClass("size-3.5");
-    expect(container.querySelector("img")).toBeNull();
+    const picture = screen.getByTestId("google-account-tag-picture");
+    expect(picture).toHaveAttribute("src", "https://lh3.googleusercontent.com/a/photo");
+    expect(picture).toHaveAttribute("alt", "");
+    expect(picture.parentElement).toHaveClass("rounded-full");
+    expect(container.querySelector("svg")).toBeNull();
     expect(screen.getByRole("group")).toHaveTextContent(/^al@example\.com$/u);
+  });
+
+  it("leaves the picture out when the account has none or it fails to load", () => {
+    const { container, rerender } = render(
+      <GoogleAccountTag account={{ email: "al@example.com" }} />,
+    );
+    expect(container.querySelector("img")).toBeNull();
+    expect(container.querySelector("svg")).toBeNull();
+
+    rerender(
+      <GoogleAccountTag
+        account={{ email: "al@example.com", pictureUrl: "https://lh3.googleusercontent.com/a/x" }}
+      />,
+    );
+    fireEvent.error(screen.getByTestId("google-account-tag-picture"));
+    expect(container.querySelector("img")).toBeNull();
   });
 });

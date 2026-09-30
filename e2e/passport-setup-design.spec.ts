@@ -26,7 +26,6 @@ for (const viewport of [
     await expect(page.getByRole("heading", { name: "Protect your key." })).toBeVisible();
     await inspect("protect-key");
     await page.getByLabel("Enter strong password", { exact: true }).fill("correct horse battery");
-    await page.getByLabel("Confirm password", { exact: true }).fill("correct horse battery");
     const download = page.waitForEvent("download");
     await page.getByRole("button", { name: "Download recovery file" }).click();
     expect((await download).suggestedFilename()).toMatch(/\.pkarr$/);
@@ -91,10 +90,10 @@ test("removing a browser-only key without a backup requires acknowledging one", 
     page.getByText("This key is saved only in this browser.", { exact: false }),
   ).toBeVisible();
   await page.getByRole("button", { name: "Manage identity" }).click();
-  // The screen's leave action lives in the shared page header, not in the screen content. With
-  // no backup, leaving deletes the only copy, so it is named a removal rather than a logout.
+  // The leave action sits in the profile card, beside Edit profile. With no backup, leaving
+  // deletes the only copy, so it is named a removal rather than a logout.
   await page
-    .getByRole("banner")
+    .getByRole("region", { name: "Public profile" })
     .getByRole("button", { name: "Remove key from this browser" })
     .click();
 
@@ -122,7 +121,7 @@ test("a backup made to remove a key only counts once its file has opened", async
   await seedProfileIdentity(page, false);
   await page.getByRole("button", { name: "Manage identity" }).click();
   await page
-    .getByRole("banner")
+    .getByRole("region", { name: "Public profile" })
     .getByRole("button", { name: "Remove key from this browser" })
     .click();
   await page
@@ -132,7 +131,6 @@ test("a backup made to remove a key only counts once its file has opened", async
     .click();
 
   await page.getByLabel("Enter strong password").fill("correct horse");
-  await page.getByLabel("Confirm password").fill("correct horse");
   const downloadPromise = page.waitForEvent("download");
   await page.getByRole("button", { name: "Download recovery file" }).click();
   const backup = await downloadPromise;
@@ -162,7 +160,7 @@ test("leaving the backup a removal asked for without checking it keeps the remov
   await seedProfileIdentity(page, false);
   await page.getByRole("button", { name: "Manage identity" }).click();
   await page
-    .getByRole("banner")
+    .getByRole("region", { name: "Public profile" })
     .getByRole("button", { name: "Remove key from this browser" })
     .click();
   await page
@@ -172,7 +170,6 @@ test("leaving the backup a removal asked for without checking it keeps the remov
     .click();
 
   await page.getByLabel("Enter strong password").fill("correct horse");
-  await page.getByLabel("Confirm password").fill("correct horse");
   // The browser cancels the download: Passport made a file, but none was saved.
   const downloadPromise = page.waitForEvent("download");
   await page.getByRole("button", { name: "Download recovery file" }).click();
@@ -202,7 +199,9 @@ test("leaving the backup a removal asked for without checking it keeps the remov
     "but it was never checked.",
   );
   await expect(
-    page.getByRole("banner").getByRole("button", { name: "Remove key from this browser" }),
+    page
+      .getByRole("region", { name: "Public profile" })
+      .getByRole("button", { name: "Remove key from this browser" }),
   ).toBeVisible();
 });
 
@@ -223,8 +222,25 @@ test("the Ring export shows its private-key QR code only on request, behind a wa
   await expect(qrCode).toHaveCount(0);
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
 
-  await page.getByRole("button", { name: "Show QR code" }).click();
+  // The square is the control: a placeholder that shows the code, then the code that hides it.
+  const square = page.getByRole("button", { name: "Show QR code" });
+  await expect(page.getByRole("button", { name: /QR code/u })).toHaveCount(1);
+  await expect(square).toContainText("to show QR code");
+  const coarse = await page.evaluate(() => matchMedia("(pointer: coarse)").matches);
+  await expect(square.getByText(coarse ? "Tap" : "Click", { exact: true })).toBeVisible();
+  await expect(square.getByText(coarse ? "Click" : "Tap", { exact: true })).toBeHidden();
+  await expect(square).toHaveAttribute("aria-expanded", "false");
+  await square.focus();
+  await page.keyboard.press("Enter");
   await expect(qrCode).toBeVisible();
-  await page.getByRole("button", { name: "Hide QR code" }).click();
+  const hide = page.getByRole("button", { name: "Hide QR code" });
+  await expect(hide).toBeFocused();
+  await expect(hide).toHaveAttribute("aria-expanded", "true");
+  await page.keyboard.press(" ");
+  await expect(qrCode).toHaveCount(0);
+  await expect(square).toBeFocused();
+  await square.click();
+  await expect(qrCode).toBeVisible();
+  await hide.click();
   await expect(qrCode).toHaveCount(0);
 });

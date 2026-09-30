@@ -679,14 +679,12 @@ describe("UniversalSignerFlow with an authorization request", () => {
     await user.click(await screen.findByRole("button", { name: "Use another identity" }));
 
     // The start page, still addressed to the waiting app, with every way in and Back to the list.
+    // Pubky Ring stays on the list, which already offers it.
     expect(screen.getByRole("heading", { name: "Sign in to requesting.app" })).toBeInTheDocument();
-    for (const name of [
-      "Create account",
-      "Import recovery file",
-      "Continue with Google",
-      "Continue with Pubky Ring",
-    ])
+    for (const name of ["Create account", "Import recovery file", "Continue with Google"])
       expect(screen.getByRole("button", { name })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Continue with Pubky Ring" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Sign in with Pubky Ring" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Cancel" })).not.toBeInTheDocument();
     expect(screen.getAllByLabelText("Signing in to requesting.app")).toHaveLength(1);
     await user.click(screen.getByRole("button", { name: "Back" }));
@@ -701,7 +699,7 @@ describe("UniversalSignerFlow with an authorization request", () => {
     expect(screen.queryByRole("heading", { name: "Restore complete." })).not.toBeInTheDocument();
   });
 
-  it("without Google, the start page offers the recovery file import and Pubky Ring", async () => {
+  it("without Google, the start page offers the recovery file import, and the list Pubky Ring", async () => {
     const user = userEvent.setup();
     render(
       withPassportTestProviders(
@@ -711,9 +709,12 @@ describe("UniversalSignerFlow with an authorization request", () => {
       ),
     );
 
-    await user.click(await screen.findByRole("button", { name: "Use another identity" }));
+    expect(
+      await screen.findByRole("button", { name: "Continue with Pubky Ring" }),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Use another identity" }));
     expect(screen.queryByRole("button", { name: "Continue with Google" })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Continue with Pubky Ring" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Continue with Pubky Ring" })).toBeNull();
     await user.click(screen.getByRole("button", { name: "Import recovery file" }));
     expect(
       await screen.findByRole("heading", { name: /Import (your )?(backup|recovery file)/iu }),

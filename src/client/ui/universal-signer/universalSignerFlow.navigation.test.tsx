@@ -207,9 +207,10 @@ describe("UniversalSignerFlow identity navigation", () => {
     // Passport manages the Pubky profile; without profile.json the Google name is not used.
     expect(screen.getByRole("heading", { name: "Pubky identity" })).toBeInTheDocument();
     expect(screen.queryByText("Satoshi Nakamoto")).not.toBeInTheDocument();
+    // The overview leaves the Google badge to the switcher and the lists.
     expect(
-      screen.getByRole("group", { name: "Attached Google account: satoshi@gmail.com" }),
-    ).toHaveTextContent("satoshi@gmail.com");
+      screen.queryByRole("group", { name: "Attached Google account: satoshi@gmail.com" }),
+    ).not.toBeInTheDocument();
     expect(screen.getByText("identity", { exact: true }).tagName).toBe("P");
     expect(screen.queryByRole("button", { name: "Copy Pubky" })).not.toBeInTheDocument();
     expect(screen.queryByTitle("Copy Pubky")).not.toBeInTheDocument();
@@ -471,7 +472,7 @@ describe("UniversalSignerFlow identity navigation", () => {
     await userEvent.setup().click(screen.getByRole("button", { name: "Continue to detach" }));
     expect(screen.getByRole("heading", { name: "Detach from Google." })).toBeInTheDocument();
     expect(screen.queryByRole("dialog", { name: "Detach from Google?" })).not.toBeInTheDocument();
-    await userEvent.setup().click(screen.getByRole("button", { name: "Detach from Google…" }));
+    await userEvent.setup().click(screen.getByRole("button", { name: "Detach from Google" }));
     const confirm = screen.getByRole("button", { name: "Confirm detachment" });
     expect(confirm).toBeDisabled();
     await userEvent.setup().type(screen.getByLabelText("Type ONLY COPY to confirm"), "ONLY COPY");

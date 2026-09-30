@@ -32,12 +32,30 @@ const tokenStatusSchema = z.object({ status: z.enum(["valid", "used"]) });
 const fetchHomeserver: HomeserverFetch = async (url, init) =>
   (await import("./PubkySdkAdapter")).fetchHomeserver(url, init);
 
+/**
+ * A well-formed code asked about only to learn whether a homeserver answers. Any answer, even
+ * "not found", proves the homeserver's record resolves and the homeserver is up.
+ */
+const REACHABILITY_PROBE_TOKEN = "0000-0000-0000";
+
 /** Read-only lookup of `GET /signup_tokens/{token}`; it never consumes the invite. */
 export class SignupTokenChecker {
   constructor(private readonly fetch: HomeserverFetch = fetchHomeserver) {}
 
   async check(invite: HomeserverSignupDetails, signal: AbortSignal): Promise<SignupTokenStatus> {
     return (await this.lookUp(invite, signal)).status;
+  }
+
+  /**
+   * Whether the homeserver answers at all, by the same read-only lookup made for a code nobody
+   * holds. `false` covers a key with no record, a homeserver that is down, and a timeout.
+   */
+  async reaches(homeserverPubky: string, signal: AbortSignal): Promise<boolean> {
+    const lookup = await this.lookUp(
+      { homeserverPubky, signupToken: REACHABILITY_PROBE_TOKEN },
+      signal,
+    );
+    return lookup.reached;
   }
 
   async lookUp(invite: HomeserverSignupDetails, signal: AbortSignal): Promise<SignupTokenLookup> {

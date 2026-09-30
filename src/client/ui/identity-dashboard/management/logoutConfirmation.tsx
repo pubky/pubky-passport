@@ -81,7 +81,7 @@ export function LogoutConfirmation({
       <div className="flex min-w-0 flex-col gap-3">
         <div className="flex min-w-0 flex-col items-start gap-1">
           <p className="break-words font-bold">{identityDisplayName(identity)}</p>
-          <KeyCustodyTag identity={identity} />
+          <KeyCustodyTag identity={identity} showGoogle={false} />
         </div>
         <DetailField
           copy={{ ...PUBKY_COPY_TOASTS, value: identity.publicIdentity.publicKeyZ32 }}

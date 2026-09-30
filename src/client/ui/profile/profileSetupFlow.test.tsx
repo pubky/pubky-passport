@@ -633,6 +633,25 @@ describe("ProfileSetupFlow", () => {
     },
   );
 
+  it("names the homeserver the account was created on under the pubky, with copy", () => {
+    const homeserver = "8pinxxgqs41n4aididenw5apqp1urfmzdztr8jt4abrkdn435ewo";
+    mount(
+      { profileSetupRequired: true, homeserverPubky: homeserver },
+      { afterAddition: true, created: true },
+    );
+
+    const pubky = screen.getByText(KEY);
+    const shown = screen.getByText(homeserver);
+    expect(pubky.compareDocumentPosition(shown) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByText("Homeserver")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Copy Homeserver" })).toBeEnabled();
+  });
+
+  it("names no homeserver when the identity does not remember one", () => {
+    mount({ profileSetupRequired: true }, { afterAddition: true, created: true });
+    expect(screen.queryByText("Homeserver")).not.toBeInTheDocument();
+  });
+
   it("skips the profile from the Account created moment", async () => {
     const { onDefer } = mount(
       { profileSetupRequired: true },

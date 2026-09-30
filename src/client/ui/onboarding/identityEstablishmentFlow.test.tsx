@@ -102,11 +102,10 @@ describe("IdentityEstablishmentFlow", () => {
     // The lead already gives the instruction, so the guide's caption only names the picture.
     expect(screen.getByRole("figure")).toHaveTextContent("What to tick in Google’s window");
     expect(screen.queryByRole("contentinfo")).not.toBeInTheDocument();
-    // The actions come before the guide in focus order, as they do on screen.
+    // The guide has no control, so the screen's actions are its only buttons.
     expect(screen.getAllByRole("button").map((button) => button.textContent)).toEqual([
       "Cancel",
       "Show Google’s window",
-      "Play",
     ]);
     // Phones open Google's window as a tab, which cannot be raised: they are told to switch.
     expect(screen.getByRole("button", { name: "Show Google’s window" })).toHaveClass(
@@ -252,13 +251,9 @@ describe("IdentityEstablishmentFlow", () => {
     expect(screen.queryByText("Technical details")).not.toBeInTheDocument();
     const buttons = screen.getAllByRole("button");
     const tryAgain = screen.getByRole("button", { name: "Try again" });
-    // One action row for every viewport, back first and the recovery action last, then the
-    // guide's own control.
-    expect(buttons).toEqual([
-      screen.getByRole("button", { name: "Back" }),
-      tryAgain,
-      screen.getByRole("button", { name: "Play animation" }),
-    ]);
+    // One action row for every viewport, back first and the recovery action last; the guide
+    // has no control of its own.
+    expect(buttons).toEqual([screen.getByRole("button", { name: "Back" }), tryAgain]);
     await userEvent.setup().click(tryAgain);
     expect(establishIdentity).toHaveBeenCalledTimes(2);
   });

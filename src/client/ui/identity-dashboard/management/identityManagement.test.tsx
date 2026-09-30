@@ -92,20 +92,23 @@ describe("IdentityManagement", () => {
     expect(within(profile).queryByText("SA")).not.toBeInTheDocument();
   });
 
-  it("says where the key lives under the name, as every identity list does", () => {
+  it("says under the name when Pubky Ring holds the key, leaving Google to its card", () => {
+    // A key held only in this browser is the ordinary case and gets no tag.
     renderManagement({ identity: browserOnlyIdentity });
-    expect(
-      within(screen.getByRole("region", { name: "Public profile" })).getByText(
-        "Key in this browser",
-      ),
-    ).toBeVisible();
+    expect(screen.queryByText(/Key in this browser/u)).not.toBeInTheDocument();
     cleanup();
 
     renderManagement();
     expect(
-      within(screen.getByRole("region", { name: "Public profile" })).getByRole("group", {
-        name: "Attached Google account: satoshi@gmail.com",
+      within(screen.getByRole("region", { name: "Public profile" })).queryByRole("group", {
+        name: /^Attached Google account/u,
       }),
+    ).not.toBeInTheDocument();
+    cleanup();
+
+    renderManagement({ identity: ringIdentity });
+    expect(
+      within(screen.getByRole("region", { name: "Public profile" })).getByText("Key in Pubky Ring"),
     ).toBeVisible();
   });
 
@@ -167,6 +170,78 @@ describe("IdentityManagement", () => {
     expect(screen.getByRole("region", { name: "Public profile" })).toContainElement(
       screen.getByRole("group", { name: "Homeserver" }),
     );
+  });
+
+  it("puts Log out in the profile card, on the row with Edit profile", () => {
+    const onEditProfile = vi.fn();
+    renderManagement({ onEditProfile });
+
+    const logOut = screen.getByRole("button", { name: "Log out" });
+    const editProfile = screen.getByRole("button", { name: "Edit profile" });
+    expect(screen.getByRole("region", { name: "Public profile" })).toContainElement(logOut);
+    expect(logOut.parentElement).toBe(editProfile.parentElement);
+    expect(logOut.parentElement).toHaveClass("flex", "flex-wrap");
+
+    fireEvent.click(logOut);
+    expect(screen.getByRole("heading", { name: "Log out of this identity?" })).toBeVisible();
+  });
+
+  it("shows the Google account's picture and address, with Detach as the row's danger action", () => {
+    const onDetachFromGoogle = vi.fn();
+    renderManagement({
+      identity: {
+        ...identity,
+        googleAccount: {
+          ...identity.googleAccount,
+          pictureUrl: "https://lh3.googleusercontent.com/a/picture",
+        },
+      },
+      onDetachFromGoogle,
+    });
+
+    const section = screen.getByRole("region", { name: "Google account" });
+    const account = within(section).getByRole("group", {
+      name: "Attached Google account: satoshi@gmail.com",
+    });
+    expect(account).toHaveTextContent("satoshi@gmail.com");
+    expect(within(account).getByTestId("google-account-picture")).toHaveAttribute(
+      "src",
+      "https://lh3.googleusercontent.com/a/picture",
+    );
+    const detach = within(section).getByRole("button", { name: "Detach from Google" });
+    expect(detach).toHaveClass("bg-destructive-surface");
+    // One row wherever the card has room, stacked in a narrow one.
+    expect(detach.parentElement).toBe(account.parentElement);
+    expect(detach.parentElement).toHaveClass("flex-col", "@sm:flex-row", "@sm:justify-between");
+    expect(detach.parentElement?.parentElement).toHaveClass("@container");
+
+    fireEvent.click(detach);
+    expect(onDetachFromGoogle).toHaveBeenCalledOnce();
+  });
+
+  it("falls back to the Google mark when the account has no picture or it fails to load", () => {
+    renderManagement();
+
+    const account = within(screen.getByRole("region", { name: "Google account" })).getByRole(
+      "group",
+      { name: "Attached Google account: satoshi@gmail.com" },
+    );
+    expect(within(account).queryByTestId("google-account-picture")).not.toBeInTheDocument();
+    expect(account.querySelector("svg")).not.toBeNull();
+    cleanup();
+
+    renderManagement({
+      identity: {
+        ...identity,
+        googleAccount: {
+          ...identity.googleAccount,
+          pictureUrl: "https://lh3.googleusercontent.com/a/x",
+        },
+      },
+    });
+    const picture = screen.getByTestId("google-account-picture");
+    fireEvent.error(picture);
+    expect(screen.queryByTestId("google-account-picture")).not.toBeInTheDocument();
   });
 
   it("offers Google attachment in its own section within the backup card", () => {
@@ -232,28 +307,38 @@ describe("IdentityManagement", () => {
     expect(within(card).getByRole("button", { name: "Download recovery file" })).toHaveClass(
       "bg-brand/16",
     );
-    expect(
-      within(card).queryByRole("button", { name: "Check recovery file" }),
-    ).not.toBeInTheDocument();
+    // Checking a file is always offered, saying no file of this key has opened yet.
+    expect(within(card).getByRole("button", { name: "Check recovery file" })).not.toHaveClass(
+      "bg-brand/16",
+    );
+    expect(card).toHaveTextContent("Never checked");
     expect(screen.queryByRole("button", { name: "Log out" })).not.toBeInTheDocument();
     // The accessible name starts with the visible label, so speech input reaches it.
     const leave = screen.getByRole("button", { name: "Remove key from this browser" });
-    expect(leave).toHaveTextContent("Remove key");
-    expect(leave).toHaveAttribute("title", "Remove key from this browser");
+    expect(leave).toHaveTextContent("Remove key from this browser");
+    expect(screen.getByRole("region", { name: "Public profile" })).toContainElement(leave);
   });
 
   it("keeps Log out once a backup file of the key has opened", () => {
-    renderManagement({ identity: { ...browserOnlyIdentity, backup: { verifiedAt: BACKUP_AT } } });
+    const onDownloadRecoveryFile = vi.fn();
+    renderManagement({
+      identity: { ...browserOnlyIdentity, backup: { verifiedAt: BACKUP_AT } },
+      onDownloadRecoveryFile,
+    });
 
     const card = screen.getByRole("region", { name: "Backup & key access" });
-    expect(card).toHaveTextContent(`Recovery file checked on ${BACKUP_DATE}.`);
     expect(card).not.toHaveTextContent("No backup yet");
     expect(within(card).getByRole("button", { name: "Download recovery file" })).not.toHaveClass(
       "bg-brand/16",
     );
-    expect(
-      within(card).queryByRole("button", { name: "Check recovery file" }),
-    ).not.toBeInTheDocument();
+    // The file can be checked again; the date of the last check sits on the same row.
+    const check = within(card).getByRole("button", { name: "Check recovery file" });
+    expect(check.parentElement).toHaveTextContent(`Last checked ${BACKUP_DATE}`);
+    expect(check.parentElement).not.toContainElement(
+      within(card).getByRole("button", { name: "Download recovery file" }),
+    );
+    fireEvent.click(check);
+    expect(onDownloadRecoveryFile).toHaveBeenLastCalledWith("manage", true);
     expect(screen.getByRole("button", { name: "Log out" })).toBeInTheDocument();
   });
 
@@ -271,6 +356,7 @@ describe("IdentityManagement", () => {
     );
     const check = within(card).getByRole("button", { name: "Check recovery file" });
     expect(check).toHaveClass("bg-brand/16");
+    expect(check.parentElement).toHaveTextContent("Never checked");
     expect(within(card).getByRole("button", { name: "Download recovery file" })).not.toHaveClass(
       "bg-brand/16",
     );
@@ -356,7 +442,9 @@ function renderManagement({
   confirmLogout = false,
   onBackupToGoogle,
   onBack = vi.fn(),
+  onDetachFromGoogle = vi.fn(),
   onDownloadRecoveryFile = vi.fn(),
+  onEditProfile,
   onRemoveLocalIdentity = () => Result.ok(),
   republishHomeserver = async () => Result.ok(PROVIDER_HOMESERVER),
   resolveHomeserver = async () => Result.ok(PROVIDER_HOMESERVER),
@@ -365,6 +453,8 @@ function renderManagement({
   confirmLogout?: boolean;
   onBackupToGoogle?: () => void;
   onBack?: () => void;
+  onDetachFromGoogle?: () => void;
+  onEditProfile?: () => void;
   onDownloadRecoveryFile?: (returnTo: "manage" | "logout", check?: boolean) => void;
   onRemoveLocalIdentity?: () => LocalIdentityResult<void>;
   republishHomeserver?: (
@@ -379,7 +469,8 @@ function renderManagement({
       confirmLogout={confirmLogout}
       {...(onBackupToGoogle ? { onBackupToGoogle } : {})}
       onBack={onBack}
-      onDetachFromGoogle={vi.fn()}
+      onDetachFromGoogle={onDetachFromGoogle}
+      {...(onEditProfile ? { onEditProfile } : {})}
       onDownloadRecoveryFile={onDownloadRecoveryFile}
       onRemoveLocalIdentity={onRemoveLocalIdentity}
       onMigrateToKeychain={vi.fn()}

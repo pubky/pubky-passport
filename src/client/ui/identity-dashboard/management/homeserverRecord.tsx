@@ -5,6 +5,7 @@ import { LOGGER, safeErrorLogFields } from "@/libs/logger/logger";
 import type { LocalIdentityHomeserverRepublishResult } from "@/client/logic/local-identity/LocalIdentityController";
 import type { PubkyHomeserverResolutionResult } from "@/client/logic/pubky/pubkyIdentityKey";
 import { ProviderTerms, usePassportProvider } from "@/client/ui/passportProviderConfiguration";
+import { HOMESERVER_COPY_TOASTS } from "@/client/ui/shared/copyToClipboard";
 import { DetailField } from "@/client/ui/shared/detailField";
 import { RotateCcwIcon, TriangleAlertIcon } from "@/client/ui/shared/icons";
 import { Notice } from "@/client/ui/shared/notice";
@@ -164,10 +165,8 @@ export function HomeserverRecord({
       >
         <DetailField
           copy={{
+            ...HOMESERVER_COPY_TOASTS,
             value: lookup.status === "resolved" ? lookup.pubky : null,
-            copied: "Homeserver copied",
-            failed: "Could not copy homeserver",
-            failedDescription: "Select and copy the homeserver manually.",
           }}
           label="Homeserver"
           value={homeserverStatus(lookup)}
