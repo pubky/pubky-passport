@@ -23,10 +23,14 @@ type ProgressPresentation =
 function GoogleIdentityProgress({ progress }: { progress: GoogleIdentityProgressState }) {
   const presentation = progressPresentation(progress);
   if (presentation.heading === "Loading") return <IdentityLoading />;
-  if (progress.flow !== "create") return <IdentityProgress {...presentation} />;
+  // Homegate chose the homeserver with the invite, so it is named once Passport has it.
+  const homeserverPubky =
+    progress.flow === "create" || progress.flow === "repair" ? progress.homeserverPubky : undefined;
+  if (progress.flow !== "create")
+    return <IdentityProgress {...presentation} homeserverPubky={homeserverPubky} />;
   return (
     <SetupProgressProvider steps={GOOGLE_SETUP_STEPS} current={0}>
-      <IdentityProgress {...presentation} />
+      <IdentityProgress {...presentation} homeserverPubky={homeserverPubky} />
     </SetupProgressProvider>
   );
 }

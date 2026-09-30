@@ -284,6 +284,7 @@ export function LocalAccountCreationFlow({
     return (
       <IdentityProgress
         heading="Setting up"
+        homeserverPubky={invite.homeserverPubky}
         listLabel={SETUP_LIST_LABEL}
         steps={progressSteps(
           [

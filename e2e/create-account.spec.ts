@@ -342,6 +342,8 @@ test("decrypts the downloaded backup before starting local registration", async 
   await page.getByRole("button", { name: "Verify and create account" }).click();
   await expect(page.getByRole("heading", { name: "Setting up your pubky." })).toBeVisible();
   await expect(page.getByRole("list", { name: "Steps to set up your pubky" })).toBeVisible();
+  // The account is created on the homeserver Homegate issued the code for, and says so.
+  await expect(page.getByText(TEST_HOMESERVER, { exact: true })).toBeVisible();
 });
 
 test("SMS validates codes and retains Homegate's homeserver for the destination choice", async ({
@@ -378,11 +380,39 @@ test("SMS validates codes and retains Homegate's homeserver for the destination 
   await page.getByRole("button", { name: "Verify code" }).click();
 
   await expect(page.getByRole("button", { name: "Keep key in Pubky Ring" })).toBeVisible();
+  // The choice names Homegate's homeserver, not the one this Passport offers for invites.
+  await expect(page.getByText(HOMEGATE_HOMESERVER, { exact: true })).toBeVisible();
+  await expect(page.getByText(E2E_SIGNUP_HOMESERVER, { exact: true })).toHaveCount(0);
   await openRingSignup(page);
   await expect(ringSignupLink(page)).toHaveAttribute(
     "href",
     `pubkyauth://direct_signup?hs=${HOMEGATE_HOMESERVER}&st=sms-invite-token`,
   );
+});
+
+test("SMS refuses a sign-up code that names no homeserver instead of guessing one", async ({
+  page,
+}) => {
+  await page.route("**/sms_verification/send_code", (route) =>
+    route.fulfill({ status: 200, body: "" }),
+  );
+  await page.route("**/sms_verification/validate_code", (route) =>
+    route.fulfill({ json: { valid: "true", signupCode: "sms-invite-token" } }),
+  );
+  await openCreateAccount(page);
+  await page.getByRole("button", { name: "Continue with SMS" }).click();
+  await page.getByLabel("Phone number", { exact: true }).fill("+41791234567");
+  await page.getByRole("button", { name: "Send code" }).click();
+  await page.getByLabel("Verification code", { exact: true }).fill("123456");
+  await page.getByRole("button", { name: "Verify code" }).click();
+
+  await expect(page.getByRole("main").getByRole("alert")).toContainText(
+    "didn’t say which homeserver your account belongs on",
+  );
+  await expect(page.getByRole("heading", { name: "Where should your key live?" })).toHaveCount(0);
+  expect(
+    await page.evaluate(() => Object.keys(localStorage).filter((key) => key.includes("homegate"))),
+  ).toEqual([]);
 });
 
 test("SMS provider limits stay recoverable inside account creation", async ({ page }) => {
@@ -569,6 +599,7 @@ test("Lightning payment uses the homeserver returned with its token", async ({ p
   await expect(page.getByRole("button", { name: "Keep key in Pubky Ring" })).toBeVisible({
     timeout: 10_000,
   });
+  await expect(page.getByText(HOMEGATE_HOMESERVER, { exact: true })).toBeVisible();
   await openRingSignup(page);
   await expect(ringSignupLink(page)).toHaveAttribute(
     "href",

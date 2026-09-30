@@ -1,3 +1,4 @@
+import { DetailField } from "./detailField";
 import { PassportScreen } from "./passportScreen";
 import { DisplayHeading, LeadText } from "./primitives/typography";
 
@@ -16,10 +17,13 @@ export const SETUP_LIST_LABEL = "Steps to set up your pubky";
 
 export function IdentityProgress({
   heading,
+  homeserverPubky,
   listLabel,
   steps,
 }: {
   heading: string;
+  /** The homeserver the account is being created on, once the invite has named it. */
+  homeserverPubky?: string | undefined;
   listLabel: string;
   steps: ChecklistStep[];
 }) {
@@ -47,6 +51,7 @@ export function IdentityProgress({
             <ProgressStep key={step.label} step={step} />
           ))}
         </ol>
+        {homeserverPubky ? <DetailField label="Homeserver" value={homeserverPubky} /> : null}
       </div>
     </PassportScreen>
   );

@@ -291,6 +291,29 @@ describe("CreateAccountFlow", () => {
     expect(second.verification.verifySmsCode).not.toHaveBeenCalled();
   });
 
+  it("names and uses the homeserver Homegate issued the invite for, not this Passport's", async () => {
+    const issued = {
+      homeserverPubky: "5jsjx1o6fzu6aeeo697r3i5rx15zq41kikcye8wtwdqm4nb4tryo",
+      signupToken: "SMS1-NV1T-E111",
+    };
+    const storage = new MemoryStorage();
+    new HomegateSignupRepository(() => storage).saveInvite(issued);
+    const setup = refusingSetupController();
+    const prepareAccount = vi.spyOn(setup, "prepareAccount");
+    const user = userEvent.setup();
+    const { checkSignupToken } = mountFlow({ storage, createSetupController: () => setup });
+
+    await screen.findByRole("heading", { name: "Where should your key live?" });
+    expect(screen.getByText("Homeserver")).toBeVisible();
+    expect(screen.getByText(issued.homeserverPubky)).toBeVisible();
+    expect(screen.queryByText(HOMESERVER)).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: /Keep key in this browser/u }));
+    await screen.findByLabelText("Enter strong password");
+    expect(checkSignupToken).toHaveBeenCalledWith(issued, expect.any(AbortSignal));
+    expect(prepareAccount).toHaveBeenCalledWith(issued);
+  });
+
   it("welcomes back a verification restored from an earlier visit", async () => {
     mountFlow({ storage: storedInvite() });
     expect(

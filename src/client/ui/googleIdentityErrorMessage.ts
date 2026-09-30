@@ -316,6 +316,14 @@ function newPubkyInvitationFailure(detailCode: GoogleIdentityErrorDetail): Detai
         nextStep: "Wait a few minutes, then try again.",
         retryHelps: true,
       };
+    case "invalid_homegate_homeserver":
+      return {
+        cause:
+          "The sign-up service didn’t say which homeserver your pubky belongs on, so nothing was created.",
+        nextStep:
+          "Try again later. If it keeps failing, go back and create your account another way.",
+        retryHelps: true,
+      };
     case "invalid_google_id_token":
       return {
         cause: "Your Google sign-in expired before Passport could finish, so nothing was created.",
@@ -362,6 +370,12 @@ function repairInvitationFailure(detailCode: GoogleIdentityErrorDetail): Detaile
       return {
         cause: `${safe} while the sign-up service isn’t answering. Nothing was lost.`,
         nextStep: "Wait a few minutes, then try again.",
+        retryHelps: true,
+      };
+    case "invalid_homegate_homeserver":
+      return {
+        cause: `${safe} with its server: the sign-up service didn’t say which homeserver it belongs on. Nothing was lost.`,
+        nextStep: "Try again later.",
         retryHelps: true,
       };
     case "invalid_google_id_token":

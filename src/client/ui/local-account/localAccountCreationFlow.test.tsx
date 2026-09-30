@@ -382,6 +382,26 @@ describe("LocalAccountCreationFlow", () => {
     expect(onComplete).toHaveBeenCalledWith({ publicIdentity: { publicKeyZ32: PUBLIC_KEY } });
   });
 
+  it("names the invite's homeserver while the account is created on it", async () => {
+    vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:backup");
+    vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined);
+    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
+    let finish!: () => void;
+    const controller = fakeController({
+      registerAccount: () =>
+        new Promise((resolve) => {
+          finish = () => resolve(Result.ok({ publicIdentity: { publicKeyZ32: PUBLIC_KEY } }));
+        }),
+    });
+    renderFlow(controller, "homegate");
+    await downloadAndSkip(userEvent.setup());
+
+    expect(await screen.findByRole("heading", { name: "Setting up your pubky." })).toBeVisible();
+    expect(screen.getByText("Homeserver")).toBeVisible();
+    expect(screen.getByText(INVITE.homeserverPubky)).toBeVisible();
+    finish();
+  });
+
   it("keeps the saved setup and names blocked storage when it refused the key", async () => {
     const controller = fakeController({
       prepareAccount: vi.fn(() => Result.err({ code: "storage_failed" as const })),

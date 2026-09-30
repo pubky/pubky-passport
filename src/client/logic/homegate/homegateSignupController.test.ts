@@ -8,6 +8,7 @@ import { HomegateSignupRepository } from "./HomegateSignupRepository";
 import type { HomegateVerificationFailure, LightningInvoice } from "./HomegateVerificationClient";
 
 const HOMESERVER = "8pinxxgqs41n4aididenw5apqp1urfmzdztr8jt4abrkdn435ewo";
+const OTHER_HOMESERVER = "5jsjx1o6fzu6aeeo697r3i5rx15zq41kikcye8wtwdqm4nb4tryo";
 const INVITE = { homeserverPubky: HOMESERVER, signupToken: "AB12-CD34-EF56" };
 const START = 1_800_000_000_000;
 const INVOICE: LightningInvoice = {
@@ -81,6 +82,46 @@ describe("HomegateSignupController", () => {
     });
     expect(repository.read()).toEqual(Result.ok({ invite: INVITE }));
     expect(listener).toHaveBeenCalled();
+  });
+
+  it("keeps the homeserver Homegate issued the SMS invite for across a reload", async () => {
+    const storage = new MemoryStorage();
+    const issued = { homeserverPubky: OTHER_HOMESERVER, signupToken: "SMS1-NV1T-C0DE" };
+    const first = setup(storage);
+    first.verification.verifySmsCode.mockResolvedValueOnce(Result.ok(issued));
+    first.controller.chooseSms();
+    await first.controller.sendSmsCode("+41791234567");
+    await first.controller.verifySmsCode("+41791234567", "123456");
+    expect(first.controller.getState().view).toMatchObject({ step: "complete", invite: issued });
+    first.controller.dispose();
+
+    const resumed = setup(storage);
+    expect(resumed.controller.getState().view).toEqual({
+      step: "complete",
+      invite: issued,
+      restored: true,
+    });
+  });
+
+  it("keeps polling a paid invoice whose invite named no valid homeserver", async () => {
+    const { controller, verification, repository } = setup();
+    verification.checkLightningPayment
+      .mockResolvedValueOnce(failure("invalid_homegate_homeserver"))
+      .mockResolvedValueOnce(paid());
+
+    await controller.createInvoice();
+    await vi.advanceTimersByTimeAsync(0);
+    // No invite is made up for another homeserver, and the paid invoice is not forgotten.
+    expect(controller.getState()).toMatchObject({
+      view: { step: "lightning", invoice: INVOICE, expired: false },
+      error: "invalid_homegate_homeserver",
+    });
+    expect(repository.read()).toEqual(Result.ok({ invoice: INVOICE }));
+    await vi.advanceTimersByTimeAsync(3_000);
+    expect(controller.getState()).toMatchObject({
+      view: { step: "complete", invite: INVITE, method: "lightning" },
+      error: null,
+    });
   });
 
   it("remembers a number Homegate refused outright until a code is sent", async () => {

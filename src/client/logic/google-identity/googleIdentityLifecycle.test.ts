@@ -182,10 +182,14 @@ describe("Google identity use cases", () => {
     expect(progress).toEqual([
       { flow: "lookup", step: "checking" },
       { flow: "create", step: "preparing" },
-      { flow: "create", step: "creating" },
-      { flow: "create", step: "storing_passport_file" },
-      { flow: "create", step: "signing_up" },
-      { flow: "create", step: "activating" },
+      { flow: "create", step: "creating", homeserverPubky: SIGNUP_DETAILS.homeserverPubky },
+      {
+        flow: "create",
+        step: "storing_passport_file",
+        homeserverPubky: SIGNUP_DETAILS.homeserverPubky,
+      },
+      { flow: "create", step: "signing_up", homeserverPubky: SIGNUP_DETAILS.homeserverPubky },
+      { flow: "create", step: "activating", homeserverPubky: SIGNUP_DETAILS.homeserverPubky },
     ]);
     expect(MOCKS.lookUpSignupToken).toHaveBeenCalledWith(SIGNUP_DETAILS, expect.any(AbortSignal));
     expect(MOCKS.driveStoreConstructions.count).toBe(1);
@@ -193,6 +197,42 @@ describe("Google identity use cases", () => {
     expect(MOCKS.signin).toHaveBeenCalledWith(KEY_HANDLE, "normal");
     expect(MOCKS.signin).not.toHaveBeenCalledWith(KEY_HANDLE, "after-publication");
     await vi.waitFor(() => expect(MOCKS.disposeIdentityKey).toHaveBeenCalledWith(KEY_HANDLE));
+  });
+
+  it("creates the account on exactly the homeserver Homegate issued the invite for", async () => {
+    const issued = {
+      homeserverPubky: "5jsjx1o6fzu6aeeo697r3i5rx15zq41kikcye8wtwdqm4nb4tryo",
+      signupToken: "G00G-1E51-GNVP",
+    };
+    MOCKS.readPassportFile.mockResolvedValue(Result.ok({ status: "missing" }));
+    MOCKS.requestSignupToken.mockResolvedValueOnce(Result.ok(issued));
+    const progress: GoogleIdentityProgress[] = [];
+
+    expectResultOk(
+      await createSubject().establishIdentity(CREDENTIALS, (phase) => progress.push(phase)),
+    );
+
+    expect(MOCKS.lookUpSignupToken).toHaveBeenCalledExactlyOnceWith(
+      issued,
+      expect.any(AbortSignal),
+    );
+    expect(MOCKS.signup).toHaveBeenCalledExactlyOnceWith(
+      KEY_HANDLE,
+      issued.homeserverPubky,
+      issued.signupToken,
+    );
+    await vi.waitFor(() =>
+      expect(MOCKS.publishHomeserver).toHaveBeenCalledWith(KEY_HANDLE, issued.homeserverPubky),
+    );
+    expect(MOCKS.repositorySave).toHaveBeenCalledWith(
+      expect.objectContaining({ homeserverPubky: issued.homeserverPubky }),
+      expect.anything(),
+    );
+    // Every step from the account's creation on names that homeserver.
+    expect(progress.filter((phase) => "homeserverPubky" in phase)).toEqual(
+      progress.slice(2).map((phase) => ({ ...phase, homeserverPubky: issued.homeserverPubky })),
+    );
+    expect(progress.slice(2).length).toBeGreaterThan(0);
   });
 
   it.each([
@@ -618,10 +658,14 @@ describe("Google identity use cases", () => {
       { flow: "lookup", step: "checking" },
       { flow: "restore", step: "restoring" },
       { flow: "create", step: "preparing" },
-      { flow: "create", step: "creating" },
-      { flow: "create", step: "storing_passport_file" },
-      { flow: "create", step: "signing_up" },
-      { flow: "create", step: "activating" },
+      { flow: "create", step: "creating", homeserverPubky: SIGNUP_DETAILS.homeserverPubky },
+      {
+        flow: "create",
+        step: "storing_passport_file",
+        homeserverPubky: SIGNUP_DETAILS.homeserverPubky,
+      },
+      { flow: "create", step: "signing_up", homeserverPubky: SIGNUP_DETAILS.homeserverPubky },
+      { flow: "create", step: "activating", homeserverPubky: SIGNUP_DETAILS.homeserverPubky },
     ]);
   });
 
@@ -939,8 +983,8 @@ describe("Google identity use cases", () => {
       { flow: "restore", step: "restoring" },
       { flow: "restore", step: "signing_in" },
       { flow: "repair", step: "signing_up" },
-      { flow: "repair", step: "publishing" },
-      { flow: "repair", step: "signing_in" },
+      { flow: "repair", step: "publishing", homeserverPubky: SIGNUP_DETAILS.homeserverPubky },
+      { flow: "repair", step: "signing_in", homeserverPubky: SIGNUP_DETAILS.homeserverPubky },
     ]);
   });
 
@@ -1070,7 +1114,11 @@ describe("Google identity use cases", () => {
       await createSubject().establishIdentity(CREDENTIALS, (phase) => progress.push(phase)),
     );
 
-    expect(progress.at(-1)).toEqual({ flow: "repair", step: "signing_in" });
+    expect(progress.at(-1)).toEqual({
+      flow: "repair",
+      step: "signing_in",
+      homeserverPubky: SIGNUP_DETAILS.homeserverPubky,
+    });
     expect(MOCKS.repositorySave).toHaveBeenCalledOnce();
   });
 
@@ -1110,7 +1158,11 @@ describe("Google identity use cases", () => {
       { code: "signin_failed" },
     );
 
-    expect(progress.at(-1)).toEqual({ flow: "repair", step: "signing_in" });
+    expect(progress.at(-1)).toEqual({
+      flow: "repair",
+      step: "signing_in",
+      homeserverPubky: SIGNUP_DETAILS.homeserverPubky,
+    });
     expect(MOCKS.repositorySave).not.toHaveBeenCalled();
   });
 

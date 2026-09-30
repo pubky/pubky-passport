@@ -6,6 +6,8 @@ import { afterEach, describe, expect, it } from "vitest";
 import type { GoogleIdentityProgress as GoogleIdentityProgressState } from "@/client/logic/google-identity/GoogleIdentityController";
 import { GoogleIdentityProgress } from "./googleIdentityProgress";
 
+const HOMESERVER = "8pinxxgqs41n4aididenw5apqp1urfmzdztr8jt4abrkdn435ewo";
+
 afterEach(cleanup);
 
 describe("GoogleIdentityProgress", () => {
@@ -45,6 +47,23 @@ describe("GoogleIdentityProgress", () => {
 
     render(<GoogleIdentityProgress progress={{ flow: "restore", step: "restoring" }} />);
     expect(screen.queryByRole("navigation", { name: "Account setup progress" })).toBeNull();
+  });
+
+  it.each([
+    { flow: "create", step: "signing_up", homeserverPubky: HOMESERVER },
+    { flow: "repair", step: "publishing", homeserverPubky: HOMESERVER },
+  ] satisfies GoogleIdentityProgressState[])(
+    "names the homeserver Homegate issued the invite for while it is used ($flow)",
+    (progress) => {
+      render(<GoogleIdentityProgress progress={progress} />);
+      expect(screen.getByText("Homeserver")).toBeInTheDocument();
+      expect(screen.getByText(HOMESERVER)).toBeInTheDocument();
+    },
+  );
+
+  it("names no homeserver before Homegate has issued the invite", () => {
+    render(<GoogleIdentityProgress progress={{ flow: "create", step: "preparing" }} />);
+    expect(screen.queryByText("Homeserver")).not.toBeInTheDocument();
   });
 
   it.each([

@@ -41,9 +41,28 @@ export type GoogleIdentityProgress =
         | "signing_up"
         | "publishing"
         | "activating";
+      /** The homeserver Homegate issued the invite for, once Passport has it. */
+      homeserverPubky?: string;
     }
   | { flow: "restore"; step: "restoring" | "signing_in" }
-  | { flow: "repair"; step: "signing_up" | "publishing" | "signing_in" };
+  | {
+      flow: "repair";
+      step: "signing_up" | "publishing" | "signing_in";
+      homeserverPubky?: string;
+    };
+
+/** Adds the invite's homeserver to every later setup or repair step, so the person sees it. */
+function reportingHomeserver(
+  report: (progress: GoogleIdentityProgress) => void,
+  homeserverPubky: string,
+): (progress: GoogleIdentityProgress) => void {
+  return (progress) =>
+    report(
+      progress.flow === "create" || progress.flow === "repair"
+        ? { ...progress, homeserverPubky }
+        : progress,
+    );
+}
 
 /** Outcome of the optional visible recovery copy written next to the private Drive backup. */
 export type VisibleRecoveryCopyStatus = "created" | "unconfirmed" | "skipped";
@@ -551,8 +570,9 @@ export class GoogleIdentityLifecycle {
         "create",
       );
       if (Result.isError(checked)) return Result.err(checked.error);
+      const reportCreation = reportingHomeserver(report, signupDetails.value.homeserverPubky);
 
-      report({ flow: "create", step: "creating" });
+      reportCreation({ flow: "create", step: "creating" });
       const visibleCopies = credentials.visibleBackupPermissionGranted
         ? this.createVisibleRecoveryCopies(credentials.driveAccessToken, this.fetch)
         : undefined;
@@ -561,7 +581,7 @@ export class GoogleIdentityLifecycle {
         signupDetails.value,
         wrappingKey.value.wrappingKey,
         wrappingKey.value.keyId,
-        report,
+        reportCreation,
         store,
         visibleCopies,
       );
@@ -764,7 +784,7 @@ export class GoogleIdentityLifecycle {
         restored.value,
         signupDetails.value,
         credentials.googleAccount,
-        report,
+        reportingHomeserver(report, signupDetails.value.homeserverPubky),
         { reconciliation: true },
       );
       if (Result.isError(activated)) return Result.err(activated.error);

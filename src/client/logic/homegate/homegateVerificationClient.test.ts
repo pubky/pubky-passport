@@ -73,8 +73,6 @@ describe("HomegateVerificationClient", () => {
 
   it.each([
     [{ valid: "true", signupCode: "", homeserverPubky: HOMESERVER }],
-    [{ valid: "true", signupCode: "code", homeserverPubky: "invalid" }],
-    [{ valid: "true" }],
     [{ valid: "yes", ...invite }],
   ])("rejects malformed SMS invitations", async (body) => {
     const client = new HomegateVerificationClient(
@@ -83,6 +81,25 @@ describe("HomegateVerificationClient", () => {
     );
     expect(await client.verifySmsCode("+41791234567", "123456", signal())).toMatchObject({
       error: { code: "malformed_homegate_response" },
+    });
+  });
+
+  it.each([
+    ["no homeserver", { valid: "true", signupCode: "code" }],
+    ["no invite at all", { valid: "true" }],
+    ["a null homeserver", { valid: "true", signupCode: "code", homeserverPubky: null }],
+    ["an invalid homeserver", { valid: "true", signupCode: "code", homeserverPubky: "invalid" }],
+    [
+      "a pubky-prefixed homeserver",
+      { valid: "true", signupCode: "code", homeserverPubky: `pubky${HOMESERVER}` },
+    ],
+  ])("refuses an SMS invitation with %s instead of using another homeserver", async (_, body) => {
+    const client = new HomegateVerificationClient(
+      "https://homegate.example",
+      vi.fn().mockResolvedValue(response(body)),
+    );
+    expect(await client.verifySmsCode("+41791234567", "123456", signal())).toMatchObject({
+      error: { code: "invalid_homegate_homeserver" },
     });
   });
 
@@ -146,6 +163,37 @@ describe("HomegateVerificationClient", () => {
     expect(await client.checkLightningPayment(ID, signal())).toMatchObject({
       error: { code: "malformed_homegate_response" },
     });
+  });
+
+  it.each([
+    ["no homeserver", { id: ID, isPaid: true, signupCode: "code" }],
+    ["a null homeserver", { id: ID, isPaid: true, signupCode: "code", homeserverPubky: null }],
+    ["an invalid homeserver", { id: ID, isPaid: true, signupCode: "code", homeserverPubky: "hs" }],
+  ])(
+    "refuses a paid invoice's invite with %s instead of using another homeserver",
+    async (_, body) => {
+      const client = new HomegateVerificationClient(
+        "https://homegate.example",
+        vi.fn().mockResolvedValue(response(body)),
+      );
+      expect(await client.checkLightningPayment(ID, signal())).toMatchObject({
+        error: { code: "invalid_homegate_homeserver" },
+      });
+    },
+  );
+
+  it("reads an unpaid invoice whether or not Homegate names its homeserver yet", async () => {
+    const client = new HomegateVerificationClient(
+      "https://homegate.example",
+      vi
+        .fn<typeof globalThis.fetch>()
+        .mockResolvedValueOnce(response({ id: ID, isPaid: false, signupCode: null }))
+        .mockResolvedValueOnce(
+          response({ id: ID, isPaid: false, signupCode: null, homeserverPubky: "" }),
+        ),
+    );
+    expect(await client.checkLightningPayment(ID, signal())).toEqual(Result.ok(null));
+    expect(await client.checkLightningPayment(ID, signal())).toEqual(Result.ok(null));
   });
 
   it("aborts a request when its screen is left", async () => {

@@ -133,6 +133,10 @@ const DETAILED_COPY: [ViewError, string][] = [
     "Passport couldn’t get an invitation to create your pubky, so nothing was created.",
   ],
   [
+    { code: "homeserver_signup_token_failed", detailCode: "invalid_homegate_homeserver" },
+    "The sign-up service didn’t say which homeserver your pubky belongs on, so nothing was created.",
+  ],
+  [
     { code: "homeserver_signup_token_failed", detailCode: "blocked", flow: "create" },
     "New Google sign-ups aren’t available in your country, so nothing was created.",
   ],
@@ -166,6 +170,14 @@ const REPAIR_COPY: [ViewError, string][] = [
       flow: "repair",
     },
     "Your Google sign-in expired before Passport could finish setting up your pubky. It’s safe in your Google Drive.",
+  ],
+  [
+    {
+      code: "homeserver_signup_token_failed",
+      detailCode: "invalid_homegate_homeserver",
+      flow: "repair",
+    },
+    "Your pubky is safe in your Google Drive, but Passport can’t finish setting it up with its server: the sign-up service didn’t say which homeserver it belongs on. Nothing was lost.",
   ],
   [
     {

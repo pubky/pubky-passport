@@ -8,8 +8,14 @@ import { HttpResponseError } from "@/libs/http/HttpResponseError";
 import { LOGGER, safeErrorLogFields } from "@/libs/logger/logger";
 import { MAXIMUM_JSON_BODY_BYTES, REQUEST_TIMEOUT_MS } from "@/libs/passportPolicy";
 import type { CodedFailure } from "@/libs/result";
+import { refusesHomeserver } from "./homegateSignup";
 
-type TransportErrorCode = "network_failed" | "homegate_unavailable" | "malformed_homegate_response";
+type TransportErrorCode =
+  | "network_failed"
+  | "homegate_unavailable"
+  | "malformed_homegate_response"
+  /** A signup code arrived without a valid homeserver, so there is nowhere it can be used. */
+  | "invalid_homegate_homeserver";
 export type HomegateFailure<Code extends string> = CodedFailure<Code | TransportErrorCode> & {
   httpStatus?: number;
 };
@@ -127,10 +133,15 @@ export class HomegateTransport<Code extends string> {
     const parsed = schema.safeParse(json);
     if (parsed.success) return Result.ok(parsed.data);
     // Zod issues can echo phone numbers or invitations.
+    const homeserverRefused = refusesHomeserver(parsed.error.issues);
     return this.failure(operation, "response_validation", {
-      code: "malformed_homegate_response",
+      code: homeserverRefused ? "invalid_homegate_homeserver" : "malformed_homegate_response",
       httpStatus: response.status,
-      cause: new Error("Homegate response does not match the expected schema."),
+      cause: new Error(
+        homeserverRefused
+          ? "Homegate issued a signup code without a valid homeserver public key."
+          : "Homegate response does not match the expected schema.",
+      ),
     });
   }
 

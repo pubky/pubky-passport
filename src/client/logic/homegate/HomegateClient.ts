@@ -19,6 +19,8 @@ export type HomegateSignupTokenErrorCode =
   | "google_verifier_unavailable"
   | "homegate_unavailable"
   | "malformed_homegate_response"
+  /** The signup code came without a valid homeserver public key. */
+  | "invalid_homegate_homeserver"
   | "network_failed";
 
 const EVENT = "identity.google.homeserver_signup_token.failed";

@@ -151,6 +151,8 @@ describe("useHomegateSignup", () => {
     ["blocked", "lightning", "This verification request was blocked."],
     ["verification_expired", "code", "Send a new code to continue."],
     ["verification_expired", "lightning", "This invoice has expired. Create a new one."],
+    ["invalid_homegate_homeserver", "code", "didn’t say which homeserver"],
+    ["invalid_homegate_homeserver", "lightning", "Your payment went through"],
   ] as const)("words %s for the %s step it happened on", (code, step, message) => {
     expect(verificationErrorMessage(code, step)).toContain(message);
   });

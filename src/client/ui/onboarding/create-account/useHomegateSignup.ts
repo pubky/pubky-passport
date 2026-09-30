@@ -88,6 +88,11 @@ export function verificationErrorMessage(
           : "This verification has expired. Start again.";
     case "payment_not_confirmed":
       return "Payment has not been confirmed yet. If you paid, check again in a moment.";
+    case "invalid_homegate_homeserver":
+      // Passport never signs up anywhere but the homeserver a code was issued for.
+      return step === "lightning"
+        ? "Your payment went through, but the verification service didn’t say which homeserver your account belongs on. Passport keeps checking, so keep this page open or come back later."
+        : "The verification service didn’t say which homeserver your account belongs on, so no account was created. Try again later or choose another method below.";
     default:
       return "Could not reach the verification service. Please try again.";
   }

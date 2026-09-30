@@ -21,6 +21,7 @@ import { BackButton } from "@/client/ui/shared/backButton";
 import { ConfirmDeletionDialog } from "@/client/ui/shared/confirmDeletionDialog";
 import { PubkyBrandIcon } from "@/client/ui/shared/brand/pubkyBrandIcon";
 import { ChoiceCard } from "@/client/ui/shared/choiceCard";
+import { DetailField } from "@/client/ui/shared/detailField";
 import { ArrowRightIcon, CircleCheckIcon, KeyRoundIcon } from "@/client/ui/shared/icons";
 import { ACCOUNT_SETUP_STEPS, SetupProgressProvider } from "@/client/ui/shared/setupProgress";
 import { VerificationOptions } from "./verificationOptions";
@@ -218,6 +219,7 @@ function AccountCreation({
     return (
       <SetupProgressProvider steps={ACCOUNT_SETUP_STEPS} current={1}>
         <InviteDestinationChoice
+          homeserverPubky={invite.homeserverPubky}
           checkingInvite={destinations.checkingInvite}
           onPassport={() =>
             destinationController.choosePassport(invite, recheckInvite).then(releaseIfUsed)
@@ -349,6 +351,7 @@ function destinationErrorMessage(code: InviteDestinationErrorCode): string {
 }
 
 function InviteDestinationChoice({
+  homeserverPubky,
   onPassport,
   onRing,
   onBack,
@@ -361,6 +364,8 @@ function InviteDestinationChoice({
   checkingInvite,
   error,
 }: {
+  /** Where the invite creates the account: the homeserver it was issued for, whoever issued it. */
+  homeserverPubky: string;
   onPassport: () => void | Promise<void>;
   onRing: () => void;
   /** Returns to the invite entry, while the entered invite can still be changed. */
@@ -399,6 +404,8 @@ function InviteDestinationChoice({
     </Notice>
   ) : null;
   const back = <BackButton onClick={onBack ?? onLeave} />;
+  // Homegate picks the homeserver with the code, so it is shown before anything is submitted.
+  const homeserver = <DetailField label="Homeserver" value={homeserverPubky} />;
 
   // Signup was submitted with the key saved in this browser, which may already own the account:
   // only that key can finish it, so there is nothing left to choose.
@@ -410,6 +417,7 @@ function InviteDestinationChoice({
         title="Finish your"
       >
         {welcomeBack}
+        {homeserver}
         {errorNotice}
         <PassportNavigation
           back={back}
@@ -492,6 +500,7 @@ function InviteDestinationChoice({
           </Button>
         </ChoiceCard>
       </div>
+      {homeserver}
       {errorNotice}
       {inviteSaved && !onBack && !restored ? (
         <p className="text-sm leading-5 text-muted-foreground">
