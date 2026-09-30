@@ -3,7 +3,6 @@
 import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Result } from "better-result";
-import { StrictMode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -114,24 +113,18 @@ describe("IdentityEstablishmentFlow", () => {
     ).toBeInTheDocument();
   });
 
-  it("automatically starts Google once for authorization, including StrictMode", async () => {
-    const establishIdentity = vi.fn(() => new Promise<never>(() => undefined));
-    useController(mockGoogleIdentityController({ establishIdentity }));
-    render(
-      <StrictMode>
-        <ConfiguredIdentityEstablishmentFlow forAuthorization onComplete={vi.fn()} />
-      </StrictMode>,
+  it("uses the authorization action width when embedded in that flow", async () => {
+    useController(
+      mockGoogleIdentityController({
+        establishIdentity: vi.fn(() => new Promise<never>(() => undefined)),
+      }),
     );
+    render(<ConfiguredIdentityEstablishmentFlow forAuthorization onComplete={vi.fn()} />);
 
-    await waitFor(() => expect(establishIdentity).toHaveBeenCalledOnce());
-    expect(screen.queryByRole("button", { name: "Continue with Google" })).not.toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole("button", { name: "Continue with Google" }));
+
     expect(screen.getByRole("button", { name: "Waiting for Google..." })).not.toHaveClass(
       "md:w-[220px]",
-    );
-    expect(MOCKS.constructGoogleIdentityController).toHaveBeenCalledWith(
-      "google-client-id",
-      "https://homegate.example/",
-      true,
     );
   });
 

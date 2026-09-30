@@ -7,46 +7,8 @@ import {
   EARLY_GOOGLE_IMPLICIT_RESPONSE_SCRIPT,
   GOOGLE_IMPLICIT_RESPONSE_MESSAGE_TYPE,
 } from "./earlyGoogleImplicitResponse";
-import { EARLY_GOOGLE_REDIRECT_RESPONSE_PROPERTY } from "./googleRedirectConstants";
 
 describe("early Google implicit response bootstrap", () => {
-  it("captures same-tab credentials once without sending them to an opener or storage", () => {
-    const postMessage = vi.fn();
-    const setItem = vi.fn();
-    const hash = "#access_token=credential-canary&state=state-canary";
-    const location = { pathname: "/", hash, origin: "https://passport.example" };
-    const context: Record<string, unknown> = {
-      location,
-      history: {},
-      History: {
-        prototype: {
-          replaceState() {
-            location.hash = "";
-          },
-        },
-      },
-      sessionStorage: { getItem: () => "pending", setItem },
-      opener: { postMessage },
-      setTimeout: vi.fn(),
-      clearTimeout: vi.fn(),
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
-    };
-    context.window = context;
-    runInNewContext(EARLY_GOOGLE_IMPLICIT_RESPONSE_SCRIPT, context);
-    expect(location.hash).toBe("");
-    expect(postMessage).not.toHaveBeenCalled();
-    expect(setItem).not.toHaveBeenCalled();
-    const take = context[EARLY_GOOGLE_REDIRECT_RESPONSE_PROPERTY] as () => unknown;
-    expect(take()).toEqual({
-      type: GOOGLE_IMPLICIT_RESPONSE_MESSAGE_TYPE,
-      status: "captured",
-      hash,
-    });
-    expect(take()).toBeUndefined();
-    expect(context[EARLY_GOOGLE_REDIRECT_RESPONSE_PROPERTY]).toBeUndefined();
-  });
-
   it("scrubs the credential fragment and sends it only to the opener", () => {
     const postMessage = vi.fn();
     const location = {

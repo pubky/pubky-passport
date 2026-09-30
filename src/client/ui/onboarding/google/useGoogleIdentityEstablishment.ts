@@ -26,8 +26,8 @@ type GoogleIdentityEstablishmentView =
       mode: "restored";
     };
 
-function useGoogleIdentityEstablishment(forAuthorization = false) {
-  const google = useGoogleIdentityStore("establishment", forAuthorization);
+function useGoogleIdentityEstablishment() {
+  const google = useGoogleIdentityStore("establishment");
 
   return {
     back: google.reset,

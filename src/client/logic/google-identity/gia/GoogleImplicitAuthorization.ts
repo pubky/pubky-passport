@@ -8,8 +8,11 @@ import { LOGGER, safeErrorLogFields } from "@/libs/logger/logger";
 import { AUTHORIZATION_TIMEOUT_MS } from "@/libs/passportPolicy";
 import type { CodedFailure } from "@/libs/result";
 import { GOOGLE_IMPLICIT_RESPONSE_MESSAGE_TYPE } from "@/libs/authorization/earlyGoogleImplicitResponse";
-import { GOOGLE_AUTHORIZATION_SCOPE } from "./parseGoogleAuthorizationResponse";
-import { resolveGoogleCredentials } from "./resolveGoogleCredentials";
+import {
+  GOOGLE_AUTHORIZATION_SCOPE,
+  parseGoogleAuthorizationResponse,
+} from "./parseGoogleAuthorizationResponse";
+import { fetchGoogleAccountProfile } from "./fetchGoogleAccountProfile";
 import { AuthorizationPopup } from "./AuthorizationPopup";
 
 /** Short-lived credentials produced by one complete Google authorization. */
@@ -236,13 +239,48 @@ export class GoogleImplicitAuthorization {
     attempt: AuthorizationAttempt,
     capture: unknown,
   ): Promise<void> {
-    const result = await resolveGoogleCredentials(
-      capture,
-      attempt.state,
-      attempt.nonce,
+    const result = await this.resolveCredentialsFromResponse(attempt, capture);
+    if (this.activeAttempt === attempt) this.finish(attempt, result);
+  }
+
+  private async resolveCredentialsFromResponse(
+    attempt: AuthorizationAttempt,
+    capture: unknown,
+  ): Promise<GoogleImplicitAuthorizationResult<GoogleIdentityCredentials>> {
+    const parsed = parseGoogleAuthorizationResponse(capture, attempt.state, attempt.nonce);
+    if (Result.isError(parsed)) {
+      LOGGER.warn("identity.google.implicit_authorization.failed", {
+        operation: "authorize",
+        stage: "response",
+        code: parsed.error.code,
+      });
+      return Result.err(parsed.error);
+    }
+    const account = await fetchGoogleAccountProfile(
+      parsed.value.accessToken,
+      parsed.value.googleSubject,
       attempt.abortController.signal,
     );
-    if (this.activeAttempt === attempt) this.finish(attempt, result);
+    if (Result.isError(account)) {
+      LOGGER.warn("identity.google.implicit_authorization.failed", {
+        operation: "authorize",
+        stage: account.error.stage,
+        ...(account.error.httpStatus === undefined ? {} : { httpStatus: account.error.httpStatus }),
+        ...(account.error.cause === undefined ? {} : safeErrorLogFields(account.error.cause)),
+        code: account.error.code,
+      });
+      return Result.err({
+        code: account.error.code,
+        ...(account.error.cause === undefined ? {} : { cause: account.error.cause }),
+      });
+    }
+    return Result.ok({
+      googleIdToken: parsed.value.googleIdToken,
+      driveAccessToken: parsed.value.accessToken,
+      driveAccessTokenExpiresAt: parsed.value.accessTokenExpiresAt,
+      googleAccount: account.value,
+      visibleBackupPermissionGranted: parsed.value.visibleBackupPermissionGranted,
+    });
   }
 
   private failAttempt(

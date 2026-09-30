@@ -25,10 +25,6 @@ import { AuthorizationReview } from "./review/authorizationReview";
 import { InvalidAuthorization } from "./invalidAuthorization";
 import { ManualAuthorization } from "./manual-entry/manualAuthorization";
 import { usePassportAuthorization, type AuthorizationController } from "./usePassportAuthorization";
-import {
-  isGoogleRedirectReturn,
-  returnToAuthorization,
-} from "@/client/logic/google-identity/gia/googleRedirectBootstrap";
 
 const AUTHORIZATION_LOADING_HEIGHT =
   "min-h-[calc(100svh-var(--passport-header-height)-var(--passport-context-band-height))]";
@@ -146,7 +142,7 @@ function ReadyAuthorizationWithIdentity({
   const { IdentitySetup } = usePassportCollaborators();
   const Setup = IdentitySetup ?? IdentityEstablishmentFlow;
   const [view, setView] = useState<AuthorizationIdentityView>(() =>
-    catalog.identities.length === 0 || isGoogleRedirectReturn() ? "first-identity-setup" : "review",
+    catalog.identities.length === 0 ? "first-identity-setup" : "review",
   );
   const resolvedView: AuthorizationIdentityView =
     catalog.identities.length === 0 ? "first-identity-setup" : view;
@@ -158,11 +154,7 @@ function ReadyAuthorizationWithIdentity({
         onBack={() => {
           void passportAuthorizationController.cancel();
         }}
-        onComplete={() => {
-          // The root callback has a narrower CSP; grant approval belongs on /authorize.
-          if (isGoogleRedirectReturn()) returnToAuthorization();
-          else setView("review");
-        }}
+        onComplete={() => setView("review")}
       />
     );
   }

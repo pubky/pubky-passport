@@ -275,20 +275,6 @@ A `success` message means the approval reached the relay; keep waiting for the S
 
 ## Same-tab navigation
 
-During authorization, Passport now starts Google automatically when an identity must be created
-or restored. Google opens in the current Passport tab/window, including when Passport itself
-was opened as a popup. There is no second Google button or nested popup. Existing local
-identities still go straight to capability review; Google sign-in does not grant app permissions
-without that review. Standalone dashboard sign-in and management retain their popup behavior.
-
-The Google round trip uses the existing origin-root callback URI. Passport temporarily saves
-the validated Pubky request, OAuth state/nonce, and continuation in `sessionStorage` with a
-five-minute expiry. It consumes that metadata on return and keeps Google tokens only in memory,
-scrubbing the response fragment before hydration. After identity setup, it returns to
-`/authorize#d=…` for the existing scrubbed review and relay approval. Missing, expired, or blocked
-storage fails closed. OAuth denial is retryable; Back returns through the original cancel
-callback. Reloading after the callback has been consumed requires starting authorization again.
-
 Passport also works without a popup. Before navigating the current page to Passport, save the
 pending flow with `flow.saveLocal()` in `sessionStorage`. Passport returns by navigating to your
 callback because there is no opener. On the callback page, resume with
