@@ -22,6 +22,7 @@ export type GoogleIdentityLifecycleError =
       | "drive_create_conflict"
       | "invalid_passport_file"
       | "invalid_passport_file_delete_failed"
+      | "undecryptable_passport_file_delete_failed"
       | "drive_read_failed"
       | "drive_write_failed"
       | "encrypt_failed"
@@ -33,6 +34,8 @@ export type GoogleIdentityLifecycleError =
       | "unexpected_failure"
       | "google_account_mismatch"
       | "google_drive_cleanup_failed"
+      | "google_detachment_permission_required"
+      | "visible_backup_permission_missing"
       | "local_remove_failed"
     >;
 

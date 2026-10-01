@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { expectResultError } from "@test-utils/resultAssertions";
 import { LOGGER } from "@/libs/logger/logger";
+import { AuthorizationPopup } from "./gia/AuthorizationPopup";
 import { GoogleIdentityController, type GoogleIdentityViewState } from "./GoogleIdentityController";
 
 const MOCKS = {
@@ -14,6 +15,7 @@ const MOCKS = {
   disposeLifecycle: vi.fn(),
   establishIdentity: vi.fn(),
   replaceInvalidPassportFile: vi.fn(),
+  replaceUndecryptablePassportFile: vi.fn(),
   requestAuthorization: vi.fn(),
 };
 
@@ -26,6 +28,8 @@ const GOOGLE_ACCOUNT = {
 const CREDENTIALS = {
   googleIdToken: "google-id-token",
   driveAccessToken: "drive-access-token",
+  driveAccessTokenExpiresAt: Date.now() + 3_600_000,
+  visibleBackupPermissionGranted: true,
   googleAccount: GOOGLE_ACCOUNT,
 };
 const PUBLIC_IDENTITY = {
@@ -35,6 +39,11 @@ const PUBLIC_IDENTITY = {
 describe("GoogleIdentityController", () => {
   beforeEach(() => {
     for (const mock of Object.values(MOCKS)) mock.mockReset();
+    // jsdom's window.open returns undefined, which the controller would report as blocked.
+    vi.stubGlobal(
+      "open",
+      vi.fn(() => createPopupWindow().window),
+    );
     MOCKS.requestAuthorization.mockResolvedValue(Result.ok(CREDENTIALS));
     MOCKS.establishIdentity.mockImplementation(async (_credentials, reportProgress) => {
       reportProgress({ flow: "lookup", step: "checking" });
@@ -49,6 +58,13 @@ describe("GoogleIdentityController", () => {
         visibleRecoveryCopyStatus: "created" as const,
       }),
     );
+    MOCKS.replaceUndecryptablePassportFile.mockResolvedValue(
+      Result.ok({
+        establishmentMode: "created" as const,
+        publicIdentity: PUBLIC_IDENTITY,
+        visibleRecoveryCopyStatus: "created" as const,
+      }),
+    );
   });
 
   afterEach(() => {
@@ -56,28 +72,286 @@ describe("GoogleIdentityController", () => {
     vi.unstubAllGlobals();
   });
 
+  it.each([
+    "establish",
+    "replace_invalid_passport_file",
+    "replace_undecryptable_passport_file",
+  ] as const)(
+    "resumes %s after Google without a popup and preserves the backup choice",
+    async (operation) => {
+      const redirect = {
+        request: vi.fn().mockResolvedValue(Result.ok(CREDENTIALS)),
+        dispose: vi.fn(),
+        takeContinuation: vi.fn().mockReturnValueOnce({
+          operation,
+          allowWithoutVisibleBackup: true,
+          googleSubject: GOOGLE_ACCOUNT.googleSubject,
+        }),
+      };
+      const controller = createController(redirect);
+      const result = await controller.establishIdentity();
+      expect(Result.isOk(result)).toBe(true);
+      expect(window.open).not.toHaveBeenCalled();
+      expect(MOCKS.requestAuthorization).not.toHaveBeenCalled();
+      expect(redirect.request).toHaveBeenCalledWith({
+        operation,
+        allowWithoutVisibleBackup: true,
+        googleSubject: GOOGLE_ACCOUNT.googleSubject,
+      });
+      const lifecycle =
+        operation === "establish"
+          ? MOCKS.establishIdentity
+          : operation === "replace_invalid_passport_file"
+            ? MOCKS.replaceInvalidPassportFile
+            : MOCKS.replaceUndecryptablePassportFile;
+      expect(lifecycle).toHaveBeenCalledWith(CREDENTIALS, expect.any(Function), true);
+      expect(controller.getState().status).toBe("established");
+      controller.dispose();
+      expect(redirect.dispose).toHaveBeenCalledOnce();
+    },
+  );
+
+  it("rejects a different Google account when resuming a confirmed replacement", async () => {
+    const redirect = {
+      request: vi.fn().mockResolvedValue(Result.ok(CREDENTIALS)),
+      dispose: vi.fn(),
+      takeContinuation: vi.fn().mockReturnValueOnce({
+        operation: "replace_invalid_passport_file",
+        allowWithoutVisibleBackup: true,
+        googleSubject: "another-account",
+      }),
+    };
+    const controller = createController(redirect);
+    expectResultError(await controller.establishIdentity(), { code: "authorization_failed" });
+    expect(MOCKS.replaceInvalidPassportFile).not.toHaveBeenCalled();
+    controller.dispose();
+  });
+
+  it("continues a creation paused by the lifecycle with the same credentials", async () => {
+    const controller = createController();
+    const states = recordStates(controller);
+    const partialCredentials = { ...CREDENTIALS, visibleBackupPermissionGranted: false };
+    MOCKS.requestAuthorization.mockResolvedValue(Result.ok(partialCredentials));
+    MOCKS.establishIdentity.mockResolvedValueOnce(
+      Result.err({ code: "visible_backup_permission_missing" }),
+    );
+
+    expectResultError(await controller.establishIdentity(), {
+      code: "visible_backup_permission_missing",
+    });
+    expect(MOCKS.establishIdentity).toHaveBeenCalledWith(
+      partialCredentials,
+      expect.any(Function),
+      false,
+    );
+    expect(states.at(-1)).toEqual({
+      status: "failed",
+      error: { code: "visible_backup_permission_missing" },
+    });
+
+    const result = await controller.continueWithoutVisibleBackup();
+    expect(Result.isOk(result)).toBe(true);
+    expect(MOCKS.requestAuthorization).toHaveBeenCalledOnce();
+    expect(MOCKS.establishIdentity).toHaveBeenLastCalledWith(
+      partialCredentials,
+      expect.any(Function),
+      true,
+    );
+  });
+
+  it("drops a pending partial grant when the user retries", async () => {
+    const controller = createController();
+    MOCKS.establishIdentity.mockResolvedValueOnce(
+      Result.err({ code: "visible_backup_permission_missing" }),
+    );
+    MOCKS.requestAuthorization
+      .mockResolvedValueOnce(Result.ok({ ...CREDENTIALS, visibleBackupPermissionGranted: false }))
+      .mockResolvedValueOnce(Result.ok(CREDENTIALS));
+
+    expectResultError(await controller.establishIdentity(), {
+      code: "visible_backup_permission_missing",
+    });
+    await controller.establishIdentity();
+    expectResultError(await controller.continueWithoutVisibleBackup(), {
+      code: "operation_failed",
+    });
+    expect(MOCKS.requestAuthorization).toHaveBeenCalledTimes(2);
+  });
+
+  it.each([
+    "establishIdentity",
+    "replaceInvalidPassportFile",
+    "replaceUndecryptablePassportFile",
+  ] as const)(
+    "renews expired credentials when continuing %s without prompting again",
+    async (method) => {
+      const controller = createController();
+      const now = Date.now();
+      vi.spyOn(Date, "now").mockReturnValue(now);
+      const partialCredentials = {
+        ...CREDENTIALS,
+        driveAccessTokenExpiresAt: now + 3_600_000,
+        visibleBackupPermissionGranted: false,
+      };
+      const refreshedCredentials = {
+        ...partialCredentials,
+        driveAccessToken: "refreshed-access-token",
+        driveAccessTokenExpiresAt: now + 10_800_000,
+      };
+      MOCKS.requestAuthorization
+        .mockResolvedValueOnce(Result.ok(partialCredentials))
+        .mockResolvedValueOnce(Result.ok(refreshedCredentials));
+      MOCKS[method].mockResolvedValueOnce(
+        Result.err({ code: "visible_backup_permission_missing" }),
+      );
+
+      await controller[method]();
+      vi.mocked(Date.now).mockReturnValue(now + 7_200_000);
+      expect(Result.isOk(await controller.continueWithoutVisibleBackup())).toBe(true);
+
+      expect(MOCKS.requestAuthorization).toHaveBeenNthCalledWith(
+        2,
+        expect.any(AuthorizationPopup),
+        GOOGLE_ACCOUNT.googleSubject,
+      );
+      expect(MOCKS[method]).toHaveBeenLastCalledWith(
+        refreshedCredentials,
+        expect.any(Function),
+        true,
+      );
+    },
+  );
+
+  it.each([null, Date.now() + 10_000])(
+    "renews credentials with unknown or imminent expiry (%s)",
+    async (driveAccessTokenExpiresAt) => {
+      const controller = createController();
+      MOCKS.requestAuthorization
+        .mockResolvedValueOnce(
+          Result.ok({
+            ...CREDENTIALS,
+            driveAccessTokenExpiresAt,
+            visibleBackupPermissionGranted: false,
+          }),
+        )
+        .mockResolvedValueOnce(Result.ok(CREDENTIALS));
+      MOCKS.establishIdentity.mockResolvedValueOnce(
+        Result.err({ code: "visible_backup_permission_missing" }),
+      );
+
+      await controller.establishIdentity();
+      expect(Result.isOk(await controller.continueWithoutVisibleBackup())).toBe(true);
+      expect(MOCKS.requestAuthorization).toHaveBeenCalledTimes(2);
+      expect(MOCKS.establishIdentity).toHaveBeenLastCalledWith(
+        CREDENTIALS,
+        expect.any(Function),
+        true,
+      );
+    },
+  );
+
+  it("rejects a different account when renewing paused credentials", async () => {
+    const controller = createController();
+    MOCKS.requestAuthorization
+      .mockResolvedValueOnce(
+        Result.ok({
+          ...CREDENTIALS,
+          driveAccessTokenExpiresAt: 0,
+          visibleBackupPermissionGranted: false,
+        }),
+      )
+      .mockResolvedValueOnce(
+        Result.ok({
+          ...CREDENTIALS,
+          googleAccount: { ...GOOGLE_ACCOUNT, googleSubject: "different-account" },
+        }),
+      );
+    MOCKS.establishIdentity.mockResolvedValueOnce(
+      Result.err({ code: "visible_backup_permission_missing" }),
+    );
+
+    await controller.establishIdentity();
+    expectResultError(await controller.continueWithoutVisibleBackup(), {
+      code: "authorization_failed",
+    });
+    expect(MOCKS.establishIdentity).toHaveBeenCalledOnce();
+  });
+
+  it.each(["reset", "dispose"] as const)("clears paused credentials on %s", async (method) => {
+    const controller = createController();
+    MOCKS.requestAuthorization.mockResolvedValue(
+      Result.ok({ ...CREDENTIALS, visibleBackupPermissionGranted: false }),
+    );
+    MOCKS.establishIdentity.mockResolvedValueOnce(
+      Result.err({ code: "visible_backup_permission_missing" }),
+    );
+    await controller.establishIdentity();
+
+    controller[method]();
+    expectResultError(await controller.continueWithoutVisibleBackup(), {
+      code: "operation_failed",
+    });
+    expect(MOCKS.establishIdentity).toHaveBeenCalledOnce();
+  });
+
   it("composes and disposes its real screen-scoped dependencies", () => {
     const session = new GoogleIdentityController("google-client-id", "https://homegate.example/");
     expect(() => session.dispose()).not.toThrow();
   });
 
-  it("runs the real authorization and lifecycle constructors when no factories are injected", async () => {
+  it("opens the consent popup synchronously, before loading its dependencies", async () => {
     vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
-    const open = vi.fn(() => null);
+    const popup = createPopupWindow();
+    const open = vi.fn(() => popup.window);
     vi.stubGlobal("open", open);
     const controller = new GoogleIdentityController(
       "google-client-id",
       "https://homegate.example/",
     );
 
-    expectResultError(await controller.establishIdentity(), {
-      code: "google_authorization_popup_failed_to_open",
-    });
-    expect(open).toHaveBeenCalledOnce();
+    const pending = controller.establishIdentity();
+    // Still inside the caller's task: no await has run, so a click's activation still applies.
+    expect(open).toHaveBeenCalledExactlyOnceWith(
+      "about:blank",
+      expect.stringMatching(/^pubky-passport-google-/u),
+      "popup,width=520,height=680",
+    );
     controller.dispose();
+
+    expectResultError(await pending, { code: "cancelled" });
+    expect(popup.close).toHaveBeenCalledOnce();
+    expect(popup.replace).not.toHaveBeenCalled();
+  });
+
+  it("runs the real authorization and lifecycle constructors when no factories are injected", async () => {
+    vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+    const popup = createPopupWindow();
+    vi.stubGlobal(
+      "open",
+      vi.fn(() => popup.window),
+    );
+    const controller = new GoogleIdentityController(
+      "google-client-id",
+      "https://homegate.example/",
+    );
+
+    const pending = controller.establishIdentity();
+    await vi.waitFor(() => expect(popup.replace).toHaveBeenCalledOnce());
+    expect(new URL(String(popup.replace.mock.calls[0]?.[0])).origin).toBe(
+      "https://accounts.google.com",
+    );
+    controller.dispose();
+
+    expectResultError(await pending, { code: "cancelled" });
+    expect(popup.close).toHaveBeenCalledOnce();
   });
 
   it("lets a single injected factory replace only its own constructor", async () => {
+    const popup = createPopupWindow();
+    vi.stubGlobal(
+      "open",
+      vi.fn(() => popup.window),
+    );
     const controller = new GoogleIdentityController(
       "google-client-id",
       "https://homegate.example/",
@@ -88,22 +362,68 @@ describe("GoogleIdentityController", () => {
         dispose: MOCKS.disposeLifecycle,
         establishIdentity: MOCKS.establishIdentity,
         replaceInvalidPassportFile: MOCKS.replaceInvalidPassportFile,
+        replaceUndecryptablePassportFile: MOCKS.replaceUndecryptablePassportFile,
       }),
     );
     const states = recordStates(controller);
     vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+
+    const pending = controller.establishIdentity();
+    await vi.waitFor(() => expect(popup.replace).toHaveBeenCalledOnce());
+    controller.dispose();
+
+    expectResultError(await pending, { code: "cancelled" });
+    expect(MOCKS.establishIdentity).not.toHaveBeenCalled();
+    expect(MOCKS.disposeLifecycle).toHaveBeenCalledOnce();
+    expect(states).toEqual([{ status: "requesting-authorization" }]);
+  });
+
+  it("reports a blocked popup without loading authorization and stays retryable", async () => {
+    vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
     const open = vi.fn(() => null);
     vi.stubGlobal("open", open);
+    const controller = createController();
+    const states = recordStates(controller);
 
     expectResultError(await controller.establishIdentity(), {
       code: "google_authorization_popup_failed_to_open",
     });
     expect(open).toHaveBeenCalledOnce();
+    expect(MOCKS.requestAuthorization).not.toHaveBeenCalled();
     expect(MOCKS.establishIdentity).not.toHaveBeenCalled();
     expect(states).toEqual([
       { status: "requesting-authorization" },
       { status: "failed", error: { code: "google_authorization_popup_failed_to_open" } },
     ]);
+
+    vi.stubGlobal(
+      "open",
+      vi.fn(() => createPopupWindow().window),
+    );
+    expect(Result.isOk(await controller.establishIdentity())).toBe(true);
+  });
+
+  it("closes the pending popup when its dependencies fail to construct", async () => {
+    vi.spyOn(LOGGER, "error").mockImplementation(() => undefined);
+    const popup = createPopupWindow();
+    vi.stubGlobal(
+      "open",
+      vi.fn(() => popup.window),
+    );
+    const controller = new GoogleIdentityController(
+      "google-client-id",
+      "https://homegate.example/",
+      () => ({ request: MOCKS.requestAuthorization, dispose: MOCKS.disposeAuthorization }),
+      () => {
+        throw new Error("lifecycle construction failed");
+      },
+    );
+
+    expectResultError(await controller.establishIdentity(), { code: "operation_failed" });
+    expect(popup.close).toHaveBeenCalledOnce();
+    expect(popup.replace).not.toHaveBeenCalled();
+    expect(MOCKS.requestAuthorization).not.toHaveBeenCalled();
+    expect(MOCKS.disposeAuthorization).toHaveBeenCalledOnce();
   });
 
   it("starts idle and publishes authorization, establishment progress, and the result", async () => {
@@ -125,7 +445,7 @@ describe("GoogleIdentityController", () => {
       { status: "established", identity: established },
     ]);
     expect(controller.getState()).toEqual({ status: "established", identity: established });
-    expect(MOCKS.establishIdentity).toHaveBeenCalledWith(CREDENTIALS, expect.any(Function));
+    expect(MOCKS.establishIdentity).toHaveBeenCalledWith(CREDENTIALS, expect.any(Function), false);
   });
 
   it("publishes only the allowlisted established fields", async () => {
@@ -280,8 +600,16 @@ describe("GoogleIdentityController", () => {
 
     expectResultError(await controller.establishIdentity(), { code: "authorization_failed" });
 
-    expect(MOCKS.requestAuthorization).toHaveBeenNthCalledWith(1, undefined);
-    expect(MOCKS.requestAuthorization).toHaveBeenNthCalledWith(2, GOOGLE_ACCOUNT.googleSubject);
+    expect(MOCKS.requestAuthorization).toHaveBeenNthCalledWith(
+      1,
+      expect.any(AuthorizationPopup),
+      undefined,
+    );
+    expect(MOCKS.requestAuthorization).toHaveBeenNthCalledWith(
+      2,
+      expect.any(AuthorizationPopup),
+      GOOGLE_ACCOUNT.googleSubject,
+    );
     expect(MOCKS.establishIdentity).toHaveBeenCalledOnce();
   });
 
@@ -292,8 +620,16 @@ describe("GoogleIdentityController", () => {
     controller.reset();
     await controller.establishIdentity();
 
-    expect(MOCKS.requestAuthorization).toHaveBeenNthCalledWith(1, undefined);
-    expect(MOCKS.requestAuthorization).toHaveBeenNthCalledWith(2, undefined);
+    expect(MOCKS.requestAuthorization).toHaveBeenNthCalledWith(
+      1,
+      expect.any(AuthorizationPopup),
+      undefined,
+    );
+    expect(MOCKS.requestAuthorization).toHaveBeenNthCalledWith(
+      2,
+      expect.any(AuthorizationPopup),
+      undefined,
+    );
   });
 
   it("delegates detachment behavior", async () => {
@@ -392,11 +728,43 @@ describe("GoogleIdentityController", () => {
       }),
     );
 
-    expect(MOCKS.requestAuthorization).toHaveBeenNthCalledWith(2, GOOGLE_ACCOUNT.googleSubject);
+    expect(MOCKS.requestAuthorization).toHaveBeenNthCalledWith(
+      2,
+      expect.any(AuthorizationPopup),
+      GOOGLE_ACCOUNT.googleSubject,
+    );
     expect(MOCKS.replaceInvalidPassportFile).toHaveBeenCalledWith(
       CREDENTIALS,
       expect.any(Function),
+      false,
     );
+  });
+
+  it("replaces an undecryptable file with the pinned Google account and returns the created identity", async () => {
+    const controller = createController();
+    MOCKS.establishIdentity.mockResolvedValueOnce(Result.err({ code: "decrypt_failed" as const }));
+    await controller.establishIdentity();
+
+    await expect(controller.replaceUndecryptablePassportFile()).resolves.toEqual(
+      Result.ok({
+        establishmentMode: "created",
+        googleAccount: GOOGLE_ACCOUNT,
+        publicIdentity: PUBLIC_IDENTITY,
+        visibleRecoveryCopyStatus: "created",
+      }),
+    );
+
+    expect(MOCKS.requestAuthorization).toHaveBeenNthCalledWith(
+      2,
+      expect.any(AuthorizationPopup),
+      GOOGLE_ACCOUNT.googleSubject,
+    );
+    expect(MOCKS.replaceUndecryptablePassportFile).toHaveBeenCalledWith(
+      CREDENTIALS,
+      expect.any(Function),
+      false,
+    );
+    expect(MOCKS.replaceInvalidPassportFile).not.toHaveBeenCalled();
   });
 
   it("rejects a different Google account before invalid-file replacement", async () => {
@@ -496,13 +864,23 @@ describe("GoogleIdentityController", () => {
   });
 });
 
+/** A blank popup window as `window.open` hands it to the controller. */
+function createPopupWindow() {
+  const close = vi.fn();
+  const replace = vi.fn();
+  const window = { closed: false, close, location: { replace } } as unknown as Window;
+  return { window, close, replace };
+}
+
 function recordStates(controller: GoogleIdentityController): GoogleIdentityViewState[] {
   const states: GoogleIdentityViewState[] = [];
   controller.subscribe((state) => states.push(state));
   return states;
 }
 
-function createController(): GoogleIdentityController {
+function createController(
+  redirect?: ConstructorParameters<typeof GoogleIdentityController>[4],
+): GoogleIdentityController {
   return new GoogleIdentityController(
     "google-client-id",
     "https://homegate.example/",
@@ -516,6 +894,8 @@ function createController(): GoogleIdentityController {
       dispose: MOCKS.disposeLifecycle,
       establishIdentity: MOCKS.establishIdentity,
       replaceInvalidPassportFile: MOCKS.replaceInvalidPassportFile,
+      replaceUndecryptablePassportFile: MOCKS.replaceUndecryptablePassportFile,
     }),
+    redirect,
   );
 }

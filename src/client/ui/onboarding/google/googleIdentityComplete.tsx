@@ -8,41 +8,35 @@ import { Button } from "@/client/ui/shared/primitives/button";
 import { DisplayHeading, LeadText } from "@/client/ui/shared/primitives/typography";
 import { GoogleAccountCard } from "./googleAccountCard";
 
+/** Confirms a newly created identity; a restored identity moves on without this screen. */
 function GoogleIdentityComplete({
   googleAccount,
   identity,
-  mode,
   onContinue,
   visibleRecoveryCopyStatus,
 }: {
   googleAccount: GoogleAccountProfile;
   identity: PubkyPublicIdentity;
-  mode: "created" | "restored";
   onContinue: () => void;
-  visibleRecoveryCopyStatus: "created" | "unconfirmed" | null;
+  visibleRecoveryCopyStatus: "created" | "unconfirmed" | "skipped";
 }) {
-  const restored = mode === "restored";
   return (
     <PassportScreen className="gap-0 md:pb-0">
       <div className="flex flex-col gap-6 md:gap-3">
-        <DisplayHeading
-          accent="complete."
-          aria-label={restored ? "Restore complete." : "Setup complete."}
-        >
-          {restored ? "Restore" : "Setup"}
+        <DisplayHeading accent="complete." aria-label="Setup complete.">
+          Setup
         </DisplayHeading>
-        <LeadText>
-          {restored ? "Restored backup from Google Drive." : "Stored backup in Google Drive."}
-        </LeadText>
+        <LeadText>Stored backup in Google Drive.</LeadText>
       </div>
       <div className="mt-6 flex min-h-0 flex-1 flex-col md:mt-8">
-        {visibleRecoveryCopyStatus === "unconfirmed" ? (
+        {visibleRecoveryCopyStatus === "unconfirmed" || visibleRecoveryCopyStatus === "skipped" ? (
           <p
             className="mb-6 rounded-xl border border-amber-400/40 bg-amber-400/10 p-4 text-sm leading-5"
             role="status"
           >
-            Your identity is ready, but Passport could not confirm the visible recovery copy in
-            Google Drive. Download a recovery file from identity management.
+            {visibleRecoveryCopyStatus === "skipped"
+              ? "Your identity is ready. No visible recovery copy was created in Google Drive because you did not grant that permission. Download a recovery file from identity management."
+              : "Your identity is ready, but Passport could not confirm the visible recovery copy in Google Drive. Download a recovery file from identity management."}
           </p>
         ) : null}
         <GoogleAccountCard account={googleAccount} />

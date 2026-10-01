@@ -9,6 +9,6 @@ describe("PassportLogo", () => {
   it("links the logo to the home page", () => {
     render(<PassportLogo />);
 
-    expect(screen.getByRole("link", { name: "Pubky Passport" })).toHaveAttribute("href", "/");
+    expect(screen.getByRole("link", { name: "Pubky" })).toHaveAttribute("href", "/");
   });
 });

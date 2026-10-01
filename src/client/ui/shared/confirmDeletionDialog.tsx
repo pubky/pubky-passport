@@ -8,11 +8,13 @@ import { IconButton } from "./primitives/iconButton";
 import { Input } from "./primitives/input";
 import { Label } from "./primitives/label";
 
-const CONFIRMATION = "DELETE";
+const DEFAULT_CONFIRMATION_WORD = "DELETE";
 
 type ConfirmDeletionDialogProps = {
   canConfirm?: boolean;
   confirmLabel: string;
+  /** The word the user must type before confirming; defaults to DELETE. */
+  confirmationWord?: string;
   description?: ReactNode;
   error?: string | undefined;
   /** Rendered under the error message, e.g. the labeled error-code box. */
@@ -30,6 +32,7 @@ type ConfirmDeletionDialogProps = {
 function ConfirmDeletionDialog({
   canConfirm = true,
   confirmLabel,
+  confirmationWord = DEFAULT_CONFIRMATION_WORD,
   description,
   error,
   errorDetails,
@@ -44,7 +47,7 @@ function ConfirmDeletionDialog({
 }: ConfirmDeletionDialogProps) {
   const [confirmation, setConfirmation] = useState("");
   const confirmationInput = useRef<HTMLInputElement>(null);
-  const confirmed = confirmation === CONFIRMATION;
+  const confirmed = confirmation === confirmationWord;
 
   useEffect(() => {
     if (open) confirmationInput.current?.focus();
@@ -100,7 +103,7 @@ function ConfirmDeletionDialog({
 
         <div className="flex flex-col gap-2">
           <Label className="leading-5" htmlFor={confirmationId}>
-            Type <span className="text-white">DELETE</span> to confirm
+            Type <span className="text-white">{confirmationWord}</span> to confirm
           </Label>
           <Input
             autoComplete="off"

@@ -7,6 +7,7 @@ import { MemoryStorage } from "@test-utils/MemoryStorage";
 import { encodeBase64Url } from "@/libs/encoding/base64Url";
 import { GOOGLE_IMPLICIT_RESPONSE_MESSAGE_TYPE } from "@/libs/authorization/earlyGoogleImplicitResponse";
 import { LOGGER } from "@/libs/logger/logger";
+import { AuthorizationPopup } from "./AuthorizationPopup";
 import { GoogleImplicitAuthorization } from "./GoogleImplicitAuthorization";
 
 const ORIGIN = "https://passport.example";
@@ -39,16 +40,14 @@ describe("GoogleImplicitAuthorization", () => {
   it("opens one implicit OAuth request and returns account-bound credentials", async () => {
     vi.useFakeTimers();
     const popup = createPopup();
-    const open = vi.fn<typeof window.open>(() => popup.window);
     const fetch = vi.fn(async () =>
       Response.json({ sub: SUBJECT, email: "person@example.com", name: "Person" }),
     );
-    vi.stubGlobal("open", open);
     vi.stubGlobal("fetch", fetch);
     const authorization = new GoogleImplicitAuthorization("client-id");
 
-    const request = authorization.request();
-    const authorizeUrl = new URL(String(open.mock.calls[0]?.[0]));
+    const request = authorization.request(popup.handle);
+    const authorizeUrl = popup.authorizeUrl();
     expect(authorizeUrl.origin + authorizeUrl.pathname).toBe(
       "https://accounts.google.com/o/oauth2/v2/auth",
     );
@@ -58,7 +57,12 @@ describe("GoogleImplicitAuthorization", () => {
     expect(authorizeUrl.searchParams.get("redirect_uri")).toBe(ORIGIN);
     const nonce = authorizeUrl.searchParams.get("nonce");
     const state = authorizeUrl.searchParams.get("state");
-    expect(open.mock.calls[0]?.[1]).toBe(`pubky-passport-google-${state}`);
+    expect(globalThis.open).toHaveBeenCalledExactlyOnceWith(
+      "about:blank",
+      expect.stringMatching(/^pubky-passport-google-/u),
+      "popup,width=520,height=680",
+    );
+    expect(popup.replace).toHaveBeenCalledOnce();
     popup.returnTo(
       `${ORIGIN}/#${new URLSearchParams({
         access_token: ACCESS_TOKEN,
@@ -71,8 +75,10 @@ describe("GoogleImplicitAuthorization", () => {
 
     await expect(request).resolves.toEqual(
       Result.ok({
+        visibleBackupPermissionGranted: true,
         googleIdToken: jwt({ sub: SUBJECT, nonce }),
         driveAccessToken: ACCESS_TOKEN,
+        driveAccessTokenExpiresAt: null,
         googleAccount: {
           googleSubject: SUBJECT,
           email: "person@example.com",
@@ -103,12 +109,10 @@ describe("GoogleImplicitAuthorization", () => {
           resolveUserInfo = resolve;
         }),
     );
-    const open = vi.fn<typeof window.open>(() => popup.window);
-    vi.stubGlobal("open", open);
     vi.stubGlobal("fetch", fetch);
     const authorization = new GoogleImplicitAuthorization("client-id");
-    const request = authorization.request();
-    const authorizeUrl = new URL(String(open.mock.calls[0]?.[0]));
+    const request = authorization.request(popup.handle);
+    const authorizeUrl = popup.authorizeUrl();
 
     popup.returnTo(
       `${ORIGIN}/#${new URLSearchParams({
@@ -126,15 +130,56 @@ describe("GoogleImplicitAuthorization", () => {
       Result.ok({
         googleIdToken: jwt({ sub: SUBJECT, nonce: authorizeUrl.searchParams.get("nonce") }),
         driveAccessToken: ACCESS_TOKEN,
+        driveAccessTokenExpiresAt: null,
         googleAccount: {
           googleSubject: SUBJECT,
           email: "person@example.com",
           name: "Person",
           pictureUrl: null,
         },
+        visibleBackupPermissionGranted: false,
       }),
     );
     expect(fetch).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    { values: ["3600"], lifetime: 3_600_000 },
+    { values: ["0"], lifetime: 0 },
+    { values: [], lifetime: null },
+    { values: [""], lifetime: null },
+    { values: ["-1"], lifetime: null },
+    { values: ["1.5"], lifetime: null },
+    { values: ["Infinity"], lifetime: null },
+    { values: ["99999999999999999"], lifetime: null },
+    { values: ["3600", "7200"], lifetime: null },
+  ])("records expiry conservatively for expires_in=$values", async ({ values, lifetime }) => {
+    const now = Date.now();
+    vi.spyOn(Date, "now").mockReturnValue(now);
+    const popup = createPopup();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Response.json({ sub: SUBJECT, email: "person@example.com", name: "Person" }),
+      ),
+    );
+    const authorization = new GoogleImplicitAuthorization("client-id");
+    const request = authorization.request(popup.handle);
+    const authorizeUrl = popup.authorizeUrl();
+    const response = new URLSearchParams({
+      access_token: ACCESS_TOKEN,
+      id_token: jwt({ sub: SUBJECT, nonce: authorizeUrl.searchParams.get("nonce") }),
+      scope: APP_DATA_SCOPE,
+      state: authorizeUrl.searchParams.get("state") ?? "",
+    });
+    for (const value of values) response.append("expires_in", value);
+    popup.returnTo(`${ORIGIN}/#${response}`);
+
+    const result = await request;
+    expect(Result.isOk(result)).toBe(true);
+    if (Result.isError(result)) return;
+    expect(result.value.driveAccessTokenExpiresAt).toBe(lifetime === null ? null : now + lifetime);
+    expect(result.value.visibleBackupPermissionGranted).toBe(false);
   });
 
   it("consumes only one response message", async () => {
@@ -142,12 +187,10 @@ describe("GoogleImplicitAuthorization", () => {
     const fetch = vi.fn(async () =>
       Response.json({ sub: SUBJECT, email: "person@example.com", name: "Person" }),
     );
-    const open = vi.fn<typeof window.open>(() => popup.window);
-    vi.stubGlobal("open", open);
     vi.stubGlobal("fetch", fetch);
     const authorization = new GoogleImplicitAuthorization("client-id");
-    const request = authorization.request();
-    const authorizeUrl = new URL(String(open.mock.calls[0]?.[0]));
+    const request = authorization.request(popup.handle);
+    const authorizeUrl = popup.authorizeUrl();
     const responseUrl = `${ORIGIN}/#${new URLSearchParams({
       access_token: ACCESS_TOKEN,
       id_token: jwt({ sub: SUBJECT, nonce: authorizeUrl.searchParams.get("nonce") }),
@@ -174,12 +217,10 @@ describe("GoogleImplicitAuthorization", () => {
           })
         : new Response(new Uint8Array([1, 2, 3]), { headers: { "Content-Type": "image/png" } }),
     );
-    const open = vi.fn<typeof window.open>(() => popup.window);
-    vi.stubGlobal("open", open);
     vi.stubGlobal("fetch", fetch);
     const authorization = new GoogleImplicitAuthorization("client-id");
-    const request = authorization.request();
-    const authorizeUrl = new URL(String(open.mock.calls[0]?.[0]));
+    const request = authorization.request(popup.handle);
+    const authorizeUrl = popup.authorizeUrl();
     popup.returnTo(
       `${ORIGIN}/#${new URLSearchParams({
         access_token: ACCESS_TOKEN,
@@ -210,12 +251,10 @@ describe("GoogleImplicitAuthorization", () => {
       }
       throw new Error("Avatar download must not run");
     });
-    const open = vi.fn<typeof window.open>(() => popup.window);
-    vi.stubGlobal("open", open);
     vi.stubGlobal("fetch", fetch);
     const authorization = new GoogleImplicitAuthorization("client-id");
-    const request = authorization.request();
-    const authorizeUrl = new URL(String(open.mock.calls[0]?.[0]));
+    const request = authorization.request(popup.handle);
+    const authorizeUrl = popup.authorizeUrl();
     popup.returnTo(
       `${ORIGIN}/#${new URLSearchParams({
         access_token: ACCESS_TOKEN,
@@ -237,12 +276,10 @@ describe("GoogleImplicitAuthorization", () => {
     const thrown = { secret: "USERINFO-FAILURE-CANARY" };
     const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
     const popup = createPopup();
-    const open = vi.fn<typeof window.open>(() => popup.window);
-    vi.stubGlobal("open", open);
     vi.stubGlobal("fetch", vi.fn<typeof globalThis.fetch>().mockRejectedValue(thrown));
     const authorization = new GoogleImplicitAuthorization("client-id");
-    const request = authorization.request();
-    const authorizeUrl = new URL(String(open.mock.calls[0]?.[0]));
+    const request = authorization.request(popup.handle);
+    const authorizeUrl = popup.authorizeUrl();
     popup.returnTo(
       `${ORIGIN}/#${new URLSearchParams({
         access_token: ACCESS_TOKEN,
@@ -266,12 +303,10 @@ describe("GoogleImplicitAuthorization", () => {
     "preserves a falsey user-info exception (%j)",
     async (thrown) => {
       const popup = createPopup();
-      const open = vi.fn<typeof window.open>(() => popup.window);
-      vi.stubGlobal("open", open);
       vi.stubGlobal("fetch", vi.fn<typeof globalThis.fetch>().mockRejectedValue(thrown));
       const authorization = new GoogleImplicitAuthorization("client-id");
-      const request = authorization.request();
-      const authorizeUrl = new URL(String(open.mock.calls[0]?.[0]));
+      const request = authorization.request(popup.handle);
+      const authorizeUrl = popup.authorizeUrl();
       popup.returnTo(
         `${ORIGIN}/#${new URLSearchParams({
           access_token: ACCESS_TOKEN,
@@ -292,12 +327,8 @@ describe("GoogleImplicitAuthorization", () => {
   it("reports popup closure from the popup handle", async () => {
     vi.useFakeTimers();
     const popup = createPopup();
-    vi.stubGlobal(
-      "open",
-      vi.fn<typeof window.open>(() => popup.window),
-    );
     const authorization = new GoogleImplicitAuthorization("client-id");
-    const request = authorization.request();
+    const request = authorization.request(popup.handle);
 
     popup.closed = true;
     await vi.advanceTimersByTimeAsync(200);
@@ -312,11 +343,9 @@ describe("GoogleImplicitAuthorization", () => {
     ["server_error", "google_authorization_failed"],
   ] as const)("maps the Google %s response precisely", async (googleError, expectedCode) => {
     const popup = createPopup();
-    const open = vi.fn<typeof window.open>(() => popup.window);
-    vi.stubGlobal("open", open);
     const authorization = new GoogleImplicitAuthorization("client-id");
-    const request = authorization.request();
-    const state = new URL(String(open.mock.calls[0]?.[0])).searchParams.get("state") ?? "";
+    const request = authorization.request(popup.handle);
+    const state = popup.authorizeUrl().searchParams.get("state") ?? "";
 
     popup.returnTo(`${ORIGIN}/#${new URLSearchParams({ error: googleError, state })}`);
 
@@ -333,11 +362,9 @@ describe("GoogleImplicitAuthorization", () => {
     ["duplicate", "duplicate"],
   ] as const)("rejects an error response with %s state", async (stateCase, suppliedState) => {
     const popup = createPopup();
-    const open = vi.fn<typeof window.open>(() => popup.window);
-    vi.stubGlobal("open", open);
     const authorization = new GoogleImplicitAuthorization("client-id");
-    const request = authorization.request();
-    const expectedState = new URL(String(open.mock.calls[0]?.[0])).searchParams.get("state") ?? "";
+    const request = authorization.request(popup.handle);
+    const expectedState = popup.authorizeUrl().searchParams.get("state") ?? "";
     const state = stateCase === "duplicate" ? expectedState : suppliedState;
     const params = new URLSearchParams({ error: "access_denied", ...(state ? { state } : {}) });
     if (stateCase === "duplicate") params.append("state", "duplicate");
@@ -354,14 +381,11 @@ describe("GoogleImplicitAuthorization", () => {
   it("rejects concurrent requests and times out the active request", async () => {
     vi.useFakeTimers();
     const popup = createPopup();
-    vi.stubGlobal(
-      "open",
-      vi.fn<typeof window.open>(() => popup.window),
-    );
     const authorization = new GoogleImplicitAuthorization("client-id");
-    const active = authorization.request();
+    const active = authorization.request(popup.handle);
 
-    const concurrent = await authorization.request();
+    const concurrentPopup = createPopup();
+    const concurrent = await authorization.request(concurrentPopup.handle);
     expect(Result.isError(concurrent)).toBe(true);
     if (Result.isError(concurrent)) {
       expect(concurrent.error).toEqual({
@@ -369,6 +393,8 @@ describe("GoogleImplicitAuthorization", () => {
         reason: "authorization_in_progress",
       });
     }
+    expect(concurrentPopup.close).toHaveBeenCalledOnce();
+    expect(concurrentPopup.replace).not.toHaveBeenCalled();
     await vi.advanceTimersByTimeAsync(5 * 60_000);
 
     const timedOut = await active;
@@ -386,7 +412,6 @@ describe("GoogleImplicitAuthorization", () => {
     vi.useFakeTimers();
     for (const scenario of ["state", "nonce", "scope", "subject"] as const) {
       const popup = createPopup();
-      const open = vi.fn<typeof window.open>(() => popup.window);
       const fetch = vi.fn(async () =>
         Response.json({
           sub: scenario === "subject" ? "different-subject" : SUBJECT,
@@ -394,11 +419,10 @@ describe("GoogleImplicitAuthorization", () => {
           name: "Person",
         }),
       );
-      vi.stubGlobal("open", open);
       vi.stubGlobal("fetch", fetch);
       const authorization = new GoogleImplicitAuthorization("client-id");
-      const request = authorization.request();
-      const authorizeUrl = new URL(String(open.mock.calls[0]?.[0]));
+      const request = authorization.request(popup.handle);
+      const authorizeUrl = popup.authorizeUrl();
       const nonce = authorizeUrl.searchParams.get("nonce");
       const state = authorizeUrl.searchParams.get("state");
       popup.returnTo(
@@ -412,6 +436,10 @@ describe("GoogleImplicitAuthorization", () => {
       await vi.advanceTimersByTimeAsync(200);
       const result = await request;
       expect(Result.isError(result)).toBe(true);
+      if (scenario === "scope" && Result.isError(result)) {
+        expect(result.error.code).toBe("google_drive_access_required");
+        expect(fetch).not.toHaveBeenCalled();
+      }
     }
   });
 
@@ -425,11 +453,9 @@ describe("GoogleImplicitAuthorization", () => {
       `&scope=${encodeURIComponent("https://www.googleapis.com/auth/drive")}`,
     ]) {
       const popup = createPopup();
-      const open = vi.fn<typeof window.open>(() => popup.window);
-      vi.stubGlobal("open", open);
       const authorization = new GoogleImplicitAuthorization("client-id");
-      const request = authorization.request();
-      const authorizeUrl = new URL(String(open.mock.calls[0]?.[0]));
+      const request = authorization.request(popup.handle);
+      const authorizeUrl = popup.authorizeUrl();
       const fragment = new URLSearchParams({
         access_token: ACCESS_TOKEN,
         id_token: jwt({ sub: SUBJECT, nonce: authorizeUrl.searchParams.get("nonce") }),
@@ -445,17 +471,15 @@ describe("GoogleImplicitAuthorization", () => {
   it("disposal aborts in-flight account verification", async () => {
     vi.useFakeTimers();
     const popup = createPopup();
-    const open = vi.fn<typeof window.open>(() => popup.window);
     let fetchSignal: AbortSignal | null = null;
     const fetch = vi.fn<typeof globalThis.fetch>(async (_input, init) => {
       fetchSignal = init?.signal as AbortSignal;
       return new Promise<Response>(() => undefined);
     });
-    vi.stubGlobal("open", open);
     vi.stubGlobal("fetch", fetch);
     const authorization = new GoogleImplicitAuthorization("client-id");
-    const request = authorization.request();
-    const authorizeUrl = new URL(String(open.mock.calls[0]?.[0]));
+    const request = authorization.request(popup.handle);
+    const authorizeUrl = popup.authorizeUrl();
     popup.returnTo(
       `${ORIGIN}/#${new URLSearchParams({
         access_token: ACCESS_TOKEN,
@@ -473,26 +497,18 @@ describe("GoogleImplicitAuthorization", () => {
     expect((fetchSignal as AbortSignal | null)?.aborted).toBe(true);
   });
 
-  it("reports a blocked popup without starting an attempt", async () => {
-    vi.stubGlobal(
-      "open",
-      vi.fn<typeof window.open>(() => null),
-    );
-    const authorization = new GoogleImplicitAuthorization("client-id");
-    const result = await authorization.request();
-    expect(Result.isError(result)).toBe(true);
-    if (Result.isError(result))
-      expect(result.error.code).toBe("google_authorization_popup_failed_to_open");
-  });
-
-  it("preserves authorization setup exceptions as exact causes", async () => {
+  it("preserves authorization setup exceptions as exact causes and closes the popup", async () => {
     const thrown = { secret: "AUTHORIZATION-SETUP-CANARY" };
+    const popup = createPopup();
     const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
     vi.spyOn(globalThis.crypto, "getRandomValues").mockImplementationOnce(() => {
       throw thrown;
     });
 
-    const result = await new GoogleImplicitAuthorization("client-id").request();
+    const result = await new GoogleImplicitAuthorization("client-id").request(popup.handle);
+
+    expect(popup.close).toHaveBeenCalledOnce();
+    expect(popup.replace).not.toHaveBeenCalled();
 
     expect(Result.isError(result)).toBe(true);
     if (Result.isError(result)) {
@@ -512,15 +528,11 @@ describe("GoogleImplicitAuthorization", () => {
   it("closes the popup when attempt registration fails", async () => {
     const popup = createPopup();
     const cause = new Error("SECRET-ATTEMPT-SETUP-CANARY");
-    vi.stubGlobal(
-      "open",
-      vi.fn<typeof window.open>(() => popup.window),
-    );
     vi.spyOn(globalThis.window, "addEventListener").mockImplementationOnce(() => {
       throw cause;
     });
 
-    const result = await new GoogleImplicitAuthorization("client-id").request();
+    const result = await new GoogleImplicitAuthorization("client-id").request(popup.handle);
 
     expect(Result.isError(result)).toBe(true);
     if (Result.isError(result)) expect(result.error.cause).toBe(cause);
@@ -530,15 +542,11 @@ describe("GoogleImplicitAuthorization", () => {
   it("settles the request when attempt cleanup fails", async () => {
     const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
     const popup = createPopup();
-    vi.stubGlobal(
-      "open",
-      vi.fn<typeof window.open>(() => popup.window),
-    );
     vi.spyOn(globalThis.window, "removeEventListener").mockImplementationOnce(() => {
       throw new Error("SECRET-CLEANUP-CANARY");
     });
     const authorization = new GoogleImplicitAuthorization("client-id");
-    const request = authorization.request();
+    const request = authorization.request(popup.handle);
 
     authorization.dispose();
 
@@ -561,11 +569,18 @@ describe("GoogleImplicitAuthorization", () => {
   });
 });
 
+/**
+ * A fake popup window behind a real {@link AuthorizationPopup}, opened the way the controller
+ * opens it: blank first, navigated to Google by the request under test.
+ */
 function createPopup() {
   let closed = false;
-  let href = "https://accounts.google.com/o/oauth2/v2/auth";
+  let href = "about:blank";
   const close = vi.fn(() => {
     closed = true;
+  });
+  const replace = vi.fn((next: string) => {
+    href = next;
   });
   const popup = {
     get closed() {
@@ -578,18 +593,23 @@ function createPopup() {
       get href() {
         return href;
       },
-      get origin() {
-        return new URL(href).origin;
-      },
-      get pathname() {
-        return new URL(href).pathname;
-      },
+      replace,
     },
     close,
   } as unknown as Window;
+  vi.stubGlobal(
+    "open",
+    vi.fn<typeof window.open>(() => popup),
+  );
+  const handle = AuthorizationPopup.openPending();
+  if (!handle) throw new Error("The fake popup must open");
   return {
+    handle,
     window: popup,
     close,
+    replace,
+    /** The Google authorization URL the request navigated the popup to. */
+    authorizeUrl: () => new URL(String(replace.mock.calls[0]?.[0])),
     get closed() {
       return closed;
     },

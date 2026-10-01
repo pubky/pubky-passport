@@ -4,6 +4,7 @@ import { createContext, type ReactNode, useContext, useMemo } from "react";
 
 import type { PassportAuthorizationController } from "@/client/logic/authorization/flow/PassportAuthorizationController";
 import { GoogleIdentityController } from "@/client/logic/google-identity/GoogleIdentityController";
+import { GoogleRedirectAuthorization } from "@/client/logic/google-identity/gia/GoogleRedirectAuthorization";
 import { LocalIdentityController } from "@/client/logic/local-identity/LocalIdentityController";
 
 export type IdentitySetup = (props: {
@@ -23,8 +24,10 @@ export type GoogleIdentityControllerPort = Pick<
   | "detachIdentity"
   | "dispose"
   | "establishIdentity"
+  | "continueWithoutVisibleBackup"
   | "getState"
   | "replaceInvalidPassportFile"
+  | "replaceUndecryptablePassportFile"
   | "reset"
   | "subscribe"
 >;
@@ -46,14 +49,21 @@ export type PassportCollaborators = {
   createGoogleIdentityController: (
     googleClientId: string,
     homegateBaseUrl: string,
+    forAuthorization?: boolean,
   ) => GoogleIdentityControllerPort;
   createLocalIdentityController: () => LocalIdentityControllerPort;
   IdentitySetup?: IdentitySetup;
 };
 
 const DEFAULT_PASSPORT_COLLABORATORS: PassportCollaborators = {
-  createGoogleIdentityController: (googleClientId, homegateBaseUrl) =>
-    new GoogleIdentityController(googleClientId, homegateBaseUrl),
+  createGoogleIdentityController: (googleClientId, homegateBaseUrl, forAuthorization) =>
+    new GoogleIdentityController(
+      googleClientId,
+      homegateBaseUrl,
+      undefined,
+      undefined,
+      forAuthorization ? new GoogleRedirectAuthorization(googleClientId) : undefined,
+    ),
   createLocalIdentityController: () => new LocalIdentityController(),
 };
 

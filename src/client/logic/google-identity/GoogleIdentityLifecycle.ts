@@ -45,7 +45,7 @@ type GoogleIdentityEstablishmentValue =
   | {
       establishmentMode: "created";
       publicIdentity: PubkyPublicIdentity;
-      visibleRecoveryCopyStatus: "created" | "unconfirmed";
+      visibleRecoveryCopyStatus: "created" | "unconfirmed" | "skipped";
     }
   | {
       establishmentMode: "restored";
@@ -60,6 +60,15 @@ type GoogleIdentityEstablishmentResult = ResultType<
 type DetachGoogleIdentityResult = ResultType<void, GoogleIdentityLifecycleError>;
 
 type EstablishmentStepResult<Success = void> = ResultType<Success, GoogleIdentityLifecycleError>;
+
+/**
+ * How {@link GoogleIdentityLifecycle.signupAndActivate} treats a definitive signup: a new
+ * identity republishes PKDNS in the background and signs in at once, a reconciliation keeps the
+ * awaited publish and blocking sign-in.
+ */
+type ActivationMode =
+  | { reconciliation: true }
+  | { reconciliation: false; onBackgroundRepublish: (republish: Promise<void>) => void };
 
 export type DriveStorePort = Pick<
   GoogleDrivePassportFileStore,
@@ -180,80 +189,47 @@ export class GoogleIdentityLifecycle {
 
   /**
    * Restores the Drive identity when present, otherwise creates and activates one.
+   * Creation without visible-copy permission pauses until explicitly allowed by the caller.
    * The promise settles with a Result and does not intentionally reject.
    */
   async establishIdentity(
     credentials: GoogleIdentityCredentials,
     report: (progress: GoogleIdentityProgress) => void,
+    allowWithoutVisibleBackup = false,
   ): Promise<GoogleIdentityEstablishmentResult> {
-    try {
-      report({ flow: "lookup", step: "checking" });
-      const store = this.createDriveStore(credentials.driveAccessToken, this.fetch);
-      LOGGER.info("identity.google.drive_read.started");
-      const storedFile = await store.readPassportFile();
-      if (Result.isError(storedFile)) {
-        return Result.err({
-          code:
-            storedFile.error.code === "invalid_file"
-              ? "invalid_passport_file"
-              : "drive_read_failed",
-          cause: storedFile.error,
-        });
-      }
+    return this.restoreOrCreate(credentials, report, allowWithoutVisibleBackup, false);
+  }
 
-      if (storedFile.value.status === "found") {
-        LOGGER.info("identity.google.drive_read.completed", { status: "found" });
-        const wrappingKey = await this.requestWrappingKey(
-          credentials.googleIdToken,
-          storedFile.value.envelope,
-        );
-        if (Result.isError(wrappingKey)) return Result.err(wrappingKey.error);
-        return await this.restoreIdentity(
-          credentials,
-          storedFile.value.envelope,
-          wrappingKey.value.wrappingKey,
-          report,
-        );
-      }
-
-      LOGGER.info("identity.google.drive_read.completed", { status: "missing" });
-      report({ flow: "create", step: "preparing" });
-      const wrappingKey = await this.requestWrappingKey(credentials.googleIdToken);
-      if (Result.isError(wrappingKey)) return Result.err(wrappingKey.error);
-      const signupDetails = await this.requestSignupToken(credentials.googleIdToken);
-      if (Result.isError(signupDetails)) return Result.err(signupDetails.error);
-
-      report({ flow: "create", step: "creating" });
-      const visibleCopies = this.createVisibleRecoveryCopies(
-        credentials.driveAccessToken,
-        this.fetch,
-      );
-      return await this.createIdentity(
-        credentials.googleAccount,
-        signupDetails.value,
-        wrappingKey.value.wrappingKey,
-        wrappingKey.value.keyId,
-        report,
-        store,
-        visibleCopies,
-      );
-    } catch (e) {
-      LOGGER.warn("identity.google.restore_or_create.failed", {
-        code: "unexpected_failure",
-        ...safeErrorLogFields(e),
-      });
-      return Result.err({ code: "unexpected_failure", cause: e });
+  /**
+   * Deletes the Drive file only when this attempt confirms it still cannot be decrypted for
+   * this Google account, then creates a replacement identity. A file that decrypts after all is
+   * restored and kept. Resolves the visible-backup decision before deleting anything.
+   * The promise settles with a Result and does not intentionally reject.
+   */
+  async replaceUndecryptablePassportFile(
+    credentials: GoogleIdentityCredentials,
+    report: (progress: GoogleIdentityProgress) => void,
+    allowWithoutVisibleBackup = false,
+  ): Promise<GoogleIdentityEstablishmentResult> {
+    if (!credentials.visibleBackupPermissionGranted && !allowWithoutVisibleBackup) {
+      return Result.err({ code: "visible_backup_permission_missing" });
     }
+    return this.restoreOrCreate(credentials, report, allowWithoutVisibleBackup, true);
   }
 
   /**
    * Deletes a confirmed malformed Drive file, then creates or restores current state.
+   * Resolves the visible-backup decision before deleting the malformed file.
    * The promise settles with a Result and does not intentionally reject.
    */
   async replaceInvalidPassportFile(
     credentials: GoogleIdentityCredentials,
     report: (progress: GoogleIdentityProgress) => void,
+    allowWithoutVisibleBackup = false,
   ): Promise<GoogleIdentityEstablishmentResult> {
+    if (!credentials.visibleBackupPermissionGranted && !allowWithoutVisibleBackup) {
+      return Result.err({ code: "visible_backup_permission_missing" });
+    }
     try {
       const store = this.createDriveStore(credentials.driveAccessToken, this.fetch);
       const deleted = await store.deleteInvalidPassportFile();
@@ -263,7 +239,7 @@ export class GoogleIdentityLifecycle {
           cause: deleted.error,
         });
       }
-      return await this.establishIdentity(credentials, report);
+      return await this.establishIdentity(credentials, report, allowWithoutVisibleBackup);
     } catch (e) {
       LOGGER.warn("identity.google.invalid_passport_file_replacement.failed", {
         code: "unexpected_failure",
@@ -292,6 +268,10 @@ export class GoogleIdentityLifecycle {
         code: "google_account_mismatch",
       });
       return Result.err({ code: "google_account_mismatch" });
+    }
+
+    if (!credentials.visibleBackupPermissionGranted) {
+      return Result.err({ code: "google_detachment_permission_required" });
     }
 
     try {
@@ -327,8 +307,96 @@ export class GoogleIdentityLifecycle {
   }
 
   /**
+   * Restores the found Drive file, otherwise creates a new identity. With
+   * `replaceUndecryptableFile`, a file whose decryption fails on this very read is deleted by
+   * revision before creation continues, so a file changed meanwhile by another device is never
+   * removed.
+   */
+  private async restoreOrCreate(
+    credentials: GoogleIdentityCredentials,
+    report: (progress: GoogleIdentityProgress) => void,
+    allowWithoutVisibleBackup: boolean,
+    replaceUndecryptableFile: boolean,
+  ): Promise<GoogleIdentityEstablishmentResult> {
+    try {
+      report({ flow: "lookup", step: "checking" });
+      const store = this.createDriveStore(credentials.driveAccessToken, this.fetch);
+      LOGGER.info("identity.google.drive_read.started");
+      const storedFile = await store.readPassportFile();
+      if (Result.isError(storedFile)) {
+        return Result.err({
+          code:
+            storedFile.error.code === "invalid_file"
+              ? "invalid_passport_file"
+              : "drive_read_failed",
+          cause: storedFile.error,
+        });
+      }
+
+      if (storedFile.value.status === "found") {
+        LOGGER.info("identity.google.drive_read.completed", { status: "found" });
+        const wrappingKey = await this.requestWrappingKey(
+          credentials.googleIdToken,
+          storedFile.value.envelope,
+        );
+        if (Result.isError(wrappingKey)) return Result.err(wrappingKey.error);
+        const restored = await this.restoreIdentity(
+          credentials,
+          storedFile.value.envelope,
+          wrappingKey.value.wrappingKey,
+          report,
+        );
+        const undecryptable = Result.isError(restored) && restored.error.code === "decrypt_failed";
+        if (!replaceUndecryptableFile || !undecryptable) return restored;
+
+        LOGGER.info("identity.google.undecryptable_passport_file_delete.started");
+        const deleted = await store.deletePassportFile(storedFile.value.reference);
+        if (Result.isError(deleted)) {
+          return Result.err({
+            code: "undecryptable_passport_file_delete_failed",
+            cause: deleted.error,
+          });
+        }
+        LOGGER.info("identity.google.undecryptable_passport_file_delete.completed");
+      } else {
+        LOGGER.info("identity.google.drive_read.completed", { status: "missing" });
+      }
+
+      if (!credentials.visibleBackupPermissionGranted && !allowWithoutVisibleBackup) {
+        return Result.err({ code: "visible_backup_permission_missing" });
+      }
+      report({ flow: "create", step: "preparing" });
+      const wrappingKey = await this.requestWrappingKey(credentials.googleIdToken);
+      if (Result.isError(wrappingKey)) return Result.err(wrappingKey.error);
+      const signupDetails = await this.requestSignupToken(credentials.googleIdToken);
+      if (Result.isError(signupDetails)) return Result.err(signupDetails.error);
+
+      report({ flow: "create", step: "creating" });
+      const visibleCopies = credentials.visibleBackupPermissionGranted
+        ? this.createVisibleRecoveryCopies(credentials.driveAccessToken, this.fetch)
+        : undefined;
+      return await this.createIdentity(
+        credentials.googleAccount,
+        signupDetails.value,
+        wrappingKey.value.wrappingKey,
+        wrappingKey.value.keyId,
+        report,
+        store,
+        visibleCopies,
+      );
+    } catch (e) {
+      LOGGER.warn("identity.google.restore_or_create.failed", {
+        code: "unexpected_failure",
+        ...safeErrorLogFields(e),
+      });
+      return Result.err({ code: "unexpected_failure", cause: e });
+    }
+  }
+
+  /**
    * Creates the encrypted Drive file before attempting homeserver activation. Once
-   * that authoritative file exists it is preserved on every later failure.
+   * that authoritative file exists it is preserved on every later failure. The visible
+   * recovery copy uploads while the homeserver work runs; it is never on the activation path.
    */
   private async createIdentity(
     googleAccount: GoogleAccountProfile,
@@ -337,7 +405,7 @@ export class GoogleIdentityLifecycle {
     keyId: string,
     report: (progress: GoogleIdentityProgress) => void,
     store: DriveStorePort,
-    visibleCopies: VisibleRecoveryCopiesPort,
+    visibleCopies: VisibleRecoveryCopiesPort | undefined,
   ): Promise<GoogleIdentityEstablishmentResult> {
     LOGGER.info("identity.google.create.started");
     LOGGER.info("identity.google.create_key.started");
@@ -347,13 +415,13 @@ export class GoogleIdentityLifecycle {
     }
     LOGGER.info("identity.google.create_key.completed");
 
+    const background: { republish: Promise<void> | undefined } = { republish: undefined };
     try {
       const secretKey = await this.pubky.exportSecretKey(created.value.keyHandle);
       if (Result.isError(secretKey)) {
         return Result.err({ code: "create_failed", cause: secretKey.error });
       }
 
-      let visibleRecoveryCopyStatus: "created" | "unconfirmed" = "created";
       report({ flow: "create", step: "storing_passport_file" });
       LOGGER.info("identity.google.encrypt.started");
       const encrypted = await this.crypto
@@ -380,30 +448,31 @@ export class GoogleIdentityLifecycle {
       }
       LOGGER.info("identity.google.operational_drive_write.completed");
 
-      LOGGER.info("identity.google.visible_recovery_copy.started");
-      const visibleCopyConfirmed = await this.createVisibleRecoveryCopy(
-        visibleCopies,
-        envelope,
-        created.value.publicIdentity,
-      );
-      if (!visibleCopyConfirmed) {
-        visibleRecoveryCopyStatus = "unconfirmed";
-        LOGGER.warn("identity.google.visible_recovery_copy.unconfirmed", {
-          activationContinues: true,
-        });
+      let visibleCopy: Promise<boolean> | undefined;
+      if (visibleCopies) {
+        LOGGER.info("identity.google.visible_recovery_copy.started");
+        visibleCopy = this.createVisibleRecoveryCopy(
+          visibleCopies,
+          envelope,
+          created.value.publicIdentity,
+        );
       }
-      LOGGER.info("identity.google.visible_recovery_copy.completed", {
-        status: visibleRecoveryCopyStatus,
-      });
 
       const activated = await this.signupAndActivate(
         created.value,
         signupDetails,
         googleAccount,
         report,
+        {
+          reconciliation: false,
+          onBackgroundRepublish: (republish) => {
+            background.republish = republish;
+          },
+        },
       );
       if (Result.isError(activated)) return Result.err(activated.error);
 
+      const visibleRecoveryCopyStatus = await this.settleVisibleRecoveryCopy(visibleCopy);
       LOGGER.info("identity.google.create.completed", { visibleRecoveryCopyStatus });
       return Result.ok({
         establishmentMode: "created",
@@ -411,8 +480,31 @@ export class GoogleIdentityLifecycle {
         visibleRecoveryCopyStatus,
       });
     } finally {
-      this.disposeIdentityKey(created.value, "created_key_dispose");
+      // A background republish still signs with this key; free it once that settles.
+      if (background.republish) {
+        void background.republish.finally(() =>
+          this.disposeIdentityKey(created.value, "created_key_dispose"),
+        );
+      } else {
+        this.disposeIdentityKey(created.value, "created_key_dispose");
+      }
     }
+  }
+
+  private async settleVisibleRecoveryCopy(
+    visibleCopy: Promise<boolean> | undefined,
+  ): Promise<"created" | "unconfirmed" | "skipped"> {
+    let status: "created" | "unconfirmed" | "skipped" = "skipped";
+    if (visibleCopy) {
+      status = (await visibleCopy) ? "created" : "unconfirmed";
+      if (status === "unconfirmed") {
+        LOGGER.warn("identity.google.visible_recovery_copy.unconfirmed", {
+          activationCompleted: true,
+        });
+      }
+    }
+    LOGGER.info("identity.google.visible_recovery_copy.completed", { status });
+    return status;
   }
 
   /**
@@ -470,7 +562,7 @@ export class GoogleIdentityLifecycle {
         signupDetails.value,
         credentials.googleAccount,
         report,
-        true,
+        { reconciliation: true },
       );
       if (Result.isError(activated)) return Result.err(activated.error);
       return Result.ok({
@@ -515,17 +607,19 @@ export class GoogleIdentityLifecycle {
   }
 
   /**
-   * Shared activation for new and interrupted identities. Signup conflict means the
-   * account already exists. Ambiguous signup or publication failures are verified
-   * through blocking sign-in before they are treated as fatal.
+   * Shared activation for new and interrupted identities. The SDK's signup publishes PKDNS
+   * itself, so a definitive new signup only republishes in the background and signs in without
+   * waiting. Signup conflict means the account already exists. Ambiguous signup or publication
+   * failures are verified through blocking sign-in before they are treated as fatal.
    */
   private async signupAndActivate(
     identity: PubkyIdentityKey,
     signupDetails: HomeserverSignupDetails,
     googleAccount: GoogleAccountProfile,
     report: (progress: GoogleIdentityProgress) => void,
-    isReconciliation = false,
+    activation: ActivationMode,
   ): Promise<EstablishmentStepResult> {
+    const isReconciliation = activation.reconciliation;
     if (!isReconciliation) report({ flow: "create", step: "signing_up" });
     LOGGER.info("identity.google.signup.started");
     const signedUp = await this.pubky.signup(
@@ -545,6 +639,15 @@ export class GoogleIdentityLifecycle {
     LOGGER.info("identity.google.signup.completed", {
       status: Result.isError(signedUp) ? signedUp.error.code : "created",
     });
+    if (!activation.reconciliation && !Result.isError(signedUp)) {
+      return this.activateAfterSignup(
+        identity,
+        signupDetails,
+        googleAccount,
+        report,
+        activation.onBackgroundRepublish,
+      );
+    }
 
     report(
       isReconciliation
@@ -577,6 +680,34 @@ export class GoogleIdentityLifecycle {
             : "signin_failed",
         cause: signedIn.error,
       });
+    }
+    const verified = this.verifySessionIdentity(identity, signedIn.value.publicIdentity);
+    if (Result.isError(verified)) return Result.err(verified.error);
+    return this.saveIdentity(identity, googleAccount, "homeserver_signup");
+  }
+
+  /**
+   * A definitive signup has already published PKDNS. The forced republish is insurance that
+   * runs in the background; the caller must let it settle before freeing the key.
+   */
+  private async activateAfterSignup(
+    identity: PubkyIdentityKey,
+    signupDetails: HomeserverSignupDetails,
+    googleAccount: GoogleAccountProfile,
+    report: (progress: GoogleIdentityProgress) => void,
+    onBackgroundRepublish: (republish: Promise<void>) => void,
+  ): Promise<EstablishmentStepResult> {
+    LOGGER.info("identity.google.publication.started", { background: true });
+    const republish = startHomeserverRepublish(() =>
+      this.pubky.publishHomeserver(identity.keyHandle, signupDetails.homeserverPubky),
+    );
+    this.homeserverRepublish = republish;
+    onBackgroundRepublish(republish);
+
+    report({ flow: "create", step: "activating" });
+    const signedIn = await this.pubky.signin(identity.keyHandle, "normal");
+    if (Result.isError(signedIn)) {
+      return Result.err({ code: "signin_failed", cause: signedIn.error });
     }
     const verified = this.verifySessionIdentity(identity, signedIn.value.publicIdentity);
     if (Result.isError(verified)) return Result.err(verified.error);

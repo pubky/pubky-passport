@@ -16,19 +16,33 @@ type GoogleIdentityEstablishmentView =
       status: "complete";
       googleAccount: GoogleAccountProfile;
       identity: PubkyPublicIdentity;
-      mode: "created" | "restored";
-      visibleRecoveryCopyStatus: "created" | "unconfirmed" | null;
+      mode: "created";
+      visibleRecoveryCopyStatus: "created" | "unconfirmed" | "skipped";
+    }
+  | {
+      status: "complete";
+      googleAccount: GoogleAccountProfile;
+      identity: PubkyPublicIdentity;
+      mode: "restored";
     };
 
-function useGoogleIdentityEstablishment() {
-  const google = useGoogleIdentityStore("establishment");
+function useGoogleIdentityEstablishment(forAuthorization = false) {
+  const google = useGoogleIdentityStore("establishment", forAuthorization);
 
   return {
     back: google.reset,
     establishIdentity: () =>
       google.run("establish", (controller) => controller.establishIdentity()),
+    continueWithoutVisibleBackup: () =>
+      google.run("continue-without-visible-backup", (controller) =>
+        controller.continueWithoutVisibleBackup(),
+      ),
     replaceInvalidPassportFile: () =>
       google.run("replace-invalid-file", (controller) => controller.replaceInvalidPassportFile()),
+    replaceUndecryptablePassportFile: () =>
+      google.run("replace-undecryptable-file", (controller) =>
+        controller.replaceUndecryptablePassportFile(),
+      ),
     view: toEstablishmentView(google.state),
   };
 }
@@ -42,16 +56,20 @@ function toEstablishmentView(state: GoogleIdentityViewState): GoogleIdentityEsta
     case "failed":
       return { status: "failed", error: state.error };
     case "established":
-      return {
-        status: "complete",
-        googleAccount: state.identity.googleAccount,
-        identity: state.identity.publicIdentity,
-        mode: state.identity.establishmentMode,
-        visibleRecoveryCopyStatus:
-          state.identity.establishmentMode === "created"
-            ? state.identity.visibleRecoveryCopyStatus
-            : null,
-      };
+      return state.identity.establishmentMode === "created"
+        ? {
+            status: "complete",
+            googleAccount: state.identity.googleAccount,
+            identity: state.identity.publicIdentity,
+            mode: "created",
+            visibleRecoveryCopyStatus: state.identity.visibleRecoveryCopyStatus,
+          }
+        : {
+            status: "complete",
+            googleAccount: state.identity.googleAccount,
+            identity: state.identity.publicIdentity,
+            mode: "restored",
+          };
     case "idle":
     case "detaching":
     case "detached":

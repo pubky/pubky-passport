@@ -34,12 +34,15 @@ export const GOOGLE_AUTHORIZATION_SCOPE = [
 
 type ParsedGoogleAuthorizationResponse = {
   accessToken: string;
+  accessTokenExpiresAt: number | null;
   googleIdToken: string;
   googleSubject: string;
+  visibleBackupPermissionGranted: boolean;
 };
 
 type GoogleAuthorizationResponseError = {
-  code: "google_authorization_denied" | "google_authorization_failed";
+  code:
+    "google_authorization_denied" | "google_authorization_failed" | "google_drive_access_required";
 };
 
 type CapturedGoogleImplicitResponse = {
@@ -81,13 +84,37 @@ export function parseGoogleAuthorizationResponse(
   const hasRequiredTokens = boundedToken(googleIdToken) && boundedToken(accessToken);
   const hasExpectedScopes = hasAllowedScopes(scope);
   if (!hasExpectedState || !hasRequiredTokens || !hasExpectedScopes) {
-    return Result.err({ code: "google_authorization_failed" });
+    const missingRequiredDriveAccess =
+      hasExpectedState &&
+      hasRequiredTokens &&
+      scope !== null &&
+      !scope.split(/\s+/u).includes(GOOGLE_DRIVE_APP_DATA_SCOPE);
+    return Result.err({
+      code: missingRequiredDriveAccess
+        ? "google_drive_access_required"
+        : "google_authorization_failed",
+    });
   }
 
   const googleSubject = readIdTokenSubject(googleIdToken, expectedNonce);
   return googleSubject
-    ? Result.ok({ accessToken, googleIdToken, googleSubject })
+    ? Result.ok({
+        accessToken,
+        accessTokenExpiresAt: readAccessTokenExpiry(params),
+        googleIdToken,
+        googleSubject,
+        visibleBackupPermissionGranted:
+          scope?.split(/\s+/u).includes(GOOGLE_DRIVE_FILE_SCOPE) ?? false,
+      })
     : Result.err({ code: "google_authorization_failed" });
+}
+
+/** Unknown expiry is usable immediately, but must not be reused after a consent pause. */
+function readAccessTokenExpiry(params: URLSearchParams): number | null {
+  const value = oneValue(params, "expires_in");
+  if (value === null || !/^\d+$/u.test(value)) return null;
+  const expiresAt = Date.now() + Number(value) * 1000;
+  return Number.isSafeInteger(expiresAt) ? expiresAt : null;
 }
 
 function readIdTokenSubject(token: string, expectedNonce: string): string | null {

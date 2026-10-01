@@ -1,5 +1,5 @@
-import { IdentityDashboard } from "@/client/ui/identity-dashboard/identityDashboard";
+import { PassportHome } from "@/client/ui/passportHome";
 
 export default function Home() {
-  return <IdentityDashboard />;
+  return <PassportHome />;
 }

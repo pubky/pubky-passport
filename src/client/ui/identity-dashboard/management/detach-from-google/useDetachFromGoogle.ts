@@ -7,6 +7,7 @@ type DetachFromGoogleOperationState =
   | { status: "ready" }
   | { status: "requesting-authorization" }
   | { status: "detaching" }
+  | { status: "permission-required" }
   | { status: "authorization-failed"; error: GoogleIdentityViewError }
   | { status: "operation-failed"; error: GoogleIdentityViewError }
   | { status: "complete" };
@@ -24,7 +25,12 @@ function useDetachFromGoogle(publicIdentity: PubkyPublicIdentity, expectedGoogle
     );
   };
 
-  return { detach, retryDetachment: detach, state: toDetachmentState(google.state) };
+  return {
+    detach,
+    reset: google.reset,
+    retryDetachment: detach,
+    state: toDetachmentState(google.state),
+  };
 }
 
 function toDetachmentState(state: GoogleIdentityViewState): DetachFromGoogleOperationState {
@@ -36,9 +42,16 @@ function toDetachmentState(state: GoogleIdentityViewState): DetachFromGoogleOper
     case "detached":
       return { status: "complete" };
     case "failed":
-      return state.error.code === "authorization_failed"
-        ? { status: "authorization-failed", error: state.error }
-        : { status: "operation-failed", error: state.error };
+      switch (state.error.code) {
+        case "google_detachment_permission_required":
+        case "google_drive_access_required":
+        case "google_authorization_denied":
+          return { status: "permission-required" };
+        case "authorization_failed":
+          return { status: "authorization-failed", error: state.error };
+        default:
+          return { status: "operation-failed", error: state.error };
+      }
     case "idle":
     case "establishing":
     case "established":

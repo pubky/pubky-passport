@@ -105,7 +105,7 @@ function ManualAuthorization({ onBack }: { onBack: () => void }) {
                     type="button"
                     variant="ghost"
                   >
-                    <CameraIcon />
+                    <CameraIcon size={20} />
                   </IconButton>
                   <IconButton
                     aria-label="Paste authorization link"
