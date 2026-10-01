@@ -1,0 +1,162 @@
+name: PR Preview Deployment
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  pull_request_target:
+    types: [closed]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "PR number (use 9999 for testing)"
+        required: true
+        default: "9999"
+      action:
+        description: "Action"
+        required: true
+        type: choice
+        options:
+          - deploy
+          - cleanup
+
+permissions:
+  contents: read
+
+env:
+  REGISTRY: europe-west6-docker.pkg.dev/infra-464608/synonym-private-repo
+  IMAGE_NAME: pubky-passport
+  REGION: europe-west6
+
+concurrency:
+  group: preview-${{ github.event.pull_request.number || github.event.inputs.pr_number || '0' }}
+  cancel-in-progress: true
+
+jobs:
+  deploy-preview:
+    name: Deploy Preview
+    # Fork PRs get no secrets, so only same-repository branches are previewed.
+    if: |
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'deploy') ||
+      (github.event_name == 'pull_request' &&
+       github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Set variables
+        id: vars
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number || github.event.inputs.pr_number }}
+          COMMIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          echo "service_name=pubky-passport-pr-${PR_NUMBER}" >> "$GITHUB_OUTPUT"
+          echo "commit_sha=${COMMIT_SHA}" >> "$GITHUB_OUTPUT"
+          echo "short_sha=${COMMIT_SHA::7}" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout
+        # actions/checkout v4, pinned to a commit SHA to avoid mutable tag drift.
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          ref: ${{ steps.vars.outputs.commit_sha }}
+
+      - name: Login to registry
+        # docker/login-action v4.6.0, pinned to a commit SHA to avoid mutable tag drift.
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f
+        with:
+          registry: europe-west6-docker.pkg.dev
+          username: _json_key
+          password: ${{ secrets.GCR_JSON_KEY }}
+
+      - name: Set up Docker Buildx
+        # docker/setup-buildx-action v4.4.1, pinned to a commit SHA to avoid mutable tag drift.
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069
+
+      - name: Build and push image
+        # docker/build-push-action v7.4.0, pinned to a commit SHA to avoid mutable tag drift.
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc
+        with:
+          context: .
+          platforms: linux/amd64
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.vars.outputs.commit_sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Fill in the service file
+        env:
+          SERVICE: ${{ steps.vars.outputs.service_name }}
+          IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.vars.outputs.commit_sha }}
+          GOOGLE_CLIENT_ID: ${{ vars.PREVIEW_GOOGLE_CLIENT_ID }}
+        run: |
+          if [ -z "$GOOGLE_CLIENT_ID" ]; then
+            echo "::error::The PREVIEW_GOOGLE_CLIENT_ID repository variable is not set."
+            exit 1
+          fi
+          yq -i '.metadata.name = strenv(SERVICE)' preview-deploy-service-file.yml
+          yq -i '.spec.template.spec.containers[0].image = strenv(IMAGE)' preview-deploy-service-file.yml
+          yq -i '(.spec.template.spec.containers[0].env[] | select(.name == "GOOGLE_CLIENT_ID")).value = strenv(GOOGLE_CLIENT_ID)' preview-deploy-service-file.yml
+
+      - name: Authenticate to GCP
+        # google-github-actions/auth v3, pinned to a commit SHA to avoid mutable tag drift.
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
+        with:
+          credentials_json: ${{ secrets.CLOUD_RUN_SA_KEY }}
+
+      - name: Deploy to Cloud Run
+        id: deploy
+        # google-github-actions/deploy-cloudrun v3, pinned to a commit SHA to avoid mutable tag drift.
+        uses: google-github-actions/deploy-cloudrun@2028e2d7d30a78c6910e0632e48dd561b064884d
+        with:
+          region: ${{ env.REGION }}
+          metadata: preview-deploy-service-file.yml
+
+      - name: Find existing comment
+        if: github.event_name == 'pull_request'
+        id: find-comment
+        # peter-evans/find-comment v4.0.0, pinned to a commit SHA to avoid mutable tag drift.
+        uses: peter-evans/find-comment@b30e6a3c0ed37e7c023ccd3f1db5c6c0b0c23aad
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          comment-author: "github-actions[bot]"
+          body-includes: "🚀 Preview"
+
+      - name: Comment on PR
+        if: github.event_name == 'pull_request'
+        # peter-evans/create-or-update-comment v5.0.0, pinned to a commit SHA to avoid mutable tag drift.
+        uses: peter-evans/create-or-update-comment@e8674b075228eee787fea43ef493e45ece1004c9
+        with:
+          comment-id: ${{ steps.find-comment.outputs.comment-id }}
+          issue-number: ${{ github.event.pull_request.number }}
+          edit-mode: replace
+          body: |
+            ## 🚀 Preview Deployment
+
+            **URL:** ${{ steps.deploy.outputs.url }}
+
+            `${{ steps.vars.outputs.service_name }}` • `${{ steps.vars.outputs.short_sha }}`
+
+  cleanup-preview:
+    name: Cleanup Preview
+    # pull_request_target runs this workflow from the base branch and never checks out PR code.
+    if: |
+      (github.event_name == 'pull_request_target' && github.event.action == 'closed') ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'cleanup')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Authenticate to GCP
+        # google-github-actions/auth v3, pinned to a commit SHA to avoid mutable tag drift.
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
+        with:
+          credentials_json: ${{ secrets.CLOUD_RUN_SA_KEY }}
+
+      - name: Setup gcloud
+        # google-github-actions/setup-gcloud v3.0.1, pinned to a commit SHA to avoid mutable tag drift.
+        uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db
+
+      - name: Delete Cloud Run service
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number || github.event.inputs.pr_number }}
+        run: |
+          gcloud run services delete "pubky-passport-pr-${PR_NUMBER}" \
+            --region="${REGION}" --quiet || true
