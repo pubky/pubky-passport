@@ -14,6 +14,7 @@ import { Result, type Result as ResultType } from "better-result";
 import { ValidatedPubkyAuthRequest } from "@/client/logic/authorization/request/ValidatedPubkyAuthRequest";
 import { PUBKY_AUTH_CAPABILITY_LIMITS } from "@/client/logic/authorization/request/parser/pubkyAuthCapabilities";
 import { LOGGER } from "@/libs/logger/logger";
+import { hasRecoveryFileSpecLine } from "@/client/logic/backup/BackupVerifier";
 import {
   PUBKY_SECRET_KEY_BYTES,
   PUBKY_SECRET_KEY_FORMAT,
@@ -276,6 +277,57 @@ describe("PubkySdkAdapter", () => {
       }
     } finally {
       restored?.free();
+      pubky.dispose();
+    }
+  });
+
+  it("restores an SDK recovery file and clears the encrypted input buffer", async () => {
+    const pubky = new PubkySdkAdapter();
+
+    try {
+      const created = expectOk(await pubky.createIdentityKey());
+      const secretKey = expectOk(await pubky.exportSecretKey(created.keyHandle));
+      const recoveryFile = expectOk(
+        pubky.createRecoveryFile(
+          secretKey,
+          created.publicIdentity.publicKeyZ32,
+          "a strong backup password",
+        ),
+      );
+
+      // The pinned SDK writes the spec line the backup checks use to tell a recovery file.
+      expect(hasRecoveryFileSpecLine(recoveryFile)).toBe(true);
+      const restored = expectOk(
+        pubky.restoreRecoveryFile(recoveryFile, "a strong backup password"),
+      );
+
+      expect(restored.publicIdentity).toEqual(created.publicIdentity);
+      expect(recoveryFile).toEqual(new Uint8Array(recoveryFile.byteLength));
+    } finally {
+      pubky.dispose();
+    }
+  });
+
+  it("rejects a wrong recovery-file password without retaining its bytes", async () => {
+    const pubky = new PubkySdkAdapter();
+
+    try {
+      const created = expectOk(await pubky.createIdentityKey());
+      const secretKey = expectOk(await pubky.exportSecretKey(created.keyHandle));
+      const recoveryFile = expectOk(
+        pubky.createRecoveryFile(
+          secretKey,
+          created.publicIdentity.publicKeyZ32,
+          "a strong backup password",
+        ),
+      );
+
+      await expectError(
+        pubky.restoreRecoveryFile(recoveryFile, "wrong password"),
+        "restore_failed",
+      );
+      expect(recoveryFile).toEqual(new Uint8Array(recoveryFile.byteLength));
+    } finally {
       pubky.dispose();
     }
   });
