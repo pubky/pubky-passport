@@ -39,11 +39,18 @@ export class GoogleWrappingKeyIssuer {
     this.googleIdTokenVerifier = new GoogleIdTokenVerifier(googleClientId);
   }
 
-  /** @throws {Error} when required server configuration is missing or invalid. */
-  static fromEnvironment(): GoogleWrappingKeyIssuer {
-    const { googleClientId } = getPublicEnvironment();
+  /**
+   * @returns `google_unavailable` when the operator runs this instance without Google.
+   * @throws {Error} when required server configuration is missing or invalid.
+   */
+  static fromEnvironment(): ResultType<
+    GoogleWrappingKeyIssuer,
+    CodedFailure<"google_unavailable">
+  > {
+    const { googleClientId, instance } = getPublicEnvironment();
+    if (!instance.features.google) return Result.err({ code: "google_unavailable" });
     const { currentKeyId, secrets } = getServerEnvironment();
-    return new GoogleWrappingKeyIssuer(googleClientId, currentKeyId, secrets);
+    return Result.ok(new GoogleWrappingKeyIssuer(googleClientId, currentKeyId, secrets));
   }
 
   /**
