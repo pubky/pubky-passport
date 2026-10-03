@@ -21,7 +21,7 @@ function GoogleAccountCard({ account, className, ...props }: GoogleAccountCardPr
       <IdentitySummary
         avatarSrc={account.pictureUrl ?? undefined}
         detail={account.email}
-        detailClassName="uppercase leading-4"
+        detailClassName="leading-4 tracking-normal"
         name={account.name}
       />
       <GoogleLogo className="size-4 shrink-0" />

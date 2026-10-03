@@ -1,92 +1,33 @@
 import type { GoogleIdentityProgress as GoogleIdentityProgressState } from "@/client/logic/google-identity/GoogleIdentityController";
-import { PassportScreen } from "@/client/ui/shared/passportScreen";
-import { DisplayHeading } from "@/client/ui/shared/primitives/typography";
+import {
+  IdentityLoading,
+  IdentityProgress,
+  progressSteps,
+  SETUP_LIST_LABEL,
+  SETUP_STEP,
+  type ChecklistStep,
+} from "@/client/ui/shared/identityProgress";
+import { GOOGLE_SETUP_STEPS, SetupProgressProvider } from "@/client/ui/shared/setupProgress";
 
-type StepState = "complete" | "active" | "pending";
-type SetupStep = { label: string; state: StepState };
 type ProgressPresentation =
   | { heading: "Loading" }
-  | { heading: "Setting up" | "Repairing"; listLabel: string; steps: SetupStep[] };
+  | { heading: "Setting up" | "Repairing"; listLabel: string; steps: ChecklistStep[] };
 
 /**
  * One screen for every establishment phase. The Drive lookup and a restore are usually over in a
  * moment, so both stay on one steady "Loading" heading without a checklist; flashing steps past
  * for a few milliseconds reads as a glitch. Setup and repair take longer, so they announce
- * themselves and tick through their steps, starting from the completed Drive lookup.
+ * themselves and tick through their steps, starting from the completed Drive lookup. Creating an
+ * account is the first step of Google setup, so it shows the stepper that "Backup ready." continues.
  */
 function GoogleIdentityProgress({ progress }: { progress: GoogleIdentityProgressState }) {
   const presentation = progressPresentation(progress);
-  const heading = (
-    <DisplayHeading
-      accent="your pubky."
-      aria-label={`${presentation.heading} your pubky.`}
-      desktopAccentOnNewLine
-    >
-      {presentation.heading}
-    </DisplayHeading>
-  );
-
-  if (presentation.heading === "Loading") {
-    return (
-      <PassportScreen>
-        <div className="flex flex-1 flex-col gap-6 md:gap-8">
-          {heading}
-          <p aria-atomic="true" className="sr-only" role="status">
-            Loading your Pubky.
-          </p>
-          <div className="py-3">
-            <ActiveIcon />
-          </div>
-        </div>
-      </PassportScreen>
-    );
-  }
-
-  const activeStep = presentation.steps.find((step) => step.state === "active");
-
+  if (presentation.heading === "Loading") return <IdentityLoading />;
+  if (progress.flow !== "create") return <IdentityProgress {...presentation} />;
   return (
-    <PassportScreen>
-      <div className="flex flex-1 flex-col gap-6 md:gap-8">
-        {heading}
-        <p aria-atomic="true" className="sr-only" role="status">
-          {presentation.heading} your Pubky: {activeStep?.label}.
-        </p>
-        <ol aria-label={presentation.listLabel} className="flex flex-col gap-6 py-3">
-          {presentation.steps.map((step) => (
-            <ProgressStep key={step.label} step={step} />
-          ))}
-        </ol>
-      </div>
-    </PassportScreen>
-  );
-}
-
-function ProgressStep({ step }: { step: SetupStep }) {
-  return (
-    <li
-      aria-current={step.state === "active" ? "step" : undefined}
-      className="flex items-center gap-2"
-    >
-      {step.state === "complete" ? (
-        <CompleteIcon />
-      ) : step.state === "active" ? (
-        <ActiveIcon />
-      ) : (
-        <PendingIcon />
-      )}
-      <strong
-        className={
-          step.state === "complete"
-            ? "text-brand"
-            : step.state === "pending"
-              ? "text-muted-foreground"
-              : "text-foreground"
-        }
-      >
-        {step.label}
-      </strong>
-      <span className="sr-only"> ({step.state})</span>
-    </li>
+    <SetupProgressProvider steps={GOOGLE_SETUP_STEPS} current={0}>
+      <IdentityProgress {...presentation} />
+    </SetupProgressProvider>
   );
 }
 
@@ -120,21 +61,16 @@ const REPAIR_STEP_INDEX = {
 } satisfies Record<Extract<GoogleIdentityProgressState, { flow: "repair" }>["step"], number>;
 
 /** Every flow starts with the completed Drive lookup, so flow indexes are offset by one. */
-function flowSteps(labels: string[], activeIndex: number): SetupStep[] {
-  return states([LOOKUP_STEP, ...labels], activeIndex + 1);
+function flowSteps(labels: string[], activeIndex: number): ChecklistStep[] {
+  return progressSteps([LOOKUP_STEP, ...labels], activeIndex + 1);
 }
 
 function repairPresentation(activeIndex: number): ProgressPresentation {
   return {
     heading: "Repairing",
-    listLabel: "Pubky identity repair progress",
+    listLabel: "Steps to repair your pubky",
     steps: flowSteps(
-      [
-        "Restore encrypted backup",
-        "Repair homeserver access",
-        "Publish PKDNS records",
-        "Sign in to the homeserver",
-      ],
+      ["Unlock your backup", "Finish your earlier setup", SETUP_STEP.publish, "Sign in"],
       activeIndex,
     ),
   };
@@ -143,70 +79,17 @@ function repairPresentation(activeIndex: number): ProgressPresentation {
 function setupPresentation(activeIndex: number): ProgressPresentation {
   return {
     heading: "Setting up",
-    listLabel: "Pubky identity setup progress",
+    listLabel: SETUP_LIST_LABEL,
     steps: flowSteps(
       [
-        "Store encrypted backup",
-        "Sign up to the homeserver",
-        "Publish PKDNS records",
-        "Activate identity",
+        "Save encrypted backup to Google Drive",
+        SETUP_STEP.createAccount,
+        SETUP_STEP.publish,
+        SETUP_STEP.finish,
       ],
       activeIndex,
     ),
   };
-}
-
-function states(labels: string[], activeIndex: number): SetupStep[] {
-  return labels.map((label, index) => ({
-    label,
-    state: index < activeIndex ? "complete" : index === activeIndex ? "active" : "pending",
-  }));
-}
-
-function CompleteIcon() {
-  return (
-    <svg aria-hidden="true" className="size-6 shrink-0 text-brand" fill="none" viewBox="0 0 24 24">
-      <circle cx="12" cy="12" r="9.5" stroke="currentColor" />
-      <path
-        d="m7.5 12 3 3 6-7"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="1.5"
-      />
-    </svg>
-  );
-}
-
-function ActiveIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      className="size-6 shrink-0 animate-spin text-foreground motion-reduce:animate-none"
-      fill="none"
-      viewBox="0 0 24 24"
-    >
-      <path
-        d="M21 12a9 9 0 1 1-9-9"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeWidth="1.5"
-      />
-    </svg>
-  );
-}
-
-function PendingIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      className="size-6 shrink-0 text-muted-foreground"
-      fill="none"
-      viewBox="0 0 24 24"
-    >
-      <circle cx="12" cy="12" r="9.5" stroke="currentColor" />
-    </svg>
-  );
 }
 
 export { GoogleIdentityProgress };

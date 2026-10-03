@@ -1,14 +1,24 @@
-import Image from "next/image";
+import { GOOGLE_SETUP_STEPS, SetupProgressProvider } from "@/client/ui/shared/setupProgress";
+import { PublicKeyCard } from "@/client/ui/shared/publicKeyCard";
+import { SHORT_WINDOW_GAP, SHORT_WINDOW_HEADING } from "@/client/ui/shared/shortWindow";
 
 import type { GoogleAccountProfile } from "@/libs/googleAccountProfile";
+import type { VisibleRecoveryCopyStatus } from "@/client/logic/google-identity/GoogleIdentityController";
 import type { PubkyPublicIdentity } from "@/client/logic/pubky/pubkyIdentityKey";
+import { cn } from "@/client/ui/shared/mergeClassNames";
 import { PassportScreen } from "@/client/ui/shared/passportScreen";
 import { ArrowRightIcon } from "@/client/ui/shared/icons";
 import { Button } from "@/client/ui/shared/primitives/button";
 import { DisplayHeading, LeadText } from "@/client/ui/shared/primitives/typography";
 import { GoogleAccountCard } from "./googleAccountCard";
+import { VisibleCopyNotice } from "./visibleCopyNotice";
 
-/** Confirms a newly created identity; a restored identity moves on without this screen. */
+/**
+ * Confirms a newly created identity; a restored identity moves on without this screen. The space
+ * under the stepper matches the other setup steps. In a short window, such as an app's 760px
+ * sign-in popup, the heading shrinks as the request heading does and the space between the parts
+ * below tightens, so Continue stays above the fold even with the folder-copy note.
+ */
 function GoogleIdentityComplete({
   googleAccount,
   identity,
@@ -18,50 +28,34 @@ function GoogleIdentityComplete({
   googleAccount: GoogleAccountProfile;
   identity: PubkyPublicIdentity;
   onContinue: () => void;
-  visibleRecoveryCopyStatus: "created" | "unconfirmed" | "skipped";
+  visibleRecoveryCopyStatus: VisibleRecoveryCopyStatus;
 }) {
   return (
-    <PassportScreen className="gap-0 md:pb-0">
-      <div className="flex flex-col gap-6 md:gap-3">
-        <DisplayHeading accent="complete." aria-label="Setup complete.">
-          Setup
-        </DisplayHeading>
-        <LeadText>Stored backup in Google Drive.</LeadText>
-      </div>
-      <div className="mt-6 flex min-h-0 flex-1 flex-col md:mt-8">
-        {visibleRecoveryCopyStatus === "unconfirmed" || visibleRecoveryCopyStatus === "skipped" ? (
-          <p
-            className="mb-6 rounded-xl border border-amber-400/40 bg-amber-400/10 p-4 text-sm leading-5"
-            role="status"
-          >
-            {visibleRecoveryCopyStatus === "skipped"
-              ? "Your identity is ready. No visible recovery copy was created in Google Drive because you did not grant that permission. Download a recovery file from identity management."
-              : "Your identity is ready, but Passport could not confirm the visible recovery copy in Google Drive. Download a recovery file from identity management."}
-          </p>
-        ) : null}
-        <GoogleAccountCard account={googleAccount} />
-        <div className="mt-6 min-h-[84px] rounded-xl border border-brand/32 p-[15px] shadow-xl">
-          <p className="mb-2 text-xs font-medium uppercase leading-5 tracking-[0.1em] text-brand">
-            Your Pubky
-          </p>
-          <p className="break-all font-medium leading-6 text-secondary-foreground">
-            {identity.publicKeyZ32}
-          </p>
+    <SetupProgressProvider steps={GOOGLE_SETUP_STEPS} current={0}>
+      <PassportScreen className="gap-6 md:gap-8 md:pb-0">
+        <div className={cn("flex min-h-0 flex-1 flex-col gap-6 md:gap-8", SHORT_WINDOW_GAP)}>
+          <div className="flex flex-col gap-6 md:gap-3 [@media(max-height:50rem)]:gap-3">
+            <DisplayHeading
+              accent="ready."
+              aria-label="Backup ready."
+              className={SHORT_WINDOW_HEADING}
+            >
+              Backup
+            </DisplayHeading>
+            <LeadText>Stored backup in Google Drive.</LeadText>
+          </div>
+          <div className={cn("flex flex-col gap-6", SHORT_WINDOW_GAP)}>
+            <VisibleCopyNotice status={visibleRecoveryCopyStatus} />
+            <GoogleAccountCard account={googleAccount} />
+            <PublicKeyCard publicKey={identity.publicKeyZ32} />
+            <Button className="w-full" onClick={onContinue} size="lg">
+              <ArrowRightIcon />
+              Continue
+            </Button>
+          </div>
         </div>
-        <Image
-          alt=""
-          aria-hidden="true"
-          className="mx-auto mt-6 size-50 md:order-4 md:mt-8"
-          height={200}
-          src="/illustrations/checkmark.png"
-          width={200}
-        />
-        <Button className="mt-auto w-full md:order-3 md:mt-6" onClick={onContinue} size="lg">
-          <ArrowRightIcon />
-          Continue
-        </Button>
-      </div>
-    </PassportScreen>
+      </PassportScreen>
+    </SetupProgressProvider>
   );
 }
 

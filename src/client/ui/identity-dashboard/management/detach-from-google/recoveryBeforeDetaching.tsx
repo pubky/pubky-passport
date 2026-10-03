@@ -1,49 +1,93 @@
 import type { ReactNode } from "react";
 
-import { CheckIcon, DownloadIcon, KeyRoundIcon } from "@/client/ui/shared/icons";
+import type { KeyBackupFile } from "@/client/logic/local-identity/keyBackup";
+import { formatBackupDate } from "@/client/ui/identity-dashboard/backupStatus";
+import { ArrowRightIcon, DownloadIcon, ScanIcon } from "@/client/ui/shared/icons";
+import { Notice } from "@/client/ui/shared/notice";
+import { OnboardingCard } from "@/client/ui/shared/onboardingCard";
 import { BackButton } from "@/client/ui/shared/backButton";
 import { PassportNavigation } from "@/client/ui/shared/passportNavigation";
 import { PassportScreen } from "@/client/ui/shared/passportScreen";
 import { Button } from "@/client/ui/shared/primitives/button";
 import { LeadText } from "@/client/ui/shared/primitives/typography";
+import { ONLY_COPY_WORD } from "./confirmGoogleDetachment";
 
+/**
+ * Detaching deletes the Google Drive backup, often the only copy of the key outside this browser,
+ * so this screen offers the other backups first. A recovery file of this key checked here, or
+ * checked or imported earlier (named with its date, as on logging out), or Pubky Ring's copy
+ * verified, lets the detachment go on as it is. Without one, the way on stays open but says what
+ * it asks for: the confirmation then takes a typed acknowledgement that this browser will keep the
+ * key's only copy.
+ */
 function RecoveryBeforeDetaching({
+  backupChecked,
   onBack,
   onRecoveryConfirmed,
   onDownloadRecoveryFile,
   onMigrateToKeychain,
+  recordedBackup,
+  ringVerifiedAt,
 }: {
+  /** A recovery file of this key opened with its password during this detachment. */
+  backupChecked: boolean;
+  /** The recovery file this browser recorded for the key before; a checked or imported one counts. */
+  recordedBackup: KeyBackupFile | undefined;
   onBack: () => void;
   onRecoveryConfirmed: () => void;
   onDownloadRecoveryFile: () => void;
   onMigrateToKeychain: () => void;
+  /** When Pubky Ring last signed in with this key, here or earlier, if it ever did. */
+  ringVerifiedAt?: Date | undefined;
 }) {
   return (
     <PassportScreen className="gap-8">
       <div className="flex flex-col gap-6 md:gap-3">
         <h1
-          aria-label="Backup your pubky first."
-          className="text-5xl font-bold leading-none md:text-6xl"
+          aria-label="Back up your pubky first."
+          className="text-5xl font-bold leading-none outline-none md:text-6xl"
+          tabIndex={-1}
         >
-          <span className="block md:inline">Backup your </span>
+          <span className="block md:inline">Back up your </span>
           <span className="text-brand">pubky</span>
           <br className="hidden md:block" /> first.
         </h1>
         <LeadText>
-          If you remove Google as a way to access your pubky identity, you need a backup to restore
-          account access.
+          Detaching deletes your Google Drive backup. Keep another backup, so you can restore this
+          pubky if this browser loses it.
         </LeadText>
-        <section className="flex flex-col gap-3 pt-6 md:mt-5 md:pt-0">
-          <p className="text-xs font-medium uppercase leading-4 tracking-[0.1em] text-muted-foreground">
-            Choose backup method
-          </p>
-          <RecoveryMethodButton icon={<KeyRoundIcon />} onClick={onMigrateToKeychain}>
-            Migrate to keychain
+        <OnboardingCard illustration="/illustrations/backup-shield.png" className="mt-3">
+          <h2 className="text-xl font-bold leading-7">Choose backup method</h2>
+          <RecoveryMethodButton icon={<ScanIcon />} onClick={onMigrateToKeychain} primary>
+            Migrate to Pubky Ring
           </RecoveryMethodButton>
           <RecoveryMethodButton icon={<DownloadIcon />} onClick={onDownloadRecoveryFile}>
-            Download encrypted backup
+            Download recovery file
           </RecoveryMethodButton>
-        </section>
+        </OnboardingCard>
+        {backupChecked ? (
+          <Notice className="md:mt-3" tone="info">
+            Your recovery file opened with its password. Keep the file and its password somewhere
+            safe.
+          </Notice>
+        ) : recordedBackup?.verified ? (
+          <Notice className="md:mt-3" tone="info">
+            You checked a recovery file of this key on {formatBackupDate(recordedBackup.at)}. Make
+            sure you still have the file and its password.
+          </Notice>
+        ) : ringVerifiedAt ? (
+          <Notice className="md:mt-3" tone="info">
+            Pubky Ring signed in with this key on {formatBackupDate(ringVerifiedAt)}. Make sure
+            Pubky Ring still has it.
+          </Notice>
+        ) : (
+          // Pubky Ring cannot report an import by itself, and a file made elsewhere is out of
+          // sight.
+          <Notice className="md:mt-3" tone="warning">
+            No backup of this key has been verified. You can still detach, but you’ll type{" "}
+            {ONLY_COPY_WORD} to confirm that this browser keeps the only copy of your key.
+          </Notice>
+        )}
       </div>
 
       <PassportNavigation
@@ -51,7 +95,8 @@ function RecoveryBeforeDetaching({
         className="mt-auto md:mt-0"
         confirm={
           <Button className="w-full" onClick={onRecoveryConfirmed} size="lg" type="button">
-            <CheckIcon />I backed up my pubky
+            <ArrowRightIcon />
+            Continue to detach
           </Button>
         }
       />
@@ -63,13 +108,22 @@ function RecoveryMethodButton({
   children,
   icon,
   onClick,
+  primary = false,
 }: {
   children: string;
   icon: ReactNode;
   onClick?: () => void;
+  /** The recommended backup: the filled brand button, as Continue to detach has. */
+  primary?: boolean;
 }) {
   return (
-    <Button className="w-full" onClick={onClick} size="lg" type="button" variant="secondary">
+    <Button
+      className="w-full"
+      onClick={onClick}
+      size="lg"
+      type="button"
+      variant={primary ? "default" : "secondary"}
+    >
       {icon}
       {children}
     </Button>
