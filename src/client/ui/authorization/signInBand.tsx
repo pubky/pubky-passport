@@ -1,17 +1,25 @@
-import { LogInIcon } from "@/client/ui/shared/icons";
+import type { PassportAuthorizationViewState } from "@/client/logic/authorization/flow/PassportAuthorizationController";
+import { isRequestPending } from "@/client/logic/authorization/flow/pendingRequestPresence";
+import { RequestContextBand } from "@/client/ui/shared/requestContextBand";
+import { useAuthorizationRequester } from "./useAuthorizationRequester";
+import { CallbackOriginWarning } from "./callbackOriginWarning";
 
-function SignInBand({ requester }: { requester: string }) {
+/**
+ * Names who a request comes from, while it waits and on the outcome that ends it: the opener a v2
+ * hello bound to this request (A39), else the validated callback host. The app-chosen `xSource`
+ * label is never shown here: it is a signal, not an origin, so a request naming neither gets no
+ * band.
+ */
+function SignInBand({ authorization }: { authorization: PassportAuthorizationViewState }) {
+  const review = "review" in authorization ? authorization.review : undefined;
+  const { requester, callbackWarning } = useAuthorizationRequester(review);
+  if (!review || !requester) return null;
   return (
-    <aside
-      aria-label={`Signing in to ${requester}`}
-      className="absolute inset-x-0 top-0 z-20 flex h-[var(--passport-context-band-height)] w-full shrink-0 items-center justify-start gap-1 border-b border-brand/20 bg-brand/10 px-6 text-xs font-medium leading-4 text-brand md:px-10"
-      data-passport-context-band=""
-    >
-      <LogInIcon />
-      <span className="min-w-0 truncate">
-        Signing in to <bdi className="font-bold">{requester}</bdi>
-      </span>
-    </aside>
+    <RequestContextBand
+      label={isRequestPending(authorization) ? "Signing in to" : "Sign-in request from"}
+      requester={requester}
+      notice={callbackWarning ? <CallbackOriginWarning warning={callbackWarning} /> : undefined}
+    />
   );
 }
 
