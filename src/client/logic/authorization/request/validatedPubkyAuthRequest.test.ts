@@ -2,7 +2,7 @@ import { Result } from "better-result";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { LOGGER } from "@/libs/logger/logger";
-import { ValidatedPubkyAuthRequest } from "./ValidatedPubkyAuthRequest";
+import { capabilityReach, ValidatedPubkyAuthRequest } from "./ValidatedPubkyAuthRequest";
 
 const REQUEST =
   "pubkyauth://signin?caps=/pub/pubky.app/:rw,/:r&relay=https://relay.example/inbox&secret=kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8&x-source=Pubky%20App&x-success=https://pubky.app/success?token=private&x-error=https://pubky.app/error&x-cancel=https://pubky.app/cancel";
@@ -34,7 +34,7 @@ describe("ValidatedPubkyAuthRequest", () => {
     expect(validated.value.validatedUrlForApproval()).toBe(REQUEST);
   });
 
-  it("projects the v0.10 grant method without exposing proof parameters", () => {
+  it("projects the grant client ID as an app claim without exposing its proof key", () => {
     const grantRequest = REQUEST.replace("pubkyauth://signin", "pubkyauth://signin_grant").replace(
       "&x-success=",
       "&cid=pubky.app&cpk=5jsjx1o6fzu6aeeo697r3i5rx15zq41kikcye8wtwdqm4nb4tryo&x-success=",
@@ -44,10 +44,34 @@ describe("ValidatedPubkyAuthRequest", () => {
 
     if (Result.isError(validated)) throw new Error(validated.error.code);
     expect(validated.value.review.authenticationMethod).toBe("grant");
-    expect(validated.value.review).not.toHaveProperty("clientId");
+    expect(validated.value.review.clientId).toBe("pubky.app");
+    expect(Object.isFrozen(validated.value.review)).toBe(true);
     expect(JSON.stringify(validated.value.review)).not.toContain(
       "5jsjx1o6fzu6aeeo697r3i5rx15zq41kikcye8wtwdqm4nb4tryo",
     );
+  });
+
+  it.each(["\n", "\u0007", "\u2028", "\u2029", "\u202e", "\u200b"])(
+    "accepts a grant with an unsafe client ID without displaying it: %#",
+    (character) => {
+      const request = new URL(REQUEST.replace("pubkyauth://signin", "pubkyauth://signin_grant"));
+      request.searchParams.set("cid", `app${character}claim`);
+      request.searchParams.set("cpk", "5jsjx1o6fzu6aeeo697r3i5rx15zq41kikcye8wtwdqm4nb4tryo");
+      const result = ValidatedPubkyAuthRequest.fromEncoded(encodeURIComponent(request.href));
+      if (Result.isError(result)) throw new Error(result.error.code);
+      expect(result.value.review).not.toHaveProperty("clientId");
+      expect(result.value.validatedUrlForApproval()).toBe(request.href);
+      expect(result.value.isLive()).toBe(true);
+    },
+  );
+  it("normalizes only the displayed client ID, preserving the approving URL", () => {
+    const request = new URL(REQUEST.replace("pubkyauth://signin", "pubkyauth://signin_grant"));
+    request.searchParams.set("cid", " cafe\u0301 ");
+    request.searchParams.set("cpk", "5jsjx1o6fzu6aeeo697r3i5rx15zq41kikcye8wtwdqm4nb4tryo");
+    const result = ValidatedPubkyAuthRequest.fromEncoded(encodeURIComponent(request.href));
+    if (Result.isError(result)) throw new Error(result.error.code);
+    expect(result.value.review.clientId).toBe("café");
+    expect(result.value.validatedUrlForApproval()).toBe(request.href);
   });
 
   it("grants the same NFC capability path shown in the review", () => {
@@ -141,10 +165,10 @@ describe("ValidatedPubkyAuthRequest", () => {
     expect(validated.value.review.callbackHost).toBe("app.example:8443");
   });
 
-  it("warns only for namespace-wide capability paths", () => {
+  it("warns for every path that reaches a whole namespace, with or without its slash", () => {
     const validated = ValidatedPubkyAuthRequest.fromEncoded(
       encodeURIComponent(
-        "pubkyauth://signin?caps=/:r,/pub:r,/pub/:r,/priv:r,/priv/:r,/priv/app/:r&relay=https://relay.example/inbox&secret=kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8",
+        "pubkyauth://signin?caps=/:r,/pub:r,/pub/:r,/priv:r,/priv/:r,/priv/app/:r,/p:r,/pu:r,/pubx/:r&relay=https://relay.example/inbox&secret=kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8",
       ),
     );
     if (Result.isError(validated)) throw new Error(validated.error.code);
@@ -152,13 +176,31 @@ describe("ValidatedPubkyAuthRequest", () => {
     expect(validated.value.review.capabilities.map(({ path, scope }) => ({ path, scope }))).toEqual(
       [
         { path: "/", scope: "broad" },
-        { path: "/pub", scope: "specific" },
+        { path: "/pub", scope: "broad" },
         { path: "/pub/", scope: "broad" },
-        { path: "/priv", scope: "specific" },
+        { path: "/priv", scope: "broad" },
         { path: "/priv/", scope: "broad" },
         { path: "/priv/app/", scope: "specific" },
+        { path: "/p", scope: "broad" },
+        { path: "/pu", scope: "broad" },
+        { path: "/pubx/", scope: "specific" },
       ],
     );
+  });
+
+  it.each([
+    ["/", "all"],
+    ["/p", "all"],
+    ["/pub", "public"],
+    ["/pub/", "public"],
+    ["/pr", "private"],
+    ["/priv", "private"],
+    ["/priv/", "private"],
+    ["/pub/app/", undefined],
+    ["/pubx", undefined],
+    ["/private/", undefined],
+  ] as const)("reads the reach of %s as %s", (path, reach) => {
+    expect(capabilityReach(path)).toBe(reach);
   });
 
   it("does not present the relay host as a callback host", () => {

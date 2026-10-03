@@ -8,6 +8,7 @@ import { LOGGER, safeErrorLogFields } from "@/libs/logger/logger";
 import { MAXIMUM_JSON_BODY_BYTES } from "@/libs/passportPolicy";
 import type { CodedFailure } from "@/libs/result";
 import {
+  normalizePassportFileOrigin,
   parsePassportFileContents,
   serializePassportFileEnvelope,
   type PassportFileEnvelope,
@@ -44,9 +45,14 @@ type StoreErrorCode =
   | "create_conflict"
   | "stale_file"
   | "write_failed"
-  | "delete_failed";
+  | "delete_failed"
+  | "foreign_file";
 
-type StoreFailure = CodedFailure<StoreErrorCode> & { httpStatus?: number };
+type StoreFailure = CodedFailure<StoreErrorCode> & {
+  httpStatus?: number;
+  /** Normalized Passport origin a malformed file still names, when it names one. */
+  passportFileOrigin?: string;
+};
 type StoreResult<Success> = ResultType<Success, StoreFailure>;
 type PassportFileMetadataFailure = StoreFailure | CodedFailure<"exact_file_missing">;
 /** Result of looking up the sole operational Passport file in `appDataFolder`. */
@@ -55,7 +61,8 @@ type PassportFileReadResult =
   | { status: "missing" };
 type LocatedFile = { status: "missing" } | { status: "found"; reference: DriveFileRevision };
 type InspectedPassportFileMedia =
-  { status: "valid"; envelope: PassportFileEnvelope } | { status: "invalid" };
+  | { status: "valid"; envelope: PassportFileEnvelope }
+  | { status: "invalid"; passportFileOrigin: string | null };
 const PASSPORT_FILE_NAME = "passport.json";
 const CREATE_PASSPORT_FILE_LOCK_NAME = "pubky-passport:google-drive:passport-file:create:v1";
 
@@ -72,6 +79,17 @@ export class GoogleDrivePassportFileStore {
     private readonly accessToken: string,
     private readonly fetchImpl: typeof fetch,
   ) {}
+
+  /** Checks metadata only; an existing file or duplicate files occupy this Google account. */
+  async hasPassportFile(): Promise<StoreResult<boolean>> {
+    const token = this.readAccessToken();
+    if (Result.isError(token)) return Result.err(token.error);
+    const located = await this.locatePassportFile(token.value);
+    if (Result.isError(located)) {
+      return located.error.code === "duplicate_files" ? Result.ok(true) : Result.err(located.error);
+    }
+    return Result.ok(located.value.status === "found");
+  }
 
   /**
    * Reads and validates the sole operational Passport file.
@@ -98,7 +116,11 @@ export class GoogleDrivePassportFileStore {
         operation: "read_media",
         code: "invalid_file",
       });
-      return Result.err({ code: "invalid_file" });
+      const origin = inspected.value.passportFileOrigin;
+      return Result.err({
+        code: "invalid_file",
+        ...(origin ? { passportFileOrigin: origin } : {}),
+      });
     }
 
     const revalidated = await this.readPassportFileMetadata(
@@ -130,8 +152,13 @@ export class GoogleDrivePassportFileStore {
     });
   }
 
-  /** Deletes the sole file only after confirming its current media is malformed. */
-  async deleteInvalidPassportFile(): Promise<StoreResult<"deleted" | "missing">> {
+  /**
+   * Deletes the sole file only after confirming its current media is malformed and does not name
+   * another Passport origin. A file that names no origin cannot be attributed and counts as own.
+   */
+  async deleteInvalidPassportFile(
+    ownOrigin: string | null,
+  ): Promise<StoreResult<"deleted" | "missing">> {
     const token = this.readAccessToken();
     if (Result.isError(token)) return Result.err(token.error);
 
@@ -150,6 +177,14 @@ export class GoogleDrivePassportFileStore {
         code: "stale_file",
       });
       return Result.err({ code: "stale_file" });
+    }
+    const claimed = inspected.value.passportFileOrigin;
+    if (claimed !== null && claimed !== ownOrigin) {
+      LOGGER.warn("identity.google.drive_store.failed", {
+        operation: "delete_invalid",
+        code: "foreign_file",
+      });
+      return Result.err({ code: "foreign_file", passportFileOrigin: claimed });
     }
 
     const deleted = await this.deletePassportFile(located.value.reference);
@@ -427,7 +462,9 @@ export class GoogleDrivePassportFileStore {
 
     const parsed = parsePassportFileContents(contents.value);
     if (Result.isError(parsed)) {
-      if (parsed.error.code !== "unsupported_version") return Result.ok({ status: "invalid" });
+      if (parsed.error.code !== "unsupported_version") {
+        return Result.ok({ status: "invalid", passportFileOrigin: claimedOrigin(contents.value) });
+      }
       LOGGER.warn("identity.google.drive_store.failed", {
         operation: "read_media",
         code: "unsupported_file",
@@ -583,3 +620,17 @@ type StoreOperation =
   | "parse_list_response"
   | "parse_metadata_response"
   | "parse_create_response";
+
+/** The normalized origin a malformed file still names in its `url` field, if any. */
+function claimedOrigin(contents: string): string | null {
+  try {
+    const value: unknown = JSON.parse(contents);
+    if (!value || typeof value !== "object" || !("url" in value)) return null;
+    const url = (value as { url: unknown }).url;
+    if (typeof url !== "string") return null;
+    const origin = normalizePassportFileOrigin(url);
+    return Result.isOk(origin) ? origin.value : null;
+  } catch {
+    return null;
+  }
+}

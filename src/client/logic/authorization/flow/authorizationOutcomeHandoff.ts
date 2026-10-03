@@ -129,6 +129,11 @@ function callbackOrigin(callback: string): string | undefined {
   }
 }
 
+/** Whether an outcome can reach the app as a message to the window that opened Passport. */
+export function canMessageOpener(appWindow: Window): boolean {
+  return liveOpener(appWindow) !== undefined;
+}
+
 function liveOpener(appWindow: Window): Window | undefined {
   try {
     const opener = appWindow.opener;

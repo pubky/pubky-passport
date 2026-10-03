@@ -5,6 +5,7 @@ import { Result } from "better-result";
 import { encodeBase64Url } from "@/libs/encoding/base64Url";
 import { GOOGLE_REDIRECT_STORAGE_KEY } from "@/libs/authorization/googleRedirectConstants";
 import { AUTHORIZATION_TIMEOUT_MS } from "@/libs/passportPolicy";
+import { announceExternalNavigation } from "@/client/logic/authorization/flow/leaveGuard";
 import {
   getGoogleRedirectContext,
   type GoogleRedirectAttempt,
@@ -17,7 +18,10 @@ import type {
 import { GOOGLE_AUTHORIZATION_SCOPE } from "./parseGoogleAuthorizationResponse";
 import { resolveGoogleCredentials } from "./resolveGoogleCredentials";
 
-/** Same-tab transport used only while establishing an identity for /authorize. */
+/**
+ * Same-tab transport used only while establishing an identity for /authorize, and only when the
+ * browser blocked Google's pop-up (or to take Google's answer on the page it returned to).
+ */
 export class GoogleRedirectAuthorization {
   private readonly abortController = new AbortController();
   private readonly context = getGoogleRedirectContext();
@@ -65,6 +69,7 @@ export class GoogleRedirectAuthorization {
         ...operation,
         version: 1,
         requestUrl,
+        ...(this.context.profileRequired ? { profileRequired: true as const } : {}),
         state: encodeBase64Url(crypto.getRandomValues(new Uint8Array(32))),
         nonce: encodeBase64Url(crypto.getRandomValues(new Uint8Array(32))),
         expiresAt: Date.now() + AUTHORIZATION_TIMEOUT_MS,
@@ -85,6 +90,8 @@ export class GoogleRedirectAuthorization {
       this.appWindow.sessionStorage.setItem(GOOGLE_REDIRECT_STORAGE_KEY, serialized);
       if (this.appWindow.sessionStorage.getItem(GOOGLE_REDIRECT_STORAGE_KEY) !== serialized)
         throw new Error("Redirect storage unavailable");
+      // The request is saved for the return, so leaving for Google needs no confirmation.
+      announceExternalNavigation(this.appWindow);
       this.appWindow.location.replace(url.href);
       // Navigation destroys this document. Disposal settles the operation if it runs first.
       return await new Promise((resolve) => {
