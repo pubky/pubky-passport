@@ -12,3 +12,5 @@ if (typeof HTMLDialogElement !== "undefined") {
     this.dispatchEvent(new Event("close"));
   };
 }
+
+if (typeof window !== "undefined") window.scrollTo = () => undefined;

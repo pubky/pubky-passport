@@ -38,7 +38,29 @@ export function fakeLocalIdentityController(
         state.listener?.();
         return Result.ok();
       }),
-    republishHomeserver: overrides.republishHomeserver ?? (async () => Result.ok()),
+    rememberProfileNeeded:
+      overrides.rememberProfileNeeded ??
+      ((publicKeyZ32) => {
+        if (!state.catalog) return Result.err({ code: "storage_unavailable" as const });
+        const existing = state.catalog.identities.find(
+          (identity) => identity.publicIdentity.publicKeyZ32 === publicKeyZ32,
+        );
+        const identity = existing ?? {
+          publicIdentity: { publicKeyZ32 },
+          keySource: "ring" as const,
+          profileSetupRequired: true as const,
+        };
+        if (!existing)
+          state.catalog = {
+            activePublicKeyZ32: publicKeyZ32,
+            identities: [...state.catalog.identities, identity],
+          };
+        state.listener?.();
+        return Result.ok(identity);
+      }),
+    republishHomeserver:
+      overrides.republishHomeserver ??
+      (async (_publicKeyZ32, homeserverPubky) => Result.ok(homeserverPubky)),
     resolveHomeserver: overrides.resolveHomeserver ?? (async () => Result.ok(null)),
     selectIdentity:
       overrides.selectIdentity ??
@@ -56,5 +78,8 @@ export function fakeLocalIdentityController(
           state.listener = undefined;
         };
       }),
+    verifyRecoveryFile:
+      overrides.verifyRecoveryFile ??
+      (async () => Result.err({ code: "backup_decryption_failed" as const })),
   };
 }
