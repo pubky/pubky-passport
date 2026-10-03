@@ -1,5 +1,5 @@
-import { PassportHome } from "@/client/ui/passportHome";
+import { UniversalSignerFlow } from "@/client/ui/universal-signer/universalSignerFlow";
 
 export default function Home() {
-  return <PassportHome />;
+  return <UniversalSignerFlow />;
 }
