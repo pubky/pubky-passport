@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Passport client facade fixture</title>
+    <script type="importmap">
+      {
+        "imports": {
+          "@synonymdev/pubky": "/fake-sdk.js",
+          "@pubky/passport-client": "/modules/index.js",
+          "@pubky/passport-client/element": "/modules/element.js",
+          "pubky-app-specs": "/pubky-app-specs.js"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <h1>Passport client facade fixture</h1>
+    <div id="mount"></div>
+    <p id="who"></p>
+    <script type="module" src="/facade.js"></script>
+  </body>
+</html>
