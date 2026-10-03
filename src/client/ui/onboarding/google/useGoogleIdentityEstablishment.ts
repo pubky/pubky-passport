@@ -3,13 +3,15 @@ import type { GoogleIdentityViewError } from "@/client/logic/google-identity/goo
 import type {
   GoogleIdentityProgress,
   GoogleIdentityViewState,
+  VisibleRecoveryCopyStatus,
 } from "@/client/logic/google-identity/GoogleIdentityController";
 import type { PubkyPublicIdentity } from "@/client/logic/pubky/pubkyIdentityKey";
 import { useGoogleIdentityStore } from "@/client/ui/useGoogleIdentityStore";
 
 type GoogleIdentityEstablishmentView =
   | { status: "idle" }
-  | { status: "requesting-access" }
+  /** `inThisTab`: the browser blocked Google's window, so the sign-in goes on in this one. */
+  | { status: "requesting-access"; inThisTab: boolean }
   | { status: "failed"; error: GoogleIdentityViewError }
   | { status: "working"; progress: GoogleIdentityProgress }
   | {
@@ -17,7 +19,7 @@ type GoogleIdentityEstablishmentView =
       googleAccount: GoogleAccountProfile;
       identity: PubkyPublicIdentity;
       mode: "created";
-      visibleRecoveryCopyStatus: "created" | "unconfirmed" | "skipped";
+      visibleRecoveryCopyStatus: VisibleRecoveryCopyStatus;
     }
   | {
       status: "complete";
@@ -31,6 +33,8 @@ function useGoogleIdentityEstablishment(forAuthorization = false) {
 
   return {
     back: google.reset,
+    cancelAuthorization: google.cancelAuthorization,
+    showAuthorizationWindow: google.showAuthorizationWindow,
     establishIdentity: () =>
       google.run("establish", (controller) => controller.establishIdentity()),
     continueWithoutVisibleBackup: () =>
@@ -50,7 +54,7 @@ function useGoogleIdentityEstablishment(forAuthorization = false) {
 function toEstablishmentView(state: GoogleIdentityViewState): GoogleIdentityEstablishmentView {
   switch (state.status) {
     case "requesting-authorization":
-      return { status: "requesting-access" };
+      return { status: "requesting-access", inThisTab: state.inThisTab === true };
     case "establishing":
       return { status: "working", progress: state.progress };
     case "failed":
@@ -73,6 +77,8 @@ function toEstablishmentView(state: GoogleIdentityViewState): GoogleIdentityEsta
     case "idle":
     case "detaching":
     case "detached":
+    case "backing-up":
+    case "backed-up":
       return { status: "idle" };
   }
 }

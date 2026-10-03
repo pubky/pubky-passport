@@ -1,292 +1,313 @@
-import { Result } from "better-result";
-import type { ReactNode } from "react";
-import { useEffect, useState } from "react";
-import { toast } from "sonner";
+import { type ReactNode, useId, useState } from "react";
 
-import { LOGGER, safeErrorLogFields } from "@/libs/logger/logger";
+import {
+  isKeyProtected,
+  keyBackupFile,
+  latestBackupVerification,
+  type BackupVerification,
+  type KeyBackupFile,
+} from "@/client/logic/local-identity/keyBackup";
 import type { LocalIdentityResult } from "@/client/logic/local-identity/LocalStorageIdentityRepository";
 import type { LocalIdentityHomeserverRepublishResult } from "@/client/logic/local-identity/LocalIdentityController";
 import type { LocalIdentityMetadata } from "@/client/logic/local-identity/localIdentityModels";
 import type { PubkyHomeserverResolutionResult } from "@/client/logic/pubky/pubkyIdentityKey";
+import { BackupStatusLine, formatBackupDate } from "@/client/ui/identity-dashboard/backupStatus";
+import { BackButton } from "@/client/ui/shared/backButton";
+import { GoogleLogo } from "@/client/ui/shared/brand/googleLogo";
+import { PUBKY_COPY_TOASTS } from "@/client/ui/shared/copyToClipboard";
+import { DetailField } from "@/client/ui/shared/detailField";
+import { shortCopiedValue } from "@/client/ui/shared/formatPublicKey";
+import { identityDisplayName, profileName } from "@/client/ui/shared/identityDisplay";
 import {
-  CopyIcon,
+  CheckIcon,
   DownloadIcon,
   KeyRoundIcon,
-  LinkOffIcon,
   LogOutIcon,
-  RotateCcwIcon,
+  PencilIcon,
+  TrashIcon,
 } from "@/client/ui/shared/icons";
-import { shortCopiedValue } from "@/client/ui/shared/formatPublicKey";
-import { BackButton } from "@/client/ui/shared/backButton";
-import { cn } from "@/client/ui/shared/mergeClassNames";
 import { PassportNavigation } from "@/client/ui/shared/passportNavigation";
 import { PassportScreen } from "@/client/ui/shared/passportScreen";
+import { ProfileLinks } from "@/client/ui/profile/profileLinks";
 import { Avatar } from "@/client/ui/shared/primitives/avatar";
 import { Button } from "@/client/ui/shared/primitives/button";
-import { IconButton } from "@/client/ui/shared/primitives/iconButton";
-import { FieldMessage } from "@/client/ui/shared/primitives/fieldMessage";
 import { DisplayHeading } from "@/client/ui/shared/primitives/typography";
+import { GoogleAccountRow } from "./googleAccountRow";
+import { HomeserverRecord } from "./homeserverRecord";
+import { IdentityProviderSection } from "./identityProviderSection";
+import { LogoutConfirmation } from "./logoutConfirmation";
 
-type HomeserverLookup =
-  { status: "looking-up" } | { status: "unavailable" } | { status: "resolved"; pubky: string };
-
-function homeserverLabel(lookup: HomeserverLookup): string {
-  switch (lookup.status) {
-    case "looking-up":
-      return "Looking up…";
-    case "resolved":
-      return lookup.pubky;
-    case "unavailable":
-      return "Unavailable";
-  }
-}
-
+/**
+ * Manage identity, for an identity whose key this browser holds: its profile and homeserver
+ * record, and its backups and way out. A key in Pubky Ring has no such screen; its overview offers
+ * its profile and Remove from this browser.
+ */
 function IdentityManagement({
   identity,
+  confirmLogout = false,
   onBack,
+  onEditProfile,
+  onBackupToGoogle,
   onDetachFromGoogle,
   onDownloadRecoveryFile,
   onRemoveLocalIdentity,
   onMigrateToKeychain,
+  onVerifyBackup,
   republishHomeserver,
   resolveHomeserver,
+  providerHomeserver,
 }: {
   identity: LocalIdentityMetadata;
+  /** Opens on the logout confirmation, e.g. when returning from the backup it asked for. */
+  confirmLogout?: boolean;
   onBack: () => void;
+  onEditProfile?: () => void;
+  /** Offered only when Google is available; its presence is the only switch. */
+  onBackupToGoogle?: () => void;
   onDetachFromGoogle: () => void;
-  onDownloadRecoveryFile: () => void;
+  /** `returnTo` names the screen to come back to once the backup is done. */
+  onDownloadRecoveryFile: (returnTo: "manage" | "logout") => void;
   onRemoveLocalIdentity: () => LocalIdentityResult<void>;
   onMigrateToKeychain: () => void;
-  republishHomeserver: () => Promise<LocalIdentityHomeserverRepublishResult>;
+  /**
+   * Opens Verify your backup, where a recovery file or Pubky Ring's copy is checked; with
+   * `"logout"` its Back returns to the removal confirmation that asked for it.
+   */
+  onVerifyBackup: (returnTo?: "logout") => void;
+  republishHomeserver: (
+    publicKeyZ32: string,
+    homeserverPubky: string,
+  ) => Promise<LocalIdentityHomeserverRepublishResult>;
+  /** Repairs a missing `_pubky` record of an identity that does not remember its homeserver. */
+  providerHomeserver?: string | undefined;
   resolveHomeserver: (publicKeyZ32: string) => Promise<PubkyHomeserverResolutionResult>;
 }) {
+  const [confirmingLogout, setConfirmingLogout] = useState(confirmLogout);
   const account = identity.googleAccount;
-  const name = account?.name ?? "Your Pubky";
-  const [homeserver, setHomeserver] = useState<HomeserverLookup>({ status: "looking-up" });
-  const [logoutFailed, setLogoutFailed] = useState(false);
-  const [republishing, setRepublishing] = useState(false);
-  const [republishMessage, setRepublishMessage] = useState<{ error: boolean; text: string } | null>(
-    null,
+  const publicKeyZ32 = identity.publicIdentity.publicKeyZ32;
+  const name = identityDisplayName(identity);
+  const backupFile = keyBackupFile(identity);
+  // Leaving this browser may delete the only copy of a key nothing is known to bring back: a file
+  // Passport made but never saw open may not exist.
+  const unbacked = !isKeyProtected(identity);
+  // One action leaves this browser. It sits with the backups it depends on, after them in their
+  // card. (A key in Pubky Ring has no Manage screen: its overview offers the same action.)
+  const remove = (
+    <Button onClick={() => setConfirmingLogout(true)} variant="secondary">
+      {unbacked ? <TrashIcon /> : <LogOutIcon />}
+      Remove from this browser
+    </Button>
   );
 
-  function logout(): void {
-    const removed = onRemoveLocalIdentity();
-    if (Result.isError(removed)) {
-      setLogoutFailed(true);
-      return;
-    }
-    onBack();
-  }
-
-  async function republish(): Promise<void> {
-    setRepublishing(true);
-    setRepublishMessage(null);
-    try {
-      const published = await republishHomeserver();
-      if (Result.isError(published)) {
-        setRepublishMessage({
-          error: true,
-          text: "Could not republish the homeserver record. Please try again.",
-        });
-        return;
-      }
-      setRepublishMessage({ error: false, text: "Homeserver record republished." });
-      const resolved = await resolveHomeserver(identity.publicIdentity.publicKeyZ32);
-      setHomeserver(
-        Result.isOk(resolved) && resolved.value
-          ? { status: "resolved", pubky: resolved.value }
-          : { status: "unavailable" },
-      );
-    } catch (e) {
-      LOGGER.warn("identity.management.failed", {
-        operation: "republish_homeserver",
-        ...safeErrorLogFields(e),
-      });
-      setRepublishMessage({
-        error: true,
-        text: "Could not republish the homeserver record. Please try again.",
-      });
-    } finally {
-      setRepublishing(false);
-    }
-  }
-
-  useEffect(() => {
-    let cancelled = false;
-    void resolveHomeserver(identity.publicIdentity.publicKeyZ32)
-      .then((result) => {
-        if (!cancelled) {
-          setHomeserver(
-            Result.isOk(result) && result.value
-              ? { status: "resolved", pubky: result.value }
-              : { status: "unavailable" },
-          );
-        }
-      })
-      .catch((e: unknown) => {
-        LOGGER.warn("identity.management.failed", {
-          operation: "resolve_homeserver",
-          ...safeErrorLogFields(e),
-        });
-        if (!cancelled) setHomeserver({ status: "unavailable" });
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [identity.publicIdentity.publicKeyZ32, resolveHomeserver]);
+  if (confirmingLogout)
+    return (
+      <LogoutConfirmation
+        identity={identity}
+        onCancel={() => setConfirmingLogout(false)}
+        onCheckBackup={() => onVerifyBackup("logout")}
+        onDownloadBackup={() => onDownloadRecoveryFile("logout")}
+        onRemoveIdentity={onRemoveLocalIdentity}
+        onRemoved={onBack}
+      />
+    );
 
   return (
-    <PassportScreen className="gap-6 md:gap-8">
-      <Button
-        className="absolute right-6 top-[26px] z-10 md:right-10 md:top-12 md:h-10 md:px-4 md:py-2 md:text-sm md:leading-5"
-        onClick={logout}
-        size="sm"
-        variant="secondary"
-      >
-        <LogOutIcon />
-        Log out
-      </Button>
-
-      <header className="flex items-start gap-6 md:items-center">
-        <DisplayHeading accent="identity." aria-label="Manage identity.">
-          Manage
-        </DisplayHeading>
-        <Avatar
-          className="ml-auto"
-          fallback={name}
-          size="lg"
-          src={account?.pictureUrl ?? undefined}
-        />
-      </header>
-
-      <section className="flex flex-col gap-6 md:grid md:grid-cols-2 md:gap-x-4 md:gap-y-6">
-        <IdentityDetail label="User" value={name} />
-        <IdentityDetail label="Google account" value={account?.email ?? "Not connected"} />
-        <IdentityDetail
-          copyable
-          label="Pubky"
-          onCopied={() =>
-            toast.info("Pubky copied to clipboard", {
-              description: shortCopiedValue(identity.publicIdentity.publicKeyZ32),
-            })
-          }
-          value={identity.publicIdentity.publicKeyZ32}
-        />
-        <IdentityDetail
-          copyable={homeserver.status === "resolved"}
-          label="Homeserver"
-          onCopied={() => toast.info("Homeserver copied")}
-          value={homeserverLabel(homeserver)}
-        />
-      </section>
-
-      <div className="mt-auto flex flex-col gap-4 pt-6 md:mt-0 md:flex-row md:flex-wrap md:gap-3 md:pt-0">
-        {logoutFailed ? (
-          <FieldMessage error>Could not log out. Please try again.</FieldMessage>
-        ) : null}
-        {republishMessage ? (
-          <FieldMessage error={republishMessage.error}>{republishMessage.text}</FieldMessage>
-        ) : null}
-        {homeserver.status === "unavailable" ? (
-          <ManagementButton
-            disabled={republishing}
-            icon={<RotateCcwIcon />}
-            onClick={() => {
-              void republish();
+    <PassportScreen width="wide" className="gap-6">
+      <DisplayHeading accent="identity." aria-label="Manage identity.">
+        Manage
+      </DisplayHeading>
+      <div className="grid min-w-0 gap-6 lg:grid-cols-2">
+        <section
+          aria-labelledby="manage-profile"
+          className="flex min-w-0 flex-col items-start gap-6 rounded-lg bg-card p-6 md:p-8 xl:p-12"
+        >
+          <h2 id="manage-profile" className="text-2xl font-bold">
+            Public profile
+          </h2>
+          {/* The profile's own action ends the row that names it; where the row is too narrow it
+              wraps under the name, still before the bio. */}
+          <div className="flex w-full min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-3">
+            <div className="flex min-w-0 items-center gap-4">
+              <Avatar
+                className="size-16 shrink-0"
+                profileName={profileName(identity)}
+                publicKey={publicKeyZ32}
+                src={identity.avatarUrl ?? undefined}
+              />
+              <div className="flex min-w-0 flex-col items-start gap-1">
+                <p className="min-w-0 max-w-full break-words text-xl font-bold">{name}</p>
+              </div>
+            </div>
+            {onEditProfile ? (
+              <Button className="shrink-0" onClick={onEditProfile} variant="secondary">
+                <PencilIcon />
+                {identity.profileSetupRequired ? "Set up profile" : "Edit profile"}
+              </Button>
+            ) : null}
+          </div>
+          {identity.profile?.bio ? (
+            <p className="break-words text-sm leading-5 text-secondary-foreground">
+              {identity.profile.bio}
+            </p>
+          ) : null}
+          <ProfileLinks links={identity.profile?.links} />
+          <DetailField
+            copy={{
+              ...PUBKY_COPY_TOASTS,
+              value: publicKeyZ32,
+              copiedDescription: shortCopiedValue(publicKeyZ32),
             }}
-          >
-            Republish homeserver
-          </ManagementButton>
-        ) : null}
-        <ManagementButton icon={<KeyRoundIcon />} onClick={onMigrateToKeychain}>
-          Migrate to keychain
-        </ManagementButton>
-        <ManagementButton icon={<DownloadIcon />} onClick={onDownloadRecoveryFile}>
-          Download backup
-        </ManagementButton>
-        {account ? (
-          <ManagementButton icon={<LinkOffIcon />} onClick={onDetachFromGoogle}>
-            Detach from Google
-          </ManagementButton>
-        ) : null}
+            label="Pubky"
+            value={publicKeyZ32}
+          />
+          <HomeserverRecord
+            providerHomeserver={providerHomeserver}
+            publicKeyZ32={publicKeyZ32}
+            registeredHomeserver={identity.homeserverPubky}
+            resolveHomeserver={resolveHomeserver}
+            republishHomeserver={republishHomeserver}
+          />
+        </section>
+        <KeyAccess
+          account={account}
+          backupFile={backupFile}
+          onBackupToGoogle={onBackupToGoogle}
+          onDetachFromGoogle={onDetachFromGoogle}
+          onDownloadRecoveryFile={onDownloadRecoveryFile}
+          onMigrateToKeychain={onMigrateToKeychain}
+          onVerifyBackup={onVerifyBackup}
+          remove={remove}
+          unbacked={unbacked}
+          verification={latestBackupVerification(identity)}
+        />
       </div>
-      <PassportNavigation back={<BackButton onClick={onBack} />} className="mt-0 pt-0 md:pt-1" />
+      <PassportNavigation back={<BackButton onClick={onBack} />} />
     </PassportScreen>
   );
 }
 
-function IdentityDetail({
-  copyable = false,
-  label,
-  onCopied,
-  value,
+/**
+ * Backups and the other places a key saved in this browser can live: making a backup, verifying
+ * one, the Google account, and, set apart at the end, removing the key from this browser.
+ */
+function KeyAccess({
+  account,
+  backupFile,
+  onBackupToGoogle,
+  onDetachFromGoogle,
+  onDownloadRecoveryFile,
+  onMigrateToKeychain,
+  onVerifyBackup,
+  remove,
+  unbacked,
+  verification,
 }: {
-  copyable?: boolean;
-  label: string;
-  onCopied?: () => void;
-  value: string;
+  account: LocalIdentityMetadata["googleAccount"];
+  backupFile: KeyBackupFile | undefined;
+  onBackupToGoogle?: (() => void) | undefined;
+  onDetachFromGoogle: () => void;
+  onDownloadRecoveryFile: (returnTo: "manage" | "logout") => void;
+  onMigrateToKeychain: () => void;
+  onVerifyBackup: () => void;
+  /** Removes the identity from this browser: the last of the key's own actions. */
+  remove: ReactNode;
+  unbacked: boolean;
+  /** The most recent check of a backup, of either kind. */
+  verification: BackupVerification | undefined;
 }) {
-  async function copyValue() {
-    try {
-      await navigator.clipboard.writeText(value);
-      onCopied?.();
-    } catch (e) {
-      LOGGER.info("identity.management.failed", {
-        operation: "copy",
-        ...safeErrorLogFields(e),
-      });
-    }
-  }
-
+  const uncheckedFile = backupFile !== undefined && !backupFile.verified;
   return (
-    <div className="flex items-end gap-3">
-      <div className="min-w-0 flex-1">
-        <p className="mb-1 text-xs font-medium uppercase leading-4 tracking-[0.1em] text-muted-foreground">
-          {label}
-        </p>
-        <p className={cn("break-all font-medium leading-6", onCopied && "md:text-sm md:leading-5")}>
-          {value}
-        </p>
-      </div>
-      {onCopied ? (
-        <IconButton
-          aria-label={`Copy ${label}`}
-          className="size-9 p-1"
-          disabled={!copyable}
-          onClick={() => {
-            void copyValue();
-          }}
-          variant="ghost"
-        >
-          <CopyIcon size={20} />
-        </IconButton>
+    <section
+      aria-labelledby="manage-keys"
+      className="flex min-w-0 flex-col items-start gap-6 rounded-lg bg-card p-6 md:p-8 xl:p-12"
+    >
+      <h2 id="manage-keys" className="text-2xl font-bold">
+        Backup & key access
+      </h2>
+      <p className="text-sm leading-5 text-secondary-foreground">
+        {account
+          ? "Your key is saved in this browser and backed up, encrypted, to Google Drive. For a copy that doesn’t depend on Google, download a recovery file or use Pubky Ring."
+          : "Your key is saved only in this browser. Keep a recovery file so you can restore it if this browser’s data is cleared or you switch devices."}
+      </p>
+      {/* A verified backup is dated in the Verify section below. */}
+      {uncheckedFile && !verification ? (
+        <BackupStatusLine tone="warning">
+          Passport made a recovery file on {formatBackupDate(backupFile.at)}, but it was never
+          checked.
+        </BackupStatusLine>
+      ) : unbacked && !backupFile ? (
+        <BackupStatusLine tone="warning">
+          No backup yet. If this browser’s data is cleared, this pubky is lost.
+        </BackupStatusLine>
       ) : null}
-    </div>
+      <KeyAccessGroup title="Back up">
+        {/* Both ways to back up, in one row and one style; only a backup that is due takes the
+            filled brand button. */}
+        <div className="flex w-full flex-wrap gap-3">
+          <Button onClick={onMigrateToKeychain} variant="secondary">
+            <KeyRoundIcon /> Migrate to Pubky Ring
+          </Button>
+          <Button
+            onClick={() => onDownloadRecoveryFile("manage")}
+            variant={unbacked && !uncheckedFile ? "default" : "secondary"}
+          >
+            <DownloadIcon /> Download recovery file
+          </Button>
+        </div>
+      </KeyAccessGroup>
+      <KeyAccessGroup title="Verify">
+        <div className="flex w-full flex-wrap items-center gap-x-3 gap-y-2">
+          {/* A file already made is quicker to check than a new one is to make and check. */}
+          <Button
+            onClick={() => onVerifyBackup()}
+            variant={unbacked && uncheckedFile ? "default" : "secondary"}
+          >
+            <CheckIcon /> Verify backup
+          </Button>
+          <p className="text-sm leading-5 text-secondary-foreground">
+            {verification
+              ? `Last verified ${formatBackupDate(verification.at)} (${
+                  verification.method === "ring" ? "Pubky Ring" : "Recovery file"
+                })`
+              : "Never verified"}
+          </p>
+        </div>
+      </KeyAccessGroup>
+      {account || onBackupToGoogle ? (
+        <IdentityProviderSection name="Google account">
+          {account ? (
+            <GoogleAccountRow account={account} onDetach={onDetachFromGoogle} />
+          ) : (
+            <>
+              <p className="text-sm leading-5 text-secondary-foreground">
+                Attach a Google account to sign in with Google and keep an encrypted backup in your
+                Google Drive.
+              </p>
+              <Button onClick={onBackupToGoogle} variant="secondary">
+                <GoogleLogo /> Attach to Google
+              </Button>
+            </>
+          )}
+        </IdentityProviderSection>
+      ) : null}
+      {/* Set apart, so it never reads as one of the backup actions. */}
+      <div className="w-full border-t border-border pt-6" data-slot="remove">
+        {remove}
+      </div>
+    </section>
   );
 }
 
-function ManagementButton({
-  children,
-  disabled,
-  icon,
-  onClick,
-}: {
-  children: string;
-  disabled?: boolean;
-  icon: ReactNode;
-  onClick?: () => void;
-}) {
+/** A small titled group of the key card's actions. */
+function KeyAccessGroup({ children, title }: { children: ReactNode; title: string }) {
+  const heading = useId();
   return (
-    <Button
-      className="w-full md:h-10 md:min-w-0 md:flex-1 md:px-4 md:py-2"
-      disabled={disabled}
-      onClick={onClick}
-      size="lg"
-      variant="secondary"
-    >
-      {icon}
+    <section aria-labelledby={heading} className="flex w-full min-w-0 flex-col items-start gap-3">
+      <h3 className="text-sm font-bold leading-5 text-foreground" id={heading}>
+        {title}
+      </h3>
       {children}
-    </Button>
+    </section>
   );
 }
 

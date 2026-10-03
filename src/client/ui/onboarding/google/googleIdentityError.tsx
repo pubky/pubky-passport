@@ -1,26 +1,34 @@
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 
 import type { GoogleIdentityViewError } from "@/client/logic/google-identity/googleIdentityErrors";
 import {
   GoogleDrivePermissionPrompt,
   GooglePermissionGuide,
 } from "@/client/ui/googleDrivePermissionPrompt";
-import { GoogleIdentityErrorDetails } from "@/client/ui/googleIdentityErrorDetails";
-import { googleIdentityErrorMessage } from "@/client/ui/googleIdentityErrorMessage";
+import {
+  googleIdentityErrorMessage,
+  googleIdentityErrorRecovery,
+} from "@/client/ui/googleIdentityErrorMessage";
+import { googlePermissionPromptMode } from "@/client/ui/googlePermissionPromptMode";
 import { RotateCcwIcon, TrashIcon } from "@/client/ui/shared/icons";
 import { BackButton } from "@/client/ui/shared/backButton";
 import { ConfirmDeletionDialog } from "@/client/ui/shared/confirmDeletionDialog";
-import { PassportScreen } from "@/client/ui/shared/passportScreen";
+import { DetailField } from "@/client/ui/shared/detailField";
+import { ErrorScreen } from "@/client/ui/shared/errorScreen";
 import { Button } from "@/client/ui/shared/primitives/button";
-import { DisplayHeading, LeadText } from "@/client/ui/shared/primitives/typography";
 
 /** A confirmed deletion of the Drive identity file followed by creation of a new identity. */
 type PassportFileReplacement = {
   id: string;
   description: string;
-  error: string | undefined;
+  /** An earlier deletion failed: deleting again is the way on, not signing in again. */
+  retry: boolean;
   onConfirm: () => void;
 };
+
+/** What deleting a backup costs, said before the person opens the confirmation. */
+const REPLACEMENT_LOSS =
+  "Deleting this backup means the pubky in it can no longer be restored with this Google account. If you have that pubky in Pubky Ring or a recovery file, go back and add it from there instead.";
 
 function GoogleIdentityError({
   error,
@@ -43,17 +51,19 @@ function GoogleIdentityError({
     onReplaceUndecryptableFile,
   });
 
+  if (error.code === "foreign_passport_file" && error.passportFileOrigin !== undefined) {
+    return <ForeignPassportFile onBack={onBack} passportFileOrigin={error.passportFileOrigin} />;
+  }
+
   if (error.code === "google_authorization_denied") {
     return <GoogleAccessDenied onBack={onBack} onTryAgain={onTryAgain} />;
   }
 
-  if (
-    error.code === "google_drive_access_required" ||
-    error.code === "visible_backup_permission_missing"
-  ) {
+  const permissionMode = googlePermissionPromptMode(error.code, "establish");
+  if (permissionMode !== undefined) {
     return (
       <GoogleDrivePermissionPrompt
-        mode={error.code === "google_drive_access_required" ? "required" : "optional"}
+        mode={permissionMode}
         onBack={onBack}
         onContinue={onContinueWithoutVisibleBackup}
         onTryAgain={onTryAgain}
@@ -61,112 +71,65 @@ function GoogleIdentityError({
     );
   }
 
+  if (error.code === "google_authorization_popup_closed") {
+    return <GoogleSignInCancelled onBack={onBack} onTryAgain={onTryAgain} />;
+  }
+
+  const recovery = googleIdentityErrorRecovery(error, {
+    canReplaceFile: replacement !== undefined,
+  });
+  const openConfirmation = () => setConfirmationOpen(true);
+  let action: ReactNode = null;
+  if (replacement?.retry) {
+    action = (
+      <Button className="w-full" onClick={openConfirmation} size="lg" type="button">
+        <RotateCcwIcon />
+        Try deleting again
+      </Button>
+    );
+  } else if (recovery.retryHelps) {
+    // Where the same step would fail again, Try again is not offered as the way out.
+    action = (
+      <Button className="w-full" onClick={onTryAgain} size="lg" type="button">
+        <RotateCcwIcon />
+        Try again
+      </Button>
+    );
+  }
   return (
     <>
-      <PassportScreen className="gap-6 md:max-w-[558px] md:gap-8">
-        <div className="flex flex-col gap-6 md:gap-3">
-          <DisplayHeading accent="interrupted." aria-label="Setup interrupted.">
-            Setup
-          </DisplayHeading>
-          <LeadText>{googleIdentityErrorMessage(error.code)}</LeadText>
-        </div>
-
-        <div className="flex min-h-0 flex-1 flex-col gap-6">
-          <GoogleIdentityErrorDetails error={error} />
-          {replacement ? (
-            <>
-              <div
-                aria-label="Mobile error actions"
-                className="mt-auto grid w-full grid-cols-1 gap-3 md:hidden"
-                role="group"
-              >
-                <Button className="w-full" onClick={onTryAgain} size="lg" type="button">
-                  <RotateCcwIcon />
-                  Try again
-                </Button>
-                <Button
-                  className="w-full"
-                  onClick={() => setConfirmationOpen(true)}
-                  size="lg"
-                  type="button"
-                  variant="destructive"
-                >
-                  <TrashIcon />
-                  Delete backup &amp; create new pubky
-                </Button>
-                <BackButton onClick={onBack} />
-              </div>
-              <div
-                aria-label="Desktop error actions"
-                className="hidden w-full grid-cols-(--passport-error-actions-columns) gap-3 md:grid md:gap-x-6"
-                role="group"
-              >
-                <BackButton className="md:col-start-1 md:row-start-1" onClick={onBack} />
-                <Button
-                  className="w-full md:col-start-2 md:row-start-1"
-                  onClick={() => setConfirmationOpen(true)}
-                  size="lg"
-                  type="button"
-                  variant="destructive"
-                >
-                  <TrashIcon />
-                  Delete &amp; create new
-                </Button>
-                <Button
-                  className="w-full md:col-start-3 md:row-start-1"
-                  onClick={onTryAgain}
-                  size="lg"
-                  type="button"
-                >
-                  <RotateCcwIcon />
-                  Try again
-                </Button>
-              </div>
-            </>
-          ) : (
-            <>
-              <div
-                aria-label="Mobile error actions"
-                className="mt-auto grid w-full grid-cols-1 gap-3 md:hidden"
-                role="group"
-              >
-                <Button className="w-full" onClick={onTryAgain} size="lg" type="button">
-                  <RotateCcwIcon />
-                  Try again
-                </Button>
-                <BackButton onClick={onBack} />
-              </div>
-              <div
-                aria-label="Desktop error actions"
-                className="hidden w-full grid-cols-(--passport-error-actions-columns) gap-3 md:grid md:gap-x-0"
-                role="group"
-              >
-                <BackButton className="md:col-start-1 md:row-start-1" onClick={onBack} />
-                <Button
-                  className="w-full md:col-start-3 md:row-start-1"
-                  onClick={onTryAgain}
-                  size="lg"
-                  type="button"
-                >
-                  <RotateCcwIcon />
-                  Try again
-                </Button>
-              </div>
-            </>
-          )}
-        </div>
-      </PassportScreen>
+      <ErrorScreen
+        accent="interrupted."
+        action={action}
+        back={<BackButton onClick={onBack} />}
+        cause={googleIdentityErrorMessage(error)}
+        details={{ code: error.code, detail: error.detailCode }}
+        nextStep={recovery.nextStep}
+        secondaryAction={
+          // Deleting abandons the pubky in the file, so it stays a quiet text action.
+          replacement && !replacement.retry ? (
+            <Button onClick={openConfirmation} type="button" variant="linkDestructive">
+              <TrashIcon />
+              Delete backup and start over…
+            </Button>
+          ) : null
+        }
+        title="Setup"
+      >
+        {replacement ? (
+          <p className="text-sm leading-5 text-muted-foreground">{REPLACEMENT_LOSS}</p>
+        ) : null}
+      </ErrorScreen>
 
       {replacement ? (
         <ConfirmDeletionDialog
-          confirmLabel="Delete and create new identity"
+          confirmLabel="Delete and start over"
           description={replacement.description}
-          error={replacement.error}
           id={replacement.id}
           onCancel={() => setConfirmationOpen(false)}
           onConfirm={replacement.onConfirm}
           open={confirmationOpen}
-          title="Permanently replace identity?"
+          title="Delete this backup and start over?"
         />
       ) : null}
     </>
@@ -175,7 +138,8 @@ function GoogleIdentityError({
 
 /**
  * Only file conditions Passport has verified itself offer replacement: a file that does not
- * parse, or one that parses but cannot be decrypted for the signed-in Google account.
+ * parse, or one this origin wrote that its key no longer decrypts. A file from another Passport
+ * origin is never offered for deletion.
  */
 function passportFileReplacement(
   code: GoogleIdentityViewError["code"],
@@ -191,29 +155,50 @@ function passportFileReplacement(
       return {
         id: "replace-invalid-passport-file",
         description:
-          "Passport will delete the invalid file from Google Drive and automatically create a new Pubky identity. This cannot be undone.",
-        error:
-          code === "invalid_passport_file_delete_failed"
-            ? "Passport could not delete the invalid identity file. Please try again."
-            : undefined,
+          "Passport will delete the damaged backup from Google Drive and create a new pubky right away. This can’t be undone.",
+        retry: code === "invalid_passport_file_delete_failed",
         onConfirm: actions.onReplaceInvalidFile,
       };
-    case "decrypt_failed":
+    case "passport_file_undecryptable":
     case "undecryptable_passport_file_delete_failed":
       if (!actions.onReplaceUndecryptableFile) return undefined;
       return {
         id: "replace-undecryptable-passport-file",
         description:
-          "Passport will delete the identity file it cannot decrypt from Google Drive and automatically create a new Pubky identity. The Pubky stored in that file will no longer be recoverable from this Google account. This cannot be undone.",
-        error:
-          code === "undecryptable_passport_file_delete_failed"
-            ? "Passport could not delete the identity file. Please try again."
-            : undefined,
+          "Passport will delete the backup it can no longer unlock from Google Drive and create a new pubky right away. The pubky in that backup can then no longer be restored with this Google account. This can’t be undone.",
+        retry: code === "undecryptable_passport_file_delete_failed",
         onConfirm: actions.onReplaceUndecryptableFile,
       };
     default:
       return undefined;
   }
+}
+
+/**
+ * A Drive file that names another Passport origin and that this origin could not unlock. The
+ * origin is unauthenticated: it comes from a file that failed validation or decryption, or whose
+ * key ID this server does not know. It is therefore shown only as unverified text, never as a
+ * link or a place to sign in. Nothing is offered for deletion: the file may be the only copy of
+ * an identity another site still opens.
+ */
+function ForeignPassportFile({
+  onBack,
+  passportFileOrigin,
+}: {
+  onBack: () => void;
+  passportFileOrigin: string;
+}) {
+  return (
+    <ErrorScreen
+      accent="elsewhere."
+      back={<BackButton onClick={onBack} />}
+      cause={googleIdentityErrorMessage({ code: "foreign_passport_file" })}
+      nextStep="Passport cannot confirm which site created this file. Only use your identity on a Passport site you already trust. To create a new identity here, go back and choose a different Google account."
+      title="Identity found"
+    >
+      <DetailField label="Site named in the file (unverified)" value={passportFileOrigin} />
+    </ErrorScreen>
+  );
 }
 
 function GoogleAccessDenied({
@@ -224,47 +209,61 @@ function GoogleAccessDenied({
   onTryAgain: () => void;
 }) {
   return (
-    <PassportScreen className="gap-6 md:gap-8">
-      <div className="flex flex-col gap-6 md:gap-3">
-        <DisplayHeading accent="denied." desktopAccentOnNewLine>
-          Google <span className="hidden md:inline">Drive</span> access
-        </DisplayHeading>
-        <LeadText className="md:hidden">
-          Passport needs Google Drive access to create or restore your Pubky.
-        </LeadText>
-        <LeadText className="hidden md:block">
-          Passport needs access to your Google Drive to create or restore your Pubky.
-        </LeadText>
-      </div>
-      <GooglePermissionGuide />
-      <div
-        aria-label="Mobile error actions"
-        className="mt-auto grid w-full grid-cols-1 gap-3 md:hidden"
-        role="group"
-      >
+    <ErrorScreen
+      accent="denied."
+      action={
         <Button className="w-full" onClick={onTryAgain} size="lg" type="button">
           <RotateCcwIcon />
           Try again
         </Button>
-        <BackButton onClick={onBack} />
-      </div>
-      <div
-        aria-label="Desktop error actions"
-        className="hidden w-full grid-cols-(--passport-error-actions-columns) items-center gap-0 md:grid"
-        role="group"
-      >
-        <BackButton className="md:col-start-1 md:row-start-1" onClick={onBack} />
-        <Button
-          className="w-full md:col-start-3 md:row-start-1"
-          onClick={onTryAgain}
-          size="lg"
-          type="button"
-        >
+      }
+      back={<BackButton onClick={onBack} />}
+      cause={
+        <>
+          <span className="md:hidden">
+            Passport needs Google Drive access to create or restore your pubky.
+          </span>
+          <span className="hidden md:inline">
+            Passport needs access to your Google Drive to create or restore your pubky.
+          </span>
+        </>
+      }
+      help={<GooglePermissionGuide />}
+      label="Google Drive access denied."
+      nextStep="Try again and allow Passport’s Google Drive access in Google’s window. The second permission also puts a copy of your backup in a “Pubky Passport” folder you can see."
+      title={
+        <>
+          Google <span className="hidden md:inline">Drive</span> access
+        </>
+      }
+    />
+  );
+}
+
+/**
+ * Google's window closed before it answered. The person usually closed it on purpose, so this is
+ * not reported as a failure with a code: nothing was created or changed.
+ */
+function GoogleSignInCancelled({
+  onBack,
+  onTryAgain,
+}: {
+  onBack: () => void;
+  onTryAgain: () => void;
+}) {
+  return (
+    <ErrorScreen
+      accent="cancelled."
+      action={
+        <Button className="w-full" onClick={onTryAgain} size="lg" type="button">
           <RotateCcwIcon />
           Try again
         </Button>
-      </div>
-    </PassportScreen>
+      }
+      back={<BackButton onClick={onBack} />}
+      cause={googleIdentityErrorMessage({ code: "google_authorization_popup_closed" })}
+      title="Google sign-in"
+    />
   );
 }
 
