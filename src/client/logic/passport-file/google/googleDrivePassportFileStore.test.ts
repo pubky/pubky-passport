@@ -15,6 +15,7 @@ const ENVELOPE: PassportFileEnvelope = {
   ct: "YZy1I_a6WzFnql8rW2A94EJrgz38Sqd1LV_KjVe2Qd2n1mvFMXg9qzRHwJ_WQvrm",
   url: "https://passport.pubky.app",
 };
+const OWN_ORIGIN = "https://passport.pubky.app";
 const INVALID_LENGTH_ENVELOPE = {
   ...ENVELOPE,
   iv: "abc123_-",
@@ -230,6 +231,31 @@ async function expectFailure(
 }
 
 describe("GoogleDrivePassportFileStore", () => {
+  it.each([
+    { files: [], present: false },
+    { files: [LISTED_FILE], present: true },
+    { files: [LISTED_FILE, { ...LISTED_FILE, id: "file-2" }], present: true },
+  ])(
+    "checks presence from metadata only: $present with $files.length files",
+    async ({ files, present }) => {
+      const { store, calls } = createStore([jsonResponse({ files })]);
+      await expectSuccess(store.hasPassportFile(), present);
+      expect(calls).toHaveLength(1);
+      expect(calls[0]).toMatchObject({
+        path: "/drive/v3/files",
+        method: "GET",
+        query: { spaces: "appDataFolder", q: "name = 'passport.json' and trashed = false" },
+      });
+      expect(calls[0]?.query.alt).toBeUndefined();
+    },
+  );
+
+  it("preserves access failures instead of reporting that no backup exists", async () => {
+    const { store, calls } = createStore([jsonResponse({ error: "denied" }, 403)]);
+    await expectFailure(store.hasPassportFile(), "forbidden", true);
+    expect(calls).toHaveLength(1);
+  });
+
   it("returns missing when Drive list has no passport file", async () => {
     const { store, calls } = createStore([jsonResponse({ files: [] })]);
 
@@ -282,7 +308,8 @@ describe("GoogleDrivePassportFileStore", () => {
 
     expect(Result.isError(result)).toBe(true);
     if (Result.isError(result)) {
-      expect(result.error).toEqual({ code: "invalid_file" });
+      // The origin a malformed file still names decides who may delete it; nothing else leaks.
+      expect(result.error).toEqual({ code: "invalid_file", passportFileOrigin: OWN_ORIGIN });
     }
     expect(JSON.stringify(result)).not.toContain(INVALID_LENGTH_ENVELOPE.iv);
     expect(JSON.stringify(result)).not.toContain(INVALID_LENGTH_ENVELOPE.ct);
@@ -304,7 +331,7 @@ describe("GoogleDrivePassportFileStore", () => {
       jsonResponse({ files: [LISTED_FILE] }),
       textResponse(JSON.stringify({ ...ENVELOPE, v: 3, futureField: true })),
     ]);
-    await expectAsyncResultError(store.deleteInvalidPassportFile(), {
+    await expectAsyncResultError(store.deleteInvalidPassportFile(OWN_ORIGIN), {
       code: "unsupported_file",
       cause: { code: "unsupported_version" },
     });
@@ -319,9 +346,35 @@ describe("GoogleDrivePassportFileStore", () => {
       new Response(null, { status: 204 }),
     ]);
 
-    await expectSuccess(store.deleteInvalidPassportFile(), "deleted");
+    await expectSuccess(store.deleteInvalidPassportFile(OWN_ORIGIN), "deleted");
 
     expect(calls).toHaveLength(4);
+    expect(calls[3]?.method).toBe("DELETE");
+  });
+
+  it("never deletes a malformed file that names another Passport origin", async () => {
+    const foreign = { ...INVALID_LENGTH_ENVELOPE, url: "https://passport-staging.pubky.app" };
+    const { store, calls } = createStore([
+      jsonResponse({ files: [LISTED_FILE] }),
+      textResponse(JSON.stringify(foreign)),
+    ]);
+
+    await expectAsyncResultError(store.deleteInvalidPassportFile(OWN_ORIGIN), {
+      code: "foreign_file",
+      passportFileOrigin: "https://passport-staging.pubky.app",
+    });
+    expect(calls.some((call) => call.method === "DELETE")).toBe(false);
+  });
+
+  it("deletes a malformed file that names no origin", async () => {
+    const { store, calls } = createStore([
+      jsonResponse({ files: [LISTED_FILE] }),
+      textResponse("{not json"),
+      jsonResponse(EXACT_FILE),
+      new Response(null, { status: 204 }),
+    ]);
+
+    await expectSuccess(store.deleteInvalidPassportFile(OWN_ORIGIN), "deleted");
     expect(calls[3]?.method).toBe("DELETE");
   });
 
@@ -331,7 +384,7 @@ describe("GoogleDrivePassportFileStore", () => {
       textResponse(JSON.stringify(ENVELOPE)),
     ]);
 
-    await expectFailure(store.deleteInvalidPassportFile(), "stale_file");
+    await expectFailure(store.deleteInvalidPassportFile(OWN_ORIGIN), "stale_file");
 
     expect(calls).toHaveLength(2);
     expect(calls.some((call) => call.method === "DELETE")).toBe(false);
@@ -340,7 +393,7 @@ describe("GoogleDrivePassportFileStore", () => {
   it("returns missing when the invalid file was removed before confirmation", async () => {
     const { store, calls } = createStore([jsonResponse({ files: [] })]);
 
-    await expectSuccess(store.deleteInvalidPassportFile(), "missing");
+    await expectSuccess(store.deleteInvalidPassportFile(OWN_ORIGIN), "missing");
     expect(calls).toHaveLength(1);
   });
 

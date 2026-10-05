@@ -5,23 +5,36 @@ import { Result, type Result as ResultType } from "better-result";
 import { LOGGER, safeErrorLogFields } from "@/libs/logger/logger";
 import { startHomeserverRepublish } from "@/client/logic/pubky/startHomeserverRepublish";
 import type { CodedFailure } from "@/libs/result";
-import {
-  LocalStorageIdentityRepository,
-  type LocalIdentityErrorCode,
-} from "@/client/logic/local-identity/LocalStorageIdentityRepository";
+import { LocalStorageIdentityRepository } from "@/client/logic/local-identity/LocalStorageIdentityRepository";
 import type { PubkyIdentityKey, PubkyPublicIdentity } from "@/client/logic/pubky/pubkyIdentityKey";
 import type { PubkySdkAdapter } from "@/client/logic/pubky/PubkySdkAdapter";
 import type { ValidatedPubkyAuthRequest } from "@/client/logic/authorization/request/ValidatedPubkyAuthRequest";
+import {
+  approvalFailureReason,
+  type ApprovalFailureReason,
+  type RestoreLocalIdentityErrorCode,
+} from "./approvalFailureReason";
 
-type ApproveAuthorizationResult = ResultType<void, CodedFailure<"approval_failed" | "cancelled">>;
+/**
+ * `identity_unavailable` / `storage_unavailable`: Passport could not unlock the chosen identity's
+ * key in this browser. `approval_failed` / `relay_unreachable`: the approval could not be made or
+ * did not reach the app's relay (PS-5 reasons, also sent to a verified opener).
+ */
+export type ApproveAuthorizationErrorCode = ApprovalFailureReason | "cancelled";
+
+type ApproveAuthorizationResult = ResultType<void, CodedFailure<ApproveAuthorizationErrorCode>>;
+
+/**
+ * How long Passport keeps the page open after posting an approval, so the background republish of
+ * the identity's homeserver record is not cut off by the return to the app. The approval is on the
+ * relay by then: an app already polling it may resolve the record before the republish lands.
+ */
+export const REPUBLISH_HANDOFF_WAIT_MS = 2_000;
 
 type RestoreLocalIdentityResult = ResultType<
   PubkyIdentityKey,
   CodedFailure<RestoreLocalIdentityErrorCode>
 >;
-
-type RestoreLocalIdentityErrorCode =
-  LocalIdentityErrorCode | "identity_mismatch" | "restore_failed";
 
 /**
  * Approves one request with the exact local identity selected during review.
@@ -68,7 +81,10 @@ export async function approveAuthorization(
         code: restored.error.code,
         ...safeErrorLogFields(restored.error),
       });
-      return Result.err({ code: "approval_failed", cause: restored.error });
+      return Result.err({
+        code: approvalFailureReason("identity_restore", restored.error),
+        cause: restored.error,
+      });
     }
 
     const restoredKey = restored.value.keyHandle;
@@ -78,13 +94,17 @@ export async function approveAuthorization(
     if (signal?.aborted) return Result.err({ code: "cancelled" });
     onCommit?.();
     const approved = await pubky.approveAuthRequest(restoredKey, authRequestUrl);
+    await settleWithin(republish, REPUBLISH_HANDOFF_WAIT_MS);
     if (Result.isError(approved)) {
       LOGGER.warn("authorize.approval.failed", {
         stage: "sdk_approve",
         code: approved.error.code,
         ...safeErrorLogFields(approved.error),
       });
-      return Result.err({ code: "approval_failed", cause: approved.error });
+      return Result.err({
+        code: approvalFailureReason("sdk_approve", approved.error),
+        cause: approved.error,
+      });
     }
     return Result.ok();
   } catch (e) {
@@ -93,7 +113,10 @@ export async function approveAuthorization(
       code: "unexpected_failure",
       ...safeErrorLogFields(e),
     });
-    return Result.err({ code: "approval_failed", cause: e });
+    return Result.err({
+      code: stage === "identity_restore" ? "identity_unavailable" : "approval_failed",
+      cause: e,
+    });
   } finally {
     if (republish) {
       void republish.finally(() => {
@@ -104,6 +127,21 @@ export async function approveAuthorization(
       disposeIdentityKey(pubky, keyHandle);
       disposePubky(pubky);
     }
+  }
+}
+
+/** Resolves once `task` settles or `milliseconds` pass, whichever comes first. */
+async function settleWithin(task: Promise<void>, milliseconds: number): Promise<void> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    await Promise.race([
+      task,
+      new Promise<void>((resolve) => {
+        timer = setTimeout(resolve, milliseconds);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
   }
 }
 

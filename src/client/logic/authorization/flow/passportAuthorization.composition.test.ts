@@ -69,8 +69,9 @@ describe("PassportAuthorizationController composition", () => {
     expect(controller.getState().status).toBe("review");
     expect(MOCKS.PubkySdkAdapter).not.toHaveBeenCalled();
 
-    await expect(controller.approve("missing-public-key")).resolves.toEqual({
+    await expect(controller.approve("missing-public-key")).resolves.toMatchObject({
       status: "failed",
+      reason: "identity",
     });
     expect(MOCKS.PubkySdkAdapter).toHaveBeenCalledOnce();
     expect(MOCKS.dispose).toHaveBeenCalledOnce();
@@ -84,8 +85,9 @@ describe("PassportAuthorizationController composition", () => {
     window.history.replaceState({}, "", `/authorize#d=${encodeURIComponent(validRequest())}`);
     controller = controllerFromCapturedUrl();
 
-    await expect(controller.approve("missing-public-key")).resolves.toEqual({
+    await expect(controller.approve("missing-public-key")).resolves.toMatchObject({
       status: "failed",
+      reason: "identity",
     });
     expect(MOCKS.dispose).toHaveBeenCalledOnce();
   });
@@ -98,8 +100,9 @@ describe("PassportAuthorizationController composition", () => {
     window.history.replaceState({}, "", `/authorize#d=${encodeURIComponent(validRequest())}`);
     controller = controllerFromCapturedUrl();
 
-    await expect(controller.approve("missing-public-key")).resolves.toEqual({
+    await expect(controller.approve("missing-public-key")).resolves.toMatchObject({
       status: "failed",
+      reason: "delivery",
     });
     expect(warning).toHaveBeenCalledOnce();
     expect(warning).toHaveBeenCalledWith("authorize.approval.failed", {
@@ -120,8 +123,9 @@ describe("PassportAuthorizationController composition", () => {
     window.history.replaceState({}, "", `/authorize#d=${encodeURIComponent(validRequest())}`);
     controller = controllerFromCapturedUrl();
 
-    await expect(controller.approve("missing-public-key")).resolves.toEqual({
+    await expect(controller.approve("missing-public-key")).resolves.toMatchObject({
       status: "failed",
+      reason: "identity",
     });
     expect(info).toHaveBeenCalledWith("identity.local_store.failed", {
       operation: "read_identity",
@@ -132,6 +136,39 @@ describe("PassportAuthorizationController composition", () => {
       diagnosticId: expect.any(String),
       errorName: "Error",
     });
+  });
+
+  it("does not authorize an expired entry or discard a completed identity", async () => {
+    const completed = identity(PUBLIC_KEY_Z32);
+    const repository = new LocalStorageIdentityRepository();
+    expect(Result.isOk(repository.save(completed, secretKey(1)))).toBe(true);
+    controller = new PassportAuthorizationController(window, { status: "expired" });
+
+    expect(controller.externalSignerUrl()).toBeUndefined();
+    await expect(controller.approve(PUBLIC_KEY_Z32)).resolves.toEqual({ status: "expired" });
+    expect(MOCKS.PubkySdkAdapter).not.toHaveBeenCalled();
+    const catalog = repository.list();
+    expect(Result.isOk(catalog) && catalog.value.identities).toEqual([completed]);
+  });
+
+  it("keeps a completed identity when an expired relay rejects approval", async () => {
+    const completed = identity(PUBLIC_KEY_Z32);
+    const repository = new LocalStorageIdentityRepository();
+    expect(Result.isOk(repository.save(completed, secretKey(1)))).toBe(true);
+    MOCKS.restoreIdentityKey.mockResolvedValue(
+      Result.ok({ keyHandle: {}, publicIdentity: completed.publicIdentity }),
+    );
+    MOCKS.approveAuthRequest.mockResolvedValue(Result.err({ code: "approval_failed" }));
+    window.history.replaceState({}, "", `/authorize#d=${encodeURIComponent(validRequest())}`);
+    controller = controllerFromCapturedUrl();
+
+    await expect(controller.approve(PUBLIC_KEY_Z32)).resolves.toMatchObject({
+      status: "failed",
+      reason: "delivery",
+    });
+    expect(controller.externalSignerUrl()).toBeUndefined();
+    const catalog = repository.list();
+    expect(Result.isOk(catalog) && catalog.value.identities).toEqual([completed]);
   });
 
   it("approves with the reviewed identity after another identity becomes active", async () => {
@@ -150,8 +187,11 @@ describe("PassportAuthorizationController composition", () => {
     window.history.replaceState({}, "", `/authorize#d=${encodeURIComponent(validRequest())}`);
     controller = controllerFromCapturedUrl();
 
-    await expect(controller.approve(firstIdentity.publicIdentity.publicKeyZ32)).resolves.toEqual({
+    await expect(
+      controller.approve(firstIdentity.publicIdentity.publicKeyZ32),
+    ).resolves.toMatchObject({
       status: "approved",
+      review: expect.objectContaining({ capabilities: expect.any(Array) }),
     });
 
     expect(restoredSecretByte).toBe(1);

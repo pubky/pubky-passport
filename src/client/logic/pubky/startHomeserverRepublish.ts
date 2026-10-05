@@ -5,7 +5,7 @@ import { Result } from "better-result";
 import { LOGGER, safeErrorLogFields } from "@/libs/logger/logger";
 import type { CodedFailure } from "@/libs/result";
 
-/** Starts a homeserver republish that never rejects and must not be awaited on a user path. */
+/** Starts a homeserver republish that never rejects; a user path may await it only with a bound. */
 export function startHomeserverRepublish(
   publish: () => Promise<Result<void, CodedFailure<string>>>,
 ): Promise<void> {

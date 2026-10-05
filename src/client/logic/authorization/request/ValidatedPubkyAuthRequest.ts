@@ -5,6 +5,7 @@ import { Result, type Result as ResultType } from "better-result";
 import { LOGGER, safeErrorLogFields } from "@/libs/logger/logger";
 import {
   parseEncodedPubkyAuthRequest,
+  displaySafeLabel,
   type ParsedPubkyAuthRequest,
   type PubkyAuthenticationMethod,
   type PubkyAuthParseError,
@@ -24,6 +25,7 @@ export type AuthorizationRequestReview = Readonly<{
   authenticationMethod: PubkyAuthenticationMethod;
   capabilities: readonly AuthorizationCapability[];
   requesterName?: string;
+  clientId?: string;
   callbackHost?: string;
 }>;
 
@@ -102,7 +104,7 @@ export class ValidatedPubkyAuthRequest {
 function createAuthorizationReview(
   parsed: Pick<
     ParsedPubkyAuthRequest,
-    "authenticationMethod" | "capabilities" | "callbacks" | "source"
+    "authenticationMethod" | "capabilities" | "callbacks" | "source" | "clientId"
   >,
 ): AuthorizationRequestReview {
   const capabilities = Object.freeze(
@@ -114,17 +116,35 @@ function createAuthorizationReview(
     ),
   );
   const callbackHost = getCallbackHost(parsed.callbacks);
+  const clientId = parsed.clientId ? displaySafeLabel(parsed.clientId) : undefined;
 
   return Object.freeze({
     authenticationMethod: parsed.authenticationMethod,
     capabilities,
     ...(parsed.source ? { requesterName: parsed.source } : {}),
+    ...(clientId ? { clientId } : {}),
     ...(callbackHost ? { callbackHost } : {}),
   });
 }
 
 function getCapabilityScope(path: string): AuthorizationCapability["scope"] {
-  return path === "/" || path === "/pub/" || path === "/priv/" ? "broad" : "specific";
+  return capabilityReach(path) === undefined ? "specific" : "broad";
+}
+
+/**
+ * How much of a person's data a capability path reaches beyond any one app's folder: `all` for a
+ * path that covers both `/pub/` and `/priv/`, `public` or `private` for one covering only that
+ * side, `undefined` for anything narrower. A grant covers every path that starts with its own, so
+ * `/pub` and `/priv` (no trailing slash), and shorter prefixes such as `/p`, reach as far as
+ * `/pub/`, `/priv/` or `/` do.
+ */
+export function capabilityReach(path: string): "all" | "public" | "private" | undefined {
+  const coversPublic = "/pub/".startsWith(path);
+  const coversPrivate = "/priv/".startsWith(path);
+  if (coversPublic && coversPrivate) return "all";
+  if (coversPublic) return "public";
+  if (coversPrivate) return "private";
+  return undefined;
 }
 
 function getCallbackHost(callbacks: Readonly<ValidatedPubkyAuthCallbacks>): string | undefined {
