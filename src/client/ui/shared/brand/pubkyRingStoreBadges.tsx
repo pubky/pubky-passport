@@ -1,13 +1,25 @@
 import Image from "next/image";
 
+import { cn } from "../mergeClassNames";
+
 const APP_STORE_URL = "https://apps.apple.com/us/app/pubky-ring/id6739356756";
 const GOOGLE_PLAY_URL = "https://play.google.com/store/apps/details?id=to.pubky.ring&hl=en-US";
 
-function PubkyRingStoreBadges() {
+/**
+ * Each badge link is at least 44px tall, so a thumb hits it even where the badge art is smaller.
+ * `align` lines the pair up with what it sits under: centred under a code, or on a card's text edge.
+ */
+function PubkyRingStoreBadges({ align }: { align: "center" | "start" }) {
   return (
-    <div className="flex items-center justify-center gap-4 md:justify-start">
+    <div
+      className={cn(
+        "flex flex-wrap items-center gap-4",
+        align === "center" ? "justify-center" : "justify-start",
+      )}
+    >
       <a
         aria-label="Download Pubky Ring on the App Store"
+        className="flex min-h-11 items-center rounded-md"
         href={APP_STORE_URL}
         rel="noreferrer"
         target="_blank"
@@ -22,6 +34,7 @@ function PubkyRingStoreBadges() {
       </a>
       <a
         aria-label="Get Pubky Ring on Google Play"
+        className="flex min-h-11 items-center rounded-md"
         href={GOOGLE_PLAY_URL}
         rel="noreferrer"
         target="_blank"

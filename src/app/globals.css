@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* A phone on its side: too short to stack a sheet's content, wide enough to set it side by side. */
+@custom-variant short-landscape (@media (orientation: landscape) and (max-height: 30rem));
+
 @theme {
   --font-sans: "Inter Tight Variable", "Inter Tight", sans-serif;
   --color-background: var(--background);
@@ -19,6 +22,8 @@
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
   --color-destructive-surface: var(--destructive-surface);
+  --color-destructive-text: var(--destructive-text);
+  --color-warning: var(--warning);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-input-surface: var(--input-surface);
@@ -39,8 +44,7 @@
   --passport-content-columns: minmax(0, 1fr) 281px;
   --passport-recovery-heading-min-height: 136px;
   --passport-recovery-body-min-height: 224px;
-  --passport-navigation-columns: 120px 1fr 228px;
-  --passport-error-actions-columns: 120px 1fr 148px;
+  --passport-navigation-columns: 120px 1fr minmax(228px, max-content);
   --passport-overview-columns: 96px 1fr;
   --passport-overview-rows: minmax(104px, auto) minmax(60px, auto) minmax(40px, auto);
   --radius: 0.625rem;
@@ -61,8 +65,12 @@
   --destructive: oklch(0.628 0.258 29.234);
   --destructive-foreground: #fef2f2;
   --destructive-surface: #ff000099;
+  /* Error text on the page, cards and dialogs; destructive-foreground is for text on red. */
+  --destructive-text: #ff8a80;
+  --warning: oklch(0.828 0.189 84.429);
   --border: #303034;
-  --input: #525252;
+  /* Field borders are often the only edge of a field, so they keep 3:1 against cards and dialogs. */
+  --input: #76767e;
   --input-surface: #ffffff0b;
   --ring: oklch(0.55 0.008 286.145);
   --brand: #c8ff00;
@@ -78,6 +86,17 @@
   * {
     border-color: var(--border);
   }
+
+  /*
+   * One focus indicator for every control: a solid outline in the text colour, drawn outside the
+   * control so its own border keeps its colour. Outlines also survive forced-colours mode, where
+   * box-shadow rings disappear. Elements that take focus only programmatically opt out with
+   * `outline-none`.
+   */
+  :focus-visible {
+    outline: 2px solid var(--foreground);
+    outline-offset: 2px;
+  }
 }
 
 body {
@@ -87,10 +106,23 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans);
+  /* Inter Tight's contextual alternates draw an x between two digits as "×" in keys and invoices. */
+  font-variant-ligatures: no-contextual;
 }
 
 body:has([data-passport-context-band]) {
   --passport-context-band-height: 34px;
+}
+
+/*
+ * Below md a form may pin its actions to the bottom of the window (`data-sticky-actions`). Focus
+ * then scrolls a field clear of that bar instead of leaving it underneath (WCAG 2.4.11).
+ */
+@media (width < 48rem) {
+  html:has([data-sticky-actions]) {
+    /* The bar is one row (about 5.5rem) at every width; the rest keeps a field's hint in view. */
+    scroll-padding-bottom: calc(9rem + env(safe-area-inset-bottom));
+  }
 }
 
 @layer components {
@@ -132,15 +164,10 @@ body:has([data-passport-context-band]) {
     text-decoration-line: underline;
     text-decoration-color: color-mix(in oklab, var(--brand) 40%, transparent);
     text-underline-offset: 4px;
-    outline: none;
   }
 
   .legal-document a:hover {
     text-decoration-color: var(--brand);
-  }
-
-  .legal-document a:focus-visible {
-    box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring) 50%, transparent);
   }
 
   .legal-document strong {

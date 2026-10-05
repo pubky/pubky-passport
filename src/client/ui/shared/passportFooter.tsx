@@ -8,7 +8,7 @@ function PassportFooter() {
         <p className="text-sm font-medium leading-5 text-muted-foreground md:hidden">
           Pubky Passport is powered by the{" "}
           <a
-            className="rounded-sm font-semibold text-brand underline decoration-brand/40 underline-offset-4 outline-none hover:decoration-brand focus-visible:ring-3 focus-visible:ring-ring/50"
+            className="rounded-sm font-semibold text-brand underline decoration-brand/40 underline-offset-4 hover:decoration-brand"
             href="https://pubky.org/"
             rel="noreferrer"
             target="_blank"

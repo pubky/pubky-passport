@@ -2,7 +2,7 @@ import type { ComponentPropsWithoutRef } from "react";
 
 function GoogleLogo(props: ComponentPropsWithoutRef<"svg">) {
   return (
-    <svg aria-hidden="true" height="16" viewBox="0 0 16 16" width="16" {...props}>
+    <svg aria-hidden="true" data-slot="icon" height="16" viewBox="0 0 16 16" width="16" {...props}>
       <path
         d="M0 0V3.09819H4.30544C4.11638 4.09455 3.54904 4.93822 2.69815 5.50548L5.2945 7.52004C6.80722 6.12373 7.67996 4.0728 7.67996 1.63644C7.67996 1.06918 7.62906.523675 7.53449.000087Z"
         fill="#4285F4"
