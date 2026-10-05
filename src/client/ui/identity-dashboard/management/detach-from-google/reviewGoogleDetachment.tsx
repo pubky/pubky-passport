@@ -1,16 +1,22 @@
 import Image from "next/image";
 
+import type { GoogleAccountProfile } from "@/libs/googleAccountProfile";
+import { GoogleAccountTag } from "@/client/ui/shared/googleAccountTag";
 import { TrashIcon } from "@/client/ui/shared/icons";
 import { BackButton } from "@/client/ui/shared/backButton";
+import { Notice } from "@/client/ui/shared/notice";
 import { PassportNavigation } from "@/client/ui/shared/passportNavigation";
 import { PassportScreen } from "@/client/ui/shared/passportScreen";
 import { Button } from "@/client/ui/shared/primitives/button";
 import { DisplayHeading, LeadText } from "@/client/ui/shared/primitives/typography";
 
+/** Names the Google account whose backup goes, for people with more than one. */
 function ReviewGoogleDetachment({
+  googleAccount,
   onBack,
   onRemove,
 }: {
+  googleAccount: Pick<GoogleAccountProfile, "email" | "pictureUrl">;
   onBack: () => void;
   onRemove: () => void;
 }) {
@@ -20,15 +26,21 @@ function ReviewGoogleDetachment({
         <DisplayHeading accent="from Google." aria-label="Detach from Google.">
           Detach{" "}
         </DisplayHeading>
-        <LeadText>You are about to remove Google as a way to access your pubky identity.</LeadText>
+        <div className="flex flex-col items-start gap-3">
+          <LeadText>
+            You are about to remove this Google account as a way to access your pubky:
+          </LeadText>
+          {/* The account this screen is about: its picture large enough to recognise. */}
+          <GoogleAccountTag account={googleAccount} size="lg" />
+        </div>
       </div>
 
-      <div className="rounded-md bg-destructive-surface px-4 py-3 text-sm font-medium leading-5 text-destructive-foreground">
-        Warning: Make sure you can sign in with your keychain or encrypted key before removing
-        Google access. This can’t be undone.
-      </div>
+      {/* The step before made sure of another backup; this says only what detaching keeps. */}
+      <Notice tone="info">
+        You’ll stay signed in on this device and can back up to Google again.
+      </Notice>
 
-      <div className="relative flex h-[248px] w-full items-center justify-center md:-ml-[101px] md:h-56 md:w-[790px]">
+      <div className="relative flex h-[248px] w-full items-center justify-center md:h-56 lg:-ml-[101px] lg:w-[790px]">
         <Image
           alt=""
           aria-hidden="true"
@@ -59,7 +71,7 @@ function ReviewGoogleDetachment({
             variant="destructive"
           >
             <TrashIcon />
-            Remove Google Access
+            Detach from Google
           </Button>
         }
       />

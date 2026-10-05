@@ -1,18 +1,24 @@
 import Image from "next/image";
-
 import { RotateCcwIcon } from "@/client/ui/shared/icons";
 import { BackButton } from "@/client/ui/shared/backButton";
-import { PassportScreen } from "@/client/ui/shared/passportScreen";
+import { ErrorScreen } from "@/client/ui/shared/errorScreen";
+import { cn } from "@/client/ui/shared/mergeClassNames";
 import { Button } from "@/client/ui/shared/primitives/button";
-import { DisplayHeading, LeadText } from "@/client/ui/shared/primitives/typography";
+
+/**
+ * Primes the choice in Google's consent window, where both Drive boxes start unticked. Said the
+ * same way wherever Google's window is about to open.
+ */
+const DRIVE_PERMISSION_HINT = "Google will ask for two Drive permissions. Tick both.";
 
 const PERMISSION_COPY = {
   required:
     "Passport needs the first Google Drive permission to store and restore your encrypted identity. Select it in Google’s window to continue.",
+  // The second permission only adds a copy of the same encrypted file where the person can see it.
   optional:
-    "You allowed private backup storage, but not visible recovery copies. Passport can continue, but it won’t create a visible backup in your Google Drive.",
+    "You ticked the first box but not the second. Passport can still back up your pubky to Google Drive, but it won’t put a copy in a “Pubky Passport” folder you can see. That copy only makes the backup easy to find and harder to delete by accident.",
   detach:
-    "Passport needs both Google Drive permissions to delete your encrypted identity and visible recovery copies before removing Google access. Select both in Google’s window to continue.",
+    "Passport needs both Google Drive permissions to delete your encrypted backup and its copy in your “Pubky Passport” folder before removing Google access. Select both in Google’s window to continue.",
 };
 
 function GoogleDrivePermissionPrompt({
@@ -27,55 +33,80 @@ function GoogleDrivePermissionPrompt({
   onTryAgain: () => void;
 }) {
   return (
-    <PassportScreen className="gap-6 md:max-w-[558px] md:gap-8">
-      <div className="flex flex-col gap-6 md:gap-3">
-        <DisplayHeading accent={mode === "optional" ? "optional." : "required."}>
-          Drive access
-        </DisplayHeading>
-        <LeadText>{PERMISSION_COPY[mode]}</LeadText>
-      </div>
-
-      <GooglePermissionGuide />
-
-      <div className="mt-auto flex w-full flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <BackButton onClick={onBack} />
-        <div className="flex flex-col gap-3 md:flex-row">
-          {mode === "optional" && onContinue ? (
-            <Button onClick={onContinue} size="lg" type="button" variant="secondary">
-              Continue without visible backup
-            </Button>
-          ) : null}
-          <Button onClick={onTryAgain} size="lg" type="button">
-            <RotateCcwIcon />
-            Try again
+    <ErrorScreen
+      accent={mode === "optional" ? "optional." : "required."}
+      action={
+        <Button className="w-full" onClick={onTryAgain} size="lg" type="button">
+          <RotateCcwIcon />
+          Try again
+        </Button>
+      }
+      back={<BackButton onClick={onBack} />}
+      cause={PERMISSION_COPY[mode]}
+      help={<GooglePermissionGuide />}
+      secondaryAction={
+        mode === "optional" && onContinue ? (
+          <Button onClick={onContinue} type="button" variant="link">
+            Skip the folder copy
           </Button>
-        </div>
-      </div>
-    </PassportScreen>
+        ) : null
+      }
+      title="Drive access"
+    />
   );
 }
 
-function GooglePermissionGuide() {
+const GUIDE_CAPTION =
+  "In Google’s window, tick Select all (or both Drive boxes), then press Continue.";
+
+/**
+ * What to tick in Google's consent window, as an illustration rather than a copy of Google's
+ * controls, with the instruction as real text in the caption (or, where the screen already gives
+ * the instruction, no caption and only a name for the picture). The animation always plays; with
+ * reduced motion a still picture of both Drive boxes ticked takes its place, cropped above
+ * Google's own Cancel and Continue so they are not mistaken for Passport's. Screens place it
+ * after their actions, so the actions come first in reading and focus order and stay above the
+ * fold in an app's popup.
+ */
+function GooglePermissionGuide({
+  compact = false,
+  label,
+}: {
+  compact?: boolean;
+  /**
+   * Names the picture for assistive technology where the screen already gives the instruction:
+   * the figure then shows no caption.
+   */
+  label?: string | undefined;
+}) {
+  const width = compact ? "max-w-[360px]" : "max-w-[480px]";
   return (
-    <figure className="w-full">
-      <Image
-        alt="Animation showing a pointer selecting both Google Drive permission checkboxes with Select all, then clicking Continue."
-        className="mx-auto h-auto w-full max-w-[480px] rounded-2xl motion-reduce:hidden"
-        height={776}
-        src="/illustrations/google-drive-permissions.gif"
-        unoptimized
-        width={960}
-      />
-      <Image
-        alt="Both Google Drive permission checkboxes selected: configuration data and files used with this app."
-        className="mx-auto hidden h-auto w-full max-w-[480px] rounded-2xl motion-reduce:block"
-        height={776}
-        src="/illustrations/google-drive-permissions-still.png"
-        unoptimized
-        width={960}
-      />
+    <figure aria-label={label} className="flex w-full flex-col items-center gap-3">
+      <div className={cn("w-full overflow-hidden rounded-2xl ring-1 ring-border", width)}>
+        <Image
+          alt="Animation of a pointer ticking Select all, which ticks both Google Drive boxes, then pressing Continue."
+          className="block h-auto w-full motion-reduce:hidden"
+          height={776}
+          src="/illustrations/google-drive-permissions.gif"
+          unoptimized
+          width={960}
+        />
+        <Image
+          alt="Google’s permission window with Select all and both Google Drive boxes ticked."
+          className="hidden aspect-[960/640] h-auto w-full object-cover object-top motion-reduce:block"
+          height={776}
+          src="/illustrations/google-drive-permissions-still.png"
+          unoptimized
+          width={960}
+        />
+      </div>
+      {label === undefined ? (
+        <figcaption className={cn("text-center text-sm leading-5 text-muted-foreground", width)}>
+          {GUIDE_CAPTION}
+        </figcaption>
+      ) : null}
     </figure>
   );
 }
 
-export { GoogleDrivePermissionPrompt, GooglePermissionGuide };
+export { DRIVE_PERMISSION_HINT, GoogleDrivePermissionPrompt, GooglePermissionGuide };

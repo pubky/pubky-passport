@@ -1,22 +1,30 @@
-import Image from "next/image";
 import { Result } from "better-result";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 
 import type { LocalIdentityResult } from "@/client/logic/local-identity/LocalStorageIdentityRepository";
 import type { PubkyRingMigration } from "@/client/logic/pubky/PubkySdkAdapter";
 import { PubkyBrandIcon } from "@/client/ui/shared/brand/pubkyBrandIcon";
-import { PubkyRingLogo } from "@/client/ui/shared/brand/pubkyRingLogo";
-import { PubkyRingStoreBadges } from "@/client/ui/shared/brand/pubkyRingStoreBadges";
-import { CheckIcon, ScanIcon } from "@/client/ui/shared/icons";
+import { ArrowRightIcon, CheckIcon, ScanIcon } from "@/client/ui/shared/icons";
 import { BackButton } from "@/client/ui/shared/backButton";
+import { Notice } from "@/client/ui/shared/notice";
 import { PassportNavigation } from "@/client/ui/shared/passportNavigation";
-import { PassportScreen } from "@/client/ui/shared/passportScreen";
+import { cn } from "@/client/ui/shared/mergeClassNames";
 import { Button } from "@/client/ui/shared/primitives/button";
-import { DisplayHeading, LeadText } from "@/client/ui/shared/primitives/typography";
+import { Spinner } from "@/client/ui/shared/primitives/spinner";
+import { RingHandoffCard } from "@/client/ui/shared/ringHandoffCard";
+import { RingHandoffScreen, RingHandoffStatus } from "@/client/ui/shared/ringHandoffScreen";
+import { useDeepLinkLauncher, useRingHandoffMode } from "@/client/ui/shared/useRingHandoff";
 import { PubkyRingQrCode } from "./pubkyRingQrCode";
 import { PubkyRingQrDialog } from "./pubkyRingQrDialog";
 
 type MigrationMode = "desktop" | "dialog";
+
+const DESKTOP_QUERY = "(min-width: 48rem)";
+
+/** The QR code is the private key: anyone who sees it holds the identity. */
+const QR_WARNING =
+  "This code contains your private key. Anyone who scans it can use your pubky. Don’t show it on a shared or recorded screen.";
 
 type PubkyRingMigrationState =
   | { status: "idle" }
@@ -26,22 +34,35 @@ type PubkyRingMigrationState =
 
 const IDLE_MIGRATION_STATE: PubkyRingMigrationState = { status: "idle" };
 
+/** Said in a toast that stays until read or closed; the card offers the same action again. */
+const EXPORT_FAILED =
+  "Passport couldn’t read this key from browser storage. Try again, or download a recovery file instead.";
+const FAILURE_TOAST_MS = 10_000;
+
 function MigrateToPubkyRing({
   createMigration,
   navigationAction,
   onBack,
+  onContinue,
 }: {
   createMigration: () => Promise<LocalIdentityResult<PubkyRingMigration>>;
-  navigationAction: "back" | "continue";
+  navigationAction: "back" | "done";
   onBack: () => void;
+  /**
+   * Goes on to Verify in Pubky Ring, the step after the export: Ring cannot report the import, so
+   * the person continues once Ring has the key, and the check there shows it does.
+   */
+  onContinue?: (() => void) | undefined;
 }) {
   const [state, setState] = useState<PubkyRingMigrationState>(IDLE_MIGRATION_STATE);
+  const pending = state.status === "loading";
   // Ownership lives outside React state on purpose: `ownedMigrationRef` lets every transition
   // dispose the previous secret-bearing handle synchronously (a reducer or effect cleanup would
   // double-run or free a handle a Strict Mode remount still renders), `requestRef` cancels
   // event-handler-initiated loads that settle after invalidation, and `createMigrationRef`
   // keeps a changed `createMigration` prop from regenerating a ready QR on parent re-renders.
   const requestRef = useRef(0);
+  const statusRef = useRef<PubkyRingMigrationState["status"]>("idle");
   const ownedMigrationRef = useRef<PubkyRingMigration | undefined>(undefined);
   const createMigrationRef = useRef(createMigration);
 
@@ -53,6 +74,7 @@ function MigrateToPubkyRing({
   const commitOwned = useCallback((next: PubkyRingMigrationState) => {
     ownedMigrationRef.current?.dispose();
     ownedMigrationRef.current = next.status === "ready" ? next.migration : undefined;
+    statusRef.current = next.status;
     setState(next);
   }, []);
 
@@ -72,6 +94,11 @@ function MigrateToPubkyRing({
     }
     if (Result.isError(result)) {
       commitOwned({ status: "failed" });
+      toast.error(EXPORT_FAILED, {
+        closeButton: true,
+        duration: FAILURE_TOAST_MS,
+        id: EXPORT_FAILED,
+      });
       return null;
     }
     return result.value;
@@ -85,33 +112,52 @@ function MigrateToPubkyRing({
     [commitOwned, requestMigration],
   );
 
+  // The pointer decides whether this device can open Ring, not the width: a computer (fine
+  // pointer) cannot, so it gets only the QR code; a phone only opens this pubky in Ring.
+  const mode = useRingHandoffMode();
+  // The QR code appears only when asked for, and goes away when the layout switches between the
+  // inline code and the drawer or the page is hidden (another tab, a minimised window). A failure
+  // message stays until the next attempt.
   useEffect(() => {
-    if (typeof globalThis.matchMedia !== "function") return invalidate;
-    const media = globalThis.matchMedia("(min-width: 48rem)");
-
-    async function syncDesktop() {
-      invalidate();
-      if (media.matches) await load("desktop");
-    }
-
-    void syncDesktop();
-    const onChange = () => {
-      void syncDesktop();
+    const withdraw = () => {
+      if (statusRef.current !== "failed") invalidate();
     };
-    media.addEventListener("change", onChange);
+    const hide = () => {
+      if (document.hidden) withdraw();
+    };
+    const media =
+      typeof globalThis.matchMedia === "function" ? globalThis.matchMedia(DESKTOP_QUERY) : null;
+    document.addEventListener("visibilitychange", hide);
+    media?.addEventListener("change", withdraw);
     return () => {
-      media.removeEventListener("change", onChange);
+      document.removeEventListener("visibilitychange", hide);
+      media?.removeEventListener("change", withdraw);
       invalidate();
     };
-  }, [invalidate, load]);
+  }, [invalidate]);
+
+  function showQr() {
+    const desktop =
+      typeof globalThis.matchMedia === "function" && globalThis.matchMedia(DESKTOP_QUERY).matches;
+    void load(desktop ? "desktop" : "dialog");
+  }
+
+  // A phone opens this pubky in Pubky Ring and is never shown the code, which it could not scan
+  // from its own screen: Open in Pubky Ring stays for another try, and the store badges below
+  // are there for a phone without Ring.
+  const [, launcher] = useDeepLinkLauncher();
 
   async function importPubky() {
-    const migration = ownedMigrationRef.current ?? (await requestMigration());
+    // Only a phone opens this pubky in Ring, and a phone is never shown the code, so each press
+    // makes its own export.
+    const migration = await requestMigration();
     if (!migration) return;
     // Own a freshly created handle so the invalidation below disposes it even if navigate throws.
     ownedMigrationRef.current = migration;
     try {
-      migration.navigate();
+      launcher?.launch(() => {
+        if (!migration.navigate()) throw new Error("Migration link unavailable.");
+      });
     } finally {
       invalidate();
     }
@@ -122,89 +168,114 @@ function MigrateToPubkyRing({
     onBack();
   }
 
-  const pending = state.status === "loading";
-  const exportFailed = state.status === "failed";
+  function next() {
+    invalidate();
+    onContinue?.();
+  }
+
+  const continueButton = onContinue ? (
+    <Button className="w-full" onClick={next} size="lg" type="button">
+      <ArrowRightIcon />
+      Continue
+    </Button>
+  ) : undefined;
+
+  const desktopQr = state.status === "ready" && state.mode === "desktop";
+  // A computer only shows the code and a phone only opens Ring, so one control waits at a time.
+  const qrLoading = pending;
 
   return (
-    <PassportScreen className="gap-6 md:gap-8">
-      <div className="flex flex-col gap-6 md:gap-3">
-        <DisplayHeading accent="keychain." aria-label="Migrate to keychain.">
-          Migrate to
-        </DisplayHeading>
-        <LeadText>Install a supported keychain app to self-manage your pubky identity.</LeadText>
-      </div>
-
-      <section className="flex w-full flex-col gap-6 rounded-2xl bg-card p-6 md:flex-row md:p-12">
-        <div className="flex min-w-0 flex-1 flex-col gap-6 md:justify-center">
-          <div className="flex justify-center md:justify-start">
-            <PubkyRingLogo />
-          </div>
-          <PubkyRingStoreBadges />
-          <p className="hidden text-sm font-medium leading-5 text-muted-foreground md:block">
-            Scan this QR with Pubky Ring to import and self-manage your pubky identity.
-          </p>
-
-          {exportFailed ? (
-            <p className="text-center text-sm text-muted-foreground md:text-left">
-              The active Pubky could not be exported.
-            </p>
-          ) : null}
-
-          <div className="flex flex-col gap-3 md:hidden">
-            <Button
-              disabled={pending}
-              onClick={() => {
-                void load("dialog");
-              }}
-              size="lg"
-              type="button"
-              variant="secondary"
-            >
-              <ScanIcon />
-              Show QR
-            </Button>
-            <Button
-              disabled={pending}
-              onClick={() => {
-                void importPubky();
-              }}
-              size="lg"
-              type="button"
-            >
-              <PubkyBrandIcon />
-              Import pubky
-            </Button>
-          </div>
-        </div>
-        {state.status === "ready" && state.mode === "desktop" ? (
-          <PubkyRingQrCode className="size-48 shrink-0" migration={state.migration} />
-        ) : null}
-      </section>
-
-      <Image
-        alt=""
-        className="mx-auto size-50 md:hidden"
-        height={200}
-        src="/illustrations/keychain.png"
-        width={200}
-      />
-
-      {navigationAction === "back" ? (
-        <PassportNavigation back={<BackButton onClick={back} />} />
-      ) : (
-        <PassportNavigation
-          confirm={
-            <Button className="w-full" onClick={back} size="lg" type="button">
-              <CheckIcon />
-              Continue
-            </Button>
-          }
-        />
-      )}
+    <RingHandoffScreen
+      action="Migrate to"
+      instruction={
+        mode === "open"
+          ? "Pubky Ring is a phone app that keeps your key. Open this pubky in Pubky Ring to add it there."
+          : "Pubky Ring is a phone app that keeps your key. Scan the code with Pubky Ring on your phone to add it there."
+      }
+      navigation={
+        navigationAction === "back" ? (
+          <PassportNavigation back={<BackButton onClick={back} />} confirm={continueButton} />
+        ) : (
+          // Ring cannot report the import, so this goes on to its check, or only returns to the
+          // screen that sent the person.
+          <PassportNavigation
+            confirm={
+              continueButton ?? (
+                <Button className="w-full" onClick={back} size="lg" type="button">
+                  <CheckIcon />
+                  Done
+                </Button>
+              )
+            }
+          />
+        )
+      }
+      status={
+        <RingHandoffStatus>
+          Once Pubky Ring has it, your key is in both places.{" "}
+          {onContinue ? "Continue to check that Pubky Ring holds it. " : null}To keep it only in
+          Pubky Ring, remove it from this browser afterwards.
+        </RingHandoffStatus>
+      }
+    >
+      <RingHandoffCard label="Copy your key to Pubky Ring">
+        {mode === "open" ? (
+          <Button
+            className="w-full"
+            loading={pending}
+            onClick={() => {
+              void importPubky();
+            }}
+            size="lg"
+            type="button"
+          >
+            <PubkyBrandIcon />
+            Open in Pubky Ring
+          </Button>
+        ) : (
+          <>
+            <Notice className="w-full" tone="warning">
+              {QR_WARNING}
+            </Notice>
+            {/* The square is the control: a placeholder until pressed, then the code, which hides
+                again when pressed. One button throughout, so focus stays on it; the code is its
+                sibling, so it keeps its own name. A phone has none. */}
+            <div className="relative size-48 shrink-0">
+              {desktopQr ? (
+                <PubkyRingQrCode className="size-full" migration={state.migration} />
+              ) : null}
+              <button
+                aria-busy={qrLoading || undefined}
+                aria-expanded={desktopQr}
+                aria-label={desktopQr ? "Hide QR code" : "Show QR code"}
+                className={cn(
+                  "absolute inset-0 flex cursor-pointer flex-col items-center justify-center gap-2 rounded-md p-4 text-center text-xs leading-4 text-muted-foreground transition-colors disabled:cursor-default disabled:opacity-50 [&_svg]:size-4",
+                  !desktopQr &&
+                    "border border-dashed border-border hover:border-foreground/40 hover:text-foreground",
+                )}
+                onClick={qrLoading ? undefined : desktopQr ? invalidate : showQr}
+                type="button"
+              >
+                {desktopQr ? null : qrLoading ? (
+                  <Spinner decorative />
+                ) : (
+                  <>
+                    <ScanIcon />
+                    <span aria-hidden="true">
+                      <span className="pointer-coarse:hidden">Click</span>
+                      <span className="hidden pointer-coarse:inline">Tap</span> to show QR code
+                    </span>
+                  </>
+                )}
+              </button>
+            </div>
+          </>
+        )}
+      </RingHandoffCard>
       {state.status === "ready" && state.mode === "dialog" ? (
-        <PubkyRingQrDialog migration={state.migration} onClose={invalidate} />
+        <PubkyRingQrDialog migration={state.migration} onClose={invalidate} warning={QR_WARNING} />
       ) : null}
-    </PassportScreen>
+    </RingHandoffScreen>
   );
 }
 
