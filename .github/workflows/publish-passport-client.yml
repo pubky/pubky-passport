@@ -1,0 +1,63 @@
+name: Publish @pubky/passport-client
+
+# Publishes the package to npm with provenance. Runs only when a maintainer pushes a
+# `passport-client-v<version>` tag (or starts it by hand on such a tag), and refuses a tag that does
+# not match packages/passport-client/package.json.
+on:
+  push:
+    tags:
+      - "passport-client-v*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-passport-client
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: npm
+    permissions:
+      contents: read
+      # npm provenance: the package links back to this workflow run and commit.
+      id-token: write
+
+    steps:
+      - name: Checkout
+        # actions/checkout v4, pinned to a commit SHA to avoid mutable tag drift.
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+
+      - name: Enable corepack
+        run: corepack enable
+
+      - name: Setup Node
+        # actions/setup-node v4, pinned to a commit SHA to avoid mutable tag drift.
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version-file: ".nvmrc"
+          cache: "pnpm"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Check the tag matches the package version
+        run: |
+          version=$(node -p "require('./packages/passport-client/package.json').version")
+          if [ "$GITHUB_REF_TYPE" != "tag" ] || [ "$GITHUB_REF_NAME" != "passport-client-v$version" ]; then
+            echo "Run this on the tag passport-client-v$version (got $GITHUB_REF_TYPE $GITHUB_REF_NAME)." >&2
+            exit 1
+          fi
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Audit production dependencies
+        run: pnpm audit --prod
+
+      # prepublishOnly runs the package's typecheck, unit tests with coverage and build (with its
+      # dist and size checks) before anything is uploaded.
+      - name: Publish
+        run: pnpm --filter @pubky/passport-client publish --access public --provenance --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

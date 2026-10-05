@@ -1,0 +1,345 @@
+[
+  {
+    "input": "passport.example",
+    "expected": "https://passport.example"
+  },
+  {
+    "input": "https://passport.example",
+    "expected": "https://passport.example"
+  },
+  {
+    "input": "https://passport.example/",
+    "expected": "https://passport.example"
+  },
+  {
+    "input": "  https://passport.example\t",
+    "expected": "https://passport.example"
+  },
+  {
+    "input": "https://passport.example:443",
+    "expected": "https://passport.example"
+  },
+  {
+    "input": "https://pass%70ort.example",
+    "expected": "https://passport.example"
+  },
+  {
+    "input": "https://pass\u200bport.example",
+    "expected": "https://passport.example"
+  },
+  {
+    "input": "HTTPS://Passport.Example.ORG/",
+    "expected": "https://passport.example.org"
+  },
+  {
+    "input": "https://passport.example:8443",
+    "expected": "https://passport.example:8443"
+  },
+  {
+    "input": "https://localhost.evil.com",
+    "expected": "https://localhost.evil.com"
+  },
+  {
+    "input": "https://p\u00e4ssport.example",
+    "expected": "https://xn--pssport-5wa.example"
+  },
+  {
+    "input": "http://localhost:3000",
+    "options": {
+      "allowLoopback": true
+    },
+    "expected": "http://localhost:3000"
+  },
+  {
+    "input": "http://127.0.0.1:3100",
+    "options": {
+      "allowLoopback": true
+    },
+    "expected": "http://127.0.0.1:3100"
+  },
+  {
+    "input": "http://[::1]:3000",
+    "options": {
+      "allowLoopback": true
+    },
+    "expected": "http://[::1]:3000"
+  },
+  {
+    "input": "https://localhost:3001",
+    "options": {
+      "allowLoopback": true
+    },
+    "expected": "https://localhost:3001"
+  },
+  {
+    "input": "localhost:3000",
+    "options": {
+      "allowLoopback": true
+    },
+    "expected": "https://localhost:3000"
+  },
+  {
+    "input": "http://0x7f.1",
+    "options": {
+      "allowLoopback": true
+    },
+    "expected": "http://127.0.0.1"
+  },
+  {
+    "input": "",
+    "expected": "invalid_url"
+  },
+  {
+    "input": "   ",
+    "expected": "invalid_url"
+  },
+  {
+    "input": "https://passport.example/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "expected": "invalid_url"
+  },
+  {
+    "input": "javascript:alert(1)",
+    "expected": "invalid_url"
+  },
+  {
+    "input": "https://pass port.example",
+    "expected": "invalid_url"
+  },
+  {
+    "input": "https://pass\tport.example",
+    "expected": "invalid_url"
+  },
+  {
+    "input": "https://pass\u202eport.example",
+    "expected": "invalid_url"
+  },
+  {
+    "input": "https://passport.example.",
+    "expected": "invalid_url"
+  },
+  {
+    "input": "https://passport.example..",
+    "expected": "invalid_url"
+  },
+  {
+    "input": "http://passport.example",
+    "expected": "insecure_scheme"
+  },
+  {
+    "input": "ftp://passport.example",
+    "expected": "insecure_scheme"
+  },
+  {
+    "input": "wss://passport.example",
+    "expected": "insecure_scheme"
+  },
+  {
+    "input": "http://localhost:3000",
+    "expected": "insecure_scheme"
+  },
+  {
+    "input": "http://localhost.:3000",
+    "options": {
+      "allowLoopback": true
+    },
+    "expected": "insecure_scheme"
+  },
+  {
+    "input": "http://127.0.0.2",
+    "options": {
+      "allowLoopback": true
+    },
+    "expected": "insecure_scheme"
+  },
+  {
+    "input": "http://localhost.evil.com",
+    "options": {
+      "allowLoopback": true
+    },
+    "expected": "insecure_scheme"
+  },
+  {
+    "input": "https://user@passport.example",
+    "expected": "credentials_not_allowed"
+  },
+  {
+    "input": "https://user:pw@passport.example",
+    "expected": "credentials_not_allowed"
+  },
+  {
+    "input": "https://:pw@passport.example",
+    "expected": "credentials_not_allowed"
+  },
+  {
+    "input": "https://user@localhost",
+    "options": {
+      "allowLoopback": true
+    },
+    "expected": "credentials_not_allowed"
+  },
+  {
+    "input": "https://2130706433",
+    "expected": "local_or_ip_not_allowed"
+  },
+  {
+    "input": "https://0x7f.1",
+    "expected": "local_or_ip_not_allowed"
+  },
+  {
+    "input": "https://0177.0.0.1",
+    "expected": "local_or_ip_not_allowed"
+  },
+  {
+    "input": "https://127.1",
+    "expected": "local_or_ip_not_allowed"
+  },
+  {
+    "input": "https://127.0.0.2",
+    "expected": "local_or_ip_not_allowed"
+  },
+  {
+    "input": "https://127.0.0.1.",
+    "expected": "local_or_ip_not_allowed"
+  },
+  {
+    "input": "https://8.8.8.8",
+    "expected": "local_or_ip_not_allowed"
+  },
+  {
+    "input": "https://[::1]",
+    "expected": "local_or_ip_not_allowed"
+  },
+  {
+    "input": "https://[2001:db8::1]",
+    "expected": "local_or_ip_not_allowed"
+  },
+  {
+    "input": "https://[::ffff:127.0.0.1]",
+    "expected": "local_or_ip_not_allowed"
+  },
+  {
+    "input": "https://localhost",
+    "expected": "local_or_ip_not_allowed"
+  },
+  {
+    "input": "https://LOCALHOST",
+    "expected": "local_or_ip_not_allowed"
+  },
+  {
+    "input": "https://localhost.",
+    "expected": "local_or_ip_not_allowed"
+  },
+  {
+    "input": "https://foo.localhost",
+    "expected": "local_or_ip_not_allowed"
+  },
+  {
+    "input": "https://passport",
+    "expected": "local_or_ip_not_allowed"
+  },
+  {
+    "input": "https://passport.example/x",
+    "expected": "path_not_allowed"
+  },
+  {
+    "input": "https://passport.example//",
+    "expected": "path_not_allowed"
+  },
+  {
+    "input": "https://passport.example/?",
+    "expected": "path_not_allowed"
+  },
+  {
+    "input": "https://passport.example?x=1",
+    "expected": "path_not_allowed"
+  },
+  {
+    "input": "https://passport.example#",
+    "expected": "path_not_allowed"
+  },
+  {
+    "input": "https://passport.example/#d=x",
+    "expected": "path_not_allowed"
+  },
+  {
+    "input": "https://passport.example/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "expected": "path_not_allowed"
+  },
+  {
+    "input": "http://localhost:3000/x",
+    "options": {
+      "allowLoopback": true
+    },
+    "expected": "path_not_allowed"
+  },
+  {
+    "input": "https://.passport.example",
+    "expected": "invalid_url"
+  },
+  {
+    "input": "https://passport..example",
+    "expected": "invalid_url"
+  },
+  {
+    "input": "https://-passport.example",
+    "expected": "invalid_url"
+  },
+  {
+    "input": "https://xn--.example",
+    "expected": "invalid_url"
+  },
+  {
+    "input": "https://*.example",
+    "expected": "invalid_url"
+  },
+  {
+    "input": "https://pass_port.example",
+    "expected": "invalid_url"
+  },
+  {
+    "input": "https://x\"onfocus=\"alert(1)\"autofocus=\".example",
+    "expected": "invalid_url"
+  },
+  {
+    "input": "https://passport.example:0",
+    "expected": "invalid_url"
+  },
+  {
+    "input": "https://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.example",
+    "expected": "https://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.example"
+  },
+  {
+    "input": "https://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "expected": "https://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+  },
+  {
+    "input": "https://xn--pssport-5wa.example",
+    "expected": "https://xn--pssport-5wa.example"
+  },
+  {
+    "input": "https://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.example",
+    "expected": "invalid_url"
+  },
+  {
+    "input": "https://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "expected": "invalid_url"
+  },
+  {
+    "input": "https://passport-.example",
+    "expected": "invalid_url"
+  },
+  {
+    "input": "http://localhost:0",
+    "options": {
+      "allowLoopback": true
+    },
+    "expected": "invalid_url"
+  },
+  {
+    "input": "https://localhost:0",
+    "options": {
+      "allowLoopback": true
+    },
+    "expected": "invalid_url"
+  }
+]
