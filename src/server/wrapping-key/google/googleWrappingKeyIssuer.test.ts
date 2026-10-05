@@ -3,7 +3,12 @@ import { Result } from "better-result";
 import { OAuth2Client } from "google-auth-library";
 
 import { LOGGER } from "@/libs/logger/logger";
-import { expectAsyncResultError } from "@test-utils/resultAssertions";
+import { stubPassportEnvironment } from "@test-utils/passportEnvironment";
+import {
+  expectAsyncResultError,
+  expectResultError,
+  expectResultOk,
+} from "@test-utils/resultAssertions";
 import { GoogleIdTokenVerifier } from "./GoogleIdTokenVerifier";
 import { GoogleWrappingKeyIssuer } from "./GoogleWrappingKeyIssuer";
 
@@ -16,6 +21,21 @@ const CURRENT_SECRET = Buffer.alloc(32, 2);
 const SECRETS = new Map([["current", CURRENT_SECRET]]);
 
 describe("Google wrapping-key issuer", () => {
+  it.each([
+    ["no Google audience is configured", { GOOGLE_CLIENT_ID: "" }],
+    [
+      "the provider disables Google",
+      { PASSPORT_PROVIDER_CONFIG_JSON: JSON.stringify({ googleEnabled: false }) },
+    ],
+  ])("reports Google as unavailable when %s", (_, overrides) => {
+    stubPassportEnvironment({
+      ...overrides,
+      PASSPORT_SERVER_SECRET_CURRENT_KEY_ID: undefined,
+      PASSPORT_SERVER_SECRET_KEYRING_JSON: undefined,
+    });
+    expectResultError(GoogleWrappingKeyIssuer.fromEnvironment(), { code: "google_unavailable" });
+  });
+
   afterEach(() => {
     vi.restoreAllMocks();
     vi.unstubAllEnvs();
@@ -118,19 +138,23 @@ describe("Google wrapping-key issuer", () => {
   });
 
   it("constructs the configured server flow", () => {
-    vi.stubEnv("GOOGLE_CLIENT_ID", GOOGLE_CLIENT_ID);
-    vi.stubEnv("HOMEGATE_URL", "https://homegate.example/");
-    vi.stubEnv("PUBKY_HOMESERVER_CONNECT_ORIGINS", "https://homeserver.example");
-    vi.stubEnv("PASSPORT_SERVER_SECRET_CURRENT_KEY_ID", "current");
-    vi.stubEnv(
-      "PASSPORT_SERVER_SECRET_KEYRING_JSON",
-      JSON.stringify({
+    stubPassportEnvironment({
+      GOOGLE_CLIENT_ID,
+      PASSPORT_SERVER_SECRET_KEYRING_JSON: JSON.stringify({
         current: CURRENT_SECRET.toString("base64"),
       }),
-    );
+    });
 
-    expect(GoogleWrappingKeyIssuer.fromEnvironment().issueGoogleWrappingKey).toEqual(
-      expect.any(Function),
+    expect(expectResultOk(GoogleWrappingKeyIssuer.fromEnvironment())).toBeInstanceOf(
+      GoogleWrappingKeyIssuer,
+    );
+  });
+
+  it("still fails loudly when enabled Google has an invalid keyring", () => {
+    stubPassportEnvironment({ PASSPORT_SERVER_SECRET_KEYRING_JSON: undefined });
+
+    expect(() => GoogleWrappingKeyIssuer.fromEnvironment()).toThrow(
+      "PASSPORT_SERVER_SECRET_KEYRING_JSON is required.",
     );
   });
 });

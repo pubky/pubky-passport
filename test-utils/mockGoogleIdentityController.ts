@@ -13,11 +13,15 @@ export type MockGoogleIdentityController = GoogleIdentityControllerPort & {
 type MockOperations = Pick<
   MockGoogleIdentityController,
   | "detachIdentity"
+  | "backupIdentity"
+  | "cancelAuthorization"
+  | "continueBackupWithoutVisibleCopy"
   | "dispose"
   | "establishIdentity"
   | "replaceInvalidPassportFile"
   | "replaceUndecryptablePassportFile"
   | "continueWithoutVisibleBackup"
+  | "showAuthorizationWindow"
 >;
 
 /**
@@ -75,6 +79,10 @@ export function mockGoogleIdentityController(
       };
     },
     reset: vi.fn(() => emitState({ status: "idle" })),
+    // The real controller settles the waiting operation with `cancelled` and publishes idle.
+    cancelAuthorization:
+      overrides.cancelAuthorization ?? vi.fn(() => emitState({ status: "idle" })),
+    showAuthorizationWindow: overrides.showAuthorizationWindow ?? vi.fn(),
     dispose: overrides.dispose ?? vi.fn(),
     establishIdentity: publishing(establishIdentity, (identity) => ({
       status: "established",
@@ -93,5 +101,15 @@ export function mockGoogleIdentityController(
       identity,
     })),
     detachIdentity: publishing(detachIdentity, () => ({ status: "detached" })),
+    backupIdentity: publishing(
+      overrides.backupIdentity ??
+        vi.fn(async () => Result.err({ code: "operation_failed" as const })),
+      (backup) => ({ status: "backed-up", backup }),
+    ),
+    continueBackupWithoutVisibleCopy: publishing(
+      overrides.continueBackupWithoutVisibleCopy ??
+        vi.fn(async () => Result.err({ code: "operation_failed" as const })),
+      (backup) => ({ status: "backed-up", backup }),
+    ),
   };
 }

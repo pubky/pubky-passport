@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createHash } from "node:crypto";
 
+import { AUTHORIZATION_ENTRY_PATH } from "./libs/authorization/authorizationLocationRules";
 import { EARLY_AUTHORIZATION_LOCATION_SCRIPT } from "./libs/authorization/earlyAuthorizationLocation";
 import { EARLY_GOOGLE_IMPLICIT_RESPONSE_SCRIPT } from "./libs/authorization/earlyGoogleImplicitResponse";
 import { LOGGER, safeErrorLogFields } from "./libs/logger/logger";
@@ -13,10 +14,14 @@ const EARLY_GOOGLE_IMPLICIT_RESPONSE_SCRIPT_SOURCE = `'sha256-${createHash("sha2
   .update(EARLY_GOOGLE_IMPLICIT_RESPONSE_SCRIPT)
   .digest("base64")}'`;
 /**
- * Allows user-selected HTTPS relays without allowing arbitrary cross-origin WebSockets.
- * CSP's `https:` scheme source does not match `wss:`; `'self'` still covers same-origin WSS.
+ * What the two signer pages add to `connect-src`. A person may sign up on any homeserver they hold
+ * an invite for, an identity lives on whichever homeserver its key's PKARR record names (at run
+ * time, including a port), and a request brings its own relay, so these pages reach any HTTPS
+ * origin. CSP's `https:` scheme source does not match `wss:`; `'self'` still covers same-origin WSS.
  */
-const AUTHORIZATION_RELAY_CONNECT_SOURCE = "https:";
+const SIGNER_CONNECT_SOURCE = "https:";
+/** `/authorize` takes requests and `/` forwards them there; both run the signer. */
+const SIGNER_PATHS: ReadonlySet<string> = new Set(["/", AUTHORIZATION_ENTRY_PATH]);
 
 export function proxy(request: NextRequest) {
   try {
@@ -26,8 +31,7 @@ export function proxy(request: NextRequest) {
       nonce,
       development: process.env.NODE_ENV === "development",
       homegateOrigin: environment.homegateOrigin,
-      homeserverConnectOrigins: environment.homeserverConnectOrigins,
-      ...(request.nextUrl.pathname === "/authorize" ? { allowPubkyAuthRelays: true } : {}),
+      signer: SIGNER_PATHS.has(request.nextUrl.pathname),
     });
     const requestHeaders = new Headers(request.headers);
     requestHeaders.set("x-nonce", nonce);
@@ -47,12 +51,15 @@ export function proxy(request: NextRequest) {
   }
 }
 
+/**
+ * Pages without the signer (legal pages, not found) keep the fixed origins: Google, Homegate and
+ * the PKARR relays. No homeserver or relay is reachable from them.
+ */
 function createContentSecurityPolicy(input: {
   nonce: string;
   development: boolean;
-  homegateOrigin: string;
-  homeserverConnectOrigins: readonly string[];
-  allowPubkyAuthRelays?: boolean;
+  homegateOrigin: string | null;
+  signer: boolean;
 }): string {
   const scriptSource = [
     "script-src 'self'",
@@ -71,13 +78,13 @@ function createContentSecurityPolicy(input: {
       "https://openidconnect.googleapis.com",
       "https://www.googleapis.com",
       "https://lh3.googleusercontent.com",
-      input.homegateOrigin,
-      ...input.homeserverConnectOrigins,
+      ...(input.homegateOrigin ? [input.homegateOrigin] : []),
       "https://pkarr.pubky.app",
       "https://pkarr.pubky.org",
-      ...(input.allowPubkyAuthRelays ? [AUTHORIZATION_RELAY_CONNECT_SOURCE] : []),
+      ...(input.signer ? [SIGNER_CONNECT_SOURCE] : []),
     ].join(" "),
-    "img-src 'self' data: https://lh3.googleusercontent.com",
+    // Profile avatars are SDK reads rendered as blob: URLs; only Google's avatar host is remote.
+    "img-src 'self' data: blob: https://lh3.googleusercontent.com",
     "style-src 'self' 'unsafe-inline'",
     "font-src 'self'",
     "frame-src 'none'",
@@ -89,10 +96,16 @@ function createContentSecurityPolicy(input: {
   ].join("; ");
 }
 
+/**
+ * Every page gets its policy, and only what is never a page is skipped: the one API route, Next's
+ * build assets and its image endpoint, each matched exactly. An unanchored prefix (`api`,
+ * `favicon.ico`) would also skip pages such as `/apix` or `/favicon.icox`, whose 404 then renders
+ * the app shell with no policy at all: no `frame-ancestors`, nonce or `connect-src`.
+ */
 export const config = {
   matcher: [
     {
-      source: "/((?!api|_next/static|_next/image|favicon.ico).*)",
+      source: "/((?!api/wrapping-key/google$|_next/static/|_next/image$).*)",
       missing: [
         { type: "header", key: "next-router-prefetch" },
         { type: "header", key: "purpose", value: "prefetch" },
