@@ -4,25 +4,56 @@ import { Result } from "better-result";
 import { expectAsyncResultError } from "@test-utils/resultAssertions";
 import { parseGoogleIdTokenRequest } from "./routePolicy";
 
+const PREIMAGE = Buffer.alloc(32, 9).toString("base64url");
+
 describe("Google wrapping-key route policy", () => {
-  it("accepts an exact non-empty field with JSON parameters", async () => {
+  it("accepts exact non-empty fields with JSON parameters", async () => {
     const result = await parseGoogleIdTokenRequest(
-      jsonRequest({ googleIdToken: "id-token" }, "application/json; charset=utf-8"),
+      jsonRequest(
+        { googleIdToken: "id-token", googleNoncePreimage: PREIMAGE },
+        "application/json; charset=utf-8",
+      ),
     );
 
     expect(Result.isOk(result)).toBe(true);
     if (Result.isOk(result)) {
-      expect(result.value).toEqual({ googleIdToken: "id-token" });
+      expect(result.value).toEqual({ googleIdToken: "id-token", googleNoncePreimage: PREIMAGE });
     }
   });
 
+  it("tells a page loaded before the preimage existed to reload, not that it failed", async () => {
+    await expectAsyncResultError(
+      parseGoogleIdTokenRequest(jsonRequest({ googleIdToken: "id-token" }, "application/json")),
+      { code: "reload_required" },
+    );
+    await expectAsyncResultError(
+      parseGoogleIdTokenRequest(
+        jsonRequest({ googleIdToken: "id-token", keyId: "2026-08" }, "application/json"),
+      ),
+      { code: "reload_required" },
+    );
+  });
+
   it.each([
-    ["text/plain", { googleIdToken: "id-token" }],
+    ["text/plain", { googleIdToken: "id-token", googleNoncePreimage: PREIMAGE }],
     ["application/json", {}],
-    ["application/json", { googleIdToken: 123 }],
-    ["application/json", { googleIdToken: "   " }],
-    ["application/json", { googleIdToken: "id-token", driveAccessToken: "token" }],
-    ["application/json", { googleIdToken: "id-token", keyId: "invalid key" }],
+    ["application/json", { googleNoncePreimage: PREIMAGE }],
+    ["application/json", { googleIdToken: 123, googleNoncePreimage: PREIMAGE }],
+    ["application/json", { googleIdToken: "   ", googleNoncePreimage: PREIMAGE }],
+    [
+      "application/json",
+      { googleIdToken: "id-token", googleNoncePreimage: PREIMAGE, driveAccessToken: "token" },
+    ],
+    [
+      "application/json",
+      { googleIdToken: "id-token", googleNoncePreimage: PREIMAGE, keyId: "invalid key" },
+    ],
+    // The preimage is 32 bytes in canonical base64url: 43 characters, nothing else.
+    ["application/json", { googleIdToken: "id-token", googleNoncePreimage: "" }],
+    ["application/json", { googleIdToken: "id-token", googleNoncePreimage: PREIMAGE.slice(1) }],
+    ["application/json", { googleIdToken: "id-token", googleNoncePreimage: `${PREIMAGE}A` }],
+    ["application/json", { googleIdToken: "id-token", googleNoncePreimage: `${"A".repeat(42)}B` }],
+    ["application/json", { googleIdToken: "id-token", googleNoncePreimage: 32 }],
     ["application/json", ["id-token"]],
     ["application/json", null],
   ])("rejects invalid request shape", async (contentType, body) => {
@@ -36,6 +67,7 @@ describe("Google wrapping-key route policy", () => {
       jsonRequest(
         {
           googleIdToken: "id-token",
+          googleNoncePreimage: PREIMAGE,
           keyId: "2026-08",
         },
         "application/json",
@@ -44,6 +76,7 @@ describe("Google wrapping-key route policy", () => {
 
     expect(Result.isOk(result) && result.value).toEqual({
       googleIdToken: "id-token",
+      googleNoncePreimage: PREIMAGE,
       keyId: "2026-08",
     });
   });

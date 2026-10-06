@@ -8,3 +8,8 @@ export const REQUEST_TIMEOUT_MS = 10_000;
 export const NETWORK_OPERATION_TIMEOUT_MS = 30_000;
 export const AUTHORIZATION_TIMEOUT_MS = 5 * 60_000;
 export const AUTHORIZATION_CAPTURE_MAX_CHARACTERS = 32_768;
+/**
+ * The SDK's default HTTP relay. Passport's own Ring profile grant (also requested right after Ring
+ * signup) uses it unless `PUBKY_HTTP_RELAY_URL` names another one.
+ */
+export const DEFAULT_PUBKY_HTTP_RELAY_URL = "https://httprelay.pubky.app/inbox";

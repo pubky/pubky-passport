@@ -1,5 +1,9 @@
 import { AUTHORIZATION_CAPTURE_MAX_CHARACTERS } from "@/libs/passportPolicy";
 import {
+  GOOGLE_CREDENTIAL_FRAGMENT_SOURCE,
+  REQUEST_MARKER_SOURCE,
+} from "./authorizationLocationRules";
+import {
   EARLY_GOOGLE_REDIRECT_RESPONSE_PROPERTY,
   GOOGLE_REDIRECT_STORAGE_KEY,
 } from "./googleRedirectConstants";
@@ -10,7 +14,8 @@ export const GOOGLE_IMPLICIT_RESPONSE_MESSAGE_TYPE = "pubky-passport-google-impl
 export const EARLY_GOOGLE_IMPLICIT_RESPONSE_SCRIPT = `(() => {
   if (location.pathname !== "/") return;
   const hash = location.hash;
-  if (!/(?:^|&)(?:access_token|id_token|error)=/.test(hash.slice(1))) return;
+  if (!/${GOOGLE_CREDENTIAL_FRAGMENT_SOURCE}/.test(hash.slice(1))) return;
+  const mixed = /${REQUEST_MARKER_SOURCE}/i.test(hash);
   try {
     History.prototype.replaceState.call(history, null, "", location.pathname);
   } catch {
@@ -20,9 +25,11 @@ export const EARLY_GOOGLE_IMPLICIT_RESPONSE_SCRIPT = `(() => {
     }
     return;
   }
-  const response = hash.length > ${EARLY_GOOGLE_IMPLICIT_RESPONSE_MAX_CHARACTERS}
-    ? { type: "${GOOGLE_IMPLICIT_RESPONSE_MESSAGE_TYPE}", status: "too_large" }
-    : { type: "${GOOGLE_IMPLICIT_RESPONSE_MESSAGE_TYPE}", status: "captured", hash };
+  const response = mixed
+    ? { type: "${GOOGLE_IMPLICIT_RESPONSE_MESSAGE_TYPE}", status: "invalid" }
+    : hash.length > ${EARLY_GOOGLE_IMPLICIT_RESPONSE_MAX_CHARACTERS}
+      ? { type: "${GOOGLE_IMPLICIT_RESPONSE_MESSAGE_TYPE}", status: "too_large" }
+      : { type: "${GOOGLE_IMPLICIT_RESPONSE_MESSAGE_TYPE}", status: "captured", hash };
   let redirectPending = false;
   try { redirectPending = sessionStorage.getItem("${GOOGLE_REDIRECT_STORAGE_KEY}") !== null; } catch { /* Fail closed during bootstrap. */ }
   if (redirectPending) {

@@ -18,15 +18,28 @@ type GoogleIdTokenPayload = {
   aud?: string | string[];
   azp?: string | undefined;
   exp?: number;
+  iat?: number;
+  nonce?: string | undefined;
   sub?: string | undefined;
 };
+
+/**
+ * How old an accepted token may be. Defense in depth only (the nonce's preimage is the binding):
+ * a sign-in may pause at Google Drive consent, and a same-tab one may take five minutes.
+ */
+export const ID_TOKEN_MAX_AGE_SECONDS = 10 * 60;
+/** Clock difference allowed between Google and this server, in both directions. */
+export const ID_TOKEN_CLOCK_SKEW_SECONDS = 60;
 
 export type GoogleIdTokenVerificationResult = Result<
   VerifiedGoogleIdentity,
   CodedFailure<"google_verifier_unavailable" | "invalid_google_id_token">
 >;
 
-/** Verifies Google ID-token signatures, audience binding, expiry, issuer, and subject claims. */
+/**
+ * Verifies Google ID-token signatures, audience and authorized party, issuer, expiry, issue time,
+ * the nonce Passport asked Google for, and the subject claim.
+ */
 export class GoogleIdTokenVerifier {
   private readonly verifier = new OAuth2Client();
 
@@ -36,8 +49,14 @@ export class GoogleIdTokenVerifier {
   /**
    * Verifies the token and settles with a Result for verifier and claims failures.
    * The promise does not intentionally reject.
+   *
+   * @param expectedNonce The `nonce` the token must carry: the hash of the preimage that only
+   * Passport's own client holds (see `googleNonceFor`).
    */
-  async verifyGoogleIdToken(idToken: string): Promise<GoogleIdTokenVerificationResult> {
+  async verifyGoogleIdToken(
+    idToken: string,
+    expectedNonce: string,
+  ): Promise<GoogleIdTokenVerificationResult> {
     let certificates: Certificates;
     try {
       ({ certs: certificates } = await this.verifier.getFederatedSignonCertsAsync());
@@ -83,7 +102,7 @@ export class GoogleIdTokenVerifier {
       return Result.err({ code: "invalid_google_id_token" });
     }
 
-    const result = this.validatePayload(payload);
+    const result = this.validatePayload(payload, expectedNonce);
     if (Result.isError(result)) {
       LOGGER.warn("identity.google.id_token_verification.failed", {
         operation: "validate_claims",
@@ -93,7 +112,10 @@ export class GoogleIdTokenVerifier {
     return result;
   }
 
-  private validatePayload(payload: GoogleIdTokenPayload): GoogleIdTokenVerificationResult {
+  private validatePayload(
+    payload: GoogleIdTokenPayload,
+    expectedNonce: string,
+  ): GoogleIdTokenVerificationResult {
     if (payload.iss !== "accounts.google.com" && payload.iss !== CANONICAL_GOOGLE_ISSUER) {
       return Result.err({ code: "invalid_google_id_token" });
     }
@@ -107,6 +129,20 @@ export class GoogleIdTokenVerifier {
       typeof payload.exp !== "number" ||
       !Number.isFinite(payload.exp) ||
       payload.exp <= nowSeconds
+    ) {
+      return Result.err({ code: "invalid_google_id_token" });
+    }
+
+    // Issued for Passport's own request: Homegate receives the same token, never the preimage.
+    if (typeof payload.nonce !== "string" || payload.nonce !== expectedNonce) {
+      return Result.err({ code: "invalid_google_id_token" });
+    }
+
+    if (
+      typeof payload.iat !== "number" ||
+      !Number.isFinite(payload.iat) ||
+      payload.iat > nowSeconds + ID_TOKEN_CLOCK_SKEW_SECONDS ||
+      payload.iat < nowSeconds - ID_TOKEN_MAX_AGE_SECONDS - ID_TOKEN_CLOCK_SKEW_SECONDS
     ) {
       return Result.err({ code: "invalid_google_id_token" });
     }
@@ -129,6 +165,8 @@ function audienceMatches(
   authorizedParty: string | undefined,
   expectedAudience: string,
 ): boolean {
+  // A token issued to another client names that client; Google sets it to Passport's own ID.
+  if (authorizedParty !== undefined && authorizedParty !== expectedAudience) return false;
   if (Array.isArray(audience)) {
     return (
       audience.includes(expectedAudience) &&

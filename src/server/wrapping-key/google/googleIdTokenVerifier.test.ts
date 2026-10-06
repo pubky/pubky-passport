@@ -4,12 +4,19 @@ import { OAuth2Client, type LoginTicket } from "google-auth-library";
 
 import { expectAsyncResultError } from "@test-utils/resultAssertions";
 import { LOGGER } from "@/libs/logger/logger";
-import { GoogleIdTokenVerifier } from "./GoogleIdTokenVerifier";
+import {
+  GoogleIdTokenVerifier,
+  ID_TOKEN_CLOCK_SKEW_SECONDS,
+  ID_TOKEN_MAX_AGE_SECONDS,
+} from "./GoogleIdTokenVerifier";
 
 const AUDIENCE = "google-client-id";
 const TOKEN = "header.payload.signature";
 const NOW = new Date("2026-01-01T00:00:00.000Z");
 const FUTURE_EXPIRATION = Math.floor(new Date("2026-01-01T01:00:00.000Z").getTime() / 1000);
+const NOW_SECONDS = Math.floor(NOW.getTime() / 1000);
+/** The nonce Passport asked Google for: the hash of a preimage only Passport's client holds. */
+const NONCE = "nonce-for-the-preimage";
 const CERTIFICATES = { "key-id": "certificate" };
 const CERTIFICATE_RESPONSE = {
   certs: CERTIFICATES,
@@ -21,6 +28,8 @@ type TestGoogleIdTokenPayload = {
   aud?: string | string[];
   azp?: string;
   exp?: number;
+  iat?: number | undefined;
+  nonce?: string | undefined;
   sub?: string | undefined;
 };
 
@@ -39,7 +48,7 @@ describe("Google ID token verifier", () => {
   it("normalizes accepted Google issuers to the canonical issuer", async () => {
     const verifier = createVerifierWithPayload({ ...validPayload(), iss: "accounts.google.com" });
 
-    await expect(verifier.verifyGoogleIdToken(TOKEN)).resolves.toEqual(
+    await expect(verifier.verifyGoogleIdToken(TOKEN, NONCE)).resolves.toEqual(
       Result.ok({
         issuer: "https://accounts.google.com",
         googleSubject: "google-subject",
@@ -62,7 +71,7 @@ describe("Google ID token verifier", () => {
     );
     const verifier = new GoogleIdTokenVerifier(AUDIENCE);
 
-    await verifier.verifyGoogleIdToken(TOKEN);
+    await verifier.verifyGoogleIdToken(TOKEN, NONCE);
 
     expect(calls).toEqual([
       {
@@ -80,7 +89,7 @@ describe("Google ID token verifier", () => {
     vi.spyOn(OAuth2Client.prototype, "getFederatedSignonCertsAsync").mockRejectedValueOnce(cause);
     const verifier = new GoogleIdTokenVerifier(AUDIENCE);
 
-    const result = await verifier.verifyGoogleIdToken(TOKEN);
+    const result = await verifier.verifyGoogleIdToken(TOKEN, NONCE);
 
     expect(Result.isError(result)).toBe(true);
     if (Result.isError(result)) {
@@ -102,11 +111,24 @@ describe("Google ID token verifier", () => {
     { ...validPayload(), exp: Number.POSITIVE_INFINITY },
     { ...validPayload(), sub: undefined },
     { ...validPayload(), sub: "   " },
+    // Issued for another request (the token Homegate also receives, sent without the preimage).
+    { ...validPayload(), nonce: "another-nonce" },
+    { ...validPayload(), nonce: undefined },
+    // Issued too long ago, or in the future, beyond the allowed clock skew.
+    {
+      ...validPayload(),
+      iat: NOW_SECONDS - ID_TOKEN_MAX_AGE_SECONDS - ID_TOKEN_CLOCK_SKEW_SECONDS - 1,
+    },
+    { ...validPayload(), iat: NOW_SECONDS + ID_TOKEN_CLOCK_SKEW_SECONDS + 1 },
+    { ...validPayload(), iat: undefined },
+    { ...validPayload(), iat: Number.NaN },
+    // Issued to another client.
+    { ...validPayload(), azp: "other-client-id" },
   ] as const)("rejects invalid claims", async (payload) => {
     const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
     const verifier = createVerifierWithPayload(payload);
 
-    await expectAsyncResultError(verifier.verifyGoogleIdToken(TOKEN), {
+    await expectAsyncResultError(verifier.verifyGoogleIdToken(TOKEN, NONCE), {
       code: "invalid_google_id_token",
     });
     expect(warning).toHaveBeenCalledWith("identity.google.id_token_verification.failed", {
@@ -115,6 +137,17 @@ describe("Google ID token verifier", () => {
     });
     expect(JSON.stringify(warning.mock.calls)).not.toContain(TOKEN);
     expect(JSON.stringify(warning.mock.calls)).not.toContain("google-subject");
+  });
+
+  it.each([
+    NOW_SECONDS - ID_TOKEN_MAX_AGE_SECONDS - ID_TOKEN_CLOCK_SKEW_SECONDS,
+    NOW_SECONDS + ID_TOKEN_CLOCK_SKEW_SECONDS,
+  ])("accepts a token issued at the edge of its window (iat %s)", async (iat) => {
+    const verifier = createVerifierWithPayload({ ...validPayload(), iat, azp: AUDIENCE });
+
+    await expect(verifier.verifyGoogleIdToken(TOKEN, NONCE)).resolves.toEqual(
+      Result.ok({ issuer: "https://accounts.google.com", googleSubject: "google-subject" }),
+    );
   });
 
   it("requires the authorized party for multiple audiences", async () => {
@@ -135,13 +168,13 @@ describe("Google ID token verifier", () => {
       );
     const verifier = new GoogleIdTokenVerifier(AUDIENCE);
 
-    await expect(verifier.verifyGoogleIdToken(TOKEN)).resolves.toEqual(
+    await expect(verifier.verifyGoogleIdToken(TOKEN, NONCE)).resolves.toEqual(
       Result.ok({
         issuer: "https://accounts.google.com",
         googleSubject: "google-subject",
       }),
     );
-    await expectAsyncResultError(verifier.verifyGoogleIdToken(TOKEN), {
+    await expectAsyncResultError(verifier.verifyGoogleIdToken(TOKEN, NONCE), {
       code: "invalid_google_id_token",
     });
   });
@@ -158,7 +191,7 @@ describe("Google ID token verifier", () => {
       );
       const verifier = new GoogleIdTokenVerifier(AUDIENCE);
 
-      const result = await verifier.verifyGoogleIdToken(TOKEN);
+      const result = await verifier.verifyGoogleIdToken(TOKEN, NONCE);
 
       expect(Result.isError(result)).toBe(true);
       if (Result.isError(result)) {
@@ -183,7 +216,7 @@ describe("Google ID token verifier", () => {
     );
     const verifier = new GoogleIdTokenVerifier(AUDIENCE);
 
-    await expectAsyncResultError(verifier.verifyGoogleIdToken(TOKEN), {
+    await expectAsyncResultError(verifier.verifyGoogleIdToken(TOKEN, NONCE), {
       code: "invalid_google_id_token",
     });
     expect(warning).toHaveBeenCalledOnce();
@@ -202,7 +235,7 @@ describe("Google ID token verifier", () => {
     );
     const verifier = new GoogleIdTokenVerifier(AUDIENCE);
 
-    const result = await verifier.verifyGoogleIdToken(TOKEN);
+    const result = await verifier.verifyGoogleIdToken(TOKEN, NONCE);
 
     expect(Result.isError(result)).toBe(true);
     if (Result.isError(result)) {
@@ -231,6 +264,8 @@ function validPayload(): TestGoogleIdTokenPayload {
     iss: "https://accounts.google.com",
     aud: AUDIENCE,
     exp: FUTURE_EXPIRATION,
+    iat: NOW_SECONDS - 30,
+    nonce: NONCE,
     sub: "google-subject",
   };
 }

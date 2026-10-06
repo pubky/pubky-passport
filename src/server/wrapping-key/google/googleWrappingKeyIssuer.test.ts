@@ -1,9 +1,15 @@
+import { createHash } from "node:crypto";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Result } from "better-result";
 import { OAuth2Client } from "google-auth-library";
 
 import { LOGGER } from "@/libs/logger/logger";
-import { expectAsyncResultError } from "@test-utils/resultAssertions";
+import { stubPassportEnvironment } from "@test-utils/passportEnvironment";
+import {
+  expectAsyncResultError,
+  expectResultError,
+  expectResultOk,
+} from "@test-utils/resultAssertions";
 import { GoogleIdTokenVerifier } from "./GoogleIdTokenVerifier";
 import { GoogleWrappingKeyIssuer } from "./GoogleWrappingKeyIssuer";
 
@@ -13,9 +19,26 @@ const IDENTITY = {
   googleSubject: "google-subject",
 };
 const CURRENT_SECRET = Buffer.alloc(32, 2);
+/** The nonce's preimage, as only Passport's own client holds it. */
+const PREIMAGE = Buffer.alloc(32, 9).toString("base64url");
 const SECRETS = new Map([["current", CURRENT_SECRET]]);
 
 describe("Google wrapping-key issuer", () => {
+  it.each([
+    ["no Google audience is configured", { GOOGLE_CLIENT_ID: "" }],
+    [
+      "the provider disables Google",
+      { PASSPORT_PROVIDER_CONFIG_JSON: JSON.stringify({ googleEnabled: false }) },
+    ],
+  ])("reports Google as unavailable when %s", (_, overrides) => {
+    stubPassportEnvironment({
+      ...overrides,
+      PASSPORT_SERVER_SECRET_CURRENT_KEY_ID: undefined,
+      PASSPORT_SERVER_SECRET_KEYRING_JSON: undefined,
+    });
+    expectResultError(GoogleWrappingKeyIssuer.fromEnvironment(), { code: "google_unavailable" });
+  });
+
   afterEach(() => {
     vi.restoreAllMocks();
     vi.unstubAllEnvs();
@@ -27,7 +50,7 @@ describe("Google wrapping-key issuer", () => {
     );
     const issuer = new GoogleWrappingKeyIssuer(GOOGLE_CLIENT_ID, "current", SECRETS);
 
-    const result = await issuer.issueGoogleWrappingKey("id-token");
+    const result = await issuer.issueGoogleWrappingKey("id-token", PREIMAGE);
 
     expect(Result.isOk(result) && result.value.keyId).toBe("current");
   });
@@ -45,8 +68,8 @@ describe("Google wrapping-key issuer", () => {
       ]),
     );
 
-    const current = await issuer.issueGoogleWrappingKey("id-token");
-    const old = await issuer.issueGoogleWrappingKey("id-token", "old");
+    const current = await issuer.issueGoogleWrappingKey("id-token", PREIMAGE);
+    const old = await issuer.issueGoogleWrappingKey("id-token", PREIMAGE, "old");
 
     expect(Result.isOk(current) && current.value).toMatchObject({ keyId: "current" });
     expect(Result.isOk(old) && old.value).toMatchObject({ keyId: "old" });
@@ -62,7 +85,7 @@ describe("Google wrapping-key issuer", () => {
     );
     const issuer = new GoogleWrappingKeyIssuer(GOOGLE_CLIENT_ID, "current", SECRETS);
 
-    await expectAsyncResultError(issuer.issueGoogleWrappingKey("id-token", "removed"), {
+    await expectAsyncResultError(issuer.issueGoogleWrappingKey("id-token", PREIMAGE, "removed"), {
       code: "key_unavailable",
     });
     expect(warning).toHaveBeenCalledWith("identity.google.wrapping_key.failed", {
@@ -72,15 +95,45 @@ describe("Google wrapping-key issuer", () => {
     });
   });
 
+  it("verifies the token against the hash of the preimage it came with", async () => {
+    const verify = vi
+      .spyOn(GoogleIdTokenVerifier.prototype, "verifyGoogleIdToken")
+      .mockResolvedValue(Result.ok(IDENTITY));
+    const issuer = new GoogleWrappingKeyIssuer(GOOGLE_CLIENT_ID, "current", SECRETS);
+
+    expectResultOk(await issuer.issueGoogleWrappingKey("id-token", PREIMAGE));
+
+    expect(verify).toHaveBeenCalledExactlyOnceWith(
+      "id-token",
+      createHash("sha256").update(Buffer.alloc(32, 9)).digest("base64url"),
+    );
+  });
+
+  it.each(["", "short", `${"A".repeat(42)}B`])(
+    "refuses a malformed preimage %j without asking Google",
+    async (preimage) => {
+      const verify = vi.spyOn(GoogleIdTokenVerifier.prototype, "verifyGoogleIdToken");
+      const issuer = new GoogleWrappingKeyIssuer(GOOGLE_CLIENT_ID, "current", SECRETS);
+
+      await expectAsyncResultError(issuer.issueGoogleWrappingKey("id-token", preimage), {
+        code: "invalid_google_id_token",
+      });
+      expect(verify).not.toHaveBeenCalled();
+    },
+  );
+
   it("does not derive material for rejected tokens", async () => {
     vi.spyOn(GoogleIdTokenVerifier.prototype, "verifyGoogleIdToken").mockResolvedValue(
       Result.err({ code: "invalid_google_id_token" }),
     );
     const issuer = new GoogleWrappingKeyIssuer(GOOGLE_CLIENT_ID, "current", SECRETS);
 
-    await expectAsyncResultError(issuer.issueGoogleWrappingKey("SECRET-GOOGLE-ID-TOKEN"), {
-      code: "invalid_google_id_token",
-    });
+    await expectAsyncResultError(
+      issuer.issueGoogleWrappingKey("SECRET-GOOGLE-ID-TOKEN", PREIMAGE),
+      {
+        code: "invalid_google_id_token",
+      },
+    );
   });
 
   it("maps verifier exceptions to a safe dependency failure", async () => {
@@ -90,7 +143,7 @@ describe("Google wrapping-key issuer", () => {
     );
     const issuer = new GoogleWrappingKeyIssuer(GOOGLE_CLIENT_ID, "current", SECRETS);
 
-    const result = await issuer.issueGoogleWrappingKey("id-token");
+    const result = await issuer.issueGoogleWrappingKey("id-token", PREIMAGE);
     expect(Result.isError(result)).toBe(true);
     if (!Result.isError(result)) throw new Error("Expected verifier failure.");
     expect(result.error.code).toBe("google_verifier_unavailable");
@@ -104,7 +157,7 @@ describe("Google wrapping-key issuer", () => {
     vi.spyOn(OAuth2Client.prototype, "getFederatedSignonCertsAsync").mockRejectedValue(cause);
     const issuer = new GoogleWrappingKeyIssuer(GOOGLE_CLIENT_ID, "current", SECRETS);
 
-    const result = await issuer.issueGoogleWrappingKey("id-token");
+    const result = await issuer.issueGoogleWrappingKey("id-token", PREIMAGE);
 
     expect(Result.isError(result)).toBe(true);
     if (!Result.isError(result)) throw new Error("Expected verifier failure.");
@@ -118,19 +171,23 @@ describe("Google wrapping-key issuer", () => {
   });
 
   it("constructs the configured server flow", () => {
-    vi.stubEnv("GOOGLE_CLIENT_ID", GOOGLE_CLIENT_ID);
-    vi.stubEnv("HOMEGATE_URL", "https://homegate.example/");
-    vi.stubEnv("PUBKY_HOMESERVER_CONNECT_ORIGINS", "https://homeserver.example");
-    vi.stubEnv("PASSPORT_SERVER_SECRET_CURRENT_KEY_ID", "current");
-    vi.stubEnv(
-      "PASSPORT_SERVER_SECRET_KEYRING_JSON",
-      JSON.stringify({
+    stubPassportEnvironment({
+      GOOGLE_CLIENT_ID,
+      PASSPORT_SERVER_SECRET_KEYRING_JSON: JSON.stringify({
         current: CURRENT_SECRET.toString("base64"),
       }),
-    );
+    });
 
-    expect(GoogleWrappingKeyIssuer.fromEnvironment().issueGoogleWrappingKey).toEqual(
-      expect.any(Function),
+    expect(expectResultOk(GoogleWrappingKeyIssuer.fromEnvironment())).toBeInstanceOf(
+      GoogleWrappingKeyIssuer,
+    );
+  });
+
+  it("still fails loudly when enabled Google has an invalid keyring", () => {
+    stubPassportEnvironment({ PASSPORT_SERVER_SECRET_KEYRING_JSON: undefined });
+
+    expect(() => GoogleWrappingKeyIssuer.fromEnvironment()).toThrow(
+      "PASSPORT_SERVER_SECRET_KEYRING_JSON is required.",
     );
   });
 });

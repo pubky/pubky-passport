@@ -5,3 +5,4 @@ playwright-report
 pnpm-lock.yaml
 public
 test-results
+packages/passport-client/src/qrcode/vendor/qrcodegen.ts
