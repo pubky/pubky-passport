@@ -12,7 +12,12 @@ type GoogleWrappingKeyRouteBody =
   | { wrappingKey: string; keyId: string }
   | {
       error: {
-        code: GoogleWrappingKeyIssueErrorCode | "invalid_request" | "internal_error";
+        code:
+          | GoogleWrappingKeyIssueErrorCode
+          | "google_unavailable"
+          | "invalid_request"
+          | "reload_required"
+          | "internal_error";
       };
     };
 
@@ -30,17 +35,31 @@ export async function googleWrappingKeyPost(
         route: "api.wrapping_key.google",
         layer: "route",
         operation,
-        code: "invalid_request",
+        code: body.error.code,
         ...(body.error.cause === undefined ? {} : safeErrorLogFields(body.error.cause)),
       });
-      return jsonResponse({ error: { code: "invalid_request" } }, 400);
+      return jsonResponse({ error: { code: body.error.code } }, 400);
     }
 
     operation = "compose";
-    if (!activeIssuer) activeIssuer = GoogleWrappingKeyIssuer.fromEnvironment();
+    if (!activeIssuer) {
+      const composed = GoogleWrappingKeyIssuer.fromEnvironment();
+      if (Result.isError(composed)) {
+        // A Google-free instance is a deliberate operator choice, not a server failure.
+        LOGGER.info("identity.google.wrapping_key.failed", {
+          route: "api.wrapping_key.google",
+          layer: "route",
+          operation,
+          code: composed.error.code,
+        });
+        return jsonResponse({ error: { code: composed.error.code } }, 404);
+      }
+      activeIssuer = composed.value;
+    }
     operation = "execute";
     const result = await activeIssuer.issueGoogleWrappingKey(
       body.value.googleIdToken,
+      body.value.googleNoncePreimage,
       body.value.keyId,
     );
 

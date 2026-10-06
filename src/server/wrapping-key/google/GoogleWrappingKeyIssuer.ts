@@ -2,6 +2,7 @@ import "server-only";
 
 import { Result, type Result as ResultType } from "better-result";
 
+import { googleNonceFor } from "@/libs/googleNonce";
 import { LOGGER, safeErrorLogFields } from "@/libs/logger/logger";
 import type { CodedFailure } from "@/libs/result";
 import { getPublicEnvironment, getServerEnvironment } from "@/server/environment";
@@ -39,16 +40,25 @@ export class GoogleWrappingKeyIssuer {
     this.googleIdTokenVerifier = new GoogleIdTokenVerifier(googleClientId);
   }
 
-  /** @throws {Error} when required server configuration is missing or invalid. */
-  static fromEnvironment(): GoogleWrappingKeyIssuer {
-    const { googleClientId } = getPublicEnvironment();
+  /**
+   * @returns `google_unavailable` when the operator runs this instance without Google.
+   * @throws {Error} when required server configuration is missing or invalid.
+   */
+  static fromEnvironment(): ResultType<
+    GoogleWrappingKeyIssuer,
+    CodedFailure<"google_unavailable">
+  > {
+    const { googleClientId, instance } = getPublicEnvironment();
+    if (!instance.features.google) return Result.err({ code: "google_unavailable" });
     const { currentKeyId, secrets } = getServerEnvironment();
-    return new GoogleWrappingKeyIssuer(googleClientId, currentKeyId, secrets);
+    return Result.ok(new GoogleWrappingKeyIssuer(googleClientId, currentKeyId, secrets));
   }
 
   /**
    * Verifies the Google ID token and derives its deterministic wrapping key.
    *
+   * @param googleNoncePreimage The preimage of the token's `nonce`, which only Passport's own
+   * client holds: the token alone (Homegate receives it too) does not unlock a wrapping key.
    * @param requestedKeyId Key ID from an existing Passport envelope. Omit it to
    * use the current key for a new envelope; an unknown ID returns `key_unavailable`.
    * @returns Verification, selection, and derivation failures as a Result. The
@@ -56,11 +66,19 @@ export class GoogleWrappingKeyIssuer {
    */
   async issueGoogleWrappingKey(
     googleIdToken: string,
+    googleNoncePreimage: string,
     requestedKeyId?: string,
   ): Promise<GoogleWrappingKeyIssueResult> {
+    let expectedNonce: string;
+    try {
+      expectedNonce = await googleNonceFor(googleNoncePreimage);
+    } catch {
+      // The route admits only well-formed preimages; anything else cannot match a token.
+      return Result.err({ code: "invalid_google_id_token" });
+    }
     let identity: GoogleIdTokenVerificationResult;
     try {
-      identity = await this.googleIdTokenVerifier.verifyGoogleIdToken(googleIdToken);
+      identity = await this.googleIdTokenVerifier.verifyGoogleIdToken(googleIdToken, expectedNonce);
     } catch (e) {
       LOGGER.error("identity.google.wrapping_key.failed", {
         layer: "server",

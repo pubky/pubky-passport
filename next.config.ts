@@ -3,6 +3,8 @@ import { fileURLToPath } from "node:url";
 
 import type { NextConfig } from "next";
 
+import { AUTHORIZATION_ENTRY_PATH } from "./src/libs/authorization/authorizationLocationRules";
+
 const projectRoot = dirname(fileURLToPath(import.meta.url));
 
 function permissionsPolicy(cameraAllowlist: string): string {
@@ -28,20 +30,36 @@ function permissionsPolicy(cameraAllowlist: string): string {
   ].join(", ");
 }
 
+/**
+ * `X-Frame-Options` backs up the proxy's `frame-ancestors 'none'` for any response the proxy does
+ * not reach (a prefetch, which it skips), so no Passport page can be framed.
+ */
 const BASELINE_SECURITY_HEADERS = [
   { key: "X-Content-Type-Options", value: "nosniff" },
+  { key: "X-Frame-Options", value: "DENY" },
   { key: "Permissions-Policy", value: permissionsPolicy("()") },
 ];
 const AUTHORIZE_TRANSPORT_HEADERS = [
   { key: "Cache-Control", value: "no-store" },
   { key: "Referrer-Policy", value: "no-referrer" },
 ];
-const AUTHORIZE_HEADERS = [
+/**
+ * Both signer routes may request the camera. `/authorize` keeps v1's allowance; `/` needs it because
+ * manual entry, with its QR scanner, now runs there before it reloads into `/authorize`.
+ */
+const SIGNER_HEADERS = [
   ...AUTHORIZE_TRANSPORT_HEADERS,
   { key: "Permissions-Policy", value: permissionsPolicy("(self)") },
 ];
 
+// Comma-separated hosts (e.g. a remote dev proxy) allowed to reach dev-only resources like HMR.
+const ALLOWED_DEV_ORIGINS = (process.env.NEXT_ALLOWED_DEV_ORIGINS ?? "")
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
 const NEXT_CONFIG: NextConfig = {
+  allowedDevOrigins: ALLOWED_DEV_ORIGINS,
   devIndicators: false,
   logging: { incomingRequests: false },
   output: "standalone",
@@ -50,9 +68,9 @@ const NEXT_CONFIG: NextConfig = {
   async headers() {
     return [
       { source: "/:path*", headers: BASELINE_SECURITY_HEADERS },
-      { source: "/authorize", headers: AUTHORIZE_HEADERS },
-      { source: "/authorize/:path*", headers: AUTHORIZE_HEADERS },
-      { source: "/", headers: AUTHORIZE_TRANSPORT_HEADERS },
+      { source: AUTHORIZATION_ENTRY_PATH, headers: SIGNER_HEADERS },
+      { source: `${AUTHORIZATION_ENTRY_PATH}/:path*`, headers: SIGNER_HEADERS },
+      { source: "/", headers: SIGNER_HEADERS },
     ];
   },
 };

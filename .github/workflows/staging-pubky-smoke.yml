@@ -8,13 +8,12 @@ permissions:
 
 jobs:
   pubky-critical-path:
+    # Staging secrets are released only to a run from main. The `staging` environment's own rules
+    # (Settings > Environments: protected branches only) are the gate that holds outside this file.
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     environment: staging
     timeout-minutes: 10
-    env:
-      PUBKY_STAGING_HOMEGATE_URL: ${{ secrets.PUBKY_STAGING_HOMEGATE_URL }}
-      PUBKY_STAGING_GOOGLE_ID_TOKEN: ${{ secrets.PUBKY_STAGING_GOOGLE_ID_TOKEN }}
-      PUBKY_STAGING_RELAY_URL: ${{ secrets.PUBKY_STAGING_RELAY_URL }}
 
     steps:
       - name: Checkout
@@ -35,4 +34,9 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Run concrete Pubky critical path
+        # Only this step sees the staging secrets: checkout, setup and dependency installation never do.
+        env:
+          PUBKY_STAGING_HOMEGATE_URL: ${{ secrets.PUBKY_STAGING_HOMEGATE_URL }}
+          PUBKY_STAGING_GOOGLE_ID_TOKEN: ${{ secrets.PUBKY_STAGING_GOOGLE_ID_TOKEN }}
+          PUBKY_STAGING_RELAY_URL: ${{ secrets.PUBKY_STAGING_RELAY_URL }}
         run: pnpm test:staging:pubky

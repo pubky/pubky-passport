@@ -2,11 +2,15 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { Result } from "better-result";
 
 import type { GoogleWrappingKeyIssuer } from "@/server/wrapping-key/google/GoogleWrappingKeyIssuer";
+import { stubPassportEnvironment } from "@test-utils/passportEnvironment";
+
+const PREIMAGE = Buffer.alloc(32, 9).toString("base64url");
 
 describe("POST /api/wrapping-key/google", () => {
   afterEach(() => {
     vi.doUnmock("@/server/wrapping-key/google/GoogleWrappingKeyIssuer");
     vi.restoreAllMocks();
+    vi.unstubAllEnvs();
   });
 
   it("returns the selected wrapping key and its public ID", async () => {
@@ -16,25 +20,51 @@ describe("POST /api/wrapping-key/google", () => {
         keyId: "current",
       }),
     );
-    const current = await currentPost(jsonRequest({ googleIdToken: "id-token" }));
+    const current = await currentPost(
+      jsonRequest({ googleIdToken: "id-token", googleNoncePreimage: PREIMAGE }),
+    );
     expect(await responseSummary(current)).toEqual({
       status: 200,
       body: { wrappingKey: "opaque-key", keyId: "current" },
     });
     expect(current.headers.get("Cache-Control")).toBe("no-store");
 
-    const retainedPost = await postHandler(async (_token, keyId) =>
+    const retainedPost = await postHandler(async (_token, _preimage, keyId) =>
       Result.ok({
         wrappingKey: "rotated-key",
         keyId: keyId ?? "current",
       }),
     );
     await expect(
-      retainedPost(jsonRequest({ googleIdToken: "id-token", keyId: "old" })).then(responseSummary),
+      retainedPost(
+        jsonRequest({ googleIdToken: "id-token", googleNoncePreimage: PREIMAGE, keyId: "old" }),
+      ).then(responseSummary),
     ).resolves.toEqual({
       status: 200,
       body: { wrappingKey: "rotated-key", keyId: "old" },
     });
+  });
+
+  it("hands the token and its nonce's preimage to the issuer", async () => {
+    const issue = vi.fn<GoogleWrappingKeyIssuer["issueGoogleWrappingKey"]>(async () =>
+      Result.ok({ wrappingKey: "opaque-key", keyId: "current" }),
+    );
+    const post = await postHandler(issue);
+    await post(jsonRequest({ googleIdToken: "id-token", googleNoncePreimage: PREIMAGE }));
+    expect(issue).toHaveBeenCalledExactlyOnceWith("id-token", PREIMAGE, undefined);
+  });
+
+  it("asks a page loaded before the preimage existed to reload, without composing anything", async () => {
+    const factory = vi.fn();
+    const post = await handlerWithFactory(factory);
+
+    const response = await post(jsonRequest({ googleIdToken: "id-token" }));
+
+    expect(await responseSummary(response)).toEqual({
+      status: 400,
+      body: { error: { code: "reload_required" } },
+    });
+    expect(factory).not.toHaveBeenCalled();
   });
 
   it("does not construct dependencies for invalid requests", async () => {
@@ -94,7 +124,9 @@ describe("POST /api/wrapping-key/google", () => {
     const post = await postHandler(async () => Result.err({ code }));
 
     await expect(
-      post(jsonRequest({ googleIdToken: "id-token" })).then(responseSummary),
+      post(jsonRequest({ googleIdToken: "id-token", googleNoncePreimage: PREIMAGE })).then(
+        responseSummary,
+      ),
     ).resolves.toEqual({ status, body: { error: { code } } });
   });
 
@@ -109,7 +141,9 @@ describe("POST /api/wrapping-key/google", () => {
       }),
     );
 
-    const response = await post(jsonRequest({ googleIdToken: "id-token" }));
+    const response = await post(
+      jsonRequest({ googleIdToken: "id-token", googleNoncePreimage: PREIMAGE }),
+    );
     const responseText = await response.text();
     expect(response.status).toBe(status);
     expect(responseText).not.toContain("cause");
@@ -127,8 +161,8 @@ describe("POST /api/wrapping-key/google", () => {
     );
     const post = await handlerWithFactory(factory);
 
-    await post(jsonRequest({ googleIdToken: "first" }));
-    await post(jsonRequest({ googleIdToken: "second" }));
+    await post(jsonRequest({ googleIdToken: "first", googleNoncePreimage: PREIMAGE }));
+    await post(jsonRequest({ googleIdToken: "second", googleNoncePreimage: PREIMAGE }));
 
     expect(factory).toHaveBeenCalledOnce();
   });
@@ -149,9 +183,43 @@ describe("POST /api/wrapping-key/google", () => {
       );
     const post = await handlerWithFactory(factory);
 
-    expect((await post(jsonRequest({ googleIdToken: "first" }))).status).toBe(500);
-    expect((await post(jsonRequest({ googleIdToken: "second" }))).status).toBe(200);
+    expect(
+      (await post(jsonRequest({ googleIdToken: "first", googleNoncePreimage: PREIMAGE }))).status,
+    ).toBe(500);
+    expect(
+      (await post(jsonRequest({ googleIdToken: "second", googleNoncePreimage: PREIMAGE }))).status,
+    ).toBe(200);
     expect(factory).toHaveBeenCalledTimes(2);
+  });
+
+  it("reports a Google-free instance as unavailable without an error log", async () => {
+    stubPassportEnvironment({
+      PASSPORT_PROVIDER_CONFIG_JSON: JSON.stringify({
+        googleEnabled: false,
+        verificationMethods: ["invite"],
+      }),
+      HOMEGATE_URL: undefined,
+      PASSPORT_SERVER_SECRET_CURRENT_KEY_ID: undefined,
+      PASSPORT_SERVER_SECRET_KEYRING_JSON: undefined,
+    });
+    vi.resetModules();
+    const { googleWrappingKeyPost } = await import("./handler");
+    const { LOGGER } = await import("@/libs/logger/logger");
+    const error = vi.spyOn(LOGGER, "error").mockImplementation(() => undefined);
+    const info = vi.spyOn(LOGGER, "info").mockImplementation(() => undefined);
+
+    for (const googleIdToken of ["first", "second"]) {
+      await expect(
+        googleWrappingKeyPost(jsonRequest({ googleIdToken, googleNoncePreimage: PREIMAGE })).then(
+          responseSummary,
+        ),
+      ).resolves.toEqual({ status: 404, body: { error: { code: "google_unavailable" } } });
+    }
+    expect(error).not.toHaveBeenCalled();
+    expect(info).toHaveBeenCalledWith(
+      "identity.google.wrapping_key.failed",
+      expect.objectContaining({ operation: "compose", code: "google_unavailable" }),
+    );
   });
 
   it("maps unexpected issuer failures to a safe response", async () => {
@@ -159,7 +227,9 @@ describe("POST /api/wrapping-key/google", () => {
       throw new Error("SECRET-GOOGLE-ID-TOKEN");
     });
 
-    const response = await post(jsonRequest({ googleIdToken: "id-token" }));
+    const response = await post(
+      jsonRequest({ googleIdToken: "id-token", googleNoncePreimage: PREIMAGE }),
+    );
     expect(await responseSummary(response)).toEqual({
       status: 500,
       body: { error: { code: "internal_error" } },
@@ -185,7 +255,7 @@ async function handlerWithFactory(
     >()),
     GoogleWrappingKeyIssuer: class {
       static fromEnvironment() {
-        return factory();
+        return Result.ok(factory());
       }
     },
   }));
