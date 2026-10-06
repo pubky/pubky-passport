@@ -1,0 +1,117 @@
+[
+  {
+    "name": "no features",
+    "input": [],
+    "valid": true
+  },
+  {
+    "name": "known and unknown",
+    "input": ["outcome-v2", "status", "Future.feature_2:v3"],
+    "valid": true
+  },
+  {
+    "name": "duplicates",
+    "input": ["status", "status"],
+    "valid": true
+  },
+  {
+    "name": "empty token",
+    "input": [""],
+    "valid": false
+  },
+  {
+    "name": "64 characters",
+    "input": ["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"],
+    "valid": true
+  },
+  {
+    "name": "65 characters",
+    "input": ["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"],
+    "valid": false
+  },
+  {
+    "name": "leading hyphen",
+    "input": ["-status"],
+    "valid": false
+  },
+  {
+    "name": "space",
+    "input": ["outcome v2"],
+    "valid": false
+  },
+  {
+    "name": "non-ASCII",
+    "input": ["caf\u00e9"],
+    "valid": false
+  },
+  {
+    "name": "bidi control",
+    "input": ["ab\u202ecd"],
+    "valid": false
+  },
+  {
+    "name": "16 entries",
+    "input": [
+      "status",
+      "status",
+      "status",
+      "status",
+      "status",
+      "status",
+      "status",
+      "status",
+      "status",
+      "status",
+      "status",
+      "status",
+      "status",
+      "status",
+      "status",
+      "status"
+    ],
+    "valid": true
+  },
+  {
+    "name": "17 entries",
+    "input": [
+      "status",
+      "status",
+      "status",
+      "status",
+      "status",
+      "status",
+      "status",
+      "status",
+      "status",
+      "status",
+      "status",
+      "status",
+      "status",
+      "status",
+      "status",
+      "status",
+      "status"
+    ],
+    "valid": false
+  },
+  {
+    "name": "not an array",
+    "input": "status",
+    "valid": false
+  },
+  {
+    "name": "null",
+    "input": null,
+    "valid": false
+  },
+  {
+    "name": "non-string member",
+    "input": [1],
+    "valid": false
+  },
+  {
+    "name": "trailing newline",
+    "input": ["status\n"],
+    "valid": false
+  }
+]

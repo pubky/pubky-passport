@@ -7,8 +7,8 @@ describe("shortPublicKey", () => {
     expect(shortPublicKey("abcdefghijkl")).toBe("abcdefghijkl");
   });
 
-  it("elides the middle of longer keys", () => {
-    expect(shortPublicKey("abcdefghijklm")).toBe("abcd...jklm");
+  it("elides the middle of longer keys with one ellipsis character, keeping their case", () => {
+    expect(shortPublicKey("abcdefghijklm")).toBe("abcd…jklm");
   });
 });
 

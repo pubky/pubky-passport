@@ -11,6 +11,7 @@ import { MAXIMUM_JSON_BODY_BYTES, passportKeyIdSchema } from "@/libs/passportPol
 
 const ERROR_CODES = [
   "invalid_request",
+  "reload_required",
   "invalid_google_id_token",
   "key_unavailable",
   "google_verifier_unavailable",
@@ -46,12 +47,15 @@ export class GoogleWrappingKeyApiClient {
    * Requests a wrapping key without exposing the Google token to failure details.
    *
    * @param googleIdToken Google credential verified by the server before key derivation.
+   * @param googleNoncePreimage The preimage of the token's `nonce`, which binds the token to this
+   * Passport's own sign-in: only this endpoint ever receives it, never Homegate.
    * @param keyId Key ID from an existing envelope; omit it to request the current server key.
    * The promise settles with a Result for request and response failures. It does not
    * intentionally reject.
    */
   async requestGoogleWrappingKey(
     googleIdToken: string,
+    googleNoncePreimage: string,
     keyId?: string,
   ): Promise<GoogleWrappingKeyResult> {
     let response: Response;
@@ -60,7 +64,7 @@ export class GoogleWrappingKeyApiClient {
         method: "POST",
         headers: { Accept: "application/json", "Content-Type": "application/json" },
         // The optional key ID is public envelope metadata; Drive tokens never cross this boundary.
-        body: JSON.stringify(keyId ? { googleIdToken, keyId } : { googleIdToken }),
+        body: JSON.stringify({ googleIdToken, googleNoncePreimage, ...(keyId ? { keyId } : {}) }),
         cache: "no-store",
         credentials: "same-origin",
         redirect: "error",

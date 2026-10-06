@@ -9,11 +9,16 @@ import type {
   GoogleImplicitAuthorizationResult,
 } from "./GoogleImplicitAuthorization";
 
-/** Shared validation for popup and same-tab responses; tokens never enter storage or UI state. */
+/**
+ * Shared validation for popup and same-tab responses; tokens never enter storage or UI state. The
+ * ID token must carry `nonce`, the hash of `noncePreimage`, which the credentials keep for
+ * Passport's own wrapping-key endpoint.
+ */
 export async function resolveGoogleCredentials(
   capture: unknown,
   state: string,
   nonce: string,
+  noncePreimage: string,
   signal: AbortSignal,
 ): Promise<GoogleImplicitAuthorizationResult<GoogleIdentityCredentials>> {
   const parsed = parseGoogleAuthorizationResponse(capture, state, nonce);
@@ -45,6 +50,7 @@ export async function resolveGoogleCredentials(
   }
   return Result.ok({
     googleIdToken: parsed.value.googleIdToken,
+    googleNoncePreimage: noncePreimage,
     driveAccessToken: parsed.value.accessToken,
     driveAccessTokenExpiresAt: parsed.value.accessTokenExpiresAt,
     googleAccount: account.value,

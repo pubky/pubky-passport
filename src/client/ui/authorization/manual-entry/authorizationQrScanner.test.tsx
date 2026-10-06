@@ -50,7 +50,7 @@ describe("AuthorizationQrScanner", () => {
       },
     );
     const onScan = vi.fn();
-    render(<AuthorizationQrScanner onClose={vi.fn()} onScan={onScan} />);
+    render(<AuthorizationQrScanner onClose={vi.fn()} onPasteInstead={vi.fn()} onScan={onScan} />);
 
     await waitFor(() => expect(MOCKS.decodeFromConstraints).toHaveBeenCalledOnce());
     expect(MOCKS.decodeFromConstraints.mock.calls[0]?.[0]).toEqual({
@@ -58,6 +58,8 @@ describe("AuthorizationQrScanner", () => {
       video: { facingMode: { ideal: "environment" } },
     });
     await waitFor(() => expect(screen.queryByText("Starting camera…")).not.toBeInTheDocument());
+    // While the camera runs, the aiming frame shows where the code goes.
+    expect(document.querySelector('[class*="inset-[12%]"]')).not.toBeNull();
 
     act(() => callback?.({ getText: () => "pubkyauth://signin?request" }, undefined, controls));
 
@@ -72,11 +74,27 @@ describe("AuthorizationQrScanner", () => {
     MOCKS.decodeFromConstraints.mockRejectedValue(
       new DOMException("SENSITIVE-CAMERA-DETAIL", "NotAllowedError"),
     );
-    render(<AuthorizationQrScanner onClose={vi.fn()} onScan={vi.fn()} />);
+    const onClose = vi.fn();
+    const onPasteInstead = vi.fn();
+    render(
+      <AuthorizationQrScanner onClose={onClose} onPasteInstead={onPasteInstead} onScan={vi.fn()} />,
+    );
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Camera access is unavailable. Allow camera access or paste the link instead.",
+      "Camera access is unavailable. Allow camera access for this site, or paste the link instead.",
     );
+    // Without a camera there is nothing to aim: no frame, and the description says why.
+    expect(screen.getByRole("dialog")).toHaveAccessibleDescription(
+      "Passport can't use a camera here.",
+    );
+    expect(document.querySelector('[class*="inset-[12%]"]')).toBeNull();
+    expect(screen.getByLabelText("QR code camera preview")).not.toBeVisible();
+    // Pasting the link is the way on; Close stays the secondary action.
+    const buttons = screen.getAllByRole("button");
+    expect(buttons.map((button) => button.textContent)).toEqual(["Paste link instead", "Close"]);
+    await userEvent.setup().click(screen.getByRole("button", { name: "Paste link instead" }));
+    expect(onPasteInstead).toHaveBeenCalledOnce();
+    expect(onClose).not.toHaveBeenCalled();
     expect(info).toHaveBeenCalledWith("authorize.manual_entry.failed", {
       operation: "scan_qr",
       code: "camera_unavailable",
@@ -91,7 +109,9 @@ describe("AuthorizationQrScanner", () => {
     MOCKS.decodeFromConstraints.mockResolvedValue(controls);
     const onClose = vi.fn();
     const user = userEvent.setup();
-    const view = render(<AuthorizationQrScanner onClose={onClose} onScan={vi.fn()} />);
+    const view = render(
+      <AuthorizationQrScanner onClose={onClose} onPasteInstead={vi.fn()} onScan={vi.fn()} />,
+    );
 
     await waitFor(() => expect(screen.queryByText("Starting camera…")).not.toBeInTheDocument());
     await user.click(screen.getByRole("button", { name: "Close" }));

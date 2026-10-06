@@ -145,14 +145,14 @@ export class PassportFileWebCrypto {
   }
 
   /**
-   * Authenticates and decrypts a v1 envelope for the expected Passport origin.
-   * The returned 32-byte secret is caller-owned sensitive material and must be
-   * cleared when no longer needed.
+   * Authenticates and decrypts a v1 envelope. The envelope's origin records which Passport wrote
+   * it and is authenticated as additional data, but any origin holding the wrapping key may
+   * decrypt. The returned 32-byte secret is caller-owned sensitive material and must be cleared
+   * when no longer needed.
    */
   async decryptSecretKeyBytes(
     envelope: PassportFileEnvelope,
     wrappingKey: string,
-    passportOrigin: string,
   ): Promise<CryptoResult<Uint8Array>> {
     const browserCrypto = getBrowserCrypto();
     if (Result.isError(browserCrypto)) {
@@ -176,22 +176,6 @@ export class PassportFileWebCrypto {
       return Result.err({ code: "invalid_envelope", cause: parsed.error });
     }
     const parsedEnvelope = parsed.value;
-
-    const expectedOrigin = normalizePassportFileOrigin(passportOrigin);
-    if (Result.isError(expectedOrigin)) {
-      LOGGER.warn("passport_file.crypto.failed", {
-        operation: "decrypt",
-        code: "invalid_envelope",
-      });
-      return Result.err({ code: "invalid_envelope", cause: expectedOrigin.error });
-    }
-    if (expectedOrigin.value !== parsedEnvelope.url) {
-      LOGGER.warn("passport_file.crypto.failed", {
-        operation: "decrypt",
-        code: "invalid_envelope",
-      });
-      return Result.err({ code: "invalid_envelope" });
-    }
 
     const iv = decodeFixedLengthBase64Url(parsedEnvelope.iv, AES_GCM_IV_BYTES);
     if (!iv) {

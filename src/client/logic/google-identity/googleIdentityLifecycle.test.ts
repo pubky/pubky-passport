@@ -6,7 +6,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { expectResultOk } from "@test-utils/resultAssertions";
 import { LOGGER } from "@/libs/logger/logger";
 import { NETWORK_OPERATION_TIMEOUT_MS } from "@/libs/passportPolicy";
-import { GoogleIdentityLifecycle, type GoogleIdentityProgress } from "./GoogleIdentityLifecycle";
+import {
+  GoogleIdentityLifecycle,
+  type GoogleIdentityLifecycleDependencies,
+  type GoogleIdentityProgress,
+  type UnlinkedGoogleBackups,
+  type UnspentGoogleSignupInvites,
+} from "./GoogleIdentityLifecycle";
 
 const MOCKS = {
   createIdentityKey: vi.fn(),
@@ -20,19 +26,26 @@ const MOCKS = {
   disposePubky: vi.fn(),
   requestWrappingKey: vi.fn(),
   requestSignupToken: vi.fn(),
+  lookUpSignupToken: vi.fn(),
   encryptSecretKeyBytes: vi.fn(),
   decryptSecretKeyBytes: vi.fn(),
   repositorySave: vi.fn(),
-  repositoryRemove: vi.fn(),
+  repositorySetGoogleAccount: vi.fn(),
+  repositoryRead: vi.fn(),
   contextFetch: { current: undefined as typeof fetch | undefined },
   driveStoreConstructions: { count: 0 },
   visibleCopiesConstructions: { count: 0 },
   readPassportFile: vi.fn(),
+  hasPassportFile: vi.fn(),
   deleteInvalidPassportFile: vi.fn(),
   createPassportFile: vi.fn(),
   deletePassportFile: vi.fn(),
   createVisibleRecoveryCopy: vi.fn(),
   deleteVisibleRecoveryCopies: vi.fn(),
+  /** The page-scoped record of unlinked backups, shared by every lifecycle one test creates. */
+  unlinkedBackups: new Map() as UnlinkedGoogleBackups,
+  /** The page-scoped record of unspent Homegate invites, shared like `unlinkedBackups`. */
+  unspentSignupInvites: new Map() as UnspentGoogleSignupInvites,
 };
 
 const PUBLIC_IDENTITY = {
@@ -47,9 +60,13 @@ const ENVELOPE = {
   ct: "b".repeat(64),
   url: "https://passport.pubky.app",
 };
+const FOREIGN_ENVELOPE = { ...ENVELOPE, url: "https://passport-staging.pubky.app" };
 const REFERENCE = { storageId: "opaque-file-id", revision: "42" };
+/** The preimage of the ID token's nonce: only Passport's wrapping-key endpoint may receive it. */
+const NONCE_PREIMAGE = "N".repeat(42) + "A";
 const CREDENTIALS = {
   googleIdToken: "google-id-token",
+  googleNoncePreimage: NONCE_PREIMAGE,
   driveAccessToken: "drive-access-token",
   driveAccessTokenExpiresAt: Date.now() + 3_600_000,
   visibleBackupPermissionGranted: true,
@@ -71,6 +88,9 @@ describe("Google identity use cases", () => {
     MOCKS.driveStoreConstructions.count = 0;
     MOCKS.visibleCopiesConstructions.count = 0;
     MOCKS.contextFetch.current = undefined;
+    MOCKS.unlinkedBackups.clear();
+    MOCKS.unspentSignupInvites.clear();
+    MOCKS.hasPassportFile.mockResolvedValue(Result.ok(false));
     MOCKS.requestWrappingKey.mockResolvedValue(
       Result.ok({
         wrappingKey: "w".repeat(43),
@@ -78,6 +98,7 @@ describe("Google identity use cases", () => {
       }),
     );
     MOCKS.requestSignupToken.mockResolvedValue(Result.ok(SIGNUP_DETAILS));
+    MOCKS.lookUpSignupToken.mockResolvedValue({ status: "valid", reached: true });
     MOCKS.createIdentityKey.mockResolvedValue(Result.ok(IDENTITY));
     MOCKS.exportSecretKey.mockImplementation(async () =>
       Result.ok({
@@ -105,7 +126,13 @@ describe("Google identity use cases", () => {
         publicIdentity: PUBLIC_IDENTITY,
       }),
     );
-    MOCKS.repositoryRemove.mockReturnValue(Result.ok());
+    MOCKS.repositorySetGoogleAccount.mockReturnValue(Result.ok());
+    MOCKS.repositoryRead.mockImplementation(() =>
+      Result.ok({
+        identity: { publicIdentity: PUBLIC_IDENTITY },
+        secretKey: { bytes: new Uint8Array(32).fill(7), format: "pubky-secret-key" },
+      }),
+    );
   });
 
   afterEach(() => {
@@ -118,6 +145,7 @@ describe("Google identity use cases", () => {
     const events: string[] = [];
     MOCKS.readPassportFile.mockResolvedValue(Result.ok({ status: "missing" }));
     record(MOCKS.requestSignupToken, "homegate", events);
+    record(MOCKS.lookUpSignupToken, "homeserver-check", events);
     record(MOCKS.createIdentityKey, "create-key", events);
     record(MOCKS.createPassportFile, "drive-create", events);
     record(MOCKS.createVisibleRecoveryCopy, "visible-copy", events);
@@ -136,8 +164,24 @@ describe("Google identity use cases", () => {
       publicIdentity: PUBLIC_IDENTITY,
       visibleRecoveryCopyStatus: "created",
     });
+    expect(MOCKS.repositorySave).toHaveBeenCalledWith(
+      expect.objectContaining({
+        profileSetupRequired: true,
+        homeserverPubky: SIGNUP_DETAILS.homeserverPubky,
+      }),
+      expect.anything(),
+    );
+    // The wrapping key needs the token and its nonce's preimage; Homegate gets neither the
+    // preimage nor anything that contains it.
+    expect(MOCKS.requestWrappingKey).toHaveBeenCalledWith(
+      "google-id-token",
+      NONCE_PREIMAGE,
+      undefined,
+    );
+    expect(JSON.stringify(MOCKS.requestSignupToken.mock.calls)).not.toContain(NONCE_PREIMAGE);
     expect(events).toEqual([
       "homegate",
+      "homeserver-check",
       "create-key",
       "drive-create",
       "visible-copy",
@@ -149,16 +193,171 @@ describe("Google identity use cases", () => {
     expect(progress).toEqual([
       { flow: "lookup", step: "checking" },
       { flow: "create", step: "preparing" },
-      { flow: "create", step: "creating" },
-      { flow: "create", step: "storing_passport_file" },
-      { flow: "create", step: "signing_up" },
-      { flow: "create", step: "activating" },
+      { flow: "create", step: "creating", homeserverPubky: SIGNUP_DETAILS.homeserverPubky },
+      {
+        flow: "create",
+        step: "storing_passport_file",
+        homeserverPubky: SIGNUP_DETAILS.homeserverPubky,
+      },
+      { flow: "create", step: "signing_up", homeserverPubky: SIGNUP_DETAILS.homeserverPubky },
+      { flow: "create", step: "activating", homeserverPubky: SIGNUP_DETAILS.homeserverPubky },
     ]);
+    expect(MOCKS.lookUpSignupToken).toHaveBeenCalledWith(SIGNUP_DETAILS, expect.any(AbortSignal));
     expect(MOCKS.driveStoreConstructions.count).toBe(1);
     expect(MOCKS.visibleCopiesConstructions.count).toBe(1);
     expect(MOCKS.signin).toHaveBeenCalledWith(KEY_HANDLE, "normal");
     expect(MOCKS.signin).not.toHaveBeenCalledWith(KEY_HANDLE, "after-publication");
     await vi.waitFor(() => expect(MOCKS.disposeIdentityKey).toHaveBeenCalledWith(KEY_HANDLE));
+  });
+
+  it("creates the account on exactly the homeserver Homegate issued the invite for", async () => {
+    const issued = {
+      homeserverPubky: "5jsjx1o6fzu6aeeo697r3i5rx15zq41kikcye8wtwdqm4nb4tryo",
+      signupToken: "G00G-1E51-GNVP",
+    };
+    MOCKS.readPassportFile.mockResolvedValue(Result.ok({ status: "missing" }));
+    MOCKS.requestSignupToken.mockResolvedValueOnce(Result.ok(issued));
+    const progress: GoogleIdentityProgress[] = [];
+
+    expectResultOk(
+      await createSubject().establishIdentity(CREDENTIALS, (phase) => progress.push(phase)),
+    );
+
+    expect(MOCKS.lookUpSignupToken).toHaveBeenCalledExactlyOnceWith(
+      issued,
+      expect.any(AbortSignal),
+    );
+    expect(MOCKS.signup).toHaveBeenCalledExactlyOnceWith(
+      KEY_HANDLE,
+      issued.homeserverPubky,
+      issued.signupToken,
+    );
+    await vi.waitFor(() =>
+      expect(MOCKS.publishHomeserver).toHaveBeenCalledWith(KEY_HANDLE, issued.homeserverPubky),
+    );
+    expect(MOCKS.repositorySave).toHaveBeenCalledWith(
+      expect.objectContaining({ homeserverPubky: issued.homeserverPubky }),
+      expect.anything(),
+    );
+    // Every step from the account's creation on names that homeserver.
+    expect(progress.filter((phase) => "homeserverPubky" in phase)).toEqual(
+      progress.slice(2).map((phase) => ({ ...phase, homeserverPubky: issued.homeserverPubky })),
+    );
+    expect(progress.slice(2).length).toBeGreaterThan(0);
+  });
+
+  it.each([
+    ["does not answer", { status: "unknown", reached: false }, "homeserver_unreachable"],
+    ["reports the invite used", { status: "used", reached: true }, "homeserver_invite_rejected"],
+    [
+      "does not know the invite",
+      { status: "not_found", reached: true },
+      "homeserver_invite_rejected",
+    ],
+  ] as const)(
+    "writes nothing to Drive when the new identity's homeserver %s",
+    async (_label, lookup, code) => {
+      MOCKS.readPassportFile.mockResolvedValue(Result.ok({ status: "missing" }));
+      MOCKS.lookUpSignupToken.mockResolvedValueOnce(lookup);
+
+      expectResultError(await createSubject().establishIdentity(CREDENTIALS, () => undefined), {
+        code,
+      });
+      expect(MOCKS.createIdentityKey).not.toHaveBeenCalled();
+      expect(MOCKS.createPassportFile).not.toHaveBeenCalled();
+      expect(MOCKS.createVisibleRecoveryCopy).not.toHaveBeenCalled();
+      expect(MOCKS.signup).not.toHaveBeenCalled();
+      expect(MOCKS.publishHomeserver).not.toHaveBeenCalled();
+      expect(MOCKS.repositorySave).not.toHaveBeenCalled();
+    },
+  );
+
+  it("creates the identity when the homeserver answers without confirming the invite", async () => {
+    MOCKS.readPassportFile.mockResolvedValue(Result.ok({ status: "missing" }));
+    MOCKS.lookUpSignupToken.mockResolvedValueOnce({ status: "unknown", reached: true });
+
+    expect(
+      expectResultOk(await createSubject().establishIdentity(CREDENTIALS, () => undefined)),
+    ).toMatchObject({ establishmentMode: "created" });
+    expect(MOCKS.createPassportFile).toHaveBeenCalledOnce();
+    expect(MOCKS.signup).toHaveBeenCalledOnce();
+  });
+
+  it("retries with the unspent invite of an attempt whose homeserver did not answer", async () => {
+    MOCKS.readPassportFile.mockResolvedValue(Result.ok({ status: "missing" }));
+    MOCKS.lookUpSignupToken.mockResolvedValueOnce({ status: "unknown", reached: false });
+    expectResultError(await createSubject().establishIdentity(CREDENTIALS, () => undefined), {
+      code: "homeserver_unreachable",
+    });
+
+    // Try again builds a new lifecycle on the same page.
+    expectResultOk(await createSubject().establishIdentity(CREDENTIALS, () => undefined));
+    expect(MOCKS.requestSignupToken).toHaveBeenCalledOnce();
+    expect(MOCKS.lookUpSignupToken).toHaveBeenCalledTimes(2);
+    expect(MOCKS.lookUpSignupToken).toHaveBeenLastCalledWith(
+      SIGNUP_DETAILS,
+      expect.any(AbortSignal),
+    );
+    expect(MOCKS.signup).toHaveBeenCalledWith(
+      KEY_HANDLE,
+      SIGNUP_DETAILS.homeserverPubky,
+      SIGNUP_DETAILS.signupToken,
+    );
+
+    // That signup used the invite, so the next identity needs a new one.
+    expectResultOk(await createSubject().establishIdentity(CREDENTIALS, () => undefined));
+    expect(MOCKS.requestSignupToken).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps the invite of an attempt that stopped before signing up", async () => {
+    MOCKS.readPassportFile.mockResolvedValue(Result.ok({ status: "missing" }));
+    MOCKS.createPassportFile.mockResolvedValueOnce(Result.err({ code: "drive_write_failed" }));
+    expectResultError(await createSubject().establishIdentity(CREDENTIALS, () => undefined), {
+      code: "drive_write_failed",
+    });
+
+    expectResultOk(await createSubject().establishIdentity(CREDENTIALS, () => undefined));
+    expect(MOCKS.requestSignupToken).toHaveBeenCalledOnce();
+    expect(MOCKS.signup).toHaveBeenCalledOnce();
+  });
+
+  it("keeps an unspent invite to the Google account it was issued for", async () => {
+    MOCKS.readPassportFile.mockResolvedValue(Result.ok({ status: "missing" }));
+    MOCKS.lookUpSignupToken.mockResolvedValueOnce({ status: "unknown", reached: false });
+    expectResultError(await createSubject().establishIdentity(CREDENTIALS, () => undefined), {
+      code: "homeserver_unreachable",
+    });
+    const otherAccount = { ...CREDENTIALS.googleAccount, googleSubject: "other-google-account" };
+    const otherDetails = { homeserverPubky: "homeserver-pubky", signupToken: "other-token" };
+    MOCKS.requestSignupToken.mockResolvedValueOnce(Result.ok(otherDetails));
+
+    expectResultOk(
+      await createSubject().establishIdentity(
+        { ...CREDENTIALS, googleIdToken: "other-id-token", googleAccount: otherAccount },
+        () => undefined,
+      ),
+    );
+    expect(MOCKS.requestSignupToken).toHaveBeenCalledTimes(2);
+    expect(MOCKS.requestSignupToken).toHaveBeenLastCalledWith("other-id-token");
+    expect(MOCKS.signup).toHaveBeenCalledWith(KEY_HANDLE, "homeserver-pubky", "other-token");
+  });
+
+  it.each([
+    ["the homeserver refused the invite", "homeserver_invite_rejected"],
+    ["a signup tried the invite", "signup_failed"],
+  ] as const)("requests a new invite once %s", async (_label, code) => {
+    MOCKS.readPassportFile.mockResolvedValue(Result.ok({ status: "missing" }));
+    if (code === "homeserver_invite_rejected") {
+      MOCKS.lookUpSignupToken.mockResolvedValueOnce({ status: "used", reached: true });
+    } else {
+      MOCKS.signup.mockResolvedValueOnce(Result.err({ code: "signup_failed" }));
+    }
+    expectResultError(await createSubject().establishIdentity(CREDENTIALS, () => undefined), {
+      code,
+    });
+
+    expectResultOk(await createSubject().establishIdentity(CREDENTIALS, () => undefined));
+    expect(MOCKS.requestSignupToken).toHaveBeenCalledTimes(2);
   });
 
   it("asks for a decision only after finding no identity, before creating anything", async () => {
@@ -192,6 +391,8 @@ describe("Google identity use cases", () => {
 
     expect(expectResultOk(result).establishmentMode).toBe("restored");
     expect(MOCKS.repositorySave).toHaveBeenCalledOnce();
+    // A restore did not sign the key up, so it cannot say which homeserver holds the account.
+    expect(MOCKS.repositorySave.mock.calls[0]?.[0]).not.toHaveProperty("homeserverPubky");
     expect(MOCKS.visibleCopiesConstructions.count).toBe(0);
     expect(MOCKS.createVisibleRecoveryCopy).not.toHaveBeenCalled();
   });
@@ -220,7 +421,7 @@ describe("Google identity use cases", () => {
     expect(MOCKS.readPassportFile).not.toHaveBeenCalled();
     expect(MOCKS.deleteVisibleRecoveryCopies).not.toHaveBeenCalled();
     expect(MOCKS.deletePassportFile).not.toHaveBeenCalled();
-    expect(MOCKS.repositoryRemove).not.toHaveBeenCalled();
+    expect(MOCKS.repositorySetGoogleAccount).not.toHaveBeenCalled();
   });
 
   it("stores the private backup but skips visible-copy APIs when that permission was declined", async () => {
@@ -279,7 +480,9 @@ describe("Google identity use cases", () => {
       MOCKS.readPassportFile.mockResolvedValue(Result.err({ code: "network_failed" }));
     } else if (stage === "decryption") {
       foundPassportFile();
-      MOCKS.decryptSecretKeyBytes.mockResolvedValue(Result.err({ code: "decrypt_failed" }));
+      MOCKS.decryptSecretKeyBytes.mockResolvedValue(
+        Result.err({ code: "unsupported_browser_crypto" }),
+      );
     } else {
       MOCKS.readPassportFile.mockResolvedValue(Result.ok({ status: "missing" }));
       if (stage === "wrapping-key") {
@@ -331,6 +534,32 @@ describe("Google identity use cases", () => {
 
     expect(failure.cause).toBe(thrown);
     expect(JSON.stringify(warning.mock.calls)).not.toContain("BROAD-CATCH-CANARY");
+  });
+
+  it("reports a malformed file naming another Passport origin as foreign, never deletable", async () => {
+    MOCKS.readPassportFile.mockResolvedValue(
+      Result.err({ code: "invalid_file", passportFileOrigin: FOREIGN_ENVELOPE.url }),
+    );
+
+    const failure = expectResultError(
+      await createSubject().establishIdentity(CREDENTIALS, () => undefined),
+      { code: "foreign_passport_file" },
+    );
+    expect(failure).toMatchObject({ passportFileOrigin: FOREIGN_ENVELOPE.url });
+    expect(MOCKS.deleteInvalidPassportFile).not.toHaveBeenCalled();
+  });
+
+  it("only asks the store to delete a malformed file that belongs to this origin", async () => {
+    MOCKS.deleteInvalidPassportFile.mockResolvedValue(
+      Result.err({ code: "foreign_file", passportFileOrigin: FOREIGN_ENVELOPE.url }),
+    );
+
+    expectResultError(
+      await createSubject().replaceInvalidPassportFile(CREDENTIALS, () => undefined),
+      { code: "foreign_passport_file" },
+    );
+    expect(MOCKS.deleteInvalidPassportFile).toHaveBeenCalledWith(ENVELOPE.url);
+    expect(MOCKS.createIdentityKey).not.toHaveBeenCalled();
   });
 
   it("exposes malformed passport files as a specific recoverable error", async () => {
@@ -440,10 +669,14 @@ describe("Google identity use cases", () => {
       { flow: "lookup", step: "checking" },
       { flow: "restore", step: "restoring" },
       { flow: "create", step: "preparing" },
-      { flow: "create", step: "creating" },
-      { flow: "create", step: "storing_passport_file" },
-      { flow: "create", step: "signing_up" },
-      { flow: "create", step: "activating" },
+      { flow: "create", step: "creating", homeserverPubky: SIGNUP_DETAILS.homeserverPubky },
+      {
+        flow: "create",
+        step: "storing_passport_file",
+        homeserverPubky: SIGNUP_DETAILS.homeserverPubky,
+      },
+      { flow: "create", step: "signing_up", homeserverPubky: SIGNUP_DETAILS.homeserverPubky },
+      { flow: "create", step: "activating", homeserverPubky: SIGNUP_DETAILS.homeserverPubky },
     ]);
   });
 
@@ -462,6 +695,26 @@ describe("Google identity use cases", () => {
     expect(MOCKS.deletePassportFile).not.toHaveBeenCalled();
     expect(MOCKS.createIdentityKey).not.toHaveBeenCalled();
     await vi.waitFor(() => expect(MOCKS.disposeIdentityKey).toHaveBeenCalledWith(KEY_HANDLE));
+  });
+
+  it("offers deletion for an own-origin file the wrapping key no longer opens", async () => {
+    foundPassportFile();
+    MOCKS.decryptSecretKeyBytes.mockResolvedValue(Result.err({ code: "decrypt_failed" }));
+
+    expectResultError(await createSubject().establishIdentity(CREDENTIALS, () => undefined), {
+      code: "passport_file_undecryptable",
+    });
+    expect(MOCKS.deletePassportFile).not.toHaveBeenCalled();
+    expect(MOCKS.createIdentityKey).not.toHaveBeenCalled();
+  });
+
+  it("restores a file written by another Passport origin when it decrypts", async () => {
+    foundPassportFile(FOREIGN_ENVELOPE);
+
+    expect(
+      expectResultOk(await createSubject().establishIdentity(CREDENTIALS, () => undefined)),
+    ).toMatchObject({ establishmentMode: "restored" });
+    expect(MOCKS.decryptSecretKeyBytes).toHaveBeenCalledWith(FOREIGN_ENVELOPE, "w".repeat(43));
   });
 
   it.each([
@@ -495,6 +748,31 @@ describe("Google identity use cases", () => {
     },
   );
 
+  it.each([
+    [
+      "decryption",
+      () => MOCKS.decryptSecretKeyBytes.mockResolvedValue(Result.err({ code: "decrypt_failed" })),
+    ],
+    [
+      "an unknown key ID",
+      () => MOCKS.requestWrappingKey.mockResolvedValue(Result.err({ code: "key_unavailable" })),
+    ],
+  ] as const)(
+    "reports a foreign file that fails %s with its origin and never deletes it",
+    async (_stage, arrange) => {
+      foundPassportFile(FOREIGN_ENVELOPE);
+      arrange();
+
+      const failure = expectResultError(
+        await createSubject().establishIdentity(CREDENTIALS, () => undefined),
+        { code: "foreign_passport_file" },
+      );
+      expect(failure).toMatchObject({ passportFileOrigin: FOREIGN_ENVELOPE.url });
+      expect(MOCKS.deletePassportFile).not.toHaveBeenCalled();
+      expect(MOCKS.createIdentityKey).not.toHaveBeenCalled();
+    },
+  );
+
   it("does not create an identity when the undecryptable file cannot be deleted", async () => {
     foundPassportFile();
     MOCKS.decryptSecretKeyBytes.mockResolvedValue(Result.err({ code: "decrypt_failed" }));
@@ -515,11 +793,55 @@ describe("Google identity use cases", () => {
     MOCKS.decryptSecretKeyBytes.mockResolvedValue(Result.err({ code: "decrypt_failed" }));
 
     expectResultError(await createSubject().establishIdentity(CREDENTIALS, () => undefined), {
-      code: "decrypt_failed",
+      code: "passport_file_undecryptable",
     });
     expect(MOCKS.deletePassportFile).not.toHaveBeenCalled();
     expect(MOCKS.createIdentityKey).not.toHaveBeenCalled();
   });
+
+  it("keeps an own-origin unknown key ID as a wrapping-key failure", async () => {
+    foundPassportFile();
+    MOCKS.requestWrappingKey.mockResolvedValue(Result.err({ code: "key_unavailable" }));
+
+    expectResultError(await createSubject().establishIdentity(CREDENTIALS, () => undefined), {
+      code: "wrapping_key_failed",
+      detailCode: "key_unavailable",
+    });
+  });
+
+  it.each([
+    [
+      "a foreign file",
+      FOREIGN_ENVELOPE,
+      Result.err({ code: "decrypt_failed" }),
+      "foreign_passport_file",
+    ],
+    ["an own file that now decrypts", ENVELOPE, undefined, undefined],
+    ["an own file whose key cannot be fetched", ENVELOPE, "wrapping-key", "wrapping_key_failed"],
+  ] as const)(
+    "never deletes %s during replacement",
+    async (_label, envelope, failure, expectedCode) => {
+      foundPassportFile(envelope);
+      if (failure === "wrapping-key") {
+        MOCKS.requestWrappingKey.mockResolvedValue(Result.err({ code: "network_failed" }));
+      } else if (failure !== undefined) {
+        MOCKS.decryptSecretKeyBytes.mockResolvedValue(failure);
+      }
+
+      const result = await createSubject().replaceUndecryptablePassportFile(
+        CREDENTIALS,
+        () => undefined,
+      );
+
+      if (expectedCode === undefined) {
+        expect(expectResultOk(result)).toMatchObject({ establishmentMode: "restored" });
+      } else {
+        expectResultError(result, { code: expectedCode });
+      }
+      expect(MOCKS.deletePassportFile).not.toHaveBeenCalled();
+      expect(MOCKS.deleteInvalidPassportFile).not.toHaveBeenCalled();
+    },
+  );
 
   it("restores through normal sign-in, republishes in the background, and does not request Homegate", async () => {
     const decryptedBytes = new Uint8Array(32).fill(9);
@@ -663,15 +985,54 @@ describe("Google identity use cases", () => {
     );
     expect(MOCKS.signin).toHaveBeenCalledWith(KEY_HANDLE, "normal");
     expect(MOCKS.signin).toHaveBeenCalledWith(KEY_HANDLE, "after-publication");
-    expect(MOCKS.repositorySave).toHaveBeenCalledOnce();
+    expect(MOCKS.repositorySave).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ homeserverPubky: SIGNUP_DETAILS.homeserverPubky }),
+      expect.anything(),
+    );
     expect(progress).toEqual([
       { flow: "lookup", step: "checking" },
       { flow: "restore", step: "restoring" },
       { flow: "restore", step: "signing_in" },
       { flow: "repair", step: "signing_up" },
-      { flow: "repair", step: "publishing" },
-      { flow: "repair", step: "signing_in" },
+      { flow: "repair", step: "publishing", homeserverPubky: SIGNUP_DETAILS.homeserverPubky },
+      { flow: "repair", step: "signing_in", homeserverPubky: SIGNUP_DETAILS.homeserverPubky },
     ]);
+  });
+
+  it("publishes no record for a repair whose homeserver does not answer", async () => {
+    foundPassportFile();
+    MOCKS.signin.mockResolvedValueOnce(Result.err({ code: "signin_failed" }));
+    MOCKS.lookUpSignupToken.mockResolvedValueOnce({ status: "unknown", reached: false });
+
+    expectResultError(await createSubject().establishIdentity(CREDENTIALS, () => undefined), {
+      code: "homeserver_unreachable",
+    });
+    expect(MOCKS.lookUpSignupToken).toHaveBeenCalledWith(SIGNUP_DETAILS, expect.any(AbortSignal));
+    expect(MOCKS.signup).not.toHaveBeenCalled();
+    expect(MOCKS.publishHomeserver).not.toHaveBeenCalled();
+    expect(MOCKS.repositorySave).not.toHaveBeenCalled();
+    expect(MOCKS.disposeIdentityKey).toHaveBeenCalledWith(KEY_HANDLE);
+
+    // The next repair uses the same invite instead of another Google verification.
+    MOCKS.signin.mockResolvedValueOnce(Result.err({ code: "signin_failed" }));
+    expectResultOk(await createSubject().establishIdentity(CREDENTIALS, () => undefined));
+    expect(MOCKS.requestSignupToken).toHaveBeenCalledOnce();
+    expect(MOCKS.signup).toHaveBeenCalledWith(
+      KEY_HANDLE,
+      SIGNUP_DETAILS.homeserverPubky,
+      SIGNUP_DETAILS.signupToken,
+    );
+  });
+
+  it("repairs with an invite the homeserver reports used, which the key may have spent", async () => {
+    foundPassportFile();
+    MOCKS.signin.mockResolvedValueOnce(Result.err({ code: "signin_failed" }));
+    MOCKS.lookUpSignupToken.mockResolvedValueOnce({ status: "used", reached: true });
+    MOCKS.signup.mockResolvedValue(Result.err({ code: "account_exists" }));
+
+    expectResultOk(await createSubject().establishIdentity(CREDENTIALS, () => undefined));
+    expect(MOCKS.signup).toHaveBeenCalledOnce();
+    expect(MOCKS.repositorySave).toHaveBeenCalledOnce();
   });
 
   it("republishes when restored-identity signup reports that the account exists", async () => {
@@ -687,6 +1048,39 @@ describe("Google identity use cases", () => {
     expect(MOCKS.repositorySave).toHaveBeenCalledOnce();
   });
 
+  it.each([
+    ["an existing account", Result.err({ code: "account_exists" }), false],
+    ["an uncertain signup", Result.err({ code: "signup_uncertain" }), false],
+    ["a new account", Result.ok({ publicIdentity: PUBLIC_IDENTITY }), true],
+  ] as const)(
+    "asks for profile setup after repair only when signup created %s",
+    async (_label, signedUp, profileSetupRequired) => {
+      foundPassportFile();
+      MOCKS.signin.mockResolvedValueOnce(Result.err({ code: "signin_failed" }));
+      MOCKS.signup.mockResolvedValue(signedUp);
+
+      expect(
+        expectResultOk(await createSubject().establishIdentity(CREDENTIALS, () => undefined)),
+      ).toMatchObject({ establishmentMode: "restored" });
+
+      const [saved] = MOCKS.repositorySave.mock.calls[0] ?? [];
+      expect(saved).toMatchObject({ publicIdentity: PUBLIC_IDENTITY });
+      expect("profileSetupRequired" in saved).toBe(profileSetupRequired);
+    },
+  );
+
+  it("asks a new identity for profile setup even when its signup was uncertain", async () => {
+    MOCKS.readPassportFile.mockResolvedValue(Result.ok({ status: "missing" }));
+    MOCKS.signup.mockResolvedValue(Result.err({ code: "signup_uncertain" }));
+
+    expectResultOk(await createSubject().establishIdentity(CREDENTIALS, () => undefined));
+
+    expect(MOCKS.repositorySave).toHaveBeenCalledWith(
+      expect.objectContaining({ profileSetupRequired: true }),
+      expect.anything(),
+    );
+  });
+
   it("reports repair before requesting a replacement homeserver signup token", async () => {
     foundPassportFile();
     MOCKS.signin.mockResolvedValueOnce(Result.err({ code: "signin_failed" }));
@@ -696,12 +1090,27 @@ describe("Google identity use cases", () => {
       return Result.err({ code: "network_failed" });
     });
 
-    expectResultError(
+    const failure = expectResultError(
       await createSubject().establishIdentity(CREDENTIALS, (phase) => events.push(phase)),
       { code: "homeserver_signup_token_failed", detailCode: "network_failed" },
     );
 
     expect(events.slice(-2)).toEqual([{ flow: "repair", step: "signing_up" }, "homegate"]);
+    // The restored pubky exists in Drive, so the error screen must not say nothing was created.
+    expect(failure).toMatchObject({ flow: "repair" });
+  });
+
+  it("names a new pubky's refused invitation as part of creating it", async () => {
+    MOCKS.readPassportFile.mockResolvedValue(Result.ok({ status: "missing" }));
+    MOCKS.requestSignupToken.mockResolvedValue(Result.err({ code: "weekly_limit_exceeded" }));
+
+    const failure = expectResultError(
+      await createSubject().establishIdentity(CREDENTIALS, () => undefined),
+      { code: "homeserver_signup_token_failed", detailCode: "weekly_limit_exceeded" },
+    );
+
+    expect(failure).toMatchObject({ flow: "create" });
+    expect(MOCKS.createPassportFile).not.toHaveBeenCalled();
   });
 
   it("accepts repaired sign-in when PKDNS publication reports an uncertain failure", async () => {
@@ -716,7 +1125,11 @@ describe("Google identity use cases", () => {
       await createSubject().establishIdentity(CREDENTIALS, (phase) => progress.push(phase)),
     );
 
-    expect(progress.at(-1)).toEqual({ flow: "repair", step: "signing_in" });
+    expect(progress.at(-1)).toEqual({
+      flow: "repair",
+      step: "signing_in",
+      homeserverPubky: SIGNUP_DETAILS.homeserverPubky,
+    });
     expect(MOCKS.repositorySave).toHaveBeenCalledOnce();
   });
 
@@ -756,7 +1169,11 @@ describe("Google identity use cases", () => {
       { code: "signin_failed" },
     );
 
-    expect(progress.at(-1)).toEqual({ flow: "repair", step: "signing_in" });
+    expect(progress.at(-1)).toEqual({
+      flow: "repair",
+      step: "signing_in",
+      homeserverPubky: SIGNUP_DETAILS.homeserverPubky,
+    });
     expect(MOCKS.repositorySave).not.toHaveBeenCalled();
   });
 
@@ -815,6 +1232,17 @@ describe("Google identity use cases", () => {
     expectResultError(await createSubject().establishIdentity(CREDENTIALS, () => undefined), {
       code: expectedCode,
     });
+    await vi.waitFor(() => expect(MOCKS.disposeIdentityKey).toHaveBeenCalledWith(KEY_HANDLE));
+  });
+
+  it("keeps a Ring-held pubky in Ring instead of saving its restored key", async () => {
+    foundPassportFile();
+    MOCKS.repositorySave.mockReturnValue(Result.err({ code: "external_key" }));
+
+    expectResultError(await createSubject().establishIdentity(CREDENTIALS, () => undefined), {
+      code: "local_identity_held_by_ring",
+    });
+    expect(MOCKS.repositorySave).toHaveBeenCalledOnce();
     await vi.waitFor(() => expect(MOCKS.disposeIdentityKey).toHaveBeenCalledWith(KEY_HANDLE));
   });
 
@@ -1022,13 +1450,347 @@ describe("Google identity use cases", () => {
     expect(JSON.stringify(warning.mock.calls)).not.toContain("SECRET-KEY-CLEANUP-CANARY");
   });
 
-  it("verifies Google Drive files before deleting them and removes the local identity last", async () => {
+  it("backs up the existing local key without creating or activating another identity", async () => {
+    MOCKS.hasPassportFile.mockResolvedValue(Result.ok(false));
+    const reads = recordLocalSecretReads();
+    MOCKS.encryptSecretKeyBytes.mockImplementationOnce(async (key) => {
+      expect(key).toEqual(new Uint8Array(32).fill(7));
+      return Result.ok(ENVELOPE);
+    });
+    expect(
+      expectResultOk(await createSubject().backupIdentity(CREDENTIALS, PUBLIC_IDENTITY)),
+    ).toEqual({
+      googleAccount: CREDENTIALS.googleAccount,
+      visibleRecoveryCopyStatus: "created",
+    });
+    expect(MOCKS.createPassportFile).toHaveBeenCalledWith(ENVELOPE);
+    expect(MOCKS.repositorySetGoogleAccount).toHaveBeenCalledWith(
+      PUBLIC_IDENTITY.publicKeyZ32,
+      CREDENTIALS.googleAccount,
+    );
+    expect(MOCKS.createIdentityKey).not.toHaveBeenCalled();
+    expect(MOCKS.requestSignupToken).not.toHaveBeenCalled();
+    expect(MOCKS.signin).not.toHaveBeenCalled();
+    expect(MOCKS.repositorySave).not.toHaveBeenCalled();
+    expect(MOCKS.readPassportFile).not.toHaveBeenCalled();
+    expect(MOCKS.decryptSecretKeyBytes).not.toHaveBeenCalled();
+    expect(reads.every(isCleared)).toBe(true);
+  });
+
+  it("rejects any existing backup without reading, decrypting, or changing it", async () => {
+    MOCKS.hasPassportFile.mockResolvedValue(Result.ok(true));
+    expectResultError(await createSubject().backupIdentity(CREDENTIALS, PUBLIC_IDENTITY), {
+      code: "google_backup_conflict",
+    });
+    expect(MOCKS.hasPassportFile).toHaveBeenCalledOnce();
+    expect(MOCKS.readPassportFile).not.toHaveBeenCalled();
+    expect(MOCKS.requestWrappingKey).not.toHaveBeenCalled();
+    expect(MOCKS.decryptSecretKeyBytes).not.toHaveBeenCalled();
+    expect(MOCKS.restoreIdentityKey).not.toHaveBeenCalled();
+    expect(MOCKS.encryptSecretKeyBytes).not.toHaveBeenCalled();
+    expect(MOCKS.createPassportFile).not.toHaveBeenCalled();
+    expect(MOCKS.deletePassportFile).not.toHaveBeenCalled();
+    expect(MOCKS.createVisibleRecoveryCopy).not.toHaveBeenCalled();
+    expect(MOCKS.repositorySetGoogleAccount).not.toHaveBeenCalled();
+  });
+
+  it("does not treat a failed existence check as an empty Google account", async () => {
+    const failure = { code: "forbidden", httpStatus: 403 };
+    MOCKS.hasPassportFile.mockResolvedValue(Result.err(failure));
+    const result = await createSubject().backupIdentity(CREDENTIALS, PUBLIC_IDENTITY);
+    expect(expectResultError(result, { code: "drive_read_failed" })).toMatchObject({
+      cause: failure,
+    });
+    expect(MOCKS.requestWrappingKey).not.toHaveBeenCalled();
+    expect(MOCKS.createPassportFile).not.toHaveBeenCalled();
+    expect(MOCKS.repositorySetGoogleAccount).not.toHaveBeenCalled();
+  });
+
+  it("asks for the visible-copy decision only after finding the account empty", async () => {
+    const credentials = { ...CREDENTIALS, visibleBackupPermissionGranted: false };
+    const subject = createSubject();
+    expectResultError(await subject.backupIdentity(credentials, PUBLIC_IDENTITY), {
+      code: "visible_backup_permission_missing",
+    });
+    expect(MOCKS.hasPassportFile).toHaveBeenCalledOnce();
+    expect(MOCKS.readPassportFile).not.toHaveBeenCalled();
+    expect(MOCKS.requestWrappingKey).not.toHaveBeenCalled();
+    expect(MOCKS.encryptSecretKeyBytes).not.toHaveBeenCalled();
+    expect(
+      expectResultOk(await subject.backupIdentity(credentials, PUBLIC_IDENTITY, true)),
+    ).toEqual({
+      googleAccount: CREDENTIALS.googleAccount,
+      visibleRecoveryCopyStatus: "skipped",
+    });
+    expect(MOCKS.hasPassportFile).toHaveBeenCalledTimes(2);
+    expect(MOCKS.readPassportFile).not.toHaveBeenCalled();
+    expect(MOCKS.createVisibleRecoveryCopy).not.toHaveBeenCalled();
+    expect(MOCKS.repositorySetGoogleAccount).toHaveBeenCalledOnce();
+  });
+
+  it("reports an occupied account without asking for the visible-copy decision", async () => {
+    MOCKS.hasPassportFile.mockResolvedValue(Result.ok(true));
+
+    expectResultError(
+      await createSubject().backupIdentity(
+        { ...CREDENTIALS, visibleBackupPermissionGranted: false },
+        PUBLIC_IDENTITY,
+      ),
+      { code: "google_backup_conflict" },
+    );
+    expect(MOCKS.requestWrappingKey).not.toHaveBeenCalled();
+  });
+
+  it("reads the secret key only for encryption, after the Drive lookup", async () => {
+    const reads = recordLocalSecretReads();
+    MOCKS.hasPassportFile.mockImplementation(async () => {
+      expect(reads.every(isCleared)).toBe(true);
+      return Result.ok(false);
+    });
+    MOCKS.encryptSecretKeyBytes.mockImplementation(async (bytes: Uint8Array) => {
+      expect(bytes).toEqual(new Uint8Array(32).fill(7));
+      return Result.ok(ENVELOPE);
+    });
+
+    expectResultOk(await createSubject().backupIdentity(CREDENTIALS, PUBLIC_IDENTITY));
+
+    expect(reads).toHaveLength(2);
+    expect(reads.every(isCleared)).toBe(true);
+  });
+
+  it("never rebinds an identity already attached to another Google account", async () => {
+    const reads = recordLocalSecretReads({
+      ...CREDENTIALS.googleAccount,
+      googleSubject: "other-account",
+    });
+
+    expectResultError(await createSubject().backupIdentity(CREDENTIALS, PUBLIC_IDENTITY), {
+      code: "google_account_mismatch",
+    });
+    expect(MOCKS.driveStoreConstructions.count).toBe(0);
+    expect(MOCKS.hasPassportFile).not.toHaveBeenCalled();
+    expect(MOCKS.requestWrappingKey).not.toHaveBeenCalled();
+    expect(MOCKS.createPassportFile).not.toHaveBeenCalled();
+    expect(MOCKS.repositorySetGoogleAccount).not.toHaveBeenCalled();
+    expect(reads.every(isCleared)).toBe(true);
+  });
+
+  it("does not touch Drive when the local identity cannot be read", async () => {
+    const failure = { code: "invalid_identity" };
+    MOCKS.repositoryRead.mockReturnValue(Result.err(failure));
+
+    const error = expectResultError(
+      await createSubject().backupIdentity(CREDENTIALS, PUBLIC_IDENTITY),
+      { code: "local_identity_unavailable" },
+    );
+    expect(error.cause).toBe(failure);
+    expect(MOCKS.driveStoreConstructions.count).toBe(0);
+    expect(MOCKS.requestWrappingKey).not.toHaveBeenCalled();
+  });
+
+  it("writes nothing when the local key disappears before encryption", async () => {
+    const reads = recordLocalSecretReads();
+    const read = MOCKS.repositoryRead.getMockImplementation();
+    MOCKS.repositoryRead
+      .mockImplementationOnce((...args: unknown[]) => read?.(...args))
+      .mockReturnValue(Result.err({ code: "storage_unavailable" }));
+
+    expectResultError(await createSubject().backupIdentity(CREDENTIALS, PUBLIC_IDENTITY), {
+      code: "local_identity_unavailable",
+    });
+    expect(MOCKS.encryptSecretKeyBytes).not.toHaveBeenCalled();
+    expect(MOCKS.createPassportFile).not.toHaveBeenCalled();
+    expect(reads.every(isCleared)).toBe(true);
+  });
+
+  it.each([
+    [
+      "the wrapping key request fails",
+      "wrapping_key_failed",
+      () => MOCKS.requestWrappingKey.mockResolvedValue(Result.err({ code: "network_failed" })),
+    ],
+    [
+      "encryption fails",
+      "encrypt_failed",
+      () => MOCKS.encryptSecretKeyBytes.mockResolvedValue(Result.err({ code: "encrypt_failed" })),
+    ],
+    [
+      "encryption throws",
+      "unexpected_failure",
+      () => MOCKS.encryptSecretKeyBytes.mockRejectedValue(new Error("ENCRYPT-THROW")),
+    ],
+    [
+      "the Drive write fails",
+      "drive_write_failed",
+      () => MOCKS.createPassportFile.mockResolvedValue(Result.err({ code: "write_failed" })),
+    ],
+    [
+      "the account is occupied",
+      "google_backup_conflict",
+      () => MOCKS.hasPassportFile.mockResolvedValue(Result.ok(true)),
+    ],
+    [
+      "the link cannot be saved",
+      "google_backup_created_not_linked",
+      () =>
+        MOCKS.repositorySetGoogleAccount.mockReturnValue(
+          Result.err({ code: "storage_unavailable" }),
+        ),
+    ],
+  ] as const)("clears every secret read when %s", async (_label, code, arrange) => {
+    vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+    const reads = recordLocalSecretReads();
+    arrange();
+
+    expectResultError(await createSubject().backupIdentity(CREDENTIALS, PUBLIC_IDENTITY), {
+      code,
+    });
+    expect(reads.length).toBeGreaterThan(0);
+    expect(reads.every(isCleared)).toBe(true);
+  });
+
+  it("contains an unexpected failure during backup without logging its details", async () => {
+    const thrown = new Error("BACKUP-THROW-CANARY");
+    const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+    MOCKS.hasPassportFile.mockRejectedValue(thrown);
+
+    const failure = expectResultError(
+      await createSubject().backupIdentity(CREDENTIALS, PUBLIC_IDENTITY),
+      { code: "unexpected_failure" },
+    );
+    expect(failure.cause).toBe(thrown);
+    expect(MOCKS.createPassportFile).not.toHaveBeenCalled();
+    expect(JSON.stringify(warning.mock.calls)).not.toContain("BACKUP-THROW-CANARY");
+  });
+
+  it("keeps the Google association unchanged if backup creation races another writer", async () => {
+    MOCKS.hasPassportFile.mockResolvedValue(Result.ok(false));
+    MOCKS.createPassportFile.mockResolvedValue(Result.err({ code: "create_conflict" }));
+    expectResultError(await createSubject().backupIdentity(CREDENTIALS, PUBLIC_IDENTITY), {
+      code: "drive_create_conflict",
+    });
+    expect(MOCKS.readPassportFile).not.toHaveBeenCalled();
+    expect(MOCKS.repositorySetGoogleAccount).not.toHaveBeenCalled();
+  });
+
+  it("retries local linking once and preserves the remote backup when it still fails", async () => {
+    const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+    MOCKS.hasPassportFile.mockResolvedValue(Result.ok(false));
+    const linkFailure = { code: "storage_unavailable", cause: new Error("LINK-CAUSE-CANARY") };
+    MOCKS.repositorySetGoogleAccount.mockReturnValue(Result.err(linkFailure));
+    const failure = expectResultError(
+      await createSubject().backupIdentity(CREDENTIALS, PUBLIC_IDENTITY),
+      { code: "google_backup_created_not_linked" },
+    );
+    expect(failure.cause).toBe(linkFailure);
+    expect(MOCKS.createPassportFile).toHaveBeenCalledOnce();
+    expect(MOCKS.repositorySetGoogleAccount).toHaveBeenCalledTimes(2);
+    expect(MOCKS.readPassportFile).not.toHaveBeenCalled();
+    expect(MOCKS.deletePassportFile).not.toHaveBeenCalled();
+    expect(JSON.stringify(warning.mock.calls)).not.toContain("LINK-CAUSE-CANARY");
+  });
+
+  it("links a backup it created earlier without opening it, once local storage recovers", async () => {
+    MOCKS.hasPassportFile.mockResolvedValue(Result.ok(false));
+    MOCKS.createVisibleRecoveryCopy.mockResolvedValue(Result.err({ code: "create_failed" }));
+    MOCKS.repositorySetGoogleAccount.mockReturnValue(Result.err({ code: "storage_unavailable" }));
+    const subject = createSubject();
+    expectResultError(await subject.backupIdentity(CREDENTIALS, PUBLIC_IDENTITY), {
+      code: "google_backup_created_not_linked",
+    });
+
+    MOCKS.hasPassportFile.mockResolvedValue(Result.ok(true));
+    MOCKS.repositorySetGoogleAccount.mockReturnValue(Result.ok());
+    expect(expectResultOk(await subject.backupIdentity(CREDENTIALS, PUBLIC_IDENTITY))).toEqual({
+      googleAccount: CREDENTIALS.googleAccount,
+      visibleRecoveryCopyStatus: "unconfirmed",
+    });
+    expect(MOCKS.createPassportFile).toHaveBeenCalledOnce();
+    expect(MOCKS.encryptSecretKeyBytes).toHaveBeenCalledOnce();
+    expect(MOCKS.requestWrappingKey).toHaveBeenCalledOnce();
+    expect(MOCKS.readPassportFile).not.toHaveBeenCalled();
+    expect(MOCKS.decryptSecretKeyBytes).not.toHaveBeenCalled();
+    expect(MOCKS.deletePassportFile).not.toHaveBeenCalled();
+    expect(MOCKS.repositorySetGoogleAccount).toHaveBeenLastCalledWith(
+      PUBLIC_IDENTITY.publicKeyZ32,
+      CREDENTIALS.googleAccount,
+    );
+
+    // Once linked, an existing file for the same account is an ordinary conflict again.
+    expectResultError(await subject.backupIdentity(CREDENTIALS, PUBLIC_IDENTITY), {
+      code: "google_backup_conflict",
+    });
+  });
+
+  it("does not claim an existing backup for another identity or Google account", async () => {
+    MOCKS.hasPassportFile.mockResolvedValue(Result.ok(false));
+    MOCKS.repositorySetGoogleAccount.mockReturnValue(Result.err({ code: "storage_unavailable" }));
+    const subject = createSubject();
+    expectResultError(await subject.backupIdentity(CREDENTIALS, PUBLIC_IDENTITY), {
+      code: "google_backup_created_not_linked",
+    });
+    MOCKS.hasPassportFile.mockResolvedValue(Result.ok(true));
+    MOCKS.repositorySetGoogleAccount.mockReturnValue(Result.ok());
+
+    expectResultError(
+      await subject.backupIdentity(CREDENTIALS, { publicKeyZ32: "other-identity" }),
+      { code: "google_backup_conflict" },
+    );
+    expectResultError(
+      await subject.backupIdentity(
+        {
+          ...CREDENTIALS,
+          googleAccount: { ...CREDENTIALS.googleAccount, googleSubject: "other-account" },
+        },
+        PUBLIC_IDENTITY,
+      ),
+      { code: "google_backup_conflict" },
+    );
+    // A reloaded page has no record of the unlinked backup, so it stays unclaimed there.
+    expectResultError(
+      await createSubject({ unlinkedBackups: new Map() }).backupIdentity(
+        CREDENTIALS,
+        PUBLIC_IDENTITY,
+      ),
+      { code: "google_backup_conflict" },
+    );
+    expect(MOCKS.repositorySetGoogleAccount).toHaveBeenCalledTimes(2);
+    expect(MOCKS.readPassportFile).not.toHaveBeenCalled();
+  });
+
+  it("links an unlinked backup from a later screen's lifecycle on the same page", async () => {
+    // Both lifecycles use the production default record, as separate screens on one page do.
+    MOCKS.repositorySetGoogleAccount.mockReturnValue(Result.err({ code: "storage_unavailable" }));
+    const first = createPageScopedSubject();
+    expectResultError(await first.backupIdentity(CREDENTIALS, PUBLIC_IDENTITY), {
+      code: "google_backup_created_not_linked",
+    });
+    first.dispose();
+
+    MOCKS.hasPassportFile.mockResolvedValue(Result.ok(true));
+    MOCKS.repositorySetGoogleAccount.mockReturnValue(Result.ok());
+    const later = createPageScopedSubject();
+    // Linking removes the entry, so no page-scoped state outlives this test.
+    expect(expectResultOk(await later.backupIdentity(CREDENTIALS, PUBLIC_IDENTITY))).toEqual({
+      googleAccount: CREDENTIALS.googleAccount,
+      visibleRecoveryCopyStatus: "created",
+    });
+    expect(MOCKS.createPassportFile).toHaveBeenCalledOnce();
+    expect(MOCKS.readPassportFile).not.toHaveBeenCalled();
+    expectResultError(await later.backupIdentity(CREDENTIALS, PUBLIC_IDENTITY), {
+      code: "google_backup_conflict",
+    });
+    later.dispose();
+  });
+
+  it("verifies Drive files before deletion and clears only the Google association last", async () => {
     const events: string[] = [];
     foundPassportFile();
+    const localSecret = boundLocalIdentity();
     record(MOCKS.deleteVisibleRecoveryCopies, "visible-delete", events);
     record(MOCKS.deletePassportFile, "app-data-delete", events);
-    MOCKS.repositoryRemove.mockImplementation(() => {
-      events.push("local-remove");
+    MOCKS.repositorySetGoogleAccount.mockImplementation(() => {
+      events.push("unlink-google");
       return Result.ok();
     });
 
@@ -1039,16 +1801,29 @@ describe("Google identity use cases", () => {
     );
 
     expect(expectResultOk(result)).toBeUndefined();
-    expect(events).toEqual(["visible-delete", "app-data-delete", "local-remove"]);
+    // Reading the file to verify it before deletion needs the wrapping key, with the preimage.
+    expect(MOCKS.requestWrappingKey).toHaveBeenCalledWith(
+      "google-id-token",
+      NONCE_PREIMAGE,
+      ENVELOPE.keyId,
+    );
+    expect(events).toEqual(["visible-delete", "app-data-delete", "unlink-google"]);
+    expect(MOCKS.repositoryRead).toHaveBeenCalledWith(PUBLIC_IDENTITY.publicKeyZ32);
+    expect(localSecret).toEqual(new Uint8Array(32));
+    expect(MOCKS.repositorySetGoogleAccount).toHaveBeenCalledWith(
+      PUBLIC_IDENTITY.publicKeyZ32,
+      undefined,
+    );
     expect(MOCKS.driveStoreConstructions.count).toBe(1);
     expect(MOCKS.visibleCopiesConstructions.count).toBe(1);
     expect(MOCKS.deletePassportFile).toHaveBeenCalledWith(REFERENCE);
     expect(MOCKS.disposeIdentityKey).toHaveBeenCalledWith(KEY_HANDLE);
   });
 
-  it("deletes visible copies and the local identity when app-data is already missing", async () => {
+  it("deletes visible copies and clears the Google association when app-data is missing", async () => {
     MOCKS.readPassportFile.mockResolvedValue(Result.ok({ status: "missing" }));
-    const remove = MOCKS.repositoryRemove;
+    boundLocalIdentity();
+    const remove = MOCKS.repositorySetGoogleAccount;
 
     expect(
       expectResultOk(
@@ -1061,7 +1836,7 @@ describe("Google identity use cases", () => {
     ).toBeUndefined();
     expect(MOCKS.deleteVisibleRecoveryCopies).toHaveBeenCalledOnce();
     expect(MOCKS.deletePassportFile).not.toHaveBeenCalled();
-    expect(remove).toHaveBeenCalledWith(PUBLIC_IDENTITY.publicKeyZ32);
+    expect(remove).toHaveBeenCalledWith(PUBLIC_IDENTITY.publicKeyZ32, undefined);
   });
 
   it("keeps app-data and the local identity when visible-copy deletion fails", async () => {
@@ -1069,8 +1844,9 @@ describe("Google identity use cases", () => {
     const lowerFailure = { code: "delete_failed", cause: diagnosticCanary };
     const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
     foundPassportFile();
+    boundLocalIdentity();
     MOCKS.deleteVisibleRecoveryCopies.mockResolvedValue(Result.err(lowerFailure));
-    const remove = MOCKS.repositoryRemove;
+    const remove = MOCKS.repositorySetGoogleAccount;
 
     const failure = expectResultError(
       await createSubject().detachIdentity(
@@ -1086,9 +1862,104 @@ describe("Google identity use cases", () => {
     expect(remove).not.toHaveBeenCalled();
   });
 
+  it("does not delete Drive files when the local identity is missing or unbound", async () => {
+    const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+    foundPassportFile();
+    MOCKS.repositoryRead.mockReturnValue(Result.err({ code: "invalid_identity" }));
+
+    expectResultError(
+      await createSubject().detachIdentity(
+        CREDENTIALS,
+        PUBLIC_IDENTITY,
+        CREDENTIALS.googleAccount.googleSubject,
+      ),
+      { code: "local_identity_unavailable" },
+    );
+
+    const bytes = new Uint8Array(32).fill(7);
+    MOCKS.repositoryRead.mockReturnValue(
+      Result.ok({
+        identity: {
+          publicIdentity: PUBLIC_IDENTITY,
+          googleAccount: { ...CREDENTIALS.googleAccount, googleSubject: "other-account" },
+        },
+        secretKey: { bytes, format: "pubky-secret-key" },
+      }),
+    );
+    expectResultError(
+      await createSubject().detachIdentity(
+        CREDENTIALS,
+        PUBLIC_IDENTITY,
+        CREDENTIALS.googleAccount.googleSubject,
+      ),
+      { code: "local_identity_not_bound" },
+    );
+
+    expect(bytes).toEqual(new Uint8Array(32));
+    expect(warning).toHaveBeenCalledWith("identity.google.local_identity.failed", {
+      code: "local_identity_unavailable",
+      localCode: "invalid_identity",
+    });
+    expect(warning).toHaveBeenCalledWith("identity.google.detach.failed", {
+      stage: "local_identity",
+      code: "local_identity_not_bound",
+    });
+    expect(MOCKS.driveStoreConstructions.count).toBe(0);
+    expect(MOCKS.readPassportFile).not.toHaveBeenCalled();
+    expect(MOCKS.deletePassportFile).not.toHaveBeenCalled();
+    expect(MOCKS.deleteVisibleRecoveryCopies).not.toHaveBeenCalled();
+    expect(MOCKS.repositorySetGoogleAccount).not.toHaveBeenCalled();
+  });
+
+  it("forgets an unlinked backup once detachment deletes it", async () => {
+    MOCKS.repositorySetGoogleAccount.mockReturnValue(Result.err({ code: "storage_unavailable" }));
+    expectResultError(await createSubject().backupIdentity(CREDENTIALS, PUBLIC_IDENTITY), {
+      code: "google_backup_created_not_linked",
+    });
+
+    // Linked meanwhile through Google sign-in, the identity is then detached on the same page.
+    MOCKS.repositorySetGoogleAccount.mockReturnValue(Result.ok());
+    MOCKS.readPassportFile.mockResolvedValue(Result.ok({ status: "missing" }));
+    boundLocalIdentity();
+    expectResultOk(
+      await createSubject().detachIdentity(
+        CREDENTIALS,
+        PUBLIC_IDENTITY,
+        CREDENTIALS.googleAccount.googleSubject,
+      ),
+    );
+
+    // A backup that appears in the account afterwards is not this page's to claim.
+    recordLocalSecretReads();
+    MOCKS.hasPassportFile.mockResolvedValue(Result.ok(true));
+    expectResultError(await createSubject().backupIdentity(CREDENTIALS, PUBLIC_IDENTITY), {
+      code: "google_backup_conflict",
+    });
+  });
+
+  it("reports a failed local unlink after the Drive files were removed", async () => {
+    foundPassportFile();
+    boundLocalIdentity();
+    const failure = { code: "storage_unavailable" };
+    MOCKS.repositorySetGoogleAccount.mockReturnValue(Result.err(failure));
+
+    const error = expectResultError(
+      await createSubject().detachIdentity(
+        CREDENTIALS,
+        PUBLIC_IDENTITY,
+        CREDENTIALS.googleAccount.googleSubject,
+      ),
+      { code: "local_unlink_failed" },
+    );
+    expect(error.cause).toBe(failure);
+    expect(MOCKS.deleteVisibleRecoveryCopies).toHaveBeenCalledOnce();
+    expect(MOCKS.deletePassportFile).toHaveBeenCalledWith(REFERENCE);
+    expect(MOCKS.repositorySave).not.toHaveBeenCalled();
+  });
+
   it("does not access Drive when detachment authorizes a different Google account", async () => {
     const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
-    const remove = MOCKS.repositoryRemove;
+    const remove = MOCKS.repositorySetGoogleAccount;
 
     expectResultError(
       await createSubject().detachIdentity(
@@ -1163,7 +2034,19 @@ describe("Google identity use cases", () => {
   });
 });
 
-function createSubject(): GoogleIdentityLifecycle {
+function createSubject(
+  overrides: Partial<GoogleIdentityLifecycleDependencies> = {},
+): GoogleIdentityLifecycle {
+  return createPageScopedSubject({ unlinkedBackups: MOCKS.unlinkedBackups, ...overrides });
+}
+
+/**
+ * Like {@link createSubject}, but without `unlinkedBackups` it uses the production page record.
+ * Unspent invites always use the test's record.
+ */
+function createPageScopedSubject(
+  overrides: Partial<GoogleIdentityLifecycleDependencies> = {},
+): GoogleIdentityLifecycle {
   return new GoogleIdentityLifecycle("https://homegate.example/", "https://passport.pubky.app", {
     pubky: {
       createIdentityKey: MOCKS.createIdentityKey,
@@ -1182,7 +2065,8 @@ function createSubject(): GoogleIdentityLifecycle {
     },
     repository: {
       save: MOCKS.repositorySave,
-      remove: MOCKS.repositoryRemove,
+      setGoogleAccount: MOCKS.repositorySetGoogleAccount,
+      read: MOCKS.repositoryRead,
     },
     wrappingKeys: {
       requestGoogleWrappingKey: MOCKS.requestWrappingKey,
@@ -1190,10 +2074,15 @@ function createSubject(): GoogleIdentityLifecycle {
     homegate: {
       requestGoogleSignupToken: MOCKS.requestSignupToken,
     },
+    signupTokens: {
+      lookUp: MOCKS.lookUpSignupToken,
+    },
+    unspentSignupInvites: MOCKS.unspentSignupInvites,
     createDriveStore: (_driveAccessToken, fetchImpl) => {
       MOCKS.driveStoreConstructions.count += 1;
       MOCKS.contextFetch.current = fetchImpl;
       return {
+        hasPassportFile: MOCKS.hasPassportFile,
         createPassportFile: MOCKS.createPassportFile,
         deleteInvalidPassportFile: MOCKS.deleteInvalidPassportFile,
         deletePassportFile: MOCKS.deletePassportFile,
@@ -1207,14 +2096,45 @@ function createSubject(): GoogleIdentityLifecycle {
         deleteVisibleRecoveryCopies: MOCKS.deleteVisibleRecoveryCopies,
       };
     },
+    ...overrides,
   });
 }
 
-function foundPassportFile(): void {
+/** Serves a fresh secret for PUBLIC_IDENTITY on every local read and returns each one read. */
+function recordLocalSecretReads(googleAccount?: typeof CREDENTIALS.googleAccount): Uint8Array[] {
+  const reads: Uint8Array[] = [];
+  MOCKS.repositoryRead.mockImplementation(() => {
+    const bytes = new Uint8Array(32).fill(7);
+    reads.push(bytes);
+    return Result.ok({
+      identity: { publicIdentity: PUBLIC_IDENTITY, ...(googleAccount ? { googleAccount } : {}) },
+      secretKey: { bytes, format: "pubky-secret-key" },
+    });
+  });
+  return reads;
+}
+
+function isCleared(bytes: Uint8Array): boolean {
+  return bytes.every((byte) => byte === 0);
+}
+
+/** Local record for PUBLIC_IDENTITY bound to the Google account in CREDENTIALS; returns its secret. */
+function boundLocalIdentity(): Uint8Array {
+  const bytes = new Uint8Array(32).fill(7);
+  MOCKS.repositoryRead.mockImplementation(() =>
+    Result.ok({
+      identity: { publicIdentity: PUBLIC_IDENTITY, googleAccount: CREDENTIALS.googleAccount },
+      secretKey: { bytes, format: "pubky-secret-key" },
+    }),
+  );
+  return bytes;
+}
+
+function foundPassportFile(envelope: typeof ENVELOPE = ENVELOPE): void {
   MOCKS.readPassportFile.mockResolvedValue(
     Result.ok({
       status: "found",
-      envelope: ENVELOPE,
+      envelope,
       reference: REFERENCE,
     }),
   );

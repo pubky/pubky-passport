@@ -4,6 +4,7 @@ import { Result, type Result as ResultType } from "better-result";
 
 import type { GoogleAccountProfile } from "@/libs/googleAccountProfile";
 import { encodeBase64Url } from "@/libs/encoding/base64Url";
+import { createGoogleNoncePreimage, googleNonceFor } from "@/libs/googleNonce";
 import { LOGGER, safeErrorLogFields } from "@/libs/logger/logger";
 import { AUTHORIZATION_TIMEOUT_MS } from "@/libs/passportPolicy";
 import type { CodedFailure } from "@/libs/result";
@@ -15,6 +16,11 @@ import { AuthorizationPopup } from "./AuthorizationPopup";
 /** Short-lived credentials produced by one complete Google authorization. */
 export type GoogleIdentityCredentials = {
   googleIdToken: string;
+  /**
+   * The preimage of the token's `nonce`. Only Passport's own wrapping-key endpoint receives it,
+   * so the token alone (Homegate receives one) never unlocks a wrapping key.
+   */
+  googleNoncePreimage: string;
   driveAccessToken: string;
   /** Epoch milliseconds from Google's expires_in, or null when the lifetime is unknown. */
   driveAccessTokenExpiresAt: number | null;
@@ -30,7 +36,10 @@ type GoogleImplicitAuthorizationErrorCode =
   /** Reported by the caller that opens the popup (see {@link AuthorizationPopup.openPending}). */
   | "google_authorization_popup_failed_to_open";
 type GoogleAuthorizationFailureReason =
-  "authorization_disposed" | "authorization_in_progress" | "authorization_timed_out";
+  | "authorization_cancelled"
+  | "authorization_disposed"
+  | "authorization_in_progress"
+  | "authorization_timed_out";
 type GoogleAuthorizationFailure = CodedFailure<"google_authorization_failed"> & {
   /** Safe state-only context for generic authorization failures without a thrown cause. */
   reason?: GoogleAuthorizationFailureReason;
@@ -48,6 +57,7 @@ const POPUP_POLL_MS = 200;
 
 type AuthorizationAttempt = {
   nonce: string;
+  noncePreimage: string;
   abortController: AbortController;
   messageListener(event: MessageEvent): void;
   popup: AuthorizationPopup;
@@ -61,6 +71,7 @@ type AuthorizationAttempt = {
 type AuthorizationAttemptSetup = {
   abortController: AbortController;
   nonce: string;
+  noncePreimage: string;
   origin: string;
   popup: AuthorizationPopup;
   state: string;
@@ -80,6 +91,8 @@ type AuthorizationAttemptSetup = {
  */
 export class GoogleImplicitAuthorization {
   private activeAttempt: AuthorizationAttempt | null = null;
+  /** A request still hashing its nonce: it holds the one slot, as an active attempt does. */
+  private starting: { stopped?: GoogleAuthorizationFailureReason } | null = null;
 
   constructor(private readonly clientId: string) {}
 
@@ -91,12 +104,15 @@ export class GoogleImplicitAuthorization {
    * The promise settles with a Result for setup, popup, provider-response, and UserInfo
    * failures. It does not intentionally reject. Passing a login hint asks Google to select that
    * account but does not replace the ID-token and UserInfo account-binding checks.
+   *
+   * Google gets only the hash of a fresh preimage as the `nonce`; the preimage stays in this
+   * attempt and in the credentials, for Passport's own wrapping-key endpoint alone.
    */
-  request(
+  async request(
     popup: AuthorizationPopup,
     loginHint?: string,
   ): Promise<GoogleImplicitAuthorizationResult<GoogleIdentityCredentials>> {
-    if (this.activeAttempt) {
+    if (this.activeAttempt || this.starting) {
       popup.close();
       LOGGER.warn("identity.google.implicit_authorization.failed", {
         operation: "authorize",
@@ -104,14 +120,38 @@ export class GoogleImplicitAuthorization {
         reason: "authorization_in_progress",
         code: "google_authorization_failed",
       });
-      return Promise.resolve(
-        Result.err({ code: "google_authorization_failed", reason: "authorization_in_progress" }),
-      );
+      return Result.err({
+        code: "google_authorization_failed",
+        reason: "authorization_in_progress",
+      });
+    }
+    const starting: { stopped?: GoogleAuthorizationFailureReason } = {};
+    this.starting = starting;
+    let noncePreimage: string;
+    let nonce: string;
+    try {
+      noncePreimage = createGoogleNoncePreimage();
+      nonce = await googleNonceFor(noncePreimage);
+    } catch (e) {
+      popup.close();
+      LOGGER.warn("identity.google.implicit_authorization.failed", {
+        operation: "authorize",
+        stage: "request_setup",
+        ...safeErrorLogFields(e),
+        code: "google_authorization_failed",
+      });
+      return Result.err({ code: "google_authorization_failed", cause: e });
+    } finally {
+      if (this.starting === starting) this.starting = null;
+    }
+    // Cancelled or disposed while the nonce was hashed: the popup never reaches Google.
+    if (starting.stopped) {
+      popup.close();
+      return Result.err({ code: "google_authorization_failed", reason: starting.stopped });
     }
     try {
       const origin = globalThis.location.origin;
       const state = randomBase64Url(32);
-      const nonce = randomBase64Url(32);
       const abortController = new AbortController();
       const url = new URL(GOOGLE_AUTHORIZE_URL);
       url.search = new URLSearchParams({
@@ -127,7 +167,14 @@ export class GoogleImplicitAuthorization {
       }).toString();
 
       popup.navigate(url);
-      return this.startAuthorizationAttempt({ abortController, nonce, origin, popup, state });
+      return await this.startAuthorizationAttempt({
+        abortController,
+        nonce,
+        noncePreimage,
+        origin,
+        popup,
+        state,
+      });
     } catch (e) {
       popup.close();
       LOGGER.warn("identity.google.implicit_authorization.failed", {
@@ -143,6 +190,7 @@ export class GoogleImplicitAuthorization {
   private startAuthorizationAttempt({
     abortController,
     nonce,
+    noncePreimage,
     origin,
     popup,
     state,
@@ -152,6 +200,7 @@ export class GoogleImplicitAuthorization {
     return new Promise((resolve) => {
       const attempt: AuthorizationAttempt = {
         nonce,
+        noncePreimage,
         abortController,
         messageListener: () => undefined,
         popup,
@@ -207,8 +256,27 @@ export class GoogleImplicitAuthorization {
     });
   }
 
+  /**
+   * Ends the active request because the person cancelled it in Passport: closes the popup and
+   * settles the request as failed with reason `authorization_cancelled`. Unlike {@link dispose},
+   * it is a normal outcome and leaves the object ready for the next request.
+   */
+  cancel(): void {
+    if (this.starting) this.starting.stopped = "authorization_cancelled";
+    this.starting = null;
+    const attempt = this.activeAttempt;
+    if (!attempt) return;
+    LOGGER.info("identity.google.implicit_authorization.cancelled", { operation: "authorize" });
+    this.finish(
+      attempt,
+      Result.err({ code: "google_authorization_failed", reason: "authorization_cancelled" }),
+    );
+  }
+
   /** Settles any active request as failed and releases all resources owned by the attempt. */
   dispose(): void {
+    if (this.starting) this.starting.stopped = "authorization_disposed";
+    this.starting = null;
     const attempt = this.activeAttempt;
     if (attempt) {
       this.finish(
@@ -240,6 +308,7 @@ export class GoogleImplicitAuthorization {
       capture,
       attempt.state,
       attempt.nonce,
+      attempt.noncePreimage,
       attempt.abortController.signal,
     );
     if (this.activeAttempt === attempt) this.finish(attempt, result);

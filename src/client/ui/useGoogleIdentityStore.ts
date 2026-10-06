@@ -15,11 +15,12 @@ type GoogleIdentityOperation = (
 ) => Promise<Result<unknown, GoogleIdentityViewError>>;
 type GoogleIdentityOperationName =
   | "detach"
+  | "backup"
   | "establish"
   | "replace-invalid-file"
   | "replace-undecryptable-file"
   | "continue-without-visible-backup";
-type GoogleIdentityScreen = "establishment" | "detachment";
+type GoogleIdentityScreen = "establishment" | "detachment" | "backup";
 
 const IDLE_STATE: GoogleIdentityViewState = { status: "idle" };
 const OPERATION_FAILED_STATE: GoogleIdentityViewState = {
@@ -80,6 +81,16 @@ class GoogleIdentityStore {
     this.controller?.reset();
   };
 
+  /** Stops an operation that waits for Google's window; the controller then publishes idle. */
+  cancelAuthorization = (): void => {
+    this.controller?.cancelAuthorization();
+  };
+
+  /** Brings the waiting operation's Google window to the front; call it from a click. */
+  showAuthorizationWindow = (): void => {
+    this.controller?.showAuthorizationWindow();
+  };
+
   dispose = (): void => {
     const controller = this.controller;
     this.controller = null;
@@ -138,5 +149,12 @@ export function useGoogleIdentityStore(screen: GoogleIdentityScreen, forAuthoriz
 
   useEffect(() => () => store.dispose(), [store]);
 
-  return { fail: store.fail, reset: store.reset, run: store.run, state };
+  return {
+    cancelAuthorization: store.cancelAuthorization,
+    fail: store.fail,
+    reset: store.reset,
+    run: store.run,
+    showAuthorizationWindow: store.showAuthorizationWindow,
+    state,
+  };
 }

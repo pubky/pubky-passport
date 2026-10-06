@@ -11,12 +11,17 @@ export class AuthorizationPopup {
    * it there. Call this synchronously inside the click that starts the authorization: browsers
    * only let the task of a user gesture open windows, and WebKit does not carry that gesture across
    * awaited network work such as the lazily imported authorization modules, so a popup opened after
-   * that work is blocked on a cold first click in Safari. Returns null when the browser blocked it.
+   * that work is blocked on a cold first click in Safari. Returns null when the browser blocked it:
+   * it opened no window, refused to open one, or handed back one that is already closed.
    */
   static openPending(): AuthorizationPopup | null {
     const name = `pubky-passport-google-${globalThis.crypto.randomUUID()}`;
-    const popupWindow = globalThis.open("about:blank", name, POPUP_FEATURES);
-    return popupWindow ? new AuthorizationPopup(popupWindow) : null;
+    try {
+      const popupWindow = globalThis.open("about:blank", name, POPUP_FEATURES);
+      return popupWindow && !popupWindow.closed ? new AuthorizationPopup(popupWindow) : null;
+    } catch {
+      return null;
+    }
   }
 
   /**
@@ -33,6 +38,18 @@ export class AuthorizationPopup {
 
   isClosed(): boolean {
     return this.popupWindow.closed;
+  }
+
+  /**
+   * Brings the popup in front of Passport, for a person who lost it behind another window. Call it
+   * from a click: browsers only raise a window for a user gesture, and some ignore the request.
+   */
+  focus(): void {
+    try {
+      if (!this.isClosed()) this.popupWindow.focus();
+    } catch {
+      /* Raising a cross-origin popup is best effort. */
+    }
   }
 
   close(): void {

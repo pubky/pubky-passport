@@ -1,6 +1,7 @@
 import type { GoogleIdentityViewError } from "@/client/logic/google-identity/googleIdentityErrors";
 import type { GoogleIdentityViewState } from "@/client/logic/google-identity/GoogleIdentityController";
 import type { PubkyPublicIdentity } from "@/client/logic/pubky/pubkyIdentityKey";
+import { googlePermissionPromptMode } from "@/client/ui/googlePermissionPromptMode";
 import { useGoogleIdentityStore } from "@/client/ui/useGoogleIdentityStore";
 
 type DetachFromGoogleOperationState =
@@ -26,9 +27,11 @@ function useDetachFromGoogle(publicIdentity: PubkyPublicIdentity, expectedGoogle
   };
 
   return {
+    cancelAuthorization: google.cancelAuthorization,
     detach,
     reset: google.reset,
     retryDetachment: detach,
+    showAuthorizationWindow: google.showAuthorizationWindow,
     state: toDetachmentState(google.state),
   };
 }
@@ -42,17 +45,17 @@ function toDetachmentState(state: GoogleIdentityViewState): DetachFromGoogleOper
     case "detached":
       return { status: "complete" };
     case "failed":
-      switch (state.error.code) {
-        case "google_detachment_permission_required":
-        case "google_drive_access_required":
-        case "google_authorization_denied":
-          return { status: "permission-required" };
-        case "authorization_failed":
-          return { status: "authorization-failed", error: state.error };
-        default:
-          return { status: "operation-failed", error: state.error };
+      if (googlePermissionPromptMode(state.error.code, "detach") !== undefined) {
+        return { status: "permission-required" };
       }
+      // Google's window must open again: a failure to reach Google, or another account chosen.
+      return state.error.code === "authorization_failed" ||
+        state.error.code === "google_account_mismatch"
+        ? { status: "authorization-failed", error: state.error }
+        : { status: "operation-failed", error: state.error };
     case "idle":
+    case "backing-up":
+    case "backed-up":
     case "establishing":
     case "established":
       return { status: "ready" };

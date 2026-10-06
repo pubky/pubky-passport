@@ -2,16 +2,23 @@ import type { IScannerControls } from "@zxing/browser";
 import { useEffect, useRef, useState } from "react";
 
 import { LOGGER, safeErrorLogFields } from "@/libs/logger/logger";
+import { CameraOffIcon, ClipboardPasteIcon } from "@/client/ui/shared/icons";
+import { cn } from "@/client/ui/shared/mergeClassNames";
 import { Button } from "@/client/ui/shared/primitives/button";
 import { Dialog } from "@/client/ui/shared/primitives/dialog";
 
 type AuthorizationQrScannerProps = {
   onClose: () => void;
+  /** Closes the scanner for the link field, the way on without a camera. */
+  onPasteInstead: () => void;
   onScan: (value: string) => void;
 };
 
-/** Scans one QR code from the preferred rear-facing camera. */
-function AuthorizationQrScanner({ onClose, onScan }: AuthorizationQrScannerProps) {
+/**
+ * Scans one QR code from the preferred rear-facing camera. Without a camera it says so in place of
+ * the preview, drops the aiming frame, and leads to pasting the link instead.
+ */
+function AuthorizationQrScanner({ onClose, onPasteInstead, onScan }: AuthorizationQrScannerProps) {
   const video = useRef<HTMLVideoElement>(null);
   const [status, setStatus] = useState<"starting" | "scanning" | "unavailable">("starting");
 
@@ -69,6 +76,7 @@ function AuthorizationQrScanner({ onClose, onScan }: AuthorizationQrScannerProps
     };
   }, [onScan]);
 
+  const unavailable = status === "unavailable";
   return (
     <Dialog
       aria-describedby="authorization-qr-description"
@@ -84,37 +92,59 @@ function AuthorizationQrScanner({ onClose, onScan }: AuthorizationQrScannerProps
           Scan QR code
         </h2>
         <p className="text-sm leading-5 text-muted-foreground" id="authorization-qr-description">
-          Point your camera at the authorization QR code.
+          {unavailable
+            ? "Passport can't use a camera here."
+            : "Point your camera at the authorization QR code."}
         </p>
       </header>
-      <div className="relative mx-6 aspect-square overflow-hidden rounded-xl bg-black">
+      <div
+        className={cn(
+          "relative mx-6 overflow-hidden rounded-xl bg-black",
+          unavailable ? "px-6 py-8" : "aspect-square",
+        )}
+      >
         <video
           aria-label="QR code camera preview"
           autoPlay
           className="size-full object-cover"
+          hidden={unavailable}
           muted
           playsInline
           ref={video}
         />
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-[12%] rounded-2xl border-2 border-brand shadow-[0_0_0_999px_rgb(0_0_0/0.35)]"
-        />
+        {unavailable ? null : (
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-[12%] rounded-2xl border-2 border-brand shadow-[0_0_0_999px_rgb(0_0_0/0.35)]"
+          />
+        )}
         {status === "starting" ? (
-          <p className="absolute inset-0 grid place-items-center bg-black/50 text-sm font-semibold">
+          <p
+            className="absolute inset-0 grid place-items-center bg-black/50 text-sm font-semibold"
+            role="status"
+          >
             Starting camera…
           </p>
         ) : null}
-        {status === "unavailable" ? (
-          <p
-            className="absolute inset-0 grid place-items-center bg-black/75 px-8 text-center text-sm leading-5"
-            role="alert"
-          >
-            Camera access is unavailable. Allow camera access or paste the link instead.
-          </p>
+        {unavailable ? (
+          <div className="flex flex-col items-center gap-4 text-center" role="alert">
+            <span className="flex size-12 items-center justify-center rounded-full bg-muted text-secondary-foreground">
+              <CameraOffIcon size={20} />
+            </span>
+            <p className="text-sm leading-5">
+              Camera access is unavailable. Allow camera access for this site, or paste the link
+              instead.
+            </p>
+          </div>
         ) : null}
       </div>
-      <footer className="p-6">
+      <footer className="flex flex-col gap-3 p-6">
+        {unavailable ? (
+          <Button className="w-full" onClick={onPasteInstead} size="lg" type="button">
+            <ClipboardPasteIcon />
+            Paste link instead
+          </Button>
+        ) : null}
         <Button className="w-full" onClick={onClose} size="lg" type="button" variant="secondary">
           Close
         </Button>

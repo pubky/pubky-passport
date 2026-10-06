@@ -1,17 +1,39 @@
-import { LogInIcon } from "@/client/ui/shared/icons";
+import type { PassportAuthorizationViewState } from "@/client/logic/authorization/flow/PassportAuthorizationController";
+import { isRequestPending } from "@/client/logic/authorization/flow/pendingRequestPresence";
+import { RequestContextBand } from "@/client/ui/shared/requestContextBand";
+import { useAuthorizationRequester } from "./useAuthorizationRequester";
+import { CallbackOriginWarning } from "./callbackOriginWarning";
 
-function SignInBand({ requester }: { requester: string }) {
+/**
+ * Says who a request comes from, while it waits and on the outcome that ends it: the opener a v2
+ * hello bound to this request (A39). M3: without one, Passport cannot tell, and says so; the
+ * callback host is only where the request returns to, marked unverified. The app-chosen `xSource`
+ * label is never shown here. While a hello may still bind the request there is no band yet.
+ */
+function SignInBand({ authorization }: { authorization: PassportAuthorizationViewState }) {
+  const review = "review" in authorization ? authorization.review : undefined;
+  const { requester, unverified, callbackWarning } = useAuthorizationRequester(review);
+  if (!review) return null;
+  if (requester)
+    return (
+      <RequestContextBand
+        label={isRequestPending(authorization) ? "Signing in to" : "Sign-in request from"}
+        requester={requester}
+        notice={callbackWarning ? <CallbackOriginWarning warning={callbackWarning} /> : undefined}
+      />
+    );
+  if (!unverified) return null;
   return (
-    <aside
-      aria-label={`Signing in to ${requester}`}
-      className="absolute inset-x-0 top-0 z-20 flex h-[var(--passport-context-band-height)] w-full shrink-0 items-center justify-start gap-1 border-b border-brand/20 bg-brand/10 px-6 text-xs font-medium leading-4 text-brand md:px-10"
-      data-passport-context-band=""
-    >
-      <LogInIcon />
-      <span className="min-w-0 truncate">
-        Signing in to <bdi className="font-bold">{requester}</bdi>
-      </span>
-    </aside>
+    <RequestContextBand
+      label="Passport can’t confirm who is asking."
+      notice={
+        review.callbackHost ? (
+          <p className="break-words">
+            Returns to <bdi className="font-bold">{review.callbackHost}</bdi> (unverified)
+          </p>
+        ) : undefined
+      }
+    />
   );
 }
 

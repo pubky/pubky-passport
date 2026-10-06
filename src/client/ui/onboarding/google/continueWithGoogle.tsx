@@ -1,6 +1,7 @@
 import {
   type FocusEvent,
   type MouseEvent,
+  useCallback,
   useEffect,
   useId,
   useLayoutEffect,
@@ -9,52 +10,116 @@ import {
   useSyncExternalStore,
 } from "react";
 
+import { DRIVE_PERMISSION_HINT } from "@/client/ui/googleDrivePermissionPrompt";
 import { GoogleLogo } from "@/client/ui/shared/brand/googleLogo";
-import { ArrowRightIcon, CircleHelpIcon, FileTextIcon } from "@/client/ui/shared/icons";
-import { Button, ButtonLink } from "@/client/ui/shared/primitives/button";
+import { ArrowRightIcon, CircleHelpIcon, FileTextIcon, XIcon } from "@/client/ui/shared/icons";
+import { Button, ButtonLink, LARGE_PADDING_X } from "@/client/ui/shared/primitives/button";
 import { Dialog } from "@/client/ui/shared/primitives/dialog";
 import { IconButton } from "@/client/ui/shared/primitives/iconButton";
 
 export const PASSPORT_README_URL = "https://github.com/pubky/pubky-passport/blob/main/README.md";
 
+/** How long a hover-shown panel outlives the pointer leaving the control. */
 const CLOSE_DELAY_MS = 150;
+/** How long the pointer may rest on its way to the panel before the panel closes. */
+const TRAVEL_REST_MS = 400;
 const DESKTOP_QUERY = "(min-width: 48rem)";
+/** The 420px card plus the 12px padding that bridges the pointer from the mark to the card. */
+const SIDE_PANEL_WIDTH = 432;
+const PANEL_GAP = 12;
+const VIEWPORT_MARGIN = 16;
+
+type Placement = "right" | "left" | "below" | "above";
+type Point = Readonly<{ x: number; y: number }>;
+
+const PLACEMENT_CLASSES: Record<Placement, string> = {
+  right: "left-full top-0 w-[432px] pl-3",
+  left: "right-full top-0 w-[432px] pr-3",
+  below: "right-0 top-full w-[min(420px,calc(100vw-32px))] pt-3",
+  above: "right-0 bottom-full w-[min(420px,calc(100vw-32px))] pb-3",
+};
 const TITLE = "Continue with Google, powered by Pubky Passport.";
 
+/**
+ * The Google trust model as the README states it: the key is encrypted in the browser, Google
+ * stores the ciphertext, Passport's server releases the wrapping key only for a fresh sign-in, and
+ * nothing is handed to the person to keep.
+ */
 const POINTS = [
   {
-    term: "Google's role:",
-    text: "Helps identify you and securely retrieve your encrypted backup. It does not create or control your pubky.",
+    term: "Your key:",
+    text: "Created in this browser and encrypted before it’s saved to your Google Drive. Google never sees your key.",
   },
   {
-    term: "Your keys:",
-    text: "Keys are created in your browser and encrypted before storage on Google Drive. Google never sees the private key.",
+    term: "Google’s role:",
+    text: "Stores the encrypted backup and confirms it’s you when you sign in.",
   },
   {
-    term: "Recovery:",
-    text: "Recovery requires both your encrypted Google Drive backup and a separate recovery key from Passport.",
+    term: "Passport’s role:",
+    text: "Holds the second piece needed to unlock the backup, and hands it over only after a fresh sign-in with the same Google account. Passport’s server never sees your key or your backup.",
   },
   {
-    term: "Split security:",
-    text: "Neither Google nor Passport can recover your pubky on its own, reducing reliance on either one.",
+    term: "New device?",
+    text: "Sign in to Passport with the same Google account and your pubky comes back. There’s nothing to write down.",
+  },
+  {
+    term: "Not tied to Google:",
+    text: "You can download a recovery file or add your pubky to Pubky Ring anytime in Manage identity.",
   },
 ];
 
 /**
- * The "Continue with Google" control: the sign-in pill with a help mark inside it, and the
- * explanation of the split between Google and Passport that the mark opens.
+ * The "Continue with Google" control, with a line under it that tells the person to tick both
+ * Drive permissions before Google asks for them. `label` renames the sign-in where Google can
+ * only restore, such as where new Google sign-ups are blocked.
+ */
+function ContinueWithGoogle({
+  label = "Continue with Google",
+  onContinue,
+}: {
+  label?: string;
+  onContinue: () => void;
+}) {
+  const hintId = useId();
+  return (
+    <div className="flex flex-col gap-2">
+      <GoogleSignInPill hintId={hintId} label={label} onContinue={onContinue} />
+      <PermissionHint id={hintId} />
+    </div>
+  );
+}
+
+/**
+ * The sign-in pill with a help mark inside it, and the explanation of the split between Google
+ * and Passport that the mark opens.
  *
  * The mark is a sibling of the pill, laid over it, so no interactive element nests in another.
- * On desktop the explanation is a panel to the right of the pill: hover and focus show it, a
- * click pins it, and Escape, tabbing away, or a press elsewhere closes it; it shifts up only as
- * far as needed to stay inside the viewport. On phones the mark opens a bottom sheet that also
- * offers the sign-in itself. Both hold links, so they are dialogs rather than tooltips.
+ * On desktop the explanation is a panel beside the pill: hovering the mark or focusing it shows
+ * it, a click pins it, and Escape, tabbing away, or a press elsewhere closes it. A hover-shown
+ * panel stays while the pointer is anywhere in the control (pill, mark or panel) and while it
+ * travels from the pill straight towards the panel, so the far side of the pill can be crossed.
+ * It opens to the right when the window has room there, else to the left, else below the pill
+ * (above it when only that fits), so it never leaves the window; beside the pill it shifts up
+ * only as far as needed to stay inside the viewport. On phones the mark opens a bottom sheet that
+ * also offers the sign-in itself. Both hold links, so they are dialogs rather than tooltips.
  */
-function ContinueWithGoogle({ onContinue }: { onContinue: () => void }) {
+function GoogleSignInPill({
+  hintId,
+  label,
+  onContinue,
+}: {
+  /** The permission hint under the control, which describes every sign-in button. */
+  hintId: string;
+  label: string;
+  onContinue: () => void;
+}) {
   const desktop = useDesktopBreakpoint();
   const [pinned, setPinned] = useState(false);
   const [hovered, setHovered] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [placement, setPlacement] = useState<Placement>("right");
+  // Where the pointer left the control while a hover-shown panel was open.
+  const [exit, setExit] = useState<Point | undefined>(undefined);
   // A resize or rotation across the breakpoint swaps the explainer's form; the old form's state
   // must not carry over.
   const [seenDesktop, setSeenDesktop] = useState(desktop);
@@ -63,44 +128,71 @@ function ContinueWithGoogle({ onContinue }: { onContinue: () => void }) {
     setPinned(false);
     setHovered(false);
     setSheetOpen(false);
+    setExit(undefined);
   }
   const closeTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const root = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   const panel = useRef<HTMLDivElement>(null);
+  const sheetTitle = useRef<HTMLHeadingElement>(null);
   const refocusing = useRef(false);
   const labelId = useId();
   const panelId = useId();
   const panelTitleId = useId();
   const sheetTitleId = useId();
+  const sheetHintId = useId();
   const panelOpen = desktop && (pinned || hovered);
 
-  const cancelClose = () => {
+  const cancelClose = useCallback(() => {
     if (closeTimer.current === undefined) return;
     clearTimeout(closeTimer.current);
     closeTimer.current = undefined;
-  };
+  }, []);
   const show = () => {
     if (!desktop) return;
     cancelClose();
     setHovered(true);
   };
-  // The panel sits a few pixels away from the mark; the delay lets the pointer cross that gap.
   // Content shown on focus stays while focus is inside it; leaveWithKeyboard closes it then.
-  const hide = () => {
-    cancelClose();
-    closeTimer.current = setTimeout(() => {
-      if (panel.current?.contains(document.activeElement)) return;
-      setHovered(false);
-    }, CLOSE_DELAY_MS);
-  };
+  const hide = useCallback(
+    (delay = CLOSE_DELAY_MS) => {
+      cancelClose();
+      closeTimer.current = setTimeout(() => {
+        closeTimer.current = undefined;
+        if (panel.current?.contains(document.activeElement)) return;
+        setHovered(false);
+        setExit(undefined);
+      }, delay);
+    },
+    [cancelClose],
+  );
   const closePanel = () => {
     cancelClose();
     setPinned(false);
     setHovered(false);
+    setExit(undefined);
+  };
+  // The panel is inside the control's element, so the pointer moving from the pill onto it never
+  // leaves; leaving elsewhere starts the close.
+  const enterControl = () => {
+    if (!panelOpen) return;
+    cancelClose();
+    setExit(undefined);
+  };
+  const leaveControl = (event: MouseEvent<HTMLDivElement>) => {
+    if (!panelOpen) return;
+    hide();
+    setExit({ x: event.clientX, y: event.clientY });
   };
 
-  useEffect(() => cancelClose, []);
+  useEffect(() => cancelClose, [cancelClose]);
+
+  // A modal dialog focuses its first control when it opens, which here is Close. Start on the
+  // title instead, so the explanation is read from its start; never on Continue with Google,
+  // where one Enter would start the sign-in. (The dialog's effect runs first and opens it.)
+  useEffect(() => {
+    if (sheetOpen) sheetTitle.current?.focus();
+  }, [sheetOpen]);
 
   useEffect(() => {
     if (!panelOpen) return;
@@ -130,21 +222,56 @@ function ContinueWithGoogle({ onContinue }: { onContinue: () => void }) {
     };
   }, [panelOpen]);
 
-  // Keep the mock's top alignment when it fits; otherwise shift the panel up just enough.
+  // Beside the pill, the pointer can leave it on the way to the panel (a pill as wide as the card
+  // puts the panel's far edge a card width from the mark). Each move that heads for the panel from
+  // where the pointer left keeps it open; resting or turning away lets it close. A move that
+  // arrives inside the control is left to enterControl, which may not have re-rendered yet.
+  useEffect(() => {
+    if (!panelOpen || exit === undefined) return;
+    const followPointer = (event: globalThis.MouseEvent) => {
+      if (event.target instanceof Node && root.current?.contains(event.target)) return;
+      const box = panel.current?.getBoundingClientRect();
+      if (!box || !isHeadingForPanel({ x: event.clientX, y: event.clientY }, exit, box)) return;
+      hide(TRAVEL_REST_MS);
+    };
+    document.addEventListener("mousemove", followPointer);
+    return () => document.removeEventListener("mousemove", followPointer);
+  }, [panelOpen, exit, hide]);
+
+  // Picks the side with room before paint, then nudges the panel inside the viewport. A new
+  // placement re-renders first; this effect then runs again for it.
   useLayoutEffect(() => {
     if (!panelOpen) return;
     const keepInViewport = () => {
+      const anchor = root.current;
       const element = panel.current;
-      if (!element) return;
-      element.style.top = "0px";
-      const { top, bottom } = element.getBoundingClientRect();
-      const overflow = bottom + 16 - window.innerHeight;
-      if (overflow > 0) element.style.top = `-${Math.min(overflow, Math.max(top - 16, 0))}px`;
+      if (!anchor || !element) return;
+      element.style.top = "";
+      element.style.right = "";
+      const card = element.firstElementChild ?? element;
+      const next = choosePlacement(
+        anchor.getBoundingClientRect(),
+        card.getBoundingClientRect().height,
+      );
+      if (next !== placement) {
+        setPlacement(next);
+        return;
+      }
+      const { top, bottom, left } = element.getBoundingClientRect();
+      if (placement === "right" || placement === "left") {
+        // Keep the mock's top alignment when it fits; otherwise shift the panel up just enough.
+        const overflow = bottom + VIEWPORT_MARGIN - window.innerHeight;
+        if (overflow > 0)
+          element.style.top = `-${Math.min(overflow, Math.max(top - VIEWPORT_MARGIN, 0))}px`;
+      } else if (left < VIEWPORT_MARGIN) {
+        // Right-aligned with the pill; a pill near the left edge pushes the panel right.
+        element.style.right = `${left - VIEWPORT_MARGIN}px`;
+      }
     };
     keepInViewport();
     window.addEventListener("resize", keepInViewport);
     return () => window.removeEventListener("resize", keepInViewport);
-  }, [panelOpen]);
+  }, [panelOpen, placement]);
 
   function toggle() {
     cancelClose();
@@ -179,27 +306,38 @@ function ContinueWithGoogle({ onContinue }: { onContinue: () => void }) {
   }
 
   return (
-    // A flex wrapper blockifies the inline-flex pill, so no line-box gap makes the wrapper taller
-    // than the pill and the overlay centres exactly on it.
-    <div className="relative flex" onBlur={leaveWithKeyboard} ref={root}>
+    // The pill and its overlay share one grid cell, so the overlay centres exactly on the pill and
+    // a label that wraps (zoomed text, a narrow card) makes the pill taller instead of spilling out.
+    <div
+      className="relative grid"
+      onBlur={leaveWithKeyboard}
+      onMouseEnter={enterControl}
+      onMouseLeave={leaveControl}
+      ref={root}
+    >
       <Button
+        aria-describedby={hintId}
         aria-labelledby={labelId}
-        className="w-full"
+        className="col-start-1 row-start-1 w-full"
         onClick={onContinue}
         size="lg"
         type="button"
         variant="secondary"
       />
-      <div className="pointer-events-none absolute inset-0 flex items-center justify-center gap-2 px-8">
+      {/* The label drawn over the pill takes the pill's own padding, so it wraps where the
+          other large buttons' labels do. */}
+      <div
+        className={`pointer-events-none col-start-1 row-start-1 flex items-center justify-center gap-2 py-2 ${LARGE_PADDING_X}`}
+      >
         <span aria-hidden="true" className="flex size-5 items-center justify-center">
           <GoogleLogo />
         </span>
         <span
           aria-hidden="true"
-          className="text-sm font-bold leading-5 text-secondary-foreground"
+          className="text-balance text-center text-sm font-bold leading-5 text-secondary-foreground"
           id={labelId}
         >
-          Continue with Google
+          {label}
         </span>
         <IconButton
           aria-controls={panelOpen ? panelId : undefined}
@@ -210,7 +348,6 @@ function ContinueWithGoogle({ onContinue }: { onContinue: () => void }) {
           onClick={toggle}
           onFocus={showOnFocus}
           onMouseEnter={show}
-          onMouseLeave={hide}
           ref={trigger}
           type="button"
           variant="ghost"
@@ -221,12 +358,8 @@ function ContinueWithGoogle({ onContinue }: { onContinue: () => void }) {
 
       {panelOpen ? (
         <div
-          // 420px card plus its 12px gap, capped so it stays inside the viewport from 768px up:
-          // the pill's right edge sits at 50vw + 13px on the 588px desktop canvas, and the extra
-          // margin covers a classic scrollbar, which vw units include and the canvas does not.
-          className="absolute left-full top-0 z-20 w-[432px] max-w-[calc(50vw-24px)] pl-3"
-          onMouseEnter={show}
-          onMouseLeave={hide}
+          className={`absolute z-20 ${PLACEMENT_CLASSES[placement]}`}
+          data-placement={placement}
           ref={panel}
         >
           <div
@@ -267,19 +400,28 @@ function ContinueWithGoogle({ onContinue }: { onContinue: () => void }) {
         onOpenChange={setSheetOpen}
         open={sheetOpen}
       >
-        {/* The padding lives inside, so only the backdrop hits the dialog element itself. */}
+        {/* The padding lives inside, so only the backdrop hits the dialog element itself. The
+            handle only shows what the sheet is; Close, Escape and the backdrop close it. */}
         <div className="px-6 pb-8 pt-3">
-          <button
-            aria-label="Close"
-            className="mx-auto mb-6 block h-1.5 w-16 rounded-full bg-muted outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-            onClick={() => setSheetOpen(false)}
-            type="button"
-          />
+          <div className="relative mb-2 flex h-11 items-center justify-center">
+            <div aria-hidden="true" className="h-1.5 w-16 rounded-full bg-muted" />
+            <IconButton
+              aria-label="Close"
+              className="absolute right-0 top-0 size-11"
+              onClick={() => setSheetOpen(false)}
+              type="button"
+              variant="secondary"
+            >
+              <XIcon className="opacity-70" />
+            </IconButton>
+          </div>
           <div className="flex flex-col gap-6">
             <h2
               aria-label={TITLE}
-              className="text-center text-xl font-bold leading-7 text-foreground"
+              className="text-center text-xl font-bold leading-7 text-foreground outline-none"
               id={sheetTitleId}
+              ref={sheetTitle}
+              tabIndex={-1}
             >
               Continue with Google,
               <br />
@@ -288,6 +430,7 @@ function ContinueWithGoogle({ onContinue }: { onContinue: () => void }) {
             <ExplanationPoints />
             <div className="flex flex-col gap-3">
               <Button
+                aria-describedby={sheetHintId}
                 className="w-full"
                 onClick={() => {
                   setSheetOpen(false);
@@ -298,8 +441,9 @@ function ContinueWithGoogle({ onContinue }: { onContinue: () => void }) {
                 variant="secondary"
               >
                 <ArrowRightIcon />
-                Continue with Google
+                {label}
               </Button>
+              <PermissionHint id={sheetHintId} />
               <ButtonLink
                 className="w-full"
                 href={PASSPORT_README_URL}
@@ -316,6 +460,55 @@ function ContinueWithGoogle({ onContinue }: { onContinue: () => void }) {
         </div>
       </Dialog>
     </div>
+  );
+}
+
+/**
+ * Beside the pill when the window has room for the whole panel on that side, else below it, or
+ * above it when only that fits. `clientWidth` leaves out a classic scrollbar; environments
+ * without layout report 0 there.
+ */
+function choosePlacement(anchor: DOMRect, panelHeight: number): Placement {
+  const width = document.documentElement.clientWidth || window.innerWidth;
+  if (width - anchor.right - VIEWPORT_MARGIN >= SIDE_PANEL_WIDTH) return "right";
+  if (anchor.left - VIEWPORT_MARGIN >= SIDE_PANEL_WIDTH) return "left";
+  const fitsBelow = anchor.bottom + PANEL_GAP + panelHeight + VIEWPORT_MARGIN <= window.innerHeight;
+  const fitsAbove = anchor.top - PANEL_GAP - panelHeight >= VIEWPORT_MARGIN;
+  return !fitsBelow && fitsAbove ? "above" : "below";
+}
+
+/**
+ * Whether `point` lies between `exit`, where the pointer left the control, and the panel's box:
+ * inside the convex hull of the two, which is the union of the triangles from `exit` to each side
+ * of the box. A straight move from the mark to anything in the panel stays inside it.
+ */
+function isHeadingForPanel(point: Point, exit: Point, box: DOMRect): boolean {
+  const topLeft = { x: box.left, y: box.top };
+  const topRight = { x: box.right, y: box.top };
+  const bottomRight = { x: box.right, y: box.bottom };
+  const bottomLeft = { x: box.left, y: box.bottom };
+  const sides = [
+    [topLeft, topRight],
+    [topRight, bottomRight],
+    [bottomRight, bottomLeft],
+    [bottomLeft, topLeft],
+  ] as const;
+  return sides.some(([from, to]) => isInTriangle(point, exit, from, to));
+}
+
+/** Point-in-triangle by edge signs; points on an edge count as inside. */
+function isInTriangle(point: Point, a: Point, b: Point, c: Point): boolean {
+  const side = (from: Point, to: Point) =>
+    (to.x - from.x) * (point.y - from.y) - (to.y - from.y) * (point.x - from.x);
+  const sides = [side(a, b), side(b, c), side(c, a)];
+  return !(sides.some((value) => value < 0) && sides.some((value) => value > 0));
+}
+
+function PermissionHint({ id }: { id: string }) {
+  return (
+    <p className="text-balance text-center text-xs leading-4 text-muted-foreground" id={id}>
+      {DRIVE_PERMISSION_HINT}
+    </p>
   );
 }
 

@@ -1,4 +1,11 @@
-import { type ReactNode, type SubmitEvent, useEffect, useRef, useState } from "react";
+import {
+  type ReactNode,
+  type SubmitEvent,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 
 import { XIcon } from "./icons";
 import { Button } from "./primitives/button";
@@ -47,11 +54,22 @@ function ConfirmDeletionDialog({
 }: ConfirmDeletionDialogProps) {
   const [confirmation, setConfirmation] = useState("");
   const confirmationInput = useRef<HTMLInputElement>(null);
-  const confirmed = confirmation === confirmationWord;
+  const errorMessage = useRef<HTMLParagraphElement>(null);
+  const shownError = useRef(error);
+  // Phone keyboards capitalise the first letter and may add a space; the word is what counts.
+  const confirmed = confirmation.trim().toUpperCase() === confirmationWord.toUpperCase();
 
   useEffect(() => {
     if (open) confirmationInput.current?.focus();
   }, [open]);
+
+  // A failure that appears while the dialog is open takes focus, so it is read out and the
+  // controls that just changed state do not leave focus nowhere.
+  useLayoutEffect(() => {
+    const appeared = shownError.current === undefined && error !== undefined;
+    shownError.current = error;
+    if (open && appeared) errorMessage.current?.focus();
+  }, [error, open]);
 
   function cancel() {
     if (pending) return;
@@ -68,16 +86,17 @@ function ConfirmDeletionDialog({
   const titleId = `${id}-title`;
   const descriptionId = `${id}-description`;
   const confirmationId = `${id}-confirmation`;
+  const errorId = `${id}-error`;
 
   return (
     <Dialog
       aria-describedby={description ? descriptionId : undefined}
       aria-labelledby={titleId}
-      className="mb-0 mt-auto w-full max-w-none rounded-t-xl border bg-popover p-6 text-foreground shadow-[0_50px_100px_rgba(5,5,10,0.75)] backdrop:bg-black/75 sm:m-auto sm:max-w-[375px] sm:rounded-xl"
       onOpenChange={(nextOpen) => {
         if (!nextOpen) cancel();
       }}
       open={open}
+      variant="sheet"
     >
       <form className="flex flex-col gap-6" onSubmit={submit}>
         <div className="flex flex-col gap-2 pr-10">
@@ -106,15 +125,29 @@ function ConfirmDeletionDialog({
             Type <span className="text-white">{confirmationWord}</span> to confirm
           </Label>
           <Input
+            aria-describedby={error === undefined ? undefined : errorId}
+            autoCapitalize="characters"
             autoComplete="off"
+            autoCorrect="off"
             containerClassName="border-dashed"
-            disabled={pending}
             id={confirmationId}
             onChange={(event) => setConfirmation(event.target.value)}
+            readOnly={pending}
             ref={confirmationInput}
+            spellCheck={false}
             value={confirmation}
           />
-          {error === undefined ? null : <FieldMessage error>{error}</FieldMessage>}
+          {error === undefined ? null : (
+            <FieldMessage
+              className="outline-none"
+              error
+              id={errorId}
+              ref={errorMessage}
+              tabIndex={-1}
+            >
+              {error}
+            </FieldMessage>
+          )}
           {errorDetails}
         </div>
 
@@ -143,7 +176,8 @@ function ConfirmDeletionDialog({
           </Button>
           <Button
             className="w-full"
-            disabled={!confirmed || !canConfirm || pending}
+            disabled={!confirmed || !canConfirm}
+            loading={pending}
             size="lg"
             type="submit"
             variant="destructive"

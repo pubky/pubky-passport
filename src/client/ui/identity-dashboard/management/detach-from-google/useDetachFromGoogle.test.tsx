@@ -51,24 +51,27 @@ describe("useDetachFromGoogle", () => {
     vi.clearAllMocks();
   });
 
-  it("reruns detachment after Google authorization fails", async () => {
-    MOCKS.detachIdentity
-      .mockResolvedValueOnce(Result.err({ code: "authorization_failed" as const }))
-      .mockResolvedValueOnce(Result.ok());
-    MOCKS.constructGoogleIdentityController.mockReturnValue(
-      mockGoogleIdentityController({
-        detachIdentity: MOCKS.detachIdentity,
-      }),
-    );
-    renderProbe();
+  it.each(["authorization_failed", "google_account_mismatch"] as const)(
+    "reruns detachment through Google's window after %s",
+    async (code) => {
+      MOCKS.detachIdentity
+        .mockResolvedValueOnce(Result.err({ code }))
+        .mockResolvedValueOnce(Result.ok());
+      MOCKS.constructGoogleIdentityController.mockReturnValue(
+        mockGoogleIdentityController({
+          detachIdentity: MOCKS.detachIdentity,
+        }),
+      );
+      renderProbe();
 
-    await userEvent.setup().click(screen.getByRole("button", { name: "Detach" }));
-    expect(await screen.findByText("authorization-failed")).toBeInTheDocument();
+      await userEvent.setup().click(screen.getByRole("button", { name: "Detach" }));
+      expect(await screen.findByText("authorization-failed")).toBeInTheDocument();
 
-    await userEvent.setup().click(screen.getByRole("button", { name: "Retry" }));
-    expect(await screen.findByText("complete")).toBeInTheDocument();
-    expect(MOCKS.detachIdentity).toHaveBeenCalledTimes(2);
-  });
+      await userEvent.setup().click(screen.getByRole("button", { name: "Retry" }));
+      expect(await screen.findByText("complete")).toBeInTheDocument();
+      expect(MOCKS.detachIdentity).toHaveBeenCalledTimes(2);
+    },
+  );
 
   it("shows operation failures returned by the controller", async () => {
     MOCKS.detachIdentity.mockResolvedValue(

@@ -60,6 +60,17 @@ describe("handoffAuthorizationOutcome", () => {
     harness.dispatchAcknowledgement({
       data: { type: "wrong", version: 1, messageId: "outcome-message-id" },
     });
+    harness.dispatchAcknowledgement({
+      data: {
+        type: "pubky-passport.authorization-outcome-ack",
+        version: 0,
+        messageId: "outcome-message-id",
+      },
+    });
+    harness.dispatchAcknowledgement({
+      data: { type: "pubky-passport.authorization-outcome-ack", version: 1, messageId: "other" },
+    });
+    harness.dispatchAcknowledgement({ data: "acknowledged" });
 
     expect(harness.close).not.toHaveBeenCalled();
     harness.runTimeout();
