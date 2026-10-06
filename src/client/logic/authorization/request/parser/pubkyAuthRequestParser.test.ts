@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   parseEncodedPubkyAuthRequest,
+  displaySafeLabel,
   PUBKY_AUTH_REQUEST_LIMITS,
   validateEncodedPubkyAuthRequest,
   type PubkyAuthParseError,
@@ -82,6 +83,78 @@ describe("parseEncodedPubkyAuthRequest", () => {
     expect(result.value.sensitivePubkyAuthUrl).toBe(request);
   });
 
+  it("normalises only the caps value and keeps every other parameter's encoding", () => {
+    const tail = "&x-source=Example%20App%20%2B%20Co";
+    const request = `${VALID_REQUEST.replace("/pub/pubky.app/", "/pub/café/")}${tail}`;
+    const result = parseEncodedPubkyAuthRequest(encodeRequest(request));
+
+    if (Result.isError(result)) throw new Error(result.error.code);
+    expect(result.value.sensitivePubkyAuthUrl).toBe(
+      `${VALID_REQUEST.replace("/pub/pubky.app/", "/pub/caf%C3%A9/")}${tail}`,
+    );
+    expect(new URL(result.value.sensitivePubkyAuthUrl).searchParams.get("caps")).toBe(
+      "/pub/café/:rw",
+    );
+  });
+
+  it.each([
+    ["a tab inside the caps name", "ca\tps"],
+    ["a line feed inside the caps name", "ca\nps"],
+    ["a carriage return inside the caps name", "c\raps"],
+  ])("rejects %s, which the URL parser would drop", (_label, name) => {
+    const request = VALID_REQUEST.replace("caps=/pub/pubky.app/", `${name}=/pub/cafe\u0301/`);
+
+    expectError(encodeRequest(request), "invalid_url");
+  });
+
+  it.each([
+    ["a tab in a value", `${VALID_REQUEST}&x-source=Acme\tNotes`],
+    ["a control character in a value", `${VALID_REQUEST}&x-source=Acme\u0000Notes`],
+    ["a leading space", ` ${VALID_REQUEST}`],
+    ["a trailing space", `${VALID_REQUEST} `],
+  ])("rejects a request with %s", (_label, request) => {
+    expectError(encodeRequest(request), "invalid_url");
+  });
+
+  it.each(["c%61ps", "CAPS", "caps%20", "x-s%6Furce"])(
+    "rejects the parameter name variant %s instead of reading it as a supported name",
+    (name) => {
+      const request = VALID_REQUEST.includes(`${name}=`)
+        ? VALID_REQUEST
+        : name === "x-s%6Furce"
+          ? `${VALID_REQUEST}&${name}=Acme`
+          : VALID_REQUEST.replace("caps=", `${name}=`);
+
+      expectError(encodeRequest(request), "unsupported_parameter");
+    },
+  );
+
+  it("skips empty query pairs like the URL parser does", () => {
+    const result = parseEncodedPubkyAuthRequest(encodeRequest(`${VALID_REQUEST}&&`));
+
+    expect(Result.isOk(result)).toBe(true);
+  });
+
+  it.each([
+    "/pub/cafe\u0301/:rw",
+    "/pub/cafe\u0301/:rw,/pub/n\u0303o/:r",
+    "/pub/caf\u00e9/:rw",
+    "/pub/\u1100\u1161/:w",
+    "/pub/pubky.app/:rw",
+  ])("shows exactly the caps the signed URL carries: %s", (caps) => {
+    const request = `${VALID_REQUEST.replace("/pub/pubky.app/:rw", caps)}&x-source=Example%20App`;
+    const result = parseEncodedPubkyAuthRequest(encodeRequest(request));
+
+    if (Result.isError(result)) throw new Error(result.error.code);
+    const signedCaps = new URL(result.value.sensitivePubkyAuthUrl).searchParams.get("caps");
+    const shown = result.value.capabilities
+      .map(({ path, read, write }) => `${path}:${read ? "r" : ""}${write ? "w" : ""}`)
+      .join(",");
+    expect(shown).toBe(signedCaps);
+    expect(signedCaps).toBe(caps.normalize("NFC"));
+    expect(result.value.sensitivePubkyAuthUrl).toContain("&x-source=Example%20App");
+  });
+
   it("preserves a literal plus while decoding an x-source percent-encoded space", () => {
     const request = `${VALID_REQUEST}&x-source=Bitkit+Wallet%20Mobile`;
     const result = parseEncodedPubkyAuthRequest(encodeRequest(request));
@@ -121,7 +194,7 @@ describe("parseEncodedPubkyAuthRequest", () => {
     expect(Result.isOk(result)).toBe(true);
     if (Result.isError(result)) throw new Error(result.error.code);
     expect(result.value.authenticationMethod).toBe("grant");
-    expect(result.value).not.toHaveProperty("clientId");
+    expect(result.value.clientId).toBe("pubky.app");
   });
 
   it.each([
@@ -331,3 +404,23 @@ function grantRequest(clientId: string): string {
     `&cid=${encodeURIComponent(clientId)}&cpk=5jsjx1o6fzu6aeeo697r3i5rx15zq41kikcye8wtwdqm4nb4tryo&x-success=`,
   );
 }
+
+it.each(["\n", "\u0007", "\u2028", "\u2029", "\u202e", "\u200b"])(
+  "omits unsafe display labels without changing the source policy: %#",
+  (character) => {
+    const value = `app${character}claim`;
+    expect(displaySafeLabel(value)).toBeUndefined();
+    const request = new URL(VALID_REQUEST);
+    request.searchParams.set("x-source", value);
+    const result = parseEncodedPubkyAuthRequest(encodeURIComponent(request.href));
+    expect(Result.isError(result) && result.error.code).toBe("invalid_source");
+  },
+);
+it.each([
+  ["", undefined],
+  ["   ", undefined],
+  [" cafe\u0301 ", "café"],
+  ["a\u200cb\u200d", "a\u200cb\u200d"],
+])("normalizes safe display text with the existing source policy: %#", (value, expected) => {
+  expect(displaySafeLabel(value!)).toBe(expected);
+});

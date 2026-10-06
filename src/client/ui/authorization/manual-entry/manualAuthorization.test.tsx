@@ -4,15 +4,18 @@ import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { takeAuthorizeFromIdentity } from "@/client/logic/universal-signer/authorizeFromIdentity";
 import { LOGGER } from "@/libs/logger/logger";
 import { ManualAuthorization } from "./manualAuthorization";
 
 vi.mock("./authorizationQrScanner", () => ({
   AuthorizationQrScanner: ({
     onClose,
+    onPasteInstead,
     onScan,
   }: {
     onClose: () => void;
+    onPasteInstead: () => void;
     onScan: (value: string) => void;
   }) => (
     <div aria-label="Authorization QR scanner" role="dialog">
@@ -24,6 +27,9 @@ vi.mock("./authorizationQrScanner", () => ({
       </button>
       <button onClick={onClose} type="button">
         Close scanner
+      </button>
+      <button onClick={onPasteInstead} type="button">
+        Paste link instead
       </button>
     </div>
   ),
@@ -37,6 +43,7 @@ describe("ManualAuthorization", () => {
     cleanup();
     vi.restoreAllMocks();
     window.history.replaceState({}, "", "/");
+    sessionStorage.clear();
   });
 
   beforeEach(() => {
@@ -58,7 +65,7 @@ describe("ManualAuthorization", () => {
     expect(input.parentElement).toHaveClass("h-14", "md:h-15");
     expect(screen.getByText("Authorization link")).toHaveClass("leading-5", "md:leading-4");
     expect(screen.getByRole("button", { name: "Continue" })).toBeDisabled();
-    const scanButton = screen.getByRole("button", { name: "Scan QR" });
+    const scanButton = screen.getByRole("button", { name: "Scan QR code" });
     expect(scanButton).toBeEnabled();
     expect(scanButton).toHaveClass("w-full", "md:hidden");
     const cameraButton = screen.getByRole("button", { name: "Scan authorization QR code" });
@@ -67,13 +74,15 @@ describe("ManualAuthorization", () => {
     expect(cameraIcon).toHaveAttribute("viewBox", "0 0 21.5 17.5");
     expect(cameraIcon).toHaveStyle({ width: "20px", height: "20px" });
     expect(cameraIcon?.parentElement).toHaveClass("size-5", "items-center", "justify-center");
+    // 32px, and 44px with a touch pointer.
     expect(screen.getByRole("button", { name: "Paste authorization link" })).toHaveClass(
-      "size-6",
-      "md:size-8",
+      "size-8",
+      "pointer-coarse:size-11",
     );
     const back = screen.getByRole("button", { name: "Back" });
     const navigation = back.parentElement?.parentElement;
-    expect(navigation).toHaveClass("mt-auto", "md:mt-0", "md:pt-6");
+    // Always 24px between the field (or its error) and Back, also when the page overflows.
+    expect(navigation).toHaveClass("mt-auto", "pt-6", "md:mt-0");
     expect(
       back.compareDocumentPosition(scanButton) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
@@ -93,7 +102,7 @@ describe("ManualAuthorization", () => {
     const user = userEvent.setup();
     render(<ManualAuthorization onBack={vi.fn()} />);
 
-    await user.click(screen.getByRole("button", { name: "Scan QR" }));
+    await user.click(screen.getByRole("button", { name: "Scan QR code" }));
     expect(screen.getByRole("dialog", { name: "Authorization QR scanner" })).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Scan valid QR" }));
@@ -109,13 +118,28 @@ describe("ManualAuthorization", () => {
     const user = userEvent.setup();
     render(<ManualAuthorization onBack={vi.fn()} />);
 
-    await user.click(screen.getByRole("button", { name: "Scan QR" }));
+    await user.click(screen.getByRole("button", { name: "Scan QR code" }));
     await user.click(screen.getByRole("button", { name: "Scan invalid QR" }));
 
     expect(screen.getByRole("alert")).toHaveTextContent(
       "Scan a QR code containing a valid pubkyauth:// authorization link.",
     );
     expect(screen.getByLabelText("Authorization link")).toHaveValue("");
+    // The scanner closed; focus returns to the field instead of falling to the page.
+    expect(screen.getByLabelText("Authorization link")).toHaveFocus();
+  });
+
+  it("leaves a scanner without a camera for the link field", async () => {
+    const user = userEvent.setup();
+    render(<ManualAuthorization onBack={vi.fn()} />);
+
+    await user.click(screen.getByRole("button", { name: "Scan QR code" }));
+    await user.click(screen.getByRole("button", { name: "Paste link instead" }));
+
+    expect(
+      screen.queryByRole("dialog", { name: "Authorization QR scanner" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Authorization link")).toHaveFocus();
   });
 
   it("submits through the validated authorization entry", async () => {
@@ -132,11 +156,37 @@ describe("ManualAuthorization", () => {
     ).toBe(VALID_REQUEST);
   });
 
-  it("shows a validation error", async () => {
+  it("notes the identity it was opened for, so the reloaded request opens on its review", async () => {
+    const user = userEvent.setup();
+    render(<ManualAuthorization identityPublicKeyZ32="identity" onBack={vi.fn()} />);
+    // A rejected link reloads nothing and leaves no note.
+    await user.type(screen.getByLabelText("Authorization link"), "invalid request");
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+    expect(takeAuthorizeFromIdentity()).toBeUndefined();
+
+    await user.type(screen.getByLabelText("Authorization link"), VALID_REQUEST);
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+    expect(window.location.pathname).toBe("/authorize");
+    // Read once by the page the reload opens.
+    expect(takeAuthorizeFromIdentity()).toBe("identity");
+    expect(takeAuthorizeFromIdentity()).toBeUndefined();
+  });
+
+  it("leaves no note when no identity opened it", async () => {
+    const user = userEvent.setup();
+    render(<ManualAuthorization onBack={vi.fn()} />);
+    await user.type(screen.getByLabelText("Authorization link"), VALID_REQUEST);
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+    expect(takeAuthorizeFromIdentity()).toBeUndefined();
+  });
+
+  it("shows a validation error and returns focus to the emptied field", async () => {
     render(<ManualAuthorization onBack={vi.fn()} />);
 
     await userEvent.setup().type(screen.getByLabelText("Authorization link"), "invalid request");
     await userEvent.setup().click(screen.getByRole("button", { name: "Continue" }));
+    // Continue disabled itself with the emptied field, which would drop focus to the page.
+    expect(screen.getByLabelText("Authorization link")).toHaveFocus();
 
     expect(screen.getByRole("alert")).toHaveTextContent(
       "Enter a valid pubkyauth:// authorization link.",

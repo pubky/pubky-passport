@@ -1,9 +1,12 @@
-import Image from "next/image";
-import { QRCodeSVG } from "qrcode.react";
-
 import type { PubkyRingMigration } from "@/client/logic/pubky/PubkySdkAdapter";
 import { cn } from "@/client/ui/shared/mergeClassNames";
+import { RingQrCode } from "@/client/ui/shared/ringQrCode";
 
+/**
+ * The key export's code, in the look every Pubky Ring code has. Its link is the private key, so
+ * unlike the other codes it is not copied on a press: the code on screen is the one hand-off.
+ * The caller sizes the square; a withdrawn link leaves the tile empty.
+ */
 function PubkyRingQrCode({
   className,
   migration,
@@ -15,35 +18,17 @@ function PubkyRingQrCode({
   const migrationUrl = migration.url;
 
   return (
-    <div className={cn("relative aspect-square overflow-hidden rounded-lg bg-white", className)}>
-      <div className="absolute inset-[4.66%]">
-        {migrationUrl ? (
-          <QRCodeSVG
-            aria-label="Pubky Ring migration QR code"
-            bgColor="#ffffff"
-            className="block size-full"
-            fgColor="#05050a"
-            level="M"
-            role="img"
-            size={192}
-            title="Pubky Ring migration QR code"
-            value={migrationUrl}
-          />
-        ) : null}
-      </div>
-      <div
-        aria-hidden="true"
-        className="absolute left-[calc(50%-1px)] top-[calc(50%+1px)] size-[43px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-background"
-      />
-      <Image
-        alt=""
-        aria-hidden="true"
-        className="absolute left-[calc(50%-1px)] top-[calc(50%+0.5px)] -translate-x-1/2 -translate-y-1/2"
-        height={24}
-        src="/brand/pubky-brand-mark.svg"
-        unoptimized
-        width={15}
-      />
+    <div className={cn("relative aspect-square", className)}>
+      {migrationUrl ? (
+        <RingQrCode
+          className="size-full"
+          copyLink={false}
+          label="Pubky Ring migration QR code"
+          url={migrationUrl}
+        />
+      ) : (
+        <div className="size-full rounded-md bg-foreground" />
+      )}
     </div>
   );
 }

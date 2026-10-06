@@ -33,6 +33,13 @@ export function isPubkyPublicKey(value: unknown): value is string {
   return isCanonicalPubkyPublicKey(value);
 }
 
+/**
+ * `null` means at least one relay answered that it has no packet for the key (or the packet has
+ * no `_pubky` entry) and no relay returned a record; the other relays may have failed. A slower
+ * relay that does return a record wins over a faster "no packet". `resolution_failed` means no
+ * relay gave a usable answer (offline, rate-limited or too slow), so the record may still exist
+ * and must never be treated as missing.
+ */
 export type PubkyHomeserverResolutionResult = Result<
   string | null,
   CodedFailure<"invalid_pubky" | "resolution_failed">

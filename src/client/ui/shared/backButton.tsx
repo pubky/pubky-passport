@@ -13,7 +13,8 @@ function BackButton({
 }) {
   return (
     <Button
-      className={cn("w-full md:w-[120px]", className)}
+      // One size on every screen and window, on the left: the primary action takes the rest.
+      className={cn("w-[120px]", className)}
       disabled={disabled}
       onClick={onClick}
       size="lg"

@@ -1,52 +1,37 @@
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 
-import { GoogleLogo } from "@/client/ui/shared/brand/googleLogo";
+import type { LocalIdentityMetadata } from "@/client/logic/local-identity/localIdentityModels";
 import { CheckIcon } from "@/client/ui/shared/icons";
-import { IdentitySummary } from "@/client/ui/shared/identitySummary";
+import { SavedIdentitySummary } from "@/client/ui/shared/identitySummary";
 import { cn } from "@/client/ui/shared/mergeClassNames";
 
 type IdentityRowProps = ButtonHTMLAttributes<HTMLButtonElement> & {
-  avatarSrc?: string | undefined;
-  detail: string;
-  name: string;
-  provider?: ReactNode | undefined;
+  identity: LocalIdentityMetadata;
   selected?: boolean;
+  /** Shown at the end of the row when it is not the selected one, e.g. a "continue" arrow. */
+  trailing?: ReactNode;
 };
 
-function IdentityRow({
-  avatarSrc,
-  className,
-  detail,
-  name,
-  provider,
-  selected,
-  ...props
-}: IdentityRowProps) {
-  const googleProvider = provider === "google";
-  const providerMark = googleProvider ? <GoogleLogo /> : provider;
-
+function IdentityRow({ className, identity, selected, trailing, ...props }: IdentityRowProps) {
   return (
     <button
-      aria-pressed={selected}
+      // Choosing a row switches to that identity; it toggles nothing, so the active row is the
+      // current item of its list rather than a pressed button.
+      aria-current={selected ? "true" : undefined}
       className={cn(
-        "flex h-18 w-full items-center gap-2 rounded-2xl border border-transparent bg-card p-4 text-left outline-none transition-colors hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50 aria-pressed:border-brand/64",
+        "group flex min-h-18 w-full items-center gap-2 rounded-2xl border border-transparent bg-card px-4 py-3 text-left transition-colors hover:bg-accent aria-[current=true]:border-brand/64",
         className,
       )}
       type="button"
       {...props}
     >
-      <IdentitySummary
-        avatarSrc={avatarSrc}
-        badge={googleProvider ? providerMark : undefined}
-        detail={detail}
-        detailClassName="lowercase"
-        name={name}
+      <SavedIdentitySummary
+        // A tag beside the key keeps rows short, so a list shows more of them.
+        attachmentInline
+        detailClassName="group-hover:text-secondary-foreground group-focus-visible:text-secondary-foreground"
+        identity={identity}
       />
-      {selected ? (
-        <CheckIcon className="text-brand" />
-      ) : !googleProvider && providerMark ? (
-        <span className="flex size-4 shrink-0 items-center justify-center">{providerMark}</span>
-      ) : null}
+      {selected ? <CheckIcon className="text-brand" /> : trailing}
     </button>
   );
 }

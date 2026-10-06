@@ -1,8 +1,9 @@
 import dynamic from "next/dynamic";
-import { type SubmitEvent, useCallback, useRef, useState } from "react";
+import { type SubmitEvent, useCallback, useLayoutEffect, useRef, useState } from "react";
 
 import { LOGGER, safeErrorLogFields } from "@/libs/logger/logger";
 import { validateManualAuthorizationInput } from "@/client/logic/authorization/entry/manualAuthorizationInput";
+import { markAuthorizeFromIdentity } from "@/client/logic/universal-signer/authorizeFromIdentity";
 import { ArrowRightIcon, CameraIcon, ClipboardPasteIcon, ScanIcon } from "@/client/ui/shared/icons";
 import { BackButton } from "@/client/ui/shared/backButton";
 import { PassportNavigation } from "@/client/ui/shared/passportNavigation";
@@ -19,11 +20,25 @@ const AuthorizationQrScanner = dynamic(
   { ssr: false },
 );
 
-function ManualAuthorization({ onBack }: { onBack: () => void }) {
+function ManualAuthorization({
+  identityPublicKeyZ32,
+  onBack,
+}: {
+  /** The identity whose overview opened this screen: the request opens on its review. */
+  identityPublicKeyZ32?: string | undefined;
+  onBack: () => void;
+}) {
   const authorizationInputRef = useRef<HTMLInputElement>(null);
   const [hasAuthorization, setHasAuthorization] = useState(false);
   const [error, setError] = useState<string>();
   const [scannerOpen, setScannerOpen] = useState(false);
+  // A rejected link empties the field, which disables Continue (or closes the scanner): focus
+  // returns to the field after that commit, so it is not lost to the page.
+  const [focusRequest, setFocusRequest] = useState(0);
+  const refocusInput = () => setFocusRequest((request) => request + 1);
+  useLayoutEffect(() => {
+    if (focusRequest > 0) authorizationInputRef.current?.focus();
+  }, [focusRequest]);
 
   const submit = (event: SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -33,11 +48,14 @@ function ManualAuthorization({ onBack }: { onBack: () => void }) {
     const result = validateManualAuthorizationInput(authorization);
     if (result.status === "invalid") {
       setError("Enter a valid pubkyauth:// authorization link.");
+      refocusInput();
       return;
     }
 
     try {
       History.prototype.replaceState.call(window.history, null, "", result.destination);
+      // The reloaded page opens the request on the review of the identity Authorize was pressed on.
+      if (identityPublicKeyZ32 !== undefined) markAuthorizeFromIdentity(identityPublicKeyZ32);
       window.location.reload();
     } catch (e) {
       LOGGER.info("authorize.manual_entry.failed", {
@@ -73,6 +91,7 @@ function ManualAuthorization({ onBack }: { onBack: () => void }) {
       if (authorizationInputRef.current) authorizationInputRef.current.value = "";
       setHasAuthorization(false);
       setError("Scan a QR code containing a valid pubkyauth:// authorization link.");
+      setFocusRequest((request) => request + 1);
       return;
     }
 
@@ -86,10 +105,12 @@ function ManualAuthorization({ onBack }: { onBack: () => void }) {
       <form className="flex min-h-0 flex-1 flex-col" onSubmit={submit}>
         <div className="flex flex-col gap-6 md:gap-8">
           <div className="flex flex-col gap-6 md:gap-3">
-            <DisplayHeading accent="a service." aria-label="Authorize a service.">
+            <DisplayHeading accent="an app." aria-label="Authorize an app.">
               Authorize
             </DisplayHeading>
-            <LeadText>Paste the authorization link from the app you want to connect.</LeadText>
+            <LeadText>
+              Paste or scan the authorization request from the app you want to connect.
+            </LeadText>
           </div>
           <div className="flex flex-col gap-2">
             <Label className="leading-5 md:leading-4" htmlFor="authorization-link">
@@ -97,7 +118,7 @@ function ManualAuthorization({ onBack }: { onBack: () => void }) {
             </Label>
             <Input
               action={
-                <div className="flex items-center gap-1">
+                <div className="flex shrink-0 items-center gap-1">
                   <IconButton
                     aria-label="Scan authorization QR code"
                     className="hidden size-8 p-0 md:inline-flex"
@@ -109,7 +130,7 @@ function ManualAuthorization({ onBack }: { onBack: () => void }) {
                   </IconButton>
                   <IconButton
                     aria-label="Paste authorization link"
-                    className="size-6 p-0 md:size-8"
+                    className="size-8 p-0"
                     onClick={() => void paste()}
                     type="button"
                     variant="ghost"
@@ -141,7 +162,9 @@ function ManualAuthorization({ onBack }: { onBack: () => void }) {
         </div>
         <PassportNavigation
           back={<BackButton onClick={onBack} />}
-          className="mt-auto md:mt-0 md:pt-6"
+          // The padding keeps the field and its error clear of Back when the page is taller than
+          // the window, where `mt-auto` gives no room.
+          className="mt-auto pt-6 md:mt-0"
           confirm={
             <div className="flex flex-col gap-4">
               <Button
@@ -152,7 +175,7 @@ function ManualAuthorization({ onBack }: { onBack: () => void }) {
                 variant="secondary"
               >
                 <ScanIcon />
-                Scan QR
+                Scan QR code
               </Button>
               <Button className="w-full" disabled={!hasAuthorization} size="lg" type="submit">
                 <ArrowRightIcon />
@@ -163,7 +186,14 @@ function ManualAuthorization({ onBack }: { onBack: () => void }) {
         />
       </form>
       {scannerOpen ? (
-        <AuthorizationQrScanner onClose={() => setScannerOpen(false)} onScan={scan} />
+        <AuthorizationQrScanner
+          onClose={() => setScannerOpen(false)}
+          onPasteInstead={() => {
+            setScannerOpen(false);
+            refocusInput();
+          }}
+          onScan={scan}
+        />
       ) : null}
     </PassportScreen>
   );

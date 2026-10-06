@@ -3,8 +3,10 @@ import "client-only";
 import { Result } from "better-result";
 
 import { encodeBase64Url } from "@/libs/encoding/base64Url";
+import { createGoogleNoncePreimage, googleNonceFor } from "@/libs/googleNonce";
 import { GOOGLE_REDIRECT_STORAGE_KEY } from "@/libs/authorization/googleRedirectConstants";
 import { AUTHORIZATION_TIMEOUT_MS } from "@/libs/passportPolicy";
+import { announceExternalNavigation } from "@/client/logic/authorization/flow/leaveGuard";
 import {
   getGoogleRedirectContext,
   type GoogleRedirectAttempt,
@@ -17,7 +19,10 @@ import type {
 import { GOOGLE_AUTHORIZATION_SCOPE } from "./parseGoogleAuthorizationResponse";
 import { resolveGoogleCredentials } from "./resolveGoogleCredentials";
 
-/** Same-tab transport used only while establishing an identity for /authorize. */
+/**
+ * Same-tab transport used only while establishing an identity for /authorize, and only when the
+ * browser blocked Google's pop-up (or to take Google's answer on the page it returned to).
+ */
 export class GoogleRedirectAuthorization {
   private readonly abortController = new AbortController();
   private readonly context = getGoogleRedirectContext();
@@ -51,10 +56,17 @@ export class GoogleRedirectAuthorization {
     if (response) {
       if (Date.now() >= response.attempt.expiresAt)
         return Result.err({ code: "google_authorization_failed" });
+      let nonce: string;
+      try {
+        nonce = await googleNonceFor(response.attempt.noncePreimage);
+      } catch {
+        return Result.err({ code: "google_authorization_failed" });
+      }
       return resolveGoogleCredentials(
         response.capture,
         response.attempt.state,
-        response.attempt.nonce,
+        nonce,
+        response.attempt.noncePreimage,
         this.abortController.signal,
       );
     }
@@ -63,12 +75,17 @@ export class GoogleRedirectAuthorization {
     try {
       const attempt: GoogleRedirectAttempt = {
         ...operation,
-        version: 1,
+        version: 2,
         requestUrl,
+        ...(this.context.profileRequired ? { profileRequired: true as const } : {}),
         state: encodeBase64Url(crypto.getRandomValues(new Uint8Array(32))),
-        nonce: encodeBase64Url(crypto.getRandomValues(new Uint8Array(32))),
+        noncePreimage: createGoogleNoncePreimage(),
         expiresAt: Date.now() + AUTHORIZATION_TIMEOUT_MS,
       };
+      // Google gets only the hash; the preimage waits here, with the request, for the return.
+      const nonce = await googleNonceFor(attempt.noncePreimage);
+      if (this.abortController.signal.aborted)
+        return Result.err({ code: "google_authorization_failed" });
       const url = new URL("https://accounts.google.com/o/oauth2/v2/auth");
       url.search = new URLSearchParams({
         client_id: this.clientId,
@@ -76,7 +93,7 @@ export class GoogleRedirectAuthorization {
         scope: GOOGLE_AUTHORIZATION_SCOPE,
         redirect_uri: this.appWindow.location.origin,
         state: attempt.state,
-        nonce: attempt.nonce,
+        nonce,
         prompt: "consent",
         include_granted_scopes: "false",
         ...(operation.googleSubject ? { login_hint: operation.googleSubject } : {}),
@@ -85,6 +102,8 @@ export class GoogleRedirectAuthorization {
       this.appWindow.sessionStorage.setItem(GOOGLE_REDIRECT_STORAGE_KEY, serialized);
       if (this.appWindow.sessionStorage.getItem(GOOGLE_REDIRECT_STORAGE_KEY) !== serialized)
         throw new Error("Redirect storage unavailable");
+      // The request is saved for the return, so leaving for Google needs no confirmation.
+      announceExternalNavigation(this.appWindow);
       this.appWindow.location.replace(url.href);
       // Navigation destroys this document. Disposal settles the operation if it runs first.
       return await new Promise((resolve) => {

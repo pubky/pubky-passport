@@ -14,26 +14,74 @@ import {
   PUBKY_SECRET_KEY_FORMAT,
   type PubkySecretKeyMaterial,
 } from "@/client/logic/pubky/pubkyIdentityKey";
-import type { LocalIdentityCatalog, LocalIdentityMetadata } from "./localIdentityModels";
+import type {
+  LocalIdentityBackup,
+  LocalIdentityCatalog,
+  LocalIdentityMetadata,
+  ProfileSummary,
+} from "./localIdentityModels";
 
+/**
+ * Persisted record shape. `v` stays at 1 although `profileSetupRequired`, `keySource` and
+ * `homeserverPubky` were added later: all are optional, additive fields, so every record written
+ * by an older build still validates here, and readers skip (never reject the whole catalog for)
+ * any record they cannot validate. A version bump would gain nothing: older validators reject
+ * unknown keys and unknown versions alike, so the new fields, not the number, decide what an old
+ * build accepts.
+ */
 type StoredLocalIdentity = {
   v: 1;
   publicKeyZ32: string;
   googleAccount?: GoogleAccountProfile;
-  secretKey: string;
+  profileSetupRequired?: true;
+  secretKey?: string;
+  keySource?: "ring";
+  /** Where this browser signed the key up; the only host a missing record is repaired to. */
+  homeserverPubky?: string;
+};
+
+/**
+ * Non-secret backup status of a browser key, stored under its own key beside the identity record.
+ * It is written to existing identities whenever their owner makes or checks a backup, so it must
+ * not live in the record: released builds validate records against an exact key list and would
+ * hide such an identity after a rollback. Older builds never read this key.
+ */
+type StoredIdentityBackup = {
+  v: 1;
+  createdAt?: string;
+  verifiedAt?: string;
+  ringVerifiedAt?: string;
 };
 
 export type LocalIdentityErrorCode =
-  "invalid_identity" | "invalid_secret_key" | "invalid_store" | "storage_unavailable";
+  | "invalid_identity"
+  | "invalid_secret_key"
+  | "invalid_store"
+  | "storage_unavailable"
+  /** The key is saved as held by Pubky Ring; Passport does not take its secret over silently. */
+  | "external_key";
 
 export type LocalIdentityResult<Success> = ResultType<
   Success,
   CodedFailure<LocalIdentityErrorCode>
 >;
 
+/**
+ * Persisted {@link ProfileSummary}, kept beside its identity's record rather than in it: an older
+ * build rejects identity records with unknown keys, and must not lose an identity to a summary.
+ */
+type StoredProfileSummary = { v: 1; name: string; avatar?: string };
+
 const STORAGE_ROOT = "pubky-passport/local-identities/v1";
 const IDENTITY_KEY_PREFIX = `${STORAGE_ROOT}/identity/`;
+const BACKUP_KEY_PREFIX = `${STORAGE_ROOT}/identity-backup/`;
+const PROFILE_SUMMARY_KEY_PREFIX = `${STORAGE_ROOT}/profile-summary/`;
 const ACTIVE_IDENTITY_KEY = `${STORAGE_ROOT}/active`;
+/** Longer than any valid profile name; a summary only ever holds a validated one. */
+const PROFILE_SUMMARY_NAME_MAX_LENGTH = 200;
+/** A 96 px JPEG thumbnail stays far below this. */
+const PROFILE_SUMMARY_AVATAR_MAX_LENGTH = 64_000;
+const PROFILE_SUMMARY_AVATAR = /^data:image\/(?:jpeg|png|webp);base64,[A-Za-z0-9+/]+={0,2}$/u;
 const SAME_TAB_LISTENERS = new Set<() => void>();
 
 /** Stores each identity independently so concurrent tabs cannot overwrite a shared array. */
@@ -58,12 +106,47 @@ export class LocalStorageIdentityRepository {
       if (Result.isError(repaired)) return Result.err(repaired.error);
     }
 
-    return Result.ok(
-      Object.freeze({
-        activePublicKeyZ32,
-        identities: Object.freeze(identities.value.map(toMetadata)),
-      }),
-    );
+    const metadata: LocalIdentityMetadata[] = [];
+    for (const identity of identities.value) {
+      const backup = readBackup(storage, identity);
+      if (Result.isError(backup)) return Result.err(backup.error);
+      metadata.push(
+        toMetadata(identity, backup.value, readProfileSummary(storage, identity.publicKeyZ32)),
+      );
+    }
+
+    return Result.ok(Object.freeze({ activePublicKeyZ32, identities: Object.freeze(metadata) }));
+  }
+
+  /**
+   * Keeps the public profile last read for a saved identity, or forgets it (`null`), so lists can
+   * name identities without reading every profile. Public data only; does not notify this tab,
+   * whose screens already show the profile they read.
+   */
+  rememberProfileSummary(
+    publicKeyZ32: string,
+    summary: ProfileSummary | null,
+  ): LocalIdentityResult<void> {
+    const stored: StoredProfileSummary | null = summary
+      ? { v: 1, name: summary.name, ...(summary.avatar ? { avatar: summary.avatar } : {}) }
+      : null;
+    if (stored && !isStoredProfileSummary(stored)) return invalidIdentity("remember_profile");
+    const storageResult = getLocalStorage("write");
+    if (Result.isError(storageResult)) return Result.err(storageResult.error);
+    const storage = storageResult.value;
+    const identity = readIdentity(storage, publicKeyZ32);
+    if (Result.isError(identity)) return Result.err(identity.error);
+    if (!identity.value) return invalidIdentity("remember_profile");
+    const key = profileSummaryStorageKey(publicKeyZ32);
+    try {
+      const value = stored ? JSON.stringify(stored) : null;
+      if (storage.getItem(key) === value) return Result.ok();
+      if (value === null) storage.removeItem(key);
+      else storage.setItem(key, value);
+      return Result.ok();
+    } catch (e) {
+      return storageUnavailable("write", e);
+    }
   }
 
   save(
@@ -72,7 +155,9 @@ export class LocalStorageIdentityRepository {
   ): LocalIdentityResult<LocalIdentityMetadata> {
     if (
       !isPubkyPublicIdentity(identity.publicIdentity) ||
-      (identity.googleAccount !== undefined && !isGoogleAccountProfile(identity.googleAccount))
+      (identity.googleAccount !== undefined && !isGoogleAccountProfile(identity.googleAccount)) ||
+      (identity.homeserverPubky !== undefined && !isPubkyPublicKey(identity.homeserverPubky)) ||
+      (identity.backup !== undefined && !isBackup(identity.backup))
     ) {
       return invalidIdentity("save");
     }
@@ -94,32 +179,197 @@ export class LocalStorageIdentityRepository {
       v: 1,
       publicKeyZ32: identity.publicIdentity.publicKeyZ32,
       ...(identity.googleAccount ? { googleAccount: { ...identity.googleAccount } } : {}),
+      ...(identity.profileSetupRequired ? { profileSetupRequired: true as const } : {}),
+      ...(identity.homeserverPubky ? { homeserverPubky: identity.homeserverPubky } : {}),
       secretKey: encodeBase64Url(secretKey.bytes),
     };
 
     const storedKey = identityStorageKey(stored.publicKeyZ32);
+    const backupKey = backupStorageKey(stored.publicKeyZ32);
     let previousIdentity: string | null | undefined;
+    let previousBackup: string | null | undefined;
     let previousActive: string | null | undefined;
 
     try {
       previousIdentity = storage.getItem(storedKey);
+      const previous = previousIdentity ? parseStoredIdentity(previousIdentity) : null;
+      // The person chose to keep this key in Pubky Ring. Writing its secret here would move it
+      // into the browser behind their back; they must remove the Ring entry first.
+      if (previous?.keySource === "ring") {
+        LOGGER.warn("identity.local_store.failed", { operation: "save", code: "external_key" });
+        return Result.err({ code: "external_key" });
+      }
+      // Restoring an unfinished account must not bypass its profile setup.
+      if (previous?.profileSetupRequired) stored.profileSetupRequired = true;
+      // Restoring a key without signing it up again keeps the homeserver it was created on.
+      if (!stored.homeserverPubky && previous?.homeserverPubky)
+        stored.homeserverPubky = previous.homeserverPubky;
+      previousBackup = storage.getItem(backupKey);
+      // Saving the same key again does not make an earlier backup file of it any less valid.
+      const backup = mergeBackups(
+        previousBackup === null ? undefined : parseStoredBackup(previousBackup),
+        identity.backup,
+      );
       previousActive = storage.getItem(ACTIVE_IDENTITY_KEY);
       storage.setItem(storedKey, JSON.stringify(stored));
+      if (backup) storage.setItem(backupKey, JSON.stringify(backup));
+      else if (previousBackup !== null) storage.removeItem(backupKey);
       storage.setItem(ACTIVE_IDENTITY_KEY, stored.publicKeyZ32);
       notifySameTab();
-      return Result.ok(toMetadata(stored));
+      return Result.ok(toMetadata(stored, backup));
     } catch (e) {
-      if (previousIdentity !== undefined && previousActive !== undefined) {
+      if (
+        previousIdentity !== undefined &&
+        previousBackup !== undefined &&
+        previousActive !== undefined
+      ) {
         restoreStorageValues(
           storage,
           [
             [ACTIVE_IDENTITY_KEY, previousActive],
+            [backupKey, previousBackup],
             [storedKey, previousIdentity],
           ],
           "save_rollback",
         );
         notifySameTab();
       }
+      return storageUnavailable("write", e);
+    }
+  }
+
+  completeProfileSetup(publicKeyZ32: string): LocalIdentityResult<void> {
+    const storage = getLocalStorage("write");
+    if (Result.isError(storage)) return Result.err(storage.error);
+    const identity = readIdentity(storage.value, publicKeyZ32);
+    if (Result.isError(identity)) return Result.err(identity.error);
+    if (!identity.value) return invalidIdentity("complete_profile");
+    try {
+      const stored = { ...identity.value };
+      delete stored.profileSetupRequired;
+      storage.value.setItem(identityStorageKey(publicKeyZ32), JSON.stringify(stored));
+      notifySameTab();
+      return Result.ok();
+    } catch (e) {
+      return storageUnavailable("write", e);
+    }
+  }
+
+  /** Called only after a signer has proved control through the SDK. Stores no grant or key. */
+  saveExternal(
+    publicKeyZ32: string,
+    profileSetupRequired = false,
+  ): LocalIdentityResult<LocalIdentityMetadata> {
+    if (!isPubkyPublicKey(publicKeyZ32)) return invalidIdentity("save_external");
+    const storageResult = getLocalStorage("write");
+    if (Result.isError(storageResult)) return Result.err(storageResult.error);
+    const storage = storageResult.value;
+    const existing = readIdentity(storage, publicKeyZ32);
+    if (Result.isError(existing)) return Result.err(existing.error);
+    // Connecting a signer must never overwrite an existing local key or its Google association.
+    if (existing.value && existing.value.keySource !== "ring") {
+      const selected = this.select(publicKeyZ32);
+      if (Result.isError(selected)) return Result.err(selected.error);
+      const backup = readBackup(storage, existing.value);
+      return Result.isError(backup)
+        ? Result.err(backup.error)
+        : Result.ok(toMetadata(existing.value, backup.value));
+    }
+    const stored: StoredLocalIdentity = {
+      v: 1,
+      publicKeyZ32,
+      keySource: "ring",
+      ...(profileSetupRequired || existing.value?.profileSetupRequired
+        ? { profileSetupRequired: true }
+        : {}),
+    };
+    let previousActive: string | null | undefined;
+    try {
+      previousActive = storage.getItem(ACTIVE_IDENTITY_KEY);
+      storage.setItem(identityStorageKey(publicKeyZ32), JSON.stringify(stored));
+      storage.setItem(ACTIVE_IDENTITY_KEY, publicKeyZ32);
+      notifySameTab();
+      return Result.ok(toMetadata(stored));
+    } catch (e) {
+      if (previousActive !== undefined) {
+        restoreStorageValues(
+          storage,
+          [
+            [
+              identityStorageKey(publicKeyZ32),
+              existing.value ? JSON.stringify(existing.value) : null,
+            ],
+            [ACTIVE_IDENTITY_KEY, previousActive],
+          ],
+          "save_rollback",
+        );
+        notifySameTab();
+      }
+      return storageUnavailable("write", e);
+    }
+  }
+
+  /** Changes only the Google association, preserving the key and active selection. */
+  setGoogleAccount(
+    publicKeyZ32: string,
+    googleAccount: GoogleAccountProfile | undefined,
+  ): LocalIdentityResult<void> {
+    if (googleAccount !== undefined && !isGoogleAccountProfile(googleAccount)) {
+      return invalidIdentity("set_google_account");
+    }
+    const storageResult = getLocalStorage("write");
+    if (Result.isError(storageResult)) return Result.err(storageResult.error);
+    const stored = readIdentity(storageResult.value, publicKeyZ32);
+    if (Result.isError(stored)) return Result.err(stored.error);
+    // A Ring entry's record shape has no Google association; writing one would hide the entry.
+    if (!stored.value || stored.value.keySource === "ring")
+      return invalidIdentity("set_google_account");
+    const updated = { ...stored.value };
+    if (googleAccount) updated.googleAccount = { ...googleAccount };
+    else delete updated.googleAccount;
+    try {
+      storageResult.value.setItem(identityStorageKey(publicKeyZ32), JSON.stringify(updated));
+      notifySameTab();
+      return Result.ok();
+    } catch (e) {
+      return storageUnavailable("write", e);
+    }
+  }
+
+  /**
+   * Records a backup of a browser-held key: `created` once Passport made a file, `verified` once a
+   * file opened with its password, `ring-verified` once Pubky Ring approved a sign-in with this
+   * key. Each event keeps its own date, so a newer file that was never checked leaves an earlier
+   * check in place.
+   */
+  recordBackup(
+    publicKeyZ32: string,
+    event: "created" | "verified" | "ring-verified",
+    at: Date,
+  ): LocalIdentityResult<void> {
+    if (Number.isNaN(at.getTime())) return invalidIdentity("record_backup");
+    const storageResult = getLocalStorage("write");
+    if (Result.isError(storageResult)) return Result.err(storageResult.error);
+    const storage = storageResult.value;
+    const stored = readIdentity(storage, publicKeyZ32);
+    if (Result.isError(stored)) return Result.err(stored.error);
+    // A Ring-held key never reaches Passport, so it has no backup here.
+    if (!stored.value || stored.value.keySource === "ring") return invalidIdentity("record_backup");
+    const previous = readBackup(storage, stored.value);
+    if (Result.isError(previous)) return Result.err(previous.error);
+    const updated = mergeBackups(
+      previous.value,
+      event === "created"
+        ? { createdAt: at.toISOString() }
+        : event === "verified"
+          ? { verifiedAt: at.toISOString() }
+          : { ringVerifiedAt: at.toISOString() },
+    );
+    try {
+      storage.setItem(backupStorageKey(publicKeyZ32), JSON.stringify(updated));
+      notifySameTab();
+      return Result.ok();
+    } catch (e) {
       return storageUnavailable("write", e);
     }
   }
@@ -157,18 +407,25 @@ export class LocalStorageIdentityRepository {
     }
 
     const storedKey = identityStorageKey(publicKeyZ32);
+    const backupKey = backupStorageKey(publicKeyZ32);
     const previousIdentity = JSON.stringify(identity.value);
+    let previousBackup: string | null;
+    try {
+      previousBackup = storage.getItem(backupKey);
+    } catch (e) {
+      return storageUnavailable("read", e);
+    }
 
     try {
       if (active.value === publicKeyZ32) writeActiveIdentityOrThrow(storage, nextActive);
       storage.removeItem(storedKey);
-      notifySameTab();
-      return Result.ok();
+      storage.removeItem(backupKey);
     } catch (e) {
       restoreStorageValues(
         storage,
         [
           [storedKey, previousIdentity],
+          [backupKey, previousBackup],
           [ACTIVE_IDENTITY_KEY, active.value],
         ],
         "remove_rollback",
@@ -176,6 +433,17 @@ export class LocalStorageIdentityRepository {
       notifySameTab();
       return storageUnavailable("write", e);
     }
+    // The identity is gone; its public summary goes with it where storage allows.
+    try {
+      storage.removeItem(profileSummaryStorageKey(publicKeyZ32));
+    } catch (e) {
+      LOGGER.warn("identity.local_store.failed", {
+        operation: "remove_profile_summary",
+        ...safeErrorLogFields(e),
+      });
+    }
+    notifySameTab();
+    return Result.ok();
   }
 
   read(publicKeyZ32: string): LocalIdentityResult<{
@@ -188,11 +456,15 @@ export class LocalStorageIdentityRepository {
     const stored = readIdentity(storage, publicKeyZ32);
     if (Result.isError(stored)) return Result.err(stored.error);
     if (!stored.value) return invalidIdentity("read_identity");
+    if (stored.value.keySource === "ring") return invalidIdentity("external_key");
+    if (!stored.value.secretKey) return invalidStore();
 
     const secretKey = decodeStoredSecretKey(stored.value.secretKey);
     if (!secretKey) return invalidStore();
+    const backup = readBackup(storage, stored.value);
+    if (Result.isError(backup)) return Result.err(backup.error);
     return Result.ok({
-      identity: toMetadata(stored.value),
+      identity: toMetadata(stored.value, backup.value),
       secretKey: { bytes: secretKey, format: PUBKY_SECRET_KEY_FORMAT },
     });
   }
@@ -211,6 +483,11 @@ export class LocalStorageIdentityRepository {
   }
 }
 
+/**
+ * Lists every record that validates. A record that does not (a malformed value, a shape from
+ * another build, or a record filed under the wrong key) is left in storage untouched and
+ * skipped, so one bad record cannot hide the others. Only storage exceptions fail the read.
+ */
 function readAllIdentities(storage: Storage): LocalIdentityResult<StoredLocalIdentity[]> {
   const identities: StoredLocalIdentity[] = [];
   try {
@@ -220,7 +497,14 @@ function readAllIdentities(storage: Storage): LocalIdentityResult<StoredLocalIde
       const value = storage.getItem(key);
       if (value === null) continue;
       const identity = parseStoredIdentity(value);
-      if (!identity || key !== identityStorageKey(identity.publicKeyZ32)) return invalidStore();
+      if (!identity || key !== identityStorageKey(identity.publicKeyZ32)) {
+        // The value may hold a secret key and the storage key names the identity; log neither.
+        LOGGER.warn("identity.local_store.record_skipped", {
+          operation: "read",
+          reason: identity ? "key_mismatch" : "invalid_record",
+        });
+        continue;
+      }
       identities.push(identity);
     }
   } catch (e) {
@@ -281,32 +565,178 @@ function parseStoredIdentity(value: string): StoredLocalIdentity | null {
 }
 
 function isStoredIdentity(value: unknown): value is StoredLocalIdentity {
+  if (isRecord(value) && value.keySource === "ring") {
+    return (
+      hasExactKeys(value, [
+        "v",
+        "publicKeyZ32",
+        "keySource",
+        ...(value.profileSetupRequired === undefined ? [] : ["profileSetupRequired"]),
+      ]) &&
+      value.v === 1 &&
+      isPubkyPublicKey(value.publicKeyZ32) &&
+      (value.profileSetupRequired === undefined || value.profileSetupRequired === true)
+    );
+  }
   return (
     isRecord(value) &&
-    hasExactKeys(
-      value,
-      value.googleAccount === undefined
-        ? ["v", "publicKeyZ32", "secretKey"]
-        : ["v", "publicKeyZ32", "googleAccount", "secretKey"],
-    ) &&
+    hasExactKeys(value, [
+      "v",
+      "publicKeyZ32",
+      "secretKey",
+      ...(value.googleAccount === undefined ? [] : ["googleAccount"]),
+      ...(value.profileSetupRequired === undefined ? [] : ["profileSetupRequired"]),
+      ...(value.homeserverPubky === undefined ? [] : ["homeserverPubky"]),
+    ]) &&
     value.v === 1 &&
     isPubkyPublicKey(value.publicKeyZ32) &&
     isEncodedSecretKey(value.secretKey) &&
-    (value.googleAccount === undefined || isGoogleAccountProfile(value.googleAccount))
+    (value.profileSetupRequired === undefined || value.profileSetupRequired === true) &&
+    (value.googleAccount === undefined || isGoogleAccountProfile(value.googleAccount)) &&
+    (value.homeserverPubky === undefined || isPubkyPublicKey(value.homeserverPubky))
   );
+}
+
+/**
+ * The backup status of a browser key. A malformed value only loses that status: it is skipped,
+ * never the identity. Only storage exceptions fail the read.
+ */
+function readBackup(
+  storage: Storage,
+  identity: StoredLocalIdentity,
+): LocalIdentityResult<StoredIdentityBackup | undefined> {
+  // A Ring-held key never reaches Passport, so any backup status beside it is stale.
+  if (identity.keySource === "ring") return Result.ok(undefined);
+  let value: string | null;
+  try {
+    value = storage.getItem(backupStorageKey(identity.publicKeyZ32));
+  } catch (e) {
+    return storageUnavailable("read", e);
+  }
+  return Result.ok(value === null ? undefined : parseStoredBackup(value));
+}
+
+function parseStoredBackup(value: string): StoredIdentityBackup | undefined {
+  try {
+    const parsed: unknown = JSON.parse(value);
+    if (isRecord(parsed) && parsed.v === 1) {
+      const backup = { ...parsed };
+      delete backup.v;
+      if (isBackup(backup)) return { v: 1, ...backup };
+    }
+  } catch {
+    // Reported below like any other malformed status.
+  }
+  LOGGER.warn("identity.local_store.record_skipped", {
+    operation: "read",
+    reason: "invalid_backup",
+  });
+  return undefined;
+}
+
+function isBackup(value: unknown): value is LocalIdentityBackup {
+  if (!isRecord(value)) return false;
+  const keys = Object.keys(value);
+  return (
+    keys.length > 0 &&
+    keys.every((key) => key === "createdAt" || key === "verifiedAt" || key === "ringVerifiedAt") &&
+    (value.createdAt === undefined || isIsoTimestamp(value.createdAt)) &&
+    (value.verifiedAt === undefined || isIsoTimestamp(value.verifiedAt)) &&
+    (value.ringVerifiedAt === undefined || isIsoTimestamp(value.ringVerifiedAt))
+  );
+}
+
+/** Keeps the newest date of each event, so no save or record makes a known backup older. */
+function mergeBackups(
+  previous: LocalIdentityBackup | undefined,
+  next: LocalIdentityBackup | undefined,
+): StoredIdentityBackup | undefined {
+  const createdAt = newest(previous?.createdAt, next?.createdAt);
+  const verifiedAt = newest(previous?.verifiedAt, next?.verifiedAt);
+  const ringVerifiedAt = newest(previous?.ringVerifiedAt, next?.ringVerifiedAt);
+  if (!createdAt && !verifiedAt && !ringVerifiedAt) return undefined;
+  return {
+    v: 1,
+    ...(createdAt ? { createdAt } : {}),
+    ...(verifiedAt ? { verifiedAt } : {}),
+    ...(ringVerifiedAt ? { ringVerifiedAt } : {}),
+  };
+}
+
+function newest(first: string | undefined, second: string | undefined): string | undefined {
+  if (!first || !second) return first ?? second;
+  return Date.parse(second) > Date.parse(first) ? second : first;
+}
+
+function isIsoTimestamp(value: unknown): value is string {
+  if (typeof value !== "string") return false;
+  const time = Date.parse(value);
+  return !Number.isNaN(time) && new Date(time).toISOString() === value;
 }
 
 function isEncodedSecretKey(value: unknown): value is string {
   return typeof value === "string" && value.length === 43 && isCanonicalBase64Url(value);
 }
 
-function toMetadata(identity: StoredLocalIdentity): LocalIdentityMetadata {
+function toMetadata(
+  identity: StoredLocalIdentity,
+  backup?: StoredIdentityBackup,
+  profileSummary?: ProfileSummary,
+): LocalIdentityMetadata {
   return Object.freeze({
     publicIdentity: Object.freeze({ publicKeyZ32: identity.publicKeyZ32 }),
+    ...(profileSummary ? { profileSummary } : {}),
+    ...(identity.keySource === "ring" ? { keySource: "ring" as const } : {}),
+    ...(identity.profileSetupRequired ? { profileSetupRequired: true as const } : {}),
     ...(identity.googleAccount
       ? { googleAccount: Object.freeze({ ...identity.googleAccount }) }
       : {}),
+    ...(identity.homeserverPubky ? { homeserverPubky: identity.homeserverPubky } : {}),
+    ...(backup && identity.keySource !== "ring"
+      ? {
+          backup: Object.freeze({
+            ...(backup.createdAt ? { createdAt: backup.createdAt } : {}),
+            ...(backup.verifiedAt ? { verifiedAt: backup.verifiedAt } : {}),
+            ...(backup.ringVerifiedAt ? { ringVerifiedAt: backup.ringVerifiedAt } : {}),
+          }),
+        }
+      : {}),
   });
+}
+
+/** A missing, unreadable or invalid summary reads as none; it is never worth failing a list. */
+function readProfileSummary(storage: Storage, publicKeyZ32: string): ProfileSummary | undefined {
+  try {
+    const value = storage.getItem(profileSummaryStorageKey(publicKeyZ32));
+    if (value === null) return undefined;
+    const parsed: unknown = JSON.parse(value);
+    if (!isStoredProfileSummary(parsed)) return undefined;
+    return Object.freeze({
+      name: parsed.name,
+      ...(parsed.avatar ? { avatar: parsed.avatar } : {}),
+    });
+  } catch {
+    return undefined;
+  }
+}
+
+function isStoredProfileSummary(value: unknown): value is StoredProfileSummary {
+  return (
+    isRecord(value) &&
+    hasExactKeys(value, ["v", "name", ...(value.avatar === undefined ? [] : ["avatar"])]) &&
+    value.v === 1 &&
+    typeof value.name === "string" &&
+    value.name.length > 0 &&
+    value.name.length <= PROFILE_SUMMARY_NAME_MAX_LENGTH &&
+    (value.avatar === undefined ||
+      (typeof value.avatar === "string" &&
+        value.avatar.length <= PROFILE_SUMMARY_AVATAR_MAX_LENGTH &&
+        PROFILE_SUMMARY_AVATAR.test(value.avatar)))
+  );
+}
+
+function profileSummaryStorageKey(publicKeyZ32: string): string {
+  return `${PROFILE_SUMMARY_KEY_PREFIX}${publicKeyZ32}`;
 }
 
 function decodeStoredSecretKey(value: string): Uint8Array | undefined {
@@ -316,6 +746,10 @@ function decodeStoredSecretKey(value: string): Uint8Array | undefined {
 
 function identityStorageKey(publicKeyZ32: string): string {
   return `${IDENTITY_KEY_PREFIX}${publicKeyZ32}`;
+}
+
+function backupStorageKey(publicKeyZ32: string): string {
+  return `${BACKUP_KEY_PREFIX}${publicKeyZ32}`;
 }
 
 function notifySameTab(): void {

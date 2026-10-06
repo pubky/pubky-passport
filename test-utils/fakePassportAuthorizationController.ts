@@ -12,8 +12,12 @@ export function fakePassportAuthorizationController(
 ): AuthorizationControllerPort {
   return {
     approve: overrides.approve ?? vi.fn(),
+    canWatchExternalApproval: overrides.canWatchExternalApproval ?? (() => false),
     cancel: overrides.cancel ?? vi.fn(),
     dispose: overrides.dispose ?? vi.fn(),
+    externalSignerUrl: overrides.externalSignerUrl ?? (() => undefined),
+    reportPhase: overrides.reportPhase ?? vi.fn(),
+    leaveExternalSigner: overrides.leaveExternalSigner ?? vi.fn(),
     getState:
       overrides.getState ??
       (() => {
@@ -30,5 +34,10 @@ export function fakePassportAuthorizationController(
           state.listener = undefined;
         };
       }),
+    watchExternalApproval: overrides.watchExternalApproval ?? (() => () => undefined),
+    profileNeeded: overrides.profileNeeded ?? (() => undefined),
+    profileReady: overrides.profileReady ?? vi.fn(() => false),
+    editProfileEntry: overrides.editProfileEntry ?? (() => undefined),
+    profileUpdated: overrides.profileUpdated ?? vi.fn(() => false),
   };
 }

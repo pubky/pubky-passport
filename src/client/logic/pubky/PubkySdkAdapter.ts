@@ -1,10 +1,40 @@
 import "client-only";
 
-import { Keypair, Pubky, PublicKey, type PubkyError, type Session } from "@synonymdev/pubky";
+import {
+  Keypair,
+  AuthFlowKind,
+  Pubky,
+  PublicKey,
+  type PubkyError,
+  type Session,
+  type SessionStorage,
+  GrantAuthFlow,
+  type BrowserSessionStore,
+  type Address,
+  type Path,
+  type Capabilities,
+  Client,
+  type PublicStorage,
+} from "@synonymdev/pubky";
 import { Result, type Result as ResultType } from "better-result";
 
 import { LOGGER, safeErrorLogFields } from "@/libs/logger/logger";
+import { REQUEST_TIMEOUT_MS } from "@/libs/passportPolicy";
 import type { CodedFailure } from "@/libs/result";
+import {
+  AVATAR_TYPES,
+  grantsCapabilities,
+  MAX_AVATAR_BYTES,
+  PROFILE_CAPABILITIES,
+  sniffImageType,
+  type ProfileWrite,
+} from "../profile/profile";
+import { pubkyNetwork } from "./pubkyNetwork";
+import {
+  holdDelegatedKeys,
+  whenDelegatedKeysUnused,
+  type DelegatedKeyRelease,
+} from "./delegatedGrantKeys";
 import {
   PUBKY_SECRET_KEY_BYTES,
   PUBKY_SECRET_KEY_FORMAT,
@@ -40,7 +70,7 @@ export type PubkyRecoveryFileResult = ResultType<
   Uint8Array,
   CodedFailure<PubkyRecoveryFileErrorCode>
 >;
-type PubkyAuthApprovalErrorCode = "approval_failed" | "key_unavailable" | "request_rejected";
+export type PubkyAuthApprovalErrorCode = "approval_failed" | "key_unavailable" | "request_rejected";
 export type PubkyAuthApprovalResult = ResultType<void, CodedFailure<PubkyAuthApprovalErrorCode>>;
 
 type Signer = ReturnType<Pubky["signer"]>;
@@ -74,14 +104,27 @@ export class PubkyRingMigration {
     cleanup("create_pubky_ring_migration", "keypair_free", () => keypair.free());
   }
 
-  /** Attempts the Pubky Ring handoff and consumes the migration after a navigation attempt. */
+  /**
+   * Attempts the Pubky Ring handoff and consumes the migration after a navigation attempt. The
+   * secret-bearing link is followed through a hidden link clicked within the person's press and
+   * removed at once, never assigned to this page's location, so it never becomes the page's
+   * address or a history entry; a phone hands an app scheme on only from such a top-level
+   * navigation, not from a frame.
+   */
   navigate(): boolean {
     const migrationUrl = this.url;
     if (!migrationUrl) return false;
+    const link = globalThis.document.createElement("a");
     try {
-      globalThis.location.assign(migrationUrl);
+      link.href = migrationUrl;
+      link.rel = "noopener noreferrer";
+      link.hidden = true;
+      globalThis.document.body.append(link);
+      link.click();
       return true;
     } finally {
+      link.remove();
+      link.removeAttribute("href");
       this.dispose();
     }
   }
@@ -103,11 +146,22 @@ export class PubkyRingMigration {
 }
 
 /**
+ * An SDK facade for the instance's network: mainnet's defaults, or a testnet's own PKARR relays
+ * (`PUBKY_NETWORK=testnet`). Every facade this adapter makes comes from here.
+ */
+function createPubky(): Pubky {
+  const network = pubkyNetwork();
+  return network.network === "testnet"
+    ? Pubky.withClient(new Client({ pkarr: { relays: [...network.pkarrRelays] } }))
+    : new Pubky();
+}
+
+/**
  * Browser-local Pubky adapter. Opaque handles keep SDK keypairs out of application and
  * UI state while this adapter owns all SDK resource cleanup.
  */
 export class PubkySdkAdapter {
-  private readonly pubky = new Pubky();
+  private readonly pubky = createPubky();
   private readonly keypairs = new Map<PubkyIdentityKeyHandle, Keypair>();
   private disposed = false;
 
@@ -178,6 +232,39 @@ export class PubkySdkAdapter {
       return failure("restore_identity_key", "sdk_restore", "restore_failed", e);
     } finally {
       clearSecretKey(secretKey);
+    }
+  }
+
+  /**
+   * Decrypts an SDK .pkarr recovery file into an adapter-owned key handle.
+   * The supplied byte buffer is always cleared before this method returns.
+   */
+  restoreRecoveryFile(
+    recoveryFile: Uint8Array,
+    passphrase: string,
+  ): PubkyIdentityKeysResult<PubkyIdentityKey> {
+    if (this.disposed) {
+      recoveryFile.fill(0);
+      return failure("restore_recovery_file", "adapter_state", "key_unavailable");
+    }
+    if (
+      !(recoveryFile instanceof Uint8Array) ||
+      recoveryFile.byteLength === 0 ||
+      passphrase.length === 0
+    ) {
+      recoveryFile.fill(0);
+      return failure("restore_recovery_file", "input_validation", "restore_failed");
+    }
+
+    try {
+      return this.registerKeypair(
+        "restore_recovery_file",
+        Keypair.fromRecoveryFile(recoveryFile, passphrase),
+      );
+    } catch (e) {
+      return failure("restore_recovery_file", "sdk_restore", "restore_failed", e);
+    } finally {
+      recoveryFile.fill(0);
     }
   }
 
@@ -373,7 +460,7 @@ export class PubkySdkAdapter {
   }
 
   private registerKeypair(
-    operation: "create_identity_key" | "restore_identity_key",
+    operation: "create_identity_key" | "restore_identity_key" | "restore_recovery_file",
     keypair: Keypair,
   ): PubkyIdentityKeysResult<PubkyIdentityKey> {
     const identity = publicIdentity(operation, keypair);
@@ -546,32 +633,54 @@ type PubkyOperation =
   | "create_recovery_file"
   | "dispose_adapter"
   | "dispose_identity_key"
+  | "dispose_ring_profile_grant"
   | "export_secret_key"
+  | "poll_ring_profile_grant"
   | "publish_homeserver"
+  | "publish_ring_profile"
+  | "read_profile_resource"
   | "resolve_homeserver"
   | "restore_identity_key"
+  | "restore_recovery_file"
   | "signin"
-  | "signup";
+  | "signup"
+  | "start_ring_profile_grant"
+  | "start_ring_verification"
+  | "write_profile";
 
 type PubkyFailureStage =
   | "adapter_state"
+  | "grant_capabilities"
+  | "grant_state"
   | "homeserver_parse"
+  | "identity_check"
+  | "image_type"
   | "input_validation"
   | "key_lookup"
   | "request_validation"
+  | "response_body"
+  | "response_parse"
+  | "response_status"
+  | "response_timeout"
   | "sdk_approval"
   | "sdk_create"
   | "sdk_export"
+  | "sdk_grant_poll"
+  | "sdk_grant_start"
   | "sdk_initialize"
   | "sdk_public_identity"
+  | "sdk_read"
   | "sdk_recovery_file"
   | "sdk_publish"
   | "sdk_resolution"
   | "sdk_restore"
   | "sdk_signin"
-  | "sdk_signup";
+  | "sdk_signup"
+  | "sdk_write";
 
 type PubkyCleanupStage =
+  | "delegated_keys_clear"
+  | "flow_free"
   | "homeserver_free"
   | "keypair_free"
   | "pkdns_free"
@@ -581,12 +690,18 @@ type PubkyCleanupStage =
   | "session_free"
   | "session_info_free"
   | "session_public_key_free"
-  | "signer_free";
+  | "session_signout"
+  | "session_store_free"
+  | "signer_free"
+  | "storage_free";
 
 type PubkyErrorCode =
   | PubkyAuthApprovalErrorCode
   | PubkyPublicationErrorCode
   | PubkyIdentityKeysErrorCode
+  | PubkyProfileGrantErrorCode
+  | PubkyProfileReadErrorCode
+  | PubkyProfileWriteErrorCode
   | PubkyRecoveryFileErrorCode
   | PubkySessionAccessErrorCode
   | "invalid_pubky"
@@ -669,13 +784,17 @@ function cleanup(operation: PubkyOperation, stage: PubkyCleanupStage, action: ()
   try {
     action();
   } catch (e) {
-    LOGGER.warn("identity.pubky.cleanup.failed", {
-      operation,
-      stage,
-      code: "cleanup_failed",
-      ...safeErrorLogFields(e),
-    });
+    logCleanupFailure(operation, stage, e);
   }
+}
+
+function logCleanupFailure(operation: PubkyOperation, stage: PubkyCleanupStage, e: unknown): void {
+  LOGGER.warn("identity.pubky.cleanup.failed", {
+    operation,
+    stage,
+    code: "cleanup_failed",
+    ...safeErrorLogFields(e),
+  });
 }
 
 function clearSecretKey(
@@ -686,4 +805,443 @@ function clearSecretKey(
     | "restore_identity_key" = "restore_identity_key",
 ): void {
   cleanup(operation, "secret_key_clear", () => secretKey.bytes.fill(0));
+}
+
+/**
+ * One unauthenticated client serves public profile reads and signup-token checks for the page's
+ * lifetime, keeping its resolver cache and connections warm. It holds no session or key material,
+ * so it is a deliberate exception to freeing SDK handles and is released with the page. The client
+ * getter allocates a new handle on every access, so it is read once here.
+ */
+let sharedPublicReader: { pubky: Pubky; client: Client; storage: PublicStorage } | undefined;
+
+function sharedPublicClient(): { pubky: Pubky; client: Client; storage: PublicStorage } {
+  if (!sharedPublicReader) {
+    const pubky = createPubky();
+    sharedPublicReader = { pubky, client: pubky.client, storage: pubky.publicStorage };
+  }
+  return sharedPublicReader;
+}
+
+/**
+ * Unauthenticated request to a homeserver addressed by its public key. The SDK resolves the key
+ * through PKARR, so the request reaches the same host that signup would.
+ */
+export function fetchHomeserver(url: string, init: RequestInit): Promise<Response> {
+  return sharedPublicClient().client.fetch(url, init);
+}
+
+const MAX_PROFILE_DOCUMENT_BYTES = 64 * 1024;
+
+type PubkyProfileReadErrorCode =
+  "invalid_resource" | "read_failed" | "read_timeout" | "resource_too_large";
+export type PubkyProfileReadResult<Success> = ResultType<
+  Success,
+  CodedFailure<PubkyProfileReadErrorCode>
+>;
+type PubkyProfileWriteErrorCode =
+  | "grant_unavailable"
+  | "identity_mismatch"
+  | "publish_failed"
+  | "publish_unauthorized"
+  | "signin_failed";
+export type PubkyProfileWriteResult = ResultType<void, CodedFailure<PubkyProfileWriteErrorCode>>;
+/**
+ * `homeserver_unresolved` and `grant_rejected` happen after Ring approved: the approving pubky's
+ * homeserver could not be looked up, or it refused the grant (an authentication error, 401 or 403).
+ * `grant_failed` covers the rest, including transport failures and statuses such as 404, which
+ * may come from the relay before approval as well as from the homeserver after it.
+ */
+export type PubkyProfileGrantErrorCode =
+  | "grant_busy"
+  | "grant_failed"
+  | "grant_rejected"
+  | "homeserver_unresolved"
+  | "missing_capabilities";
+export type PubkyProfileGrantResult<Success> = ResultType<
+  Success,
+  CodedFailure<PubkyProfileGrantErrorCode>
+>;
+
+export class PubkyProfileTransport {
+  /** Reads a public JSON document; `null` when it does not exist. */
+  async readJson(address: string): Promise<PubkyProfileReadResult<unknown>> {
+    const read = await readPublicResource(address, MAX_PROFILE_DOCUMENT_BYTES);
+    if (Result.isError(read) || read.value === null) return read;
+    try {
+      return Result.ok(JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(read.value)));
+    } catch (e) {
+      return failure("read_profile_resource", "response_parse", "invalid_resource", e);
+    }
+  }
+
+  /** Reads a public image; the type comes from its signature, never from the served header. */
+  async readImage(address: string): Promise<PubkyProfileReadResult<Blob>> {
+    const read = await readPublicResource(address, MAX_AVATAR_BYTES);
+    if (Result.isError(read)) return read;
+    if (read.value === null)
+      return failure("read_profile_resource", "response_status", "read_failed");
+    const type = sniffImageType(read.value);
+    if (!type || !AVATAR_TYPES.includes(type)) {
+      return failure("read_profile_resource", "image_type", "invalid_resource");
+    }
+    return Result.ok(new Blob([read.value], { type }));
+  }
+
+  /**
+   * Applies a prepared publication with a session that exists only for this call.
+   *
+   * `signin` grants root `/:rw`. A scoped session would need Passport to approve its own grant
+   * (`startGrantAuthFlow` plus `Signer.approveAuthRequest`) through the HTTP relay, which adds a
+   * network party. The secret key is already in this context, so a narrower grant would not narrow
+   * what this code can do. Every input is validated before sign-in, and the root session exists
+   * only for this call and is revoked on every path.
+   */
+  async writeProfile(
+    publicKey: string,
+    secret: Uint8Array,
+    writes: readonly ProfileWrite[],
+  ): Promise<PubkyProfileWriteResult> {
+    let pubky: Pubky | undefined;
+    let keypair: Keypair | undefined;
+    let signer: Signer | undefined;
+    let session: Session | undefined;
+    try {
+      pubky = createPubky();
+      keypair = Keypair.fromSecret(secret);
+      const identity = publicIdentity("write_profile", keypair);
+      if (Result.isError(identity) || identity.value.publicKeyZ32 !== publicKey) {
+        return failure(
+          "write_profile",
+          "identity_check",
+          "identity_mismatch",
+          Result.isError(identity) ? identity.error.cause : undefined,
+        );
+      }
+      signer = pubky.signer(keypair);
+      try {
+        session = await signer.signin(PASSPORT_CLIENT_ID);
+      } catch (e) {
+        return failure("write_profile", "sdk_signin", "signin_failed", e);
+      }
+      return await applyProfileWrites("write_profile", session, writes);
+    } catch (e) {
+      return failure("write_profile", "sdk_initialize", "publish_failed", e);
+    } finally {
+      await revokeSession("write_profile", session);
+      cleanup("write_profile", "signer_free", () => signer?.free());
+      cleanup("write_profile", "keypair_free", () => keypair?.free());
+      cleanup("write_profile", "pubky_free", () => pubky?.free());
+    }
+  }
+}
+
+/** Starts a delegated profile grant without obtaining the identity's private key. */
+export class PubkyRingProfileTransport {
+  /** `relay` is the instance's configured HTTP relay for Passport's own grant requests. */
+  start(relay: string): Promise<PubkyProfileGrantResult<RingProfileGrant>> {
+    return startRingGrant("start_ring_profile_grant", relay, PROFILE_CAPABILITIES, {
+      xSource: "Pubky Passport profile",
+    });
+  }
+}
+
+/**
+ * Asks Pubky Ring to approve a sign-in that grants nothing, to prove it holds a key saved in this
+ * browser: the approval names the key Ring signed it with, and its Session is signed out as soon
+ * as that key is read (see {@link RingProfileGrant.dispose}). Ring's and a homeserver's handling of
+ * a request without capabilities is not device-tested yet.
+ */
+export class PubkyRingVerificationTransport {
+  /** `relay` is the instance's configured HTTP relay for Passport's own grant requests. */
+  start(relay: string): Promise<PubkyProfileGrantResult<RingProfileGrant>> {
+    return startRingGrant("start_ring_verification", relay, [], {
+      xSource: "Pubky Passport backup check",
+    });
+  }
+}
+
+async function startRingGrant(
+  operation: PubkyOperation,
+  relay: string,
+  capabilities: readonly string[],
+  xCallback: { xSource: string },
+): Promise<PubkyProfileGrantResult<RingProfileGrant>> {
+  let pubky: Pubky | undefined;
+  let release: DelegatedKeyRelease | undefined;
+  try {
+    pubky = createPubky();
+    // Keys of flows whose page closed before their cleanup finished.
+    await clearUnusedDelegatedKeys(pubky);
+    release = await holdDelegatedKeys();
+    // The SDK takes ownership of AuthFlowKind, so the caller must not free it afterward.
+    const flow = await pubky.startGrantAuthFlow(
+      capabilities.join(",") as Capabilities,
+      AuthFlowKind.signin(),
+      { clientId: globalThis.location?.host ?? PASSPORT_CLIENT_ID, relay, xCallback },
+    );
+    return Result.ok(new RingProfileGrant(pubky, flow, release, capabilities));
+  } catch (e) {
+    await release?.();
+    cleanup(operation, "pubky_free", () => pubky?.free());
+    return failure(operation, "sdk_grant_start", "grant_failed", e);
+  }
+}
+
+/**
+ * Owns one pending Ring request and the page-scoped grant it yields: Passport's profile grant, or
+ * the verification of a key that asks for no capabilities.
+ */
+export class RingProfileGrant {
+  private session: Session | undefined;
+  private publicKey: string | undefined;
+  private disposed = false;
+  private busy = false;
+  private cleaned = false;
+
+  /**
+   * `release` frees this grant's hold on the browser's delegated keys; `required` lists what the
+   * approval must grant.
+   */
+  constructor(
+    private readonly pubky: Pubky,
+    private readonly flow: GrantAuthFlow,
+    private readonly release: DelegatedKeyRelease = async () => undefined,
+    private readonly required: readonly string[] = PROFILE_CAPABILITIES,
+  ) {}
+
+  authorizationUrl(): string | undefined {
+    return this.disposed || this.session ? undefined : this.flow.authorizationUrl;
+  }
+
+  /** Resolves the approving identity once Ring has granted every required capability. */
+  async poll(): Promise<PubkyProfileGrantResult<string | undefined>> {
+    if (this.disposed) return Result.ok(undefined);
+    if (this.publicKey) return Result.ok(this.publicKey);
+    if (this.busy) return failure("poll_ring_profile_grant", "grant_state", "grant_busy");
+    this.busy = true;
+    try {
+      this.session = await this.flow.tryPollOnce();
+      if (!this.session || this.disposed) return Result.ok(undefined);
+      const info = this.session.info;
+      try {
+        if (!grantsCapabilities(info.capabilities, this.required)) {
+          return failure("poll_ring_profile_grant", "grant_capabilities", "missing_capabilities");
+        }
+        const key = info.publicKey;
+        try {
+          this.publicKey = key.z32();
+          return Result.ok(this.publicKey);
+        } finally {
+          cleanup("poll_ring_profile_grant", "session_public_key_free", () => key.free());
+        }
+      } finally {
+        cleanup("poll_ring_profile_grant", "session_info_free", () => info.free());
+      }
+    } catch (e) {
+      return failure("poll_ring_profile_grant", "sdk_grant_poll", grantPollFailure(e), e);
+    } finally {
+      this.busy = false;
+      await this.cleanup();
+    }
+  }
+
+  async publish(
+    expectedKey: string,
+    writes: readonly ProfileWrite[],
+  ): Promise<PubkyProfileWriteResult> {
+    // A verification's grant asked for nothing, so it never writes either.
+    if (
+      this.disposed ||
+      !this.session ||
+      this.publicKey !== expectedKey ||
+      this.busy ||
+      this.required.length === 0
+    ) {
+      return failure("publish_ring_profile", "grant_state", "grant_unavailable");
+    }
+    this.busy = true;
+    try {
+      return await applyProfileWrites("publish_ring_profile", this.session, writes);
+    } finally {
+      this.busy = false;
+      await this.cleanup();
+    }
+  }
+
+  async dispose(): Promise<void> {
+    this.disposed = true;
+    await this.cleanup();
+  }
+
+  /**
+   * Revokes and frees once disposed, after any SDK call in progress has settled, then deletes the
+   * browser's delegated keys unless another grant still signs with one.
+   */
+  private async cleanup(): Promise<void> {
+    if (!this.disposed || this.busy || this.cleaned) return;
+    this.cleaned = true;
+    await revokeSession("dispose_ring_profile_grant", this.session);
+    cleanup("dispose_ring_profile_grant", "flow_free", () => this.flow.free());
+    await this.release();
+    await clearUnusedDelegatedKeys(this.pubky);
+    cleanup("dispose_ring_profile_grant", "pubky_free", () => this.pubky.free());
+  }
+}
+
+/**
+ * Names the step a profile grant poll failed at, as far as the SDK error shows it. PKARR failures
+ * and an unresolvable homeserver come after Ring approved. Only errors the relay cannot produce
+ * count as the homeserver refusing the grant: an authentication error, or a 401 or 403 status (the
+ * relay authenticates nothing). Other client error statuses may come from the relay before any
+ * approval (a 404 "Entry expired", a 400 for an over-long ID, a 413 for an over-large body, or a
+ * proxy in front of it), so they stay `grant_failed` with transport failures and server errors.
+ */
+function grantPollFailure(error: unknown): PubkyProfileGrantErrorCode {
+  const name = safePubkySdkErrorName(error);
+  if (name === "PkarrError") return "homeserver_unresolved";
+  if (name === "AuthenticationError") return "grant_rejected";
+  const status = requestStatus(error);
+  if (status === 401 || status === 403) return "grant_rejected";
+  // SDK 0.11 reports a pubky without a homeserver record as a RequestError without a status.
+  if (
+    name === "RequestError" &&
+    status === undefined &&
+    /resolve homeserver/iu.test(errorMessage(error))
+  )
+    return "homeserver_unresolved";
+  return "grant_failed";
+}
+
+function errorMessage(error: unknown): string {
+  try {
+    return error instanceof Error ? error.message : "";
+  } catch {
+    return "";
+  }
+}
+
+/**
+ * Deletes the SDK's browser-held delegated PoP keys, including those of abandoned flows, unless a
+ * grant in any Passport tab may still sign with one. Passport saves no sessions in the SDK's
+ * browser store, so nothing else is removed. Deleting a key revokes nothing.
+ */
+async function clearUnusedDelegatedKeys(pubky: Pubky): Promise<void> {
+  let store: BrowserSessionStore | undefined;
+  try {
+    // Without delegation support every flow holds its PoP key in memory; nothing is stored.
+    if (!GrantAuthFlow.isDelegationAvailable) return;
+    await whenDelegatedKeysUnused(async () => {
+      store = pubky.browserSessionStore;
+      await store.clearAll();
+    });
+  } catch (e) {
+    logCleanupFailure("dispose_ring_profile_grant", "delegated_keys_clear", e);
+  } finally {
+    cleanup("dispose_ring_profile_grant", "session_store_free", () => store?.free());
+  }
+}
+
+/** Writes in order, so `profile.json` is written only after its avatar blob and file record. */
+async function applyProfileWrites(
+  operation: "publish_ring_profile" | "write_profile",
+  session: Session,
+  writes: readonly ProfileWrite[],
+): Promise<PubkyProfileWriteResult> {
+  let storage: SessionStorage | undefined;
+  try {
+    storage = session.storage;
+    for (const write of writes) {
+      if (write.kind === "bytes") await storage.putBytes(write.path as Path, write.bytes);
+      else await storage.putJson(write.path as Path, write.json);
+    }
+    return Result.ok();
+  } catch (e) {
+    const status = requestStatus(e);
+    return failure(
+      operation,
+      "sdk_write",
+      status === 401 || status === 403 ? "publish_unauthorized" : "publish_failed",
+      e,
+    );
+  } finally {
+    cleanup(operation, "storage_free", () => storage?.free());
+  }
+}
+
+/** Signs out (revoking the grant) and frees the session; a failed revoke is logged, not thrown. */
+async function revokeSession(
+  operation: PubkyOperation,
+  session: Session | undefined,
+): Promise<void> {
+  if (!session) return;
+  try {
+    await session.signout();
+  } catch (e) {
+    logCleanupFailure(operation, "session_signout", e);
+  }
+  cleanup(operation, "session_free", () => session.free());
+}
+
+const READ_DEADLINE = Symbol("read deadline");
+
+/**
+ * Reads a public resource within {@link REQUEST_TIMEOUT_MS} and `limit` bytes; `null` when it does
+ * not exist. The SDK read takes no abort signal, so a late response is cancelled when it arrives.
+ */
+async function readPublicResource(
+  address: string,
+  limit: number,
+): Promise<PubkyProfileReadResult<Uint8Array<ArrayBuffer> | null>> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(READ_DEADLINE), REQUEST_TIMEOUT_MS);
+  });
+  deadline.catch(() => undefined);
+  const beforeDeadline = <T>(pending: Promise<T>) => Promise.race([pending, deadline]);
+  let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
+  try {
+    const request = sharedPublicClient().storage.get(address as Address);
+    request.catch(() => undefined);
+    let response: Response;
+    try {
+      response = await beforeDeadline(request);
+    } catch (e) {
+      if (e === READ_DEADLINE) {
+        void request.then((late) => late.body?.cancel()).catch(() => undefined);
+        throw e;
+      }
+      if (requestStatus(e) === 404) return Result.ok(null);
+      return failure("read_profile_resource", "sdk_read", "read_failed", e);
+    }
+    reader = response.body?.getReader();
+    if (response.status === 404) return Result.ok(null);
+    if (!response.ok) return failure("read_profile_resource", "response_status", "read_failed");
+    const chunks: Uint8Array[] = [];
+    let length = 0;
+    while (reader) {
+      const { done, value } = await beforeDeadline(reader.read());
+      if (done) break;
+      length += value.byteLength;
+      if (length > limit) {
+        return failure("read_profile_resource", "response_body", "resource_too_large");
+      }
+      chunks.push(value);
+    }
+    const bytes = new Uint8Array(length);
+    let offset = 0;
+    for (const chunk of chunks) {
+      bytes.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+    return Result.ok(bytes);
+  } catch (e) {
+    if (e === READ_DEADLINE) {
+      return failure("read_profile_resource", "response_timeout", "read_timeout");
+    }
+    return failure("read_profile_resource", "response_body", "read_failed", e);
+  } finally {
+    clearTimeout(timer);
+    void reader?.cancel().catch(() => undefined);
+  }
 }

@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 
 import { cn } from "./mergeClassNames";
 
-type IconProps = { className?: string; size?: 16 | 20 };
+type IconProps = { className?: string; size?: 14 | 16 | 20 };
 
 function Glyph({
   children,
@@ -22,14 +22,29 @@ function Glyph({
       aria-hidden="true"
       className={cn(
         "inline-flex shrink-0 items-center justify-center",
-        size === 20 ? "size-5" : "size-4",
+        size === 20 ? "size-5" : size === 14 ? "size-3.5" : "size-4",
         className,
       )}
+      data-slot="icon"
     >
       <svg fill="none" style={{ height, width }} viewBox={viewBox}>
         {children}
       </svg>
     </span>
+  );
+}
+
+function AppWindowIcon(props: IconProps) {
+  return (
+    <Glyph height={16} viewBox="0 0 24 24" width={16} {...props}>
+      <path
+        d="M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Zm-2 4h20M6 4v4m4-4v4"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="2"
+      />
+    </Glyph>
   );
 }
 
@@ -93,6 +108,38 @@ function CameraIcon(props: IconProps) {
         strokeLinecap="round"
         strokeLinejoin="round"
         strokeWidth="1.5"
+      />
+    </Glyph>
+  );
+}
+
+/** A camera struck through: no camera Passport may use. */
+function CameraOffIcon(props: IconProps) {
+  const size = props.size ?? 16;
+
+  return (
+    <Glyph height={size} size={size} viewBox="0 0 24 24" width={size} {...props}>
+      <path
+        d="m2 2 20 20M7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16M9.5 4h5L17 7h3a2 2 0 0 1 2 2v7.5M14.121 15.121A3 3 0 1 1 9.88 10.88"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.5"
+      />
+    </Glyph>
+  );
+}
+
+function CircleAlertIcon(props: IconProps) {
+  const size = props.size ?? 16;
+
+  return (
+    <Glyph height={size} size={size} viewBox="0 0 20 20" width={size} {...props}>
+      <path
+        clipRule="evenodd"
+        d="M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0Zm-8-5a.75.75 0 0 1 .75.75v4.5a.75.75 0 0 1-1.5 0v-4.5A.75.75 0 0 1 10 5Zm0 10a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z"
+        fill="currentColor"
+        fillRule="evenodd"
       />
     </Glyph>
   );
@@ -206,6 +253,35 @@ function DownloadIcon(props: IconProps) {
   );
 }
 
+function EyeIcon(props: IconProps) {
+  return (
+    <Glyph height={16} viewBox="0 0 24 24" width={16} {...props}>
+      <path
+        d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="2"
+      />
+      <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="2" />
+    </Glyph>
+  );
+}
+
+function EyeOffIcon(props: IconProps) {
+  return (
+    <Glyph height={16} viewBox="0 0 24 24" width={16} {...props}>
+      <path
+        d="M10.733 5.076a10.744 10.744 0 0 1 11.205 6.575 1 1 0 0 1 0 .696 10.747 10.747 0 0 1-1.444 2.49M14.084 14.158a3 3 0 0 1-4.242-4.242M17.479 17.499a10.75 10.75 0 0 1-15.417-5.151 1 1 0 0 1 0-.696 10.75 10.75 0 0 1 4.446-5.143M2 2l20 20"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="2"
+      />
+    </Glyph>
+  );
+}
+
 function FileTextIcon(props: IconProps) {
   const size = props.size ?? 16;
 
@@ -305,6 +381,21 @@ function LogOutIcon(props: IconProps) {
   );
 }
 
+/** A pencil: editing something the person owns, such as their profile. */
+function PencilIcon(props: IconProps) {
+  return (
+    <Glyph height={16} viewBox="0 0 24 24" width={16} {...props}>
+      <path
+        d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497zM15 5l4 4"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="2"
+      />
+    </Glyph>
+  );
+}
+
 function RotateCcwIcon(props: IconProps) {
   return (
     <Glyph height={16} viewBox="0 0 19.5 19.5" width={16} {...props}>
@@ -376,6 +467,22 @@ function TrashIcon(props: IconProps) {
   );
 }
 
+/** A filled warning triangle, drawn in the current text colour. */
+function TriangleAlertIcon(props: IconProps) {
+  const size = props.size ?? 16;
+
+  return (
+    <Glyph height={size} size={size} viewBox="0 0 20 20" width={size} {...props}>
+      <path
+        clipRule="evenodd"
+        d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495ZM10 5a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0v-3.5A.75.75 0 0 1 10 5Zm0 9a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z"
+        fill="currentColor"
+        fillRule="evenodd"
+      />
+    </Glyph>
+  );
+}
+
 function UserRoundPlusIcon(props: IconProps) {
   return (
     <Glyph height={15.2558} viewBox="0 0 21.5 20.5" width={16} {...props}>
@@ -405,10 +512,13 @@ function XIcon(props: IconProps) {
 }
 
 export {
+  AppWindowIcon,
   ArrowLeftIcon,
   ArrowRightIcon,
   CameraIcon,
+  CameraOffIcon,
   CheckIcon,
+  CircleAlertIcon,
   CircleCheckIcon,
   CircleHelpIcon,
   CircleInfoIcon,
@@ -416,17 +526,21 @@ export {
   CopyIcon,
   DownloadRecoveryFileIcon,
   DownloadIcon,
+  EyeIcon,
+  EyeOffIcon,
   FileTextIcon,
   FolderIcon,
   KeyRoundIcon,
   LinkOffIcon,
   LogInIcon,
   LogOutIcon,
+  PencilIcon,
   RotateCcwIcon,
   ScanIcon,
   SettingsIcon,
   SquareUserRoundIcon,
   TrashIcon,
+  TriangleAlertIcon,
   UserRoundPlusIcon,
   XIcon,
 };

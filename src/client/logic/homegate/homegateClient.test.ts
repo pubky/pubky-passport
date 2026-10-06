@@ -30,6 +30,17 @@ const MALFORMED_SUCCESS_CASES = [
     "an oversized signup token",
     () => jsonResponse({ signupCode: "x".repeat(1025), homeserverPubky: HOMESERVER_PUBKY }),
   ],
+  ["a non-string field", () => jsonResponse({ signupCode: 42, homeserverPubky: HOMESERVER_PUBKY })],
+  ["invalid JSON", () => new Response("not-json", { status: 200 })],
+  ["an oversized body", () => new Response("x".repeat(16 * 1024 + 1), { status: 200 })],
+] satisfies ReadonlyArray<readonly [string, () => Response]>;
+// Every released Homegate names the homeserver with the code; Passport never guesses another one.
+const INVALID_HOMESERVER_CASES = [
+  ["no homeserver public key", () => jsonResponse({ signupCode: "code" })],
+  [
+    "a null homeserver public key",
+    () => jsonResponse({ signupCode: "code", homeserverPubky: null }),
+  ],
   [
     "an empty homeserver public key",
     () => jsonResponse({ signupCode: "code", homeserverPubky: "" }),
@@ -42,9 +53,14 @@ const MALFORMED_SUCCESS_CASES = [
     "a non-canonical homeserver public key",
     () => jsonResponse({ signupCode: "code", homeserverPubky: "homeserver-pubky" }),
   ],
-  ["a non-string field", () => jsonResponse({ signupCode: 42, homeserverPubky: HOMESERVER_PUBKY })],
-  ["invalid JSON", () => new Response("not-json", { status: 200 })],
-  ["an oversized body", () => new Response("x".repeat(16 * 1024 + 1), { status: 200 })],
+  [
+    "a pubky-prefixed homeserver public key",
+    () => jsonResponse({ signupCode: "code", homeserverPubky: `pubky${HOMESERVER_PUBKY}` }),
+  ],
+  [
+    "a homeserver URL instead of its public key",
+    () => jsonResponse({ signupCode: "code", homeserverPubky: "https://homeserver.example" }),
+  ],
 ] satisfies ReadonlyArray<readonly [string, () => Response]>;
 
 describe("HomegateClient", () => {
@@ -76,7 +92,7 @@ describe("HomegateClient", () => {
         method: "POST",
         headerNames: ["Accept", "Content-Type"],
         cache: "no-store",
-        credentials: "omit",
+        credentials: "same-origin",
         redirect: "error",
         referrerPolicy: "no-referrer",
         jsonFieldNames: ["googleIdToken"],
@@ -118,6 +134,26 @@ describe("HomegateClient", () => {
       if (!Result.isError(result)) throw new Error("Expected malformed Homegate response failure.");
       expect(result.error).toMatchObject({
         code: "malformed_homegate_response",
+        httpStatus: 200,
+        cause: expect.any(Error),
+      });
+    },
+  );
+
+  it.each(INVALID_HOMESERVER_CASES)(
+    "refuses a signup code with %s instead of using another homeserver",
+    async (_name, response) => {
+      const client = new HomegateClient(
+        HOMEGATE_BASE_URL,
+        new SanitizedFetchRecorder(response()).fetch,
+      );
+
+      const result = await client.requestGoogleSignupToken("id-token");
+
+      expect(Result.isError(result)).toBe(true);
+      if (!Result.isError(result)) throw new Error("Expected an invalid homeserver failure.");
+      expect(result.error).toMatchObject({
+        code: "invalid_homegate_homeserver",
         httpStatus: 200,
         cause: expect.any(Error),
       });
@@ -171,6 +207,24 @@ describe("HomegateClient", () => {
       });
     },
   );
+
+  it("maps a proxy's 403 to a regional block, but keeps Homegate's own codes", async () => {
+    for (const [response, code] of [
+      [new Response("<html>403 Forbidden</html>", { status: 403 }), "blocked"],
+      [new Response(null, { status: 403 }), "blocked"],
+      [new Response("weekly_limit_exceeded", { status: 403 }), "weekly_limit_exceeded"],
+      [new Response("<html>Forbidden</html>", { status: 500 }), "malformed_homegate_response"],
+    ] as const) {
+      const client = new HomegateClient(
+        HOMEGATE_BASE_URL,
+        new SanitizedFetchRecorder(response).fetch,
+      );
+
+      const result = await client.requestGoogleSignupToken("id-token");
+
+      expect(Result.isError(result) && result.error.code).toBe(code);
+    }
+  });
 
   it("logs an unknown Homegate body only as closed response metadata", async () => {
     const warn = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);

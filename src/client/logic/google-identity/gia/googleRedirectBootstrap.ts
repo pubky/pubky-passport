@@ -3,6 +3,8 @@ import "client-only";
 import { Result } from "better-result";
 
 import type { AuthorizationEntry } from "@/client/logic/authorization/entry/authorizationEntry";
+import { announceExternalNavigation } from "@/client/logic/authorization/flow/leaveGuard";
+import { AUTHORIZATION_ENTRY_PATH } from "@/libs/authorization/authorizationLocationRules";
 import { ValidatedPubkyAuthRequest } from "@/client/logic/authorization/request/ValidatedPubkyAuthRequest";
 import {
   EARLY_GOOGLE_REDIRECT_RESPONSE_PROPERTY,
@@ -12,6 +14,7 @@ import {
   AUTHORIZATION_CAPTURE_MAX_CHARACTERS,
   AUTHORIZATION_TIMEOUT_MS,
 } from "@/libs/passportPolicy";
+import { isGoogleNoncePreimage } from "@/libs/googleNonce";
 import { isRecord } from "@/libs/typeGuards";
 
 export type GoogleRedirectOperation = {
@@ -21,17 +24,30 @@ export type GoogleRedirectOperation = {
 };
 
 export type GoogleRedirectAttempt = GoogleRedirectOperation & {
-  version: 1;
+  /** 2: the nonce's preimage replaced the nonce; an attempt saved by an older page is dropped. */
+  version: 2;
   requestUrl: string;
   state: string;
-  nonce: string;
+  /** Google got its hash as the `nonce`; see `googleNonceFor`. */
+  noncePreimage: string;
   expiresAt: number;
+  /** The app asked for an identity with a pubky.app profile; kept across the round trip. */
+  profileRequired?: true;
 };
 
 type RedirectContext = {
   request: ValidatedPubkyAuthRequest;
+  profileRequired?: true;
   response?: { attempt: GoogleRedirectAttempt; capture: unknown };
 };
+
+/**
+ * What a returned page reports when the saved attempt is missing, damaged or unreadable. The
+ * callback page answers no opener with it (its channel says `empty`, as `/` always does), so the
+ * code only has to be one the entry type already knows: the request could not be carried through
+ * the browser's own state.
+ */
+const UNAVAILABLE = { status: "invalid", code: "history_unavailable" } as const;
 
 let context: RedirectContext | undefined;
 let returnedFromGoogle = false;
@@ -45,16 +61,42 @@ export function isGoogleRedirectReturn(): boolean {
   return returnedFromGoogle;
 }
 
-/** Return to the relay-enabled route after setup, without persisting credentials. */
-export function returnToAuthorization(): void {
-  const requestUrl = getGoogleRedirectContext()?.request.validatedUrlForApproval();
-  if (!requestUrl) return;
-  window.location.replace(`/authorize#d=${encodeURIComponent(requestUrl)}`);
+/**
+ * Returns to the one page a request enters at, after setup or when the person turns back, without
+ * persisting credentials: the callback page never reviews or approves anything. Says whether it
+ * could; a request that is gone (expired, or its saved attempt unusable) has nowhere to return to.
+ */
+export function returnToAuthorization(appWindow: Window = window): boolean {
+  const redirect = getGoogleRedirectContext();
+  const requestUrl = redirect?.request.validatedUrlForApproval();
+  if (!redirect || !requestUrl) return false;
+  // The request goes with the navigation, so this is not leaving it behind.
+  announceExternalNavigation(appWindow);
+  appWindow.location.replace(
+    `${AUTHORIZATION_ENTRY_PATH}#d=${encodeURIComponent(requestUrl)}${
+      redirect.profileRequired ? "&profile=required" : ""
+    }`,
+  );
+  return true;
+}
+
+/**
+ * The app behind `request` asked for an identity with a profile after the page loaded (its hello
+ * said so): a Google round trip started from here keeps the requirement.
+ */
+export function requireProfileAfterGoogleRedirect(request: ValidatedPubkyAuthRequest): void {
+  if (context?.request === request) context.profileRequired = true;
 }
 
 /** A fresh /authorize request supersedes any abandoned redirect in this tab. */
 export function setGoogleRedirectRequest(entry: AuthorizationEntry, appWindow: Window): void {
-  context = entry.status === "valid" ? { request: entry.request } : undefined;
+  context =
+    entry.status === "valid"
+      ? {
+          request: entry.request,
+          ...(entry.profile === "required" ? { profileRequired: true as const } : {}),
+        }
+      : undefined;
   returnedFromGoogle = false;
   try {
     appWindow.sessionStorage.removeItem(GOOGLE_REDIRECT_STORAGE_KEY);
@@ -77,30 +119,34 @@ export function resumeGoogleRedirect(appWindow: Window): AuthorizationEntry | un
   } catch {
     if (typeof take !== "function") return undefined;
     returnedFromGoogle = true;
-    return { status: "invalid" };
+    return UNAVAILABLE;
   }
   if (raw === null && typeof take !== "function") return undefined;
   returnedFromGoogle = true;
   context = undefined;
   const attempt = parseAttempt(raw);
-  if (!attempt) return { status: "invalid" };
+  if (!attempt) return UNAVAILABLE;
   if (Date.now() >= attempt.expiresAt) return { status: "expired" };
   const parsed = ValidatedPubkyAuthRequest.fromEncoded(encodeURIComponent(attempt.requestUrl));
-  if (Result.isError(parsed)) return { status: "invalid" };
-  context = { request: parsed.value, response: { attempt, capture } };
-  return { status: "valid", request: parsed.value };
+  if (Result.isError(parsed)) return UNAVAILABLE;
+  const profile = attempt.profileRequired ? { profileRequired: true as const } : {};
+  context = { request: parsed.value, ...profile, response: { attempt, capture } };
+  return {
+    status: "valid",
+    request: parsed.value,
+    ...(attempt.profileRequired ? { profile: "required" as const } : {}),
+  };
 }
 
 function parseAttempt(raw: string | null): GoogleRedirectAttempt | undefined {
   if (!raw || raw.length > AUTHORIZATION_CAPTURE_MAX_CHARACTERS) return undefined;
   try {
     const value: unknown = JSON.parse(raw);
-    if (!isRecord(value) || value.version !== 1 || typeof value.requestUrl !== "string")
+    if (!isRecord(value) || value.version !== 2 || typeof value.requestUrl !== "string")
       return undefined;
     if (typeof value.state !== "string" || !/^[A-Za-z0-9_-]{43}$/.test(value.state))
       return undefined;
-    if (typeof value.nonce !== "string" || !/^[A-Za-z0-9_-]{43}$/.test(value.nonce))
-      return undefined;
+    if (!isGoogleNoncePreimage(value.noncePreimage)) return undefined;
     if (
       typeof value.expiresAt !== "number" ||
       !Number.isSafeInteger(value.expiresAt) ||
@@ -114,6 +160,7 @@ function parseAttempt(raw: string | null): GoogleRedirectAttempt | undefined {
     )
       return undefined;
     if (typeof value.allowWithoutVisibleBackup !== "boolean") return undefined;
+    if (value.profileRequired !== undefined && value.profileRequired !== true) return undefined;
     if (
       value.googleSubject !== undefined &&
       (typeof value.googleSubject !== "string" ||

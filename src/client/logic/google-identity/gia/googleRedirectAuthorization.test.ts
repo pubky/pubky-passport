@@ -10,12 +10,17 @@ import {
 } from "@/libs/authorization/googleRedirectConstants";
 import { GOOGLE_IMPLICIT_RESPONSE_MESSAGE_TYPE } from "@/libs/authorization/earlyGoogleImplicitResponse";
 import { AUTHORIZATION_TIMEOUT_MS } from "@/libs/passportPolicy";
+import { googleNonceFor } from "@/libs/googleNonce";
 import { GoogleRedirectAuthorization } from "./GoogleRedirectAuthorization";
 import {
+  isGoogleRedirectReturn,
+  requireProfileAfterGoogleRedirect,
   resumeGoogleRedirect,
+  returnToAuthorization,
   setGoogleRedirectRequest,
   type GoogleRedirectAttempt,
 } from "./googleRedirectBootstrap";
+import { guardPendingRequest } from "@/client/logic/authorization/flow/leaveGuard";
 
 const REQUEST =
   "pubkyauth://signin?caps=/pub/example.app/:rw&relay=https://relay.example/inbox&secret=kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8&x-success=https%3A%2F%2Fclient.example%2Fdone";
@@ -36,22 +41,29 @@ describe("same-tab Google authorization", () => {
     vi.useRealTimers();
   });
 
-  function start() {
+  async function start() {
     const replace = vi.fn();
     const appWindow = {
       sessionStorage,
+      performance,
       location: { origin: "https://passport.example", replace },
     } as unknown as Window;
     const authorization = new GoogleRedirectAuthorization("client-id", appWindow);
     const result = authorization.request(OPERATION);
+    // The nonce is hashed first; the attempt is saved just before the page leaves for Google.
+    await vi.waitFor(() => expect(replace).toHaveBeenCalled());
     const raw = sessionStorage.getItem(GOOGLE_REDIRECT_STORAGE_KEY);
     if (!raw) throw new Error("Missing attempt");
     const attempt = JSON.parse(raw) as GoogleRedirectAttempt;
     return { authorization, result, replace, attempt };
   }
 
-  function returnFromGoogle(attempt: GoogleRedirectAttempt, changes: Record<string, string> = {}) {
-    const claims = btoa(JSON.stringify({ sub: "google-subject", nonce: attempt.nonce }));
+  async function returnFromGoogle(
+    attempt: GoogleRedirectAttempt,
+    changes: Record<string, string> = {},
+  ) {
+    const nonce = await googleNonceFor(attempt.noncePreimage);
+    const claims = btoa(JSON.stringify({ sub: "google-subject", nonce }));
     const hash = `#${new URLSearchParams({
       state: attempt.state,
       id_token: `header.${claims}.signature`,
@@ -69,7 +81,7 @@ describe("same-tab Google authorization", () => {
 
   it("navigates the existing window and stores no Google tokens", async () => {
     const open = vi.spyOn(window, "open");
-    const started = start();
+    const started = await start();
     const url = new URL(started.replace.mock.calls[0]?.[0] as string);
     expect(url.origin).toBe("https://accounts.google.com");
     expect(url.searchParams.get("redirect_uri")).toBe("https://passport.example");
@@ -83,6 +95,32 @@ describe("same-tab Google authorization", () => {
     expect(sessionStorage.getItem(GOOGLE_REDIRECT_STORAGE_KEY)).not.toBeNull();
   });
 
+  it("saves the nonce's preimage for the return and sends Google only its hash", async () => {
+    const started = await start();
+    const url = new URL(started.replace.mock.calls[0]?.[0] as string);
+    expect(started.attempt).toMatchObject({ version: 2 });
+    expect(started.attempt.noncePreimage).toMatch(/^[A-Za-z0-9_-]{43}$/u);
+    expect(started.attempt).not.toHaveProperty("nonce");
+    expect(url.searchParams.get("nonce")).toBe(await googleNonceFor(started.attempt.noncePreimage));
+    expect(url.href).not.toContain(started.attempt.noncePreimage);
+    started.authorization.dispose();
+  });
+
+  it("drops an attempt an older page saved without a preimage", async () => {
+    const started = await start();
+    const { noncePreimage, ...rest } = started.attempt;
+    sessionStorage.setItem(
+      GOOGLE_REDIRECT_STORAGE_KEY,
+      JSON.stringify({ ...rest, version: 1, nonce: await googleNonceFor(noncePreimage) }),
+    );
+    expect(await returnFromGoogle(started.attempt)).toEqual({
+      status: "invalid",
+      code: "history_unavailable",
+    });
+    expect(sessionStorage.length).toBe(0);
+    started.authorization.dispose();
+  });
+
   it("resumes the exact request, validates Google and consumes temporary storage", async () => {
     const fetch = vi
       .fn()
@@ -92,8 +130,8 @@ describe("same-tab Google authorization", () => {
         ),
       );
     vi.stubGlobal("fetch", fetch);
-    const started = start();
-    const entry = returnFromGoogle(started.attempt);
+    const started = await start();
+    const entry = await returnFromGoogle(started.attempt);
     expect(entry?.status).toBe("valid");
     if (entry?.status === "valid") expect(entry.request.validatedUrlForApproval()).toBe(REQUEST);
     expect(sessionStorage.getItem(GOOGLE_REDIRECT_STORAGE_KEY)).toBeNull();
@@ -102,8 +140,11 @@ describe("same-tab Google authorization", () => {
     expect(resumed.takeContinuation()).toBeUndefined();
     const result = await resumed.request(OPERATION);
     expect(Result.isOk(result)).toBe(true);
-    if (Result.isOk(result))
+    if (Result.isOk(result)) {
       expect(result.value.googleAccount.googleSubject).toBe("google-subject");
+      // The credentials carry the preimage, for Passport's wrapping-key endpoint alone.
+      expect(result.value.googleNoncePreimage).toBe(started.attempt.noncePreimage);
+    }
     expect(JSON.stringify(sessionStorage)).not.toContain("access-token-canary");
     started.authorization.dispose();
     resumed.dispose();
@@ -123,8 +164,8 @@ describe("same-tab Google authorization", () => {
     async (changes, code) => {
       const fetch = vi.fn();
       vi.stubGlobal("fetch", fetch);
-      const started = start();
-      returnFromGoogle(started.attempt, changes as Record<string, string>);
+      const started = await start();
+      await returnFromGoogle(started.attempt, changes as Record<string, string>);
       const resumed = new GoogleRedirectAuthorization("client-id");
       const result = await resumed.request(OPERATION);
       expect(Result.isError(result)).toBe(true);
@@ -136,11 +177,11 @@ describe("same-tab Google authorization", () => {
     },
   );
 
-  it("rejects expired attempts and clears them", () => {
+  it("rejects expired attempts and clears them", async () => {
     vi.useFakeTimers();
-    const started = start();
+    const started = await start();
     vi.advanceTimersByTime(AUTHORIZATION_TIMEOUT_MS + 1);
-    expect(returnFromGoogle(started.attempt)).toEqual({ status: "expired" });
+    expect(await returnFromGoogle(started.attempt)).toEqual({ status: "expired" });
     expect(sessionStorage.length).toBe(0);
     started.authorization.dispose();
   });
@@ -159,7 +200,7 @@ describe("same-tab Google authorization", () => {
   });
 
   it("fails a return without credentials instead of automatically redirecting again", async () => {
-    const started = start();
+    const started = await start();
     expect(resumeGoogleRedirect(window)?.status).toBe("valid");
     const resumed = new GoogleRedirectAuthorization("client-id");
     expect(Result.isError(await resumed.request(OPERATION))).toBe(true);
@@ -168,14 +209,115 @@ describe("same-tab Google authorization", () => {
     resumed.dispose();
   });
 
-  it("revalidates a stored Pubky request instead of trusting storage", () => {
-    const started = start();
+  it("revalidates a stored Pubky request instead of trusting storage", async () => {
+    const started = await start();
     sessionStorage.setItem(
       GOOGLE_REDIRECT_STORAGE_KEY,
       JSON.stringify({ ...started.attempt, requestUrl: "javascript:alert(1)" }),
     );
-    expect(returnFromGoogle(started.attempt)).toEqual({ status: "invalid" });
+    // The page answers no opener with it; the code is one the entry type already has.
+    expect(await returnFromGoogle(started.attempt)).toEqual({
+      status: "invalid",
+      code: "history_unavailable",
+    });
     expect(sessionStorage.length).toBe(0);
+    started.authorization.dispose();
+  });
+
+  it("leaves for Google without the pending request's leave confirmation", async () => {
+    const replace = vi.fn();
+    let beforeUnload: ((event: Event) => void) | undefined;
+    const appWindow = {
+      sessionStorage,
+      performance,
+      opener: null,
+      location: { origin: "https://passport.example", replace },
+      addEventListener: (type: string, listener: (event: Event) => void) => {
+        if (type === "beforeunload") beforeUnload = listener;
+      },
+      removeEventListener: vi.fn(),
+      document: { addEventListener: vi.fn(), removeEventListener: vi.fn() },
+    } as unknown as Window;
+    const remove = guardPendingRequest(appWindow, () => true);
+    const asksBeforeLeaving = () => {
+      const event = new Event("beforeunload", { cancelable: true });
+      beforeUnload?.(event);
+      return event.defaultPrevented;
+    };
+    // A reload or a closed window would drop the request: the browser asks first.
+    expect(asksBeforeLeaving()).toBe(true);
+
+    const authorization = new GoogleRedirectAuthorization("client-id", appWindow);
+    void authorization.request(OPERATION);
+    await vi.waitFor(() => expect(replace).toHaveBeenCalledOnce());
+    // The request is saved for the return, so the navigation to Google is not asked about.
+    expect(sessionStorage.getItem(GOOGLE_REDIRECT_STORAGE_KEY)).not.toBeNull();
+    expect(asksBeforeLeaving()).toBe(false);
+    remove();
+    authorization.dispose();
+  });
+
+  it("keeps the app's profile requirement across the round trip and returns to /authorize with it", async () => {
+    const request = ValidatedPubkyAuthRequest.fromEncoded(encodeURIComponent(REQUEST));
+    if (Result.isError(request)) throw new Error("Invalid fixture");
+    // Next to `d=`, or learned later from the app's hello.
+    setGoogleRedirectRequest({ status: "valid", request: request.value }, window);
+    requireProfileAfterGoogleRedirect(request.value);
+    const started = await start();
+    expect(started.attempt.profileRequired).toBe(true);
+
+    const entry = await returnFromGoogle(started.attempt);
+    expect(entry).toMatchObject({ status: "valid", profile: "required" });
+    expect(isGoogleRedirectReturn()).toBe(true);
+    const replace = vi.fn();
+    const callbackPage = { performance, location: { replace } } as unknown as Window;
+    expect(returnToAuthorization(callbackPage)).toBe(true);
+    expect(replace).toHaveBeenCalledExactlyOnceWith(
+      `/authorize#d=${encodeURIComponent(REQUEST)}&profile=required`,
+    );
+    started.authorization.dispose();
+  });
+
+  it("returns to /authorize without a profile parameter the app did not ask for", async () => {
+    const started = await start();
+    expect(started.attempt.profileRequired).toBeUndefined();
+    expect(await returnFromGoogle(started.attempt)).toEqual({
+      status: "valid",
+      request: expect.any(ValidatedPubkyAuthRequest),
+    });
+    const replace = vi.fn();
+    expect(returnToAuthorization({ performance, location: { replace } } as unknown as Window)).toBe(
+      true,
+    );
+    expect(replace).toHaveBeenCalledExactlyOnceWith(`/authorize#d=${encodeURIComponent(REQUEST)}`);
+    started.authorization.dispose();
+  });
+
+  it("has nowhere to return to once the saved attempt is unusable, and ignores another request's requirement", async () => {
+    const other = ValidatedPubkyAuthRequest.fromEncoded(encodeURIComponent(REQUEST));
+    if (Result.isError(other)) throw new Error("Invalid fixture");
+    // Not the request this page holds: nothing changes.
+    requireProfileAfterGoogleRedirect(other.value);
+    const started = await start();
+    expect(started.attempt.profileRequired).toBeUndefined();
+
+    sessionStorage.setItem(GOOGLE_REDIRECT_STORAGE_KEY, "{not json");
+    expect(resumeGoogleRedirect(window)?.status).toBe("invalid");
+    const replace = vi.fn();
+    expect(returnToAuthorization({ performance, location: { replace } } as unknown as Window)).toBe(
+      false,
+    );
+    expect(replace).not.toHaveBeenCalled();
+    started.authorization.dispose();
+  });
+
+  it("refuses a saved attempt whose profile flag is not the one value it may have", async () => {
+    const started = await start();
+    sessionStorage.setItem(
+      GOOGLE_REDIRECT_STORAGE_KEY,
+      JSON.stringify({ ...started.attempt, profileRequired: "yes" }),
+    );
+    expect((await returnFromGoogle(started.attempt))?.status).toBe("invalid");
     started.authorization.dispose();
   });
 });
