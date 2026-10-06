@@ -1,0 +1,77 @@
+{
+  "name": "@pubky/passport-client",
+  "version": "0.1.0",
+  "description": "Sign in with Pubky Passport: a drop-in <pubky-passport> element and a headless client that return a Pubky SDK Session.",
+  "keywords": [
+    "pubky",
+    "passport",
+    "pubky-ring",
+    "authentication",
+    "sign-in",
+    "web-component"
+  ],
+  "homepage": "https://github.com/pubky/pubky-passport/tree/main/packages/passport-client#readme",
+  "bugs": {
+    "url": "https://github.com/pubky/pubky-passport/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pubky/pubky-passport.git",
+    "directory": "packages/passport-client"
+  },
+  "type": "module",
+  "license": "MIT",
+  "files": [
+    "dist",
+    "src",
+    "!src/**/*.test.ts",
+    "!src/**/*.test.tsx",
+    "LICENSE",
+    "README.md",
+    "CHANGELOG.md",
+    "THIRD_PARTY_NOTICES.md"
+  ],
+  "sideEffects": [
+    "./dist/element.js"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./element": {
+      "types": "./dist/element.d.ts",
+      "import": "./dist/element.js"
+    }
+  },
+  "scripts": {
+    "build": "rm -rf dist && tsc -p tsconfig.build.json && node scripts/checkDist.mjs",
+    "build:e2e": "pnpm run build",
+    "dev": "tsc -p tsconfig.build.json --watch --preserveWatchOutput",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "prepublishOnly": "pnpm run typecheck && pnpm run test:coverage && pnpm run build"
+  },
+  "peerDependencies": {
+    "@synonymdev/pubky": ">=0.11.0 <0.13.0",
+    "pubky-app-specs": ">=0.7.0 <0.9.0"
+  },
+  "devDependencies": {
+    "@synonymdev/pubky": "0.11.0",
+    "@testing-library/dom": "10.4.1",
+    "@testing-library/jest-dom": "7.0.1",
+    "@testing-library/user-event": "14.6.7",
+    "@types/node": "26.6.0",
+    "@vitest/coverage-v8": "4.1.11",
+    "jsdom": "30.0.1",
+    "pubky-app-specs": "0.7.0",
+    "rolldown": "1.2.9",
+    "typescript": "6.0.3",
+    "vitest": "4.1.11"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  }
+}
