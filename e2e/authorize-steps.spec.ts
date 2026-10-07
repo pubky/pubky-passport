@@ -2,7 +2,7 @@ import { storeLocalIdentities, type SeededIdentity } from "./helpers/localIdenti
 import { PKARR_RELAY_HOSTS } from "./helpers/network";
 import { expect, test, type Page } from "./helpers/passportTest";
 import { mockPublicProfile, PROFILE_KEY } from "./helpers/pubkyProfile";
-import { UNVERIFIED_BAND, UNVERIFIED_HEADING } from "./helpers/requester";
+import { UNVERIFIED_BAND } from "./helpers/requester";
 
 const GOOGLE_KEY = "1aeh1m9m47shq8ixa7ikaunjb81ierse9by6f7wnkbxzj4dddwdy";
 const RING_KEY = "5jsjx1o6fzu6aeeo697r3i5rx15zq41kikcye8wtwdqm4nb4tryo";
@@ -21,6 +21,15 @@ const BROAD_REQUEST = REQUEST.replace("caps=/pub/notes.example/:rw", "caps=/:rw"
 const POPUP = { width: 520, height: 760 };
 /** The list's bottom fade, over which a row reads as more to scroll to. */
 const LIST_FADE_PX = 32;
+/** The start page a request opens on when Passport has no identity to sign it with. */
+const START_HEADING = { name: "Let’s join Pubky." } as const;
+/** The list's and the review's way to the person's keychain app (Pubky Ring or Bitkit). */
+const KEYCHAIN = "Continue with keychain";
+/**
+ * The start page's way to Pubky Ring: `REQUEST` is the legacy kind, which only Pubky Ring
+ * approves, so the line under Join's cards names Ring alone.
+ */
+const RING = "Use Pubky Ring";
 
 async function seedIdentities(page: Page) {
   await page.goto("/");
@@ -51,7 +60,8 @@ async function seedIdentities(page: Page) {
 
 async function openRequest(page: Page) {
   await page.goto(`/authorize#d=${encodeURIComponent(REQUEST)}`);
-  await expect(page.getByRole("heading", UNVERIFIED_HEADING)).toBeVisible();
+  // Every step of a plain link's request says that nobody confirmed who asks.
+  await expect(page.getByRole("complementary", UNVERIFIED_BAND)).toBeVisible();
 }
 
 function identityList(page: Page) {
@@ -103,14 +113,14 @@ test.describe("choosing an identity first", () => {
     expect(Math.abs(layout.mainBottom - POPUP.height)).toBeLessThanOrEqual(1);
     expect(layout.footerTop).toBeGreaterThanOrEqual(POPUP.height - 1);
     expect(layout.width).toBeLessThanOrEqual(POPUP.width);
-    for (const bottom of await bottoms(page, ["Use another identity", "Continue with Pubky Ring"]))
+    for (const bottom of await bottoms(page, ["Use another identity", KEYCHAIN]))
       expect(bottom).toBeLessThanOrEqual(POPUP.height);
 
     await page.getByRole("button", { name: /tkrq…p7qy/u }).click();
     const selected = page.getByRole("region", { name: "Selected identity" });
     // The key keeps its own case in the review, as in the list.
     await expect(selected).toContainText("Pubky tkrq…p7qy");
-    await expect(page.getByRole("list", { name: "Requested permissions" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Requested permissions" })).toBeVisible();
     // The primary action stays in view in the popup; Cancel answers from the header.
     const [authorize] = await bottoms(page, ["Authorize"]);
     expect(authorize).toBeLessThanOrEqual(POPUP.height);
@@ -125,41 +135,64 @@ test.describe("choosing an identity first", () => {
     await expect(identityList(page).getByRole("button").first()).toContainText("tkrq…p7qy");
   });
 
-  test("with no identity, shows the start page: the Create account and Pubky Ring cards", async ({
+  test("with no identity, opens on Join: new keys and Google, then the recovery file and Pubky Ring, and Back answers the app", async ({
     page,
   }) => {
     await openRequest(page);
 
+    await expect(page.getByRole("heading", START_HEADING)).toBeVisible();
     await expect(identityList(page)).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Use another identity" })).toHaveCount(0);
-    const create = page.getByRole("region", { name: "Create account" });
-    const ringCard = page.getByRole("region", { name: "Pubky Ring" });
-    const ring = ringCard.getByRole("button", { name: "Continue with Pubky Ring", exact: true });
-    // The ways to verify a new account are buttons in the first card, without descriptions; a
-    // recovery file is a quiet link below the cards.
-    for (const name of ["Continue with SMS", "Continue with Lightning", "Continue with Google"])
-      await expect(create.getByRole("button", { name, exact: true })).toBeVisible();
-    await expect(create.getByRole("button", { name: "Enter invite manually" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Import it", exact: true })).toBeVisible();
-    await expect(page.getByText("or", { exact: true })).toHaveCount(0);
-    // Pubky Ring answers the waiting app from its own card, after Create account.
-    expect((await ringCard.boundingBox())!.y).toBeGreaterThan((await create.boundingBox())!.y);
+    // Every way in is on the screen: the header leads to no other one.
+    await expect(page.getByRole("button", { name: "New here?" })).toHaveCount(0);
+    await expect(page.getByRole("banner").getByRole("button", { name: "Sign in" })).toHaveCount(0);
+    const keys = page.getByRole("region", { name: "Sovereign & Secure" });
+    const google = page.getByRole("region", { name: "Quick & Easy" });
+    const ring = page.getByRole("button", { name: RING, exact: true });
+    const create = keys.getByRole("button", { name: "Manage your own keys", exact: true });
+    const importIt = page.getByRole("button", { name: "Import it", exact: true });
+    // New keys and Google first; under them the recovery file's quiet link and then Pubky Ring,
+    // which answers the waiting app as it is.
+    await expect(create).toBeVisible();
+    await expect(
+      google.getByRole("button", { name: "Continue with Google", exact: true }),
+    ).toBeVisible();
+    await expect(importIt).toBeVisible();
+    await expect(ring).toBeVisible();
+    await expect(page.getByText("or create account", { exact: true })).toHaveCount(0);
+    const keysBox = (await keys.boundingBox())!;
+    const googleBox = (await google.boundingBox())!;
+    const importBox = (await importIt.boundingBox())!;
+    const ringBox = (await ring.boundingBox())!;
+    for (const card of [keysBox, googleBox])
+      expect(importBox.y).toBeGreaterThanOrEqual(card.y + card.height);
+    expect(ringBox.y + ringBox.height / 2).toBeGreaterThan(importBox.y + importBox.height);
     expect(await ring.evaluate((button) => getComputedStyle(button).borderColor)).not.toBe(
       "rgb(200, 255, 0)",
     );
-    await expect(page.getByRole("button", { name: "Back", exact: true })).toHaveCount(0);
-    // The popup opens with Cancel and both cards' ways in on screen at 520x760.
-    await expect(page.getByRole("button", { name: "Cancel", exact: true })).toBeInViewport();
-    for (const bottom of await bottoms(page, ["Continue with SMS", "Continue with Pubky Ring"]))
+    // On the request's first step Back is its Cancel: no other Cancel, and Back is in view in the
+    // 520x760 popup, as are all three ways in.
+    await expect(page.getByRole("button", { name: "Cancel", exact: true })).toHaveCount(0);
+    const back = page.getByRole("button", { name: "Back", exact: true });
+    await expect(back).toBeInViewport();
+    const waysIn = [RING, "Manage your own keys", "Continue with Google"];
+    for (const bottom of await bottoms(page, waysIn))
       expect(bottom).toBeLessThanOrEqual(POPUP.height);
 
-    // A way to verify opens account creation on it, and Back returns here.
-    await create.getByRole("button", { name: "Enter invite manually" }).click();
-    await expect(page.getByRole("heading", { name: "Use an invite." })).toBeVisible();
+    // New keys open account creation, whose Back returns to Join.
+    await create.click();
+    await expect(page.getByRole("heading", { name: "Prove you’re not a robot." })).toBeVisible();
     await expect(page.getByRole("complementary", UNVERIFIED_BAND)).toBeVisible();
-    await page.getByRole("button", { name: "Back", exact: true }).click();
-    await expect(page.getByRole("heading", UNVERIFIED_HEADING)).toBeVisible();
+    await back.click();
+    await expect(page.getByRole("heading", START_HEADING)).toBeVisible();
     await expect(ring).toBeVisible();
+
+    // Back on Join, the request's first step, answers the app.
+    await page.route("https://notes.example/**", (route) =>
+      route.fulfill({ body: "<!doctype html><title>Notes</title>", contentType: "text/html" }),
+    );
+    await back.click();
+    await expect(page).toHaveURL(/^https:\/\/notes\.example\/cancel/u);
   });
 
   test("the only identity's review has no Switch, Cancel in the header, and the list's or below Authorize", async ({
@@ -181,21 +214,19 @@ test.describe("choosing an identity first", () => {
     ).toBeVisible();
     // Then the same "or" as the list, all of it in view in the 760px popup.
     const or = page.getByText("or", { exact: true });
-    const [authorizeBottom, anotherBottom, ringBottom] = await bottoms(page, [
+    const [authorizeBottom, anotherBottom, keychainBottom] = await bottoms(page, [
       "Authorize",
       "Use another identity",
-      "Continue with Pubky Ring",
+      KEYCHAIN,
     ]);
     expect((await or.boundingBox())!.y).toBeGreaterThanOrEqual(authorizeBottom!);
     expect(anotherBottom).toBeGreaterThan(authorizeBottom!);
-    for (const bottom of [authorizeBottom, anotherBottom, ringBottom])
+    for (const bottom of [authorizeBottom, anotherBottom, keychainBottom])
       expect(bottom).toBeLessThanOrEqual(POPUP.height);
 
-    // Use another identity opens the start page (without Ring, which the review offers), and
-    // Back returns to the review.
+    // Use another identity opens the start page, Join, and Back returns to the review.
     await page.getByRole("button", { name: "Use another identity", exact: true }).click();
-    await expect(page.getByRole("region", { name: "Create account" })).toBeVisible();
-    await expect(page.getByRole("button", { name: /Pubky Ring/u })).toHaveCount(0);
+    await expect(page.getByRole("heading", START_HEADING)).toBeVisible();
     await page.getByRole("button", { name: "Back", exact: true }).click();
     await expect(authorize).toBeVisible();
 
@@ -217,11 +248,17 @@ test.describe("choosing an identity first", () => {
       0,
     );
     await page.getByRole("button", { name: "Use another identity", exact: true }).click();
-    // Still addressed to the waiting app, with every way in but Pubky Ring, which the list offers.
-    await expect(page.getByRole("heading", UNVERIFIED_HEADING)).toBeVisible();
-    for (const name of ["Continue with SMS", "Import it", "Continue with Google"])
+    // Still addressed to the waiting app, on Join with every way in.
+    await expect(page.getByRole("heading", START_HEADING)).toBeVisible();
+    await expect(page.getByRole("complementary", UNVERIFIED_BAND)).toBeVisible();
+    for (const name of [RING, "Manage your own keys", "Continue with Google", "Import it"])
       await expect(page.getByRole("button", { name, exact: true })).toBeVisible();
-    await expect(page.getByRole("button", { name: /Pubky Ring/u })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "New here?" })).toHaveCount(0);
+    // Account creation, opened from there, goes back to Join, and Join to the list.
+    await page.getByRole("button", { name: "Manage your own keys", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Prove you’re not a robot." })).toBeVisible();
+    await page.getByRole("button", { name: "Back", exact: true }).click();
+    await expect(page.getByRole("heading", START_HEADING)).toBeVisible();
     await page.getByRole("button", { name: "Back", exact: true }).click();
     await expect(identityList(page).getByRole("button")).toHaveCount(2);
   });
@@ -230,7 +267,9 @@ test.describe("choosing an identity first", () => {
     await page.route("https://notes.example/**", (route) =>
       route.fulfill({ body: "<!doctype html><title>Returned</title>", contentType: "text/html" }),
     );
+    await seedIdentities(page);
     await openRequest(page);
+    await expect(identityList(page).getByRole("button")).toHaveCount(2);
     await page.getByRole("button", { name: "Cancel", exact: true }).click();
     await expect(page).toHaveURL("https://notes.example/cancel");
   });
@@ -278,7 +317,7 @@ test.describe("a long list in the popup", () => {
     const cut = rows.find((row) => row.bottom > clearBottom)!;
     expect(rows.indexOf(cut)).toBeGreaterThanOrEqual(2);
     expect(clearBottom - cut.top).toBeGreaterThanOrEqual((cut.bottom - cut.top) / 3);
-    for (const bottom of await bottoms(page, ["Use another identity", "Continue with Pubky Ring"]))
+    for (const bottom of await bottoms(page, ["Use another identity", KEYCHAIN]))
       expect(bottom).toBeLessThanOrEqual(POPUP.height);
 
     // Moving through the list by keyboard keeps the focused row clear of the fade.
@@ -337,7 +376,7 @@ test.describe("reading profiles", () => {
     await identityList(page)
       .getByRole("button", { name: /1aeh…dwdy/u })
       .click();
-    await expect(page.getByRole("list", { name: "Requested permissions" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Requested permissions" })).toBeVisible();
     await expect.poll(() => relayReads.length).toBeGreaterThan(0);
     await page.waitForTimeout(500);
     // Only the identity chosen for the review is resolved.
@@ -353,7 +392,7 @@ test.describe("a computer's fine pointer", () => {
     await openRequest(page);
     expect(await page.evaluate(() => matchMedia("(pointer: fine)").matches)).toBe(true);
 
-    await page.getByRole("button", { name: "Continue with Pubky Ring", exact: true }).click();
+    await page.getByRole("button", { name: RING, exact: true }).click();
 
     await expect(page.getByRole("heading", { name: "Sign in with Pubky Ring." })).toBeVisible();
     await expect(page.getByRole("img", { name: "Pubky authorization QR code" })).toBeVisible();
@@ -366,15 +405,22 @@ test.describe("a computer's fine pointer", () => {
     expect(handoffs).toEqual([]);
   });
 
-  test("flags a request for all data before it can go to Pubky Ring", async ({ page }) => {
+  test("flags a request for all data on Join, whose keychain line skips the review, and beside the Pubky Ring code", async ({
+    page,
+  }) => {
     await page.goto(`/authorize#d=${encodeURIComponent(BROAD_REQUEST)}`);
     const warning = page
       .locator("main")
       .getByRole("alert")
       .filter({ hasText: "This app asks for access to all your data, public and private." });
+    // The keychain line hands the request on without its review (a phone opens the app from the
+    // press), so Join flags it first, above the cards; the hand-off flags it again.
+    await expect(page.getByRole("heading", START_HEADING)).toBeVisible();
     await expect(warning).toBeVisible();
+    const line = page.getByRole("button", { name: RING, exact: true });
+    expect((await warning.boundingBox())!.y).toBeLessThan((await line.boundingBox())!.y);
 
-    await page.getByRole("button", { name: "Continue with Pubky Ring", exact: true }).click();
+    await line.click();
     await expect(page.getByRole("img", { name: "Pubky authorization QR code" })).toBeVisible();
     await expect(warning).toBeVisible();
   });
@@ -383,7 +429,7 @@ test.describe("a computer's fine pointer", () => {
 test.describe("a phone's coarse pointer", () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true });
 
-  test("from the review, Continue with Pubky Ring hands the request over unchanged", async ({
+  test("from the review, Continue with keychain hands the request over unchanged", async ({
     page,
   }) => {
     await page.goto("/");
@@ -392,7 +438,8 @@ test.describe("a phone's coarse pointer", () => {
     const authorize = page.getByRole("button", { name: "Authorize", exact: true });
     await expect(authorize).toBeVisible();
 
-    await page.getByRole("button", { name: "Continue with Pubky Ring", exact: true }).click();
+    // The app's legacy request goes to Pubky Ring, the one keychain app that approves it.
+    await page.getByRole("button", { name: KEYCHAIN, exact: true }).click();
     await expect(page.getByRole("heading", { name: "Sign in with Pubky Ring." })).toBeVisible();
     // The link Ring opens is the app's request, byte for byte.
     await expect(page.locator('main a[href^="pubkyauth:"]')).toHaveAttribute("href", REQUEST);
@@ -416,7 +463,7 @@ test.describe("a phone's coarse pointer", () => {
     await openRequest(page);
     expect(await page.evaluate(() => matchMedia("(pointer: coarse)").matches)).toBe(true);
 
-    await page.getByRole("button", { name: "Continue with Pubky Ring", exact: true }).click();
+    await page.getByRole("button", { name: RING, exact: true }).click();
 
     await expect(page.getByRole("heading", { name: "Sign in with Pubky Ring." })).toBeVisible();
     // Firefox reports no request for a navigation to another app's scheme.
@@ -451,7 +498,7 @@ test.describe("a phone's coarse pointer", () => {
     const qrSeen = await watchForQrCodes(page);
     const handoffs = recordHandoffs(page);
     await openRequest(page);
-    await page.getByRole("button", { name: "Continue with Pubky Ring", exact: true }).click();
+    await page.getByRole("button", { name: RING, exact: true }).click();
     const button = page.locator('main a[href^="pubkyauth:"]');
     await expect(button).toHaveAccessibleName("Opening Pubky Ring…");
     const box = await button.boundingBox();

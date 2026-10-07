@@ -1,11 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { LOGGER } from "@/libs/logger/logger";
-import { copyToClipboard } from "./copyToClipboard";
+import { copyToClipboard, PUBKY_COPY_TOASTS } from "./copyToClipboard";
 
-const MOCKS = vi.hoisted(() => ({ toastError: vi.fn(), toastInfo: vi.fn() }));
+const MOCKS = vi.hoisted(() => ({ toastError: vi.fn(), toastSuccess: vi.fn() }));
 
-vi.mock("sonner", () => ({ toast: { error: MOCKS.toastError, info: MOCKS.toastInfo } }));
+vi.mock("sonner", () => ({ toast: { error: MOCKS.toastError, success: MOCKS.toastSuccess } }));
 
 const TOASTS = {
   copied: "Pubky copied to clipboard",
@@ -18,7 +18,7 @@ describe("copyToClipboard", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
-    MOCKS.toastInfo.mockReset();
+    MOCKS.toastSuccess.mockReset();
     MOCKS.toastError.mockReset();
   });
 
@@ -29,9 +29,25 @@ describe("copyToClipboard", () => {
     await expect(copyToClipboard("value", TOASTS)).resolves.toBe(true);
 
     expect(writeText).toHaveBeenCalledWith("value");
-    expect(MOCKS.toastInfo).toHaveBeenCalledWith("Pubky copied to clipboard", {
+    expect(MOCKS.toastSuccess).toHaveBeenCalledWith("Pubky copied to clipboard", {
       description: "short pubky",
     });
+  });
+
+  it("confirms a copied pubky with its start, cut at 28 characters to fit one line", async () => {
+    vi.stubGlobal("navigator", { clipboard: { writeText: () => Promise.resolve() } });
+    const pubky = "pubky" + "o".repeat(30) + "end";
+
+    await copyToClipboard(pubky, PUBKY_COPY_TOASTS);
+    await copyToClipboard("p".repeat(29), PUBKY_COPY_TOASTS);
+    await copyToClipboard("p".repeat(28), PUBKY_COPY_TOASTS);
+
+    expect(MOCKS.toastSuccess.mock.calls).toEqual([
+      ["Pubky copied to clipboard", { description: `pubky${"o".repeat(23)}…` }],
+      ["Pubky copied to clipboard", { description: `${"p".repeat(28)}…` }],
+      // A value no longer than the cut is shown whole, with no ellipsis.
+      ["Pubky copied to clipboard", { description: "p".repeat(28) }],
+    ]);
   });
 
   it("confirms without a description when none is given", async () => {
@@ -43,7 +59,7 @@ describe("copyToClipboard", () => {
       failedDescription: TOASTS.failedDescription,
     });
 
-    expect(MOCKS.toastInfo.mock.calls).toEqual([["Pubky copied to clipboard"]]);
+    expect(MOCKS.toastSuccess.mock.calls).toEqual([["Pubky copied to clipboard"]]);
   });
 
   it("tells the user about a failed copy and logs it without the error message", async () => {
@@ -60,7 +76,7 @@ describe("copyToClipboard", () => {
       description: "Select and copy your pubky manually.",
       duration: 10_000,
     });
-    expect(MOCKS.toastInfo).not.toHaveBeenCalled();
+    expect(MOCKS.toastSuccess).not.toHaveBeenCalled();
     expect(info).toHaveBeenCalledWith(
       "clipboard.copy.failed",
       expect.objectContaining({ diagnosticId: expect.any(String), errorName: "Error" }),
@@ -79,6 +95,6 @@ describe("copyToClipboard", () => {
       description: "Select and copy your pubky manually.",
       duration: 10_000,
     });
-    expect(MOCKS.toastInfo).not.toHaveBeenCalled();
+    expect(MOCKS.toastSuccess).not.toHaveBeenCalled();
   });
 });

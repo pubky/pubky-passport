@@ -67,7 +67,7 @@ afterEach(() => {
 it("only remembers a Ring identity after approval, with no key or request in persistent storage", async () => {
   const { controller, connection, repository, start } = setup();
   expectResultOk(await controller.start());
-  expect(start).toHaveBeenCalledExactlyOnceWith(RELAY);
+  expect(start).toHaveBeenCalledExactlyOnceWith(RELAY, "grant");
   expect(controller.authorizationUrl()).toBe(URL);
   expect(expectResultOk(await controller.poll())).toEqual({ status: "waiting" });
   expect(expectResultOk(repository.list()).identities).toEqual([]);
@@ -374,4 +374,11 @@ it("needs no confirmation when the expected identity is already known", async ()
   await controller.start({ expectedKey: KEY, confirmIdentity: true });
   connection.poll.mockResolvedValue(Result.ok(KEY));
   expect(expectResultOk(await controller.poll())).toMatchObject({ status: "connected" });
+});
+
+it("asks the legacy way for Pubky Ring older than 2.0 when the classic QR is on", async () => {
+  const { controller, start } = setup();
+  expectResultOk(await controller.start({ method: "cookie" }));
+  expect(start).toHaveBeenCalledExactlyOnceWith(RELAY, "cookie");
+  controller.dispose();
 });

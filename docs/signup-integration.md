@@ -11,50 +11,63 @@ there, and `/authorize` without a request returns to `/`. The exact validated re
 memory while the user switches identities, imports a backup, or creates an account. Passport never
 creates a replacement client request.
 
-The shared add screen (the start page) opens on first use, from **Switch identity → Add identity**,
-and from **Use another identity** on a request's identity list or review (or first, when Passport
-has no identity to sign with); during a request its heading names the waiting app, backed by its
-website or a notice that it names none, as on permission review. It is two cards and a quiet link.
-The **Create account** card lists the ways to verify a new account as buttons, without
-descriptions, as the instance's Homegate reports them: **Continue with SMS**, **Continue with
-Lightning**, **Continue with Google** (which also restores; where new Google sign-ups are blocked
-it reads **Restore with Google** and stays usable), and **Enter invite manually** (a quiet "Have an
-invite code?" link while other methods are offered, the card's button where an invite is the only
-method). A method Homegate blocks in the user's country is disabled with one line saying so; one
-whose check failed is left out, with **Check again**. Picking a method opens account creation on
-it (the phone number, the invoice, or the invite entry), and **Back** from that first step returns
-to the start page; a setup or a finished verification saved from an earlier visit opens instead.
-The method list (**Create your account.**, buttons too, with only Lightning's price or the
-provider's payment terms under its button) remains inside the
-flow for the cases that return to a choice: a verification the homeserver refused, or **Verify
-another way** after a rejected invite.
-Both start-page cards are illustrated choice cards, laid out as pubky.app's sign-in cards (8px
-corners): from 1024px the illustration in a fixed left column, top-aligned with the content, and
-beside it one left-aligned stack of the title, a one-line description and the card's actions. In
-a card of 36rem or more (a 1280px window's half) the illustration takes about half the card: all
-of it the 18rem content column leaves (204px in a 588px card, at most 16rem), 48px from the
-content; in a 1024px window's half it is 96px. Both cards share their padding, column widths and
-the lines of their titles and descriptions, and stretch to one height. The **Pubky Ring** card holds **Continue with Pubky Ring**
-during a request, which hands the request to Ring. Without a request it adds an existing Ring
-identity inside the card. With a mouse or trackpad (a fine pointer) the card shows its QR code as
-soon as the page is up, with the store badges under it and no waiting line, and nothing to press
-or cancel; leaving the page ends the request. The page paints without the
-Pubky SDK: a placeholder of the code's size ("Generating QR code…") holds its place until the SDK
-has loaded and the request is open on the relay, so the page does not move. On a phone or tablet
-(a coarse pointer) the card holds **Sign in with Pubky Ring** and prepares nothing until it is
-pressed. One press makes the request and opens Pubky Ring with it as soon as it exists, from a
-button that takes the pressed one's place ("Opening Pubky Ring…", then **Open Pubky Ring** to
-open it again with the same request), with **Cancel** (which ends the request) and the store
-badges beneath it; a phone is never shown a QR code. Nothing moves when Ring opens
-or when the page comes back into view. If the browser no longer counts the press by the time the
-request exists (a slow first load), Ring opens on the next press of **Open Pubky Ring**. Every desktop visit to the start page therefore opens a profile-grant request on the
-relay, which simply expires when nobody scans it. Below the cards, **Have a recovery file?
-Import it** opens the import. Where an invite is the only method
-(the instance offers neither SMS nor Lightning), the invite entry opens with the
-provider's terms and a note on where invites come from; its **Back** leaves account creation. The
-phone step says the number is used only to send the code and to limit sign-ups per number, and that
-the sign-up service keeps only a one-way hash of it. `PASSPORT_PROVIDER_CONFIG_JSON` controls which
-methods and provider terms are displayed.
+The start page opens on first use, from **Switch identity → Add identity**, and from **Use another
+identity** on a request's identity list or review (or first, when Passport has no identity to sign
+with). It follows pubky.app's v27 onboarding and has three screens; account creation's steps
+(**Create account → Identity keys → Profile**) show in the header row (from md the step's name and
+numbered circles, a ✓ in a finished step; below md a progress bar beside the logo).
+
+- **Join** ("Let’s join Pubky.", "How would you like to create your pubky?"): **Sovereign & Secure →
+  Manage your own keys** opens verification; **Quick & Easy → Continue with Google** starts the
+  Google sign-in (which also restores; where new Google sign-ups are blocked it reads **Restore with
+  Google** and stays usable), with a **?** that explains the split between Google and Passport. From
+  md the two are illustrated cards side by side; below md small headings over full-width buttons.
+  The header offers **Sign in**. Without Google on the instance the keys card stands alone.
+- **Sign in** ("Sign in to Pubky"), without a request: the keychain card (**Scan QR with
+  keychain.** on a computer, **Sovereign & Secure** on a phone; it adds an existing identity inside
+  the card: with a fine pointer its QR code shows as
+  soon as the page is up, with the classic QR switch under it; with a coarse pointer the button
+  prepares nothing until it is pressed, then opens the app) and **Have a recovery file? Import
+  it**. Back returns to Join, which has new keys and Google. During a request with nothing saved
+  the start page is Join itself (no **Sign in** in its header): under its two cards **Have a
+  recovery file? Import it** and, unless the app's v2 hello has the `keychain` feature, **Use
+  Pubky Ring or Bitkit** (hands the request to the keychain app), then the consent line.
+- **Google** (an app's `entry=google`): the explanation and one **Continue with Google** button.
+
+During a request the start page opens on the request's Join, or on the Google screen when the app
+names `entry=google` next to `d=`; its first screen's **Back** cancels the request (the app
+hears `cancel`), and Back from account creation returns to the screen it was opened from. **Manage
+your own keys** opens **Prove you’re not a robot.**: the ways to verify the instance's Homegate
+reports, as three cards from md (**Small payment**, its button **Bitcoin payment (₿1,000)** with
+Homegate's price and the provider's payment terms as its line; **Phone verification** → **Phone
+number**; **Invite code** → **Invite code**, "Have an invite code?") and as one card
+of buttons below md. A method Homegate blocks in the user's country stays visible, dimmed: from md a
+red "Not available in your country" banner over its card, below md a red badge on its button whose
+popover says "Try a different verification method". A method whose check failed is left out, with
+**Check again**; the invite card is always there. Where an invite is the only method the invite
+entry opens directly, with the provider's terms and a note on where invites come from; its **Back**
+leaves account creation. **Back** from verification returns to Join; a setup or a finished
+verification saved from an earlier visit opens instead. The pay step reads **Scan to pay.** with the
+invoice's QR code on a computer and **Tap to pay.** with **Pay Now** on a phone, both with **Copy
+Invoice**; the phone steps read **Enter phone.** and **Enter code.** (six boxes, **Resend (Ns)**,
+**Verify Code**); the invite step **Use invite.**, its field turning lime with a ✓ once the
+homeserver confirms the code. The phone step says the number is used only to send the code and to
+limit sign-ups per number, and that the sign-up service keeps only a one-way hash of it. A finished
+verification says so in a toast ("Verification Code Valid", "Received payment of ₿ 1,000"). Join,
+Verify, the Google screen and a request's Sign in end on one line: "By joining and creating a Pubky
+account, you agree to the Terms of Service and Privacy Policy, and confirm you are at least 18 years
+old.", linking Passport's own terms pages as the footer does (in a new tab while a request waits).
+
+**Pick your keychain.** then presents Pubky Ring and Bitkit together on one card (both logos, both
+apps' store badges, one **Continue with keychain**): one `pubkyauth://direct_signup` link works
+with either app, so there is no per-app screen. **Scan QR with keychain.** shows that link's QR code
+with one short list of what to do in the app (a computer), or **Authorize with keychain.** with
+**Authorize & configure** (a phone); Passport watches the invite and goes on by itself once the
+account exists, then connects the new pubky's profile. **Keep key in this browser** first lists
+the tradeoffs ("Browser-based key generation", "Less secure than mobile
+keychain", "Suboptimal sign-in experience"), then keeps the key in Passport with a recovery file.
+`PASSPORT_PROVIDER_CONFIG_JSON` controls which methods and provider terms are
+displayed. Whether Bitkit handles the `direct_signup` link has not been device-tested.
 
 SMS and Lightning verification use the homeserver returned by Homegate. A manual invite can name any
 homeserver the user has an invite for: the homeserver field is prefilled with the provider's
@@ -201,12 +214,13 @@ pubky approves, without setup and without writing anything: an existing profile 
 until the user edits it.
 
 The pending **Signing in to…** context remains visible during either path. Both share a progress
-indicator with three steps: **Verify** (SMS, Lightning or an invite code), **Account** (where the key
-lives, its recovery file and the signup, so it is ticked only once the account exists) and
-**Profile**. While Passport registers the key, the checklist says **Keep this window open**. New accounts stay in setup until their
+indicator with three steps: **Create account** (the start page and a verification: SMS, Lightning
+or an invite code), **Identity keys** (where the key lives: a keychain app, this browser with its
+recovery file, or the Google backup, and the signup, so it is ticked only once the account exists)
+and **Profile**. While Passport registers the key, the checklist says **Keep this window open**. New accounts stay in setup until their
 `/pub/pubky.app/profile.json` is successfully published. Completion then returns to the original
 permission review for explicit approval. When the waiting app requires a profile, **Skip for now**
-is not offered, neither on **Account created.** nor on the profile form. Without a pending request, completion opens the selected
+is not offered on the profile form (a toast, not a screen, says the account was created). Without a pending request, completion opens the selected
 identity overview. Google completion still requires the user to
 choose **Continue**; local registration and profile publication must finish before returning.
 
@@ -344,8 +358,9 @@ requests, so they do not accumulate in IndexedDB. A Web Lock held by every open 
 one Passport tab from deleting a key that another still signs with. Whether Ring and the homeserver
 accept write-only scopes has not been verified on a device; test it before release.
 
-With an app request, **Continue with Pubky Ring**, on the identity list or the start page, opens a
-separate sign-in screen with the original validated `pubkyauth` URL unchanged.
+With an app request, **Continue with keychain** (on the identity list) or **Continue with Pubky
+Ring or Bitkit** (on Sign in) opens a separate sign-in screen with the original validated
+`pubkyauth` URL unchanged.
 A Ring identity saved in Passport is there for its profile only: Passport cannot make Ring sign
 with it, so it is never listed for a request. Its overview shows its profile, its pubky, **Edit
 profile**, **Log out** (in the place a browser key's **Manage** has; it opens the same "Remove

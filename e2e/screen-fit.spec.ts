@@ -1,3 +1,4 @@
+import type { Locator } from "@playwright/test";
 import {
   expectNoncePreimageOnlyForPassport,
   mockGoogleCreation,
@@ -52,8 +53,12 @@ test("each step names itself in the window title and takes focus on its heading"
   page,
 }) => {
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "Get your pubky." })).toBeFocused();
-  await expect(page).toHaveTitle("Get your pubky | Pubky Passport");
+  await expect(page.getByRole("heading", { name: "Let’s join Pubky." })).toBeFocused();
+  await expect(page).toHaveTitle("Let’s join Pubky | Pubky Passport");
+  // Moving to Sign in from the header names and focuses that screen in turn.
+  await page.getByRole("banner").getByRole("button", { name: "Sign in" }).click();
+  await expect(page.getByRole("heading", { name: "Sign in to Pubky" })).toBeFocused();
+  await expect(page).toHaveTitle("Sign in to Pubky | Pubky Passport");
 
   await seedGoogleIdentity(page);
   await page.goto(authorizeUrl(REQUEST));
@@ -88,18 +93,49 @@ test("pill labels fit their pills in the popup zoomed to 200%", async ({ page, i
   await page.setViewportSize({ width: 260, height: 380 });
   await page.goto("/");
   // A label may wrap at this width, but its pill holds all of it without clipping or pushing the
-  // page sideways: every way in on the start page, in both cards. A phone's Pubky Ring card has
-  // its button; a computer's shows the code instead, which must fit this width as well.
-  const pills = page.getByRole("region").getByRole("button", { name: /^(Continue|Sign in) with / });
-  await expect(pills).toHaveCount(isMobile ? 4 : 3);
+  // page sideways: every way in on Join, in both cards, and Join's header action to Sign in, which
+  // stays beside the logo. Sign in has no header action (Back returns to Join); on it a phone's
+  // keychain card has its button, and a computer's shows the code instead, which must fit this
+  // width as well.
+  const header = page.getByRole("banner");
+  await expect(page.getByRole("heading", { name: "Let’s join Pubky." })).toBeVisible();
+  await expectPillsFit(
+    page
+      .getByRole("region")
+      .getByRole("button", { name: /^(Manage your own keys|Continue with )/u }),
+    2,
+  );
+  await expectHeaderActionFits(page, header.getByRole("button", { name: "Sign in" }));
+  expect(await horizontalOverflow(page)).toBe(0);
+
+  await header.getByRole("button", { name: "Sign in" }).click();
+  await expect(page.getByRole("heading", { name: "Sign in to Pubky" })).toBeVisible();
+  await expect(header.getByRole("button")).toHaveCount(0);
+  // A phone's keychain section is named as Join's keys card is; a computer's card by its heading.
+  const keychain = page.getByRole("region", {
+    name: isMobile ? "Sovereign & Secure" : "Scan QR with keychain.",
+    exact: true,
+  });
+  await expectPillsFit(
+    keychain.getByRole("button", { name: /^Continue with /u }),
+    isMobile ? 1 : 0,
+  );
   if (!isMobile) {
-    const tile = page
-      .getByRole("region", { name: "Pubky Ring", exact: true })
-      .locator("[data-state]");
-    const box = (await tile.first().boundingBox())!;
+    const tile = keychain.locator('[data-state="ready"]');
+    await expect(tile.getByRole("img", { name: "Keychain connection QR code" })).toBeVisible({
+      timeout: 15_000,
+    });
+    const box = (await tile.boundingBox())!;
     expect(box.x).toBeGreaterThanOrEqual(0);
     expect(box.x + box.width).toBeLessThanOrEqual(260);
   }
+  await expectPillsFit(page.getByRole("button", { name: "Back", exact: true }), 1);
+  expect(await horizontalOverflow(page)).toBe(0);
+});
+
+/** Each of `count` pills holds its whole label, however it wraps. */
+async function expectPillsFit(pills: Locator, count: number): Promise<void> {
+  await expect(pills).toHaveCount(count);
   for (const pill of await pills.all())
     expect(
       await pill.evaluate(
@@ -107,8 +143,19 @@ test("pill labels fit their pills in the popup zoomed to 200%", async ({ page, i
           button.scrollWidth <= button.clientWidth && button.scrollHeight <= button.clientHeight,
       ),
     ).toBe(true);
-  expect(await horizontalOverflow(page)).toBe(0);
-});
+}
+
+/** The header row's action holds its label and sits inside the window, right of the logo. */
+async function expectHeaderActionFits(page: Page, action: Locator): Promise<void> {
+  await expectPillsFit(action, 1);
+  const logo = (await page
+    .getByRole("banner")
+    .getByRole("img", { name: "Pubky", exact: true })
+    .boundingBox())!;
+  const box = (await action.boundingBox())!;
+  expect(logo.x + logo.width).toBeLessThanOrEqual(box.x);
+  expect(box.x + box.width).toBeLessThanOrEqual(page.viewportSize()!.width);
+}
 
 for (const viewport of NARROW) {
   test(`outcome, error and profile screens reflow at ${viewport.width}px`, async ({ page }) => {
@@ -129,11 +176,25 @@ for (const viewport of NARROW) {
     await page.getByRole("button", { name: "Set up profile" }).click();
     await expect(page.getByLabel("Name", { exact: true })).toBeVisible();
     expect(await horizontalOverflow(page)).toBe(0);
-    // Back and Save profile stack instead of running off the edge, and the avatar stays round.
-    const back = await page.getByRole("button", { name: "Back", exact: true }).boundingBox();
-    const finish = await page.getByRole("button", { name: "Save profile" }).boundingBox();
-    expect(back!.x + back!.width).toBeLessThanOrEqual(viewport.width);
-    expect(finish!.x + finish!.width).toBeLessThanOrEqual(viewport.width);
+    // Back and Continue share one bar without running off its side, in the first screenful, and
+    // the bar stays pinned to the window's bottom edge while the form scrolls under it.
+    const actions = [
+      page.getByRole("button", { name: "Back", exact: true }),
+      page.getByRole("button", { name: "Continue", exact: true }),
+    ];
+    await page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" }));
+    for (const action of actions) {
+      await expect(action).toBeInViewport({ ratio: 1 });
+      const box = (await action.boundingBox())!;
+      expect(box.x).toBeGreaterThanOrEqual(0);
+      expect(box.x + box.width).toBeLessThanOrEqual(viewport.width);
+    }
+    await page
+      .getByRole("heading", { name: "Links", exact: true })
+      .evaluate((heading) => heading.scrollIntoView({ block: "start", behavior: "instant" }));
+    const bar = (await page.locator("[data-sticky-actions]").boundingBox())!;
+    expect(Math.abs(bar.y + bar.height - viewport.height)).toBeLessThanOrEqual(1);
+    for (const action of actions) await expect(action).toBeInViewport({ ratio: 1 });
     // Without a picture the avatar is the key's face, which is decoration (no name).
     const avatar = await page
       .getByRole("region", { name: "Avatar" })

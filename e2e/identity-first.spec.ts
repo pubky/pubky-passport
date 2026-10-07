@@ -1,7 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { storeLocalIdentities } from "./helpers/localIdentities";
 import { expect, test, type Page } from "./helpers/passportTest";
-import { UNVERIFIED_HEADING, UNVERIFIED_WARNING } from "./helpers/requester";
+import { UNVERIFIED_BAND, UNVERIFIED_HEADING, UNVERIFIED_WARNING } from "./helpers/requester";
 
 const FIRST = "1aeh1m9m47shq8ixa7ikaunjb81ierse9by6f7wnkbxzj4dddwdy";
 const SECOND = "5jsjx1o6fzu6aeeo697r3i5rx15zq41kikcye8wtwdqm4nb4tryo";
@@ -30,14 +30,14 @@ for (const count of [0, 1, 2]) {
     await seed(page, count);
     await page.reload();
     await expect(
-      page.getByRole("heading", { name: count ? "Your pubky." : "Get your pubky." }),
+      page.getByRole("heading", { name: count ? "Your pubky." : "Let’s join Pubky." }),
     ).toBeVisible();
     // The overview names the active identity by its key; its Google badge is left to the lists.
     if (count)
       await expect(page.getByText(count === 1 ? FIRST : SECOND, { exact: true })).toBeVisible();
     await page.reload();
     await expect(
-      page.getByRole("heading", { name: count ? "Your pubky." : "Get your pubky." }),
+      page.getByRole("heading", { name: count ? "Your pubky." : "Let’s join Pubky." }),
     ).toBeVisible();
     await page.goto(`/authorize#d=${encodeURIComponent(REQUEST)}`);
     // One saved identity opens straight on its review, with nothing to switch to; its "or"
@@ -48,10 +48,14 @@ for (const count of [0, 1, 2]) {
     }
     // The list shows only where there is a choice between identities.
     const listed = count > 1 ? count : 0;
-    // Otherwise a request opens on its identity list; with nothing saved, on the start page.
-    // M3: no hello bound this plain link, so nothing names the app; a notice says so.
-    await expect(page.getByRole("heading", UNVERIFIED_HEADING)).toBeVisible();
-    // The list and the review warn; the start page says it through its band and heading.
+    // Otherwise a request opens on its identity list; with nothing saved, on the start page's
+    // Join. M3: no hello bound this plain link, so nothing names the app; a notice says so.
+    const firstStep = count
+      ? page.getByRole("heading", UNVERIFIED_HEADING)
+      : page.getByRole("heading", { name: "Let’s join Pubky." });
+    await expect(firstStep).toBeVisible();
+    await expect(page.getByRole("complementary", UNVERIFIED_BAND)).toBeVisible();
+    // The list and the review warn; the start page says it through its band alone.
     await expect(page.getByText(UNVERIFIED_WARNING)).toHaveCount(count ? 1 : 0);
     // x-source is an app-chosen label; it never fills the band.
     await expect(
@@ -66,16 +70,25 @@ for (const count of [0, 1, 2]) {
     await expect(page.getByRole("button", { name: "Use another identity" })).toHaveCount(
       count ? 1 : 0,
     );
-    await expect(page.getByRole("region", { name: "Create account" })).toHaveCount(count ? 0 : 1);
+    await expect(page.getByRole("heading", { name: "Let’s join Pubky." })).toHaveCount(
+      count ? 0 : 1,
+    );
     await expect(page.getByRole("img", { name: "Pubky authorization QR code" })).toHaveCount(0);
-    await page.getByRole("button", { name: "Continue with Pubky Ring", exact: true }).click();
+    // The list's and the review's "or" names the keychain; the line under Join's cards names
+    // Pubky Ring alone, the one keychain that takes this legacy request.
+    await page
+      .getByRole("button", {
+        name: count ? "Continue with keychain" : "Use Pubky Ring",
+        exact: true,
+      })
+      .click();
     await expect(page.getByRole("heading", { name: "Sign in with Pubky Ring." })).toBeVisible();
     // A computer shows the code; a phone its one button that opens Ring.
     if (isMobile)
       await expect(page.locator('main a[href^="pubkyauth:"]')).toHaveAttribute("href", REQUEST);
     else await expect(page.getByRole("img", { name: "Pubky authorization QR code" })).toBeVisible();
     await page.getByRole("button", { name: "Back", exact: true }).click();
-    await expect(page.getByRole("heading", UNVERIFIED_HEADING)).toBeVisible();
+    await expect(firstStep).toBeVisible();
     await expect(list.getByRole("button")).toHaveCount(listed);
   });
 }
@@ -101,8 +114,9 @@ test("switching persists immediately and removing the last identity returns to s
   await page.getByRole("button", { name: "Manage identity" }).click();
   await page.getByRole("button", { name: "Remove from this browser" }).click();
   await page.getByRole("button", { name: "Remove from this browser" }).click();
-  await expect(page.getByRole("heading", { name: "Get your pubky." })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Import it" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Let’s join Pubky." })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Manage your own keys" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Sign in", exact: true })).toBeVisible();
 });
 
 test("Ring receives the original request and opening it does not approve in Passport", async ({
@@ -115,7 +129,7 @@ test("Ring receives the original request and opening it does not approve in Pass
   });
   await page.setViewportSize({ width: 375, height: 812 });
   await page.goto(`/authorize#d=${encodeURIComponent(REQUEST)}`);
-  await page.getByRole("button", { name: "Continue with Pubky Ring", exact: true }).click();
+  await page.getByRole("button", { name: "Use Pubky Ring", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Sign in with Pubky Ring." })).toBeVisible();
   // A phone follows the unchanged request at once and keeps its button to open it again, with no
   // code; a computer, even in a narrow window, shows the QR code and no link.
@@ -168,15 +182,17 @@ test("screens remain accessible, scroll naturally and have one footer at each vi
     await inspect("authorization");
     await page.getByRole("button", { name: "Switch identity", exact: true }).click();
     await expect(page.getByRole("button", { name: /identity-0@example\.com/u })).toBeVisible();
-    await page.getByRole("button", { name: "Continue with Pubky Ring", exact: true }).click();
+    await page.getByRole("button", { name: "Continue with keychain", exact: true }).click();
     await inspect("ring-sign-in");
     await page.getByRole("button", { name: "Back", exact: true }).click();
     await expect(page.getByRole("heading", UNVERIFIED_HEADING)).toBeVisible();
     await page.getByRole("button", { name: "Use another identity" }).click();
     await inspect("add-with-request");
-    // The start page, still addressed to the app; Pubky Ring stays on the list before it.
-    await expect(page.getByRole("region", { name: "Create account" })).toBeVisible();
-    await expect(page.getByRole("button", { name: /Pubky Ring/u })).toHaveCount(0);
+    // The start page's Join, still addressed to the app: the line under its cards hands the
+    // request over unchanged, as the list's "or" does.
+    await expect(page.getByRole("heading", { name: "Let’s join Pubky." })).toBeVisible();
+    await expect(page.getByRole("complementary", UNVERIFIED_BAND)).toBeVisible();
+    await expect(page.getByRole("button", { name: "Use Pubky Ring", exact: true })).toBeVisible();
     await page.getByRole("button", { name: "Back", exact: true }).click();
     await expect(page.getByRole("heading", UNVERIFIED_HEADING)).toBeVisible();
 
@@ -251,7 +267,7 @@ test("long identity and permission lists stay inside the page with a separated f
   const choice = await page.evaluate(() => {
     const list = document.querySelector("main ul")!;
     const ring = [...document.querySelectorAll("main button")].find(
-      (button) => button.textContent?.trim() === "Continue with Pubky Ring",
+      (button) => button.textContent?.trim() === "Continue with keychain",
     )!;
     return {
       scrolls: list.scrollHeight > list.clientHeight,
@@ -295,7 +311,7 @@ test("a valid request larger than QR capacity still supports explicit approval a
   await page.getByRole("button", { name: /identity-1@example\.com/u }).click();
   await expect(page.getByRole("button", { name: "Authorize", exact: true })).toBeEnabled();
   await page.getByRole("button", { name: "Switch identity", exact: true }).click();
-  await page.getByRole("button", { name: "Continue with Pubky Ring", exact: true }).click();
+  await page.getByRole("button", { name: "Continue with keychain", exact: true }).click();
   // Without a QR code, opening Ring on this device is the only way, on any pointer. A computer
   // says why it shows no code; a phone never shows one, so it has nothing to explain.
   await expect(page.locator('main a[href^="pubkyauth:"]')).toHaveAttribute("href", request.href);

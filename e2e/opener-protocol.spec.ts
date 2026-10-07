@@ -154,7 +154,9 @@ test("a first hello during the Ring view gets ready then Ring, and the Ring view
   baseURL,
 }) => {
   const popup = await openPassport(page, baseURL!, requestPath());
-  await popup.getByRole("button", { name: "Continue with Pubky Ring", exact: true }).click();
+  // No hello came, so Join shows its keychain line once a hello's grace is over: the legacy
+  // request goes to Pubky Ring alone.
+  await popup.getByRole("button", { name: "Use Pubky Ring", exact: true }).click();
   expect(await messages(page)).toEqual([]);
   await sendHello(page);
   await expect.poll(() => messages(page)).toHaveLength(2);
@@ -293,6 +295,9 @@ test("home keeps answering only empty while identity-management UI changes", asy
   baseURL,
 }) => {
   const popup = await openPassport(page, baseURL!, "/");
+  await expectReady(page, { status: "empty" });
+  // Join, then Sign in, then the recovery file's import.
+  await popup.getByRole("button", { name: "Sign in", exact: true }).click();
   await expectReady(page, { status: "empty" });
   await popup.getByRole("button", { name: "Import it", exact: true }).click();
   await expectReady(page, { status: "empty" });

@@ -34,12 +34,15 @@ function fakes(
   const created: InternalClient[] = [];
   const options: InternalClientOptions[] = [];
   const opened: string[] = [];
+  // The kind each request was made as: a grant, or the classic QR's cookie sign-in.
+  const kinds: string[] = [];
   const platform: ClientPlatform = {
     available: () => true,
     window: () => window,
     clock,
-    flowPort: () => ({
+    flowPort: (flowOptions) => ({
       async start() {
+        kinds.push(flowOptions.keychainAuth?.() ?? "grant");
         const flow = new FakeFlowPort(`pubkyauth://signin?secret=flow-${flows.length}`);
         flows.push(flow);
         return { ok: true, value: flow };
@@ -74,7 +77,7 @@ function fakes(
     await flush();
     clock.advance(5000);
   });
-  return { flows, options, opened, clock, created, current: () => created.at(-1)! };
+  return { flows, kinds, options, opened, clock, created, current: () => created.at(-1)! };
 }
 
 async function mount(html: string) {
@@ -346,9 +349,9 @@ test("the large style shows the Pubky Ring QR and no caption", async () => {
   expect(root.querySelector('[part="qr"]')).not.toBeNull();
   expect(root.querySelector('[data-slot="caption"]')).toBeNull();
   expect(root.querySelector('[data-slot="divider"]')).toHaveTextContent(
-    "or log in with Pubky Ring",
+    "or scan with Pubky Ring or Bitkit",
   );
-  expect(root.querySelector('[data-slot="ring-link"]')).toHaveTextContent("Open in Pubky Ring");
+  expect(root.querySelector('[data-slot="ring-link"]')).toHaveTextContent("Open keychain app");
 });
 
 test("a sign-in in progress opens no popover: the label and its hover text say it", async () => {
@@ -522,7 +525,7 @@ test("only the published parts carry a part name", async () => {
   const parts = new Set(
     [...root.querySelectorAll("[part]")].map((node) => node.getAttribute("part")),
   );
-  expect([...parts].sort()).toEqual(["button", "qr", "settings", "tray"]);
+  expect([...parts].sort()).toEqual(["button", "icon", "qr", "settings", "tray"]);
 });
 
 test("pressing the code copies exactly the encoded link, announces it, and shows only a failure", async () => {
@@ -605,7 +608,7 @@ test("the divider shows only above Ring content", async () => {
   const { flows } = fakes([popup.window], async () => ({ kind: "missing" }));
   const element = await mount('<pubky-passport variant="large"></pubky-passport>');
   const divider = () => element.shadowRoot!.querySelector('[data-slot="divider"]');
-  expect(divider()).toHaveTextContent("or log in with Pubky Ring");
+  expect(divider()).toHaveTextContent("or scan with Pubky Ring or Bitkit");
   button(element).click();
   await flush();
   const session = new FakeSession();
@@ -752,4 +755,102 @@ describe("sync-group", () => {
     const long = await mount(`<pubky-passport sync-group="${"g".repeat(129)}"></pubky-passport>`);
     expect(long.shadowRoot!.textContent).toBe("Passport button not configured");
   });
+});
+
+test("an entry button is named after its screen and asks Passport to open on it", async () => {
+  const { current } = fakes();
+  const element = await mount('<pubky-passport entry="join"></pubky-passport>');
+  expect(button(element)).toHaveTextContent("Join Pubky");
+  const setEntry = vi.spyOn(current(), "setEntry");
+  button(element).click();
+  expect(setEntry).toHaveBeenCalledWith("join");
+  // Not part of the client's configuration: changing it keeps the client.
+  const client = current();
+  element.setAttribute("entry", "google");
+  await flush();
+  expect(current()).toBe(client);
+  element.setAttribute("entry", "anything");
+  await flush();
+  expect(button(element)).not.toHaveTextContent("Continue with Google");
+});
+
+test("a Google entry shows Google's mark, published as the icon part; other buttons show Passport's", async () => {
+  fakes();
+  const google = await mount('<pubky-passport entry="google"></pubky-passport>');
+  const googleMark = google.shadowRoot!.querySelector('[part="icon"]')!;
+  // Google's four colours; the Pubky mark is one path in the text colour.
+  expect([...googleMark.querySelectorAll("path")].map((path) => path.getAttribute("fill"))).toEqual(
+    ["#4285F4", "#34A853", "#FBBC05", "#EA4335"],
+  );
+  expect(googleMark).toHaveAttribute("aria-hidden", "true");
+  const join = await mount('<pubky-passport entry="join"></pubky-passport>');
+  const joinMark = join.shadowRoot!.querySelector('[part="icon"]')!;
+  expect(joinMark.querySelectorAll("path")).toHaveLength(1);
+  expect(joinMark.querySelector("path")).toHaveAttribute("fill", "currentColor");
+  // Changing the entry redraws the mark.
+  join.setAttribute("entry", "google");
+  await flush();
+  expect(join.shadowRoot!.querySelector('[part="icon"]')!.querySelectorAll("path")).toHaveLength(4);
+});
+
+test("the app's help slot sits inside the pill, beside the button and outside it", async () => {
+  fakes();
+  const element = await mount(
+    '<pubky-passport entry="google"><button slot="help" type="button" aria-label="What is this?">?</button></pubky-passport>',
+  );
+  const root = element.shadowRoot!;
+  const slot = root.querySelector<HTMLSlotElement>('slot[name="help"]')!;
+  expect(slot.closest('[data-slot="pill"]')).not.toBeNull();
+  expect(button(element).contains(slot)).toBe(false);
+  expect(slot.assignedElements()).toEqual([element.querySelector('[slot="help"]')]);
+});
+
+test("an entry's label falls back to the app's own idle label, unless the app names the entry too", async () => {
+  fakes();
+  const renamed = await mount(
+    '<pubky-passport entry="join" messages=\'{"label.idle":"Log in"}\'></pubky-passport>',
+  );
+  expect(button(renamed)).toHaveTextContent("Log in");
+  const both = await mount(
+    '<pubky-passport entry="join" messages=\'{"label.idle":"Log in","label.join":"Join now"}\'></pubky-passport>',
+  );
+  expect(button(both)).toHaveTextContent("Join now");
+  const neither = await mount('<pubky-passport entry="join"></pubky-passport>');
+  expect(button(neither)).toHaveTextContent("Join Pubky");
+});
+
+test("the large style's classic switch replaces the prepared code with the legacy kind and keeps the choice", async () => {
+  const { flows, kinds } = fakes();
+  const element = await mount('<pubky-passport variant="large"></pubky-passport>');
+  await flush();
+  const root = element.shadowRoot!;
+  const toggle = () => root.querySelector<HTMLInputElement>('[data-slot="classic-input"]')!;
+  expect(toggle()).toHaveAttribute("role", "switch");
+  expect(toggle().checked).toBe(false);
+  expect(root.querySelector('[data-slot="classic"]')).toHaveTextContent(
+    "Older Pubky Ring? Classic QR",
+  );
+  toggle().click();
+  await flush();
+  expect(localStorage.getItem("pubky-passport-client/keychain-auth/v1")).toBe("cookie");
+  expect(kinds).toEqual(["grant", "cookie"]);
+  expect(flows).toHaveLength(2);
+  expect(toggle().checked).toBe(true);
+  // Bitkit refuses the legacy request, so the code names Pubky Ring alone.
+  expect(root.querySelector('[data-slot="divider"]')).toHaveTextContent("or scan with Pubky Ring");
+  toggle().click();
+  await flush();
+  expect(localStorage.getItem("pubky-passport-client/keychain-auth/v1")).toBeNull();
+  expect(kinds).toEqual(["grant", "cookie", "grant"]);
+});
+
+test("a stored classic choice shapes the first code", async () => {
+  localStorage.setItem("pubky-passport-client/keychain-auth/v1", "cookie");
+  const { kinds } = fakes();
+  const element = await mount('<pubky-passport variant="large"></pubky-passport>');
+  await flush();
+  expect(kinds).toEqual(["cookie"]);
+  expect(
+    element.shadowRoot!.querySelector<HTMLInputElement>('[data-slot="classic-input"]')!.checked,
+  ).toBe(true);
 });

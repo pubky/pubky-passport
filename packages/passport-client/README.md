@@ -2,7 +2,7 @@
 
 One "Continue with Pubky" button that signs people in with their Pubky identity through Pubky
 Passport. It opens Passport in a pop-up (or in the same tab where a pop-up cannot work), shows a
-Pubky Ring QR code and link in the large style, and by default makes sure the person has a
+keychain QR code and link (Pubky Ring or Bitkit) in the large style, and by default makes sure the person has a
 pubky.app profile. Your app receives a real SDK `Session`, the public key and the validated
 profile. Only an SDK `Session` authenticates; a pop-up message is only a UI signal.
 
@@ -33,17 +33,18 @@ dependencies of its own; your app supplies two peers: `@synonymdev/pubky` (0.11 
 | `client-id`    | the page's host name         | A stable ID for the app, part of the request                                                  |
 | `capabilities` | `""` (identity only)         | e.g. `/pub/example.app/:rw`; the roots `/`, `/pub`, `/pub/`, `/priv` and `/priv/` are refused |
 | `profile`      | `required`                   | `optional` signs in people without a pubky.app profile                                        |
-| `variant`      | `small`                      | `large` adds the Pubky Ring QR code and link                                                  |
+| `variant`      | `small`                      | `large` adds the keychain QR code and link (Pubky Ring or Bitkit), with the classic QR switch |
 | `messages`     | English                      | JSON of replacement texts, e.g. `{"label.idle": "Weiter mit Pubky"}`                          |
 | `network`      | `mainnet`                    | `testnet` signs in on a Pubky testnet; needs both relays below                                |
 | `pkarr-relays` | the SDK's public relays      | Comma-separated PKARR relay URLs (HTTPS, or HTTP on loopback)                                 |
 | `http-relay`   | the SDK's public relay       | The HTTP relay inbox of the sign-in request                                                   |
 | `sync-group`   | none                         | A name: elements with the same name and settings share one sign-in (see below)                |
+| `entry`        | none                         | The Passport screen to open on: `join`, `google` or `sign-in` (see below)                     |
 
 Every attribute is optional. Set them before the element joins the page: the first client or
 element on a page finishes a same-tab return with the options it has then. Changing `instance`,
 `app-name`, `client-id`, `capabilities`, `profile`, `network`, `pkarr-relays` or `http-relay`
-starts over; changing `messages` (also a property) only changes the texts. `network="testnet"`
+starts over; changing `messages` (also a property), `variant` or `entry` only changes what the element shows. `network="testnet"`
 needs both relays (there are no implicit testnet defaults) and a Passport running on the same
 testnet; one on the other network refuses the request, and the sign-in fails with the code
 `network_mismatch`. The element is a dark pill with the Pubky mark; while a sign-in
@@ -62,11 +63,28 @@ element still on the page, and `reset()` on any of them resets all. An element w
 differ from its group's shows "Passport button not configured" and changes nothing in the group.
 Groups exist within one page; without `sync-group` every element has its own sign-in.
 
-The large style adds Pubky Ring's QR code with Ring's logo in its centre, framed as in Passport
-(8px light padding, 8px corners), and at phone size or on a touch screen an "Open in Pubky Ring"
-link. Clicking the code copies the exact `pubkyauth://` link it encodes; the code fades while it is
+**Entries.** `entry="join"` opens Passport on its Join screen (create an account), `entry="google"`
+on the Google sign-in, `entry="sign-in"` on its start page for returning people; for someone
+Passport cannot sign in yet, a request's start page is Join with a recovery file and, unless the
+app shows its own keychain code, "Use Pubky Ring or Bitkit". While nothing runs the button is named
+after its entry: `label.<entry>` ("Join Pubky", "Continue with Google", "Sign in with Pubky");
+`label.idle` applies without an entry, and an app that sets `label.idle` but not `label.<entry>`
+keeps its `label.idle` for the entry too. The button's icon is Google's "G" for `entry="google"`
+and the Pubky mark otherwise. Elements of one `sync-group` may have different entries: a "Join now"
+and a "Continue with Google" button can share one sign-in. The entry only picks Passport's first
+screen; it is not part of the request.
+
+**Help.** A child with `slot="help"` (for example a "?" button that opens the app's explainer)
+is shown inside the pill, after the label and outside the main button, so it stays its own control.
+
+The large style adds the keychain QR code (one `pubkyauth://` link for Pubky Ring and Bitkit) with
+Ring's logo in its centre, framed as in Passport (8px light padding, 8px corners), and at phone size
+or on a touch screen an "Open keychain app" link. Clicking the code copies the exact `pubkyauth://` link it encodes; the code fades while it is
 pressed, screen readers hear that it was copied, and only a failure shows a line under it. After a
-failed sign-in a fresh code appears by itself.
+failed sign-in a fresh code appears by itself. Under the code a switch **Older Pubky Ring? Classic QR** makes every request of the client (the code, and Passport's pop-up) the legacy
+cookie sign-in that Pubky Ring before 2.0 needs; a prepared code is replaced at once, and the choice
+is kept per device in your origin's storage (`pubky-passport-client/keychain-auth/v1`). It is off by
+default: Pubky Ring 2.0 and Bitkit approve grants, and Bitkit refuses the legacy kind.
 When the link can no longer be used and the element could not replace it (it expired while the page
 was hidden or Pubky Ring was opening it, or preparing it failed), the code turns into a blurred
 stand-in tagged "Click to reload", which starts a fresh Ring request without reloading the page; a
@@ -109,11 +127,14 @@ client.subscribe((view) => {
   if (view.signedIn) keep(view.signedIn); // { session, publicKey, profile, instance }
 });
 button.onclick = () => client.signIn(); // from the click: it opens Passport
+join.onclick = () => client.signIn({ entry: "join" }); // opens Passport on Join
 ```
 
 The options are the attributes' camel-case names (`instance`, `appName`, `clientId`,
 `capabilities`, `profile`, `messages`, `network`, `pkarrRelays`, `httpRelay`; `pkarrRelays` also
-takes a list). `signIn()` never rejects; it resolves
+takes a list). `signIn({ entry })` takes the same entries as the attribute. `view.classicQr` says whether the
+classic QR is on for this device, and `setClassicQr(on)` turns it on or off (a sign-in under way
+keeps its request). `signIn()` never rejects; it resolves
 `{ status: "signed-in", session, publicKey, profile, instance }`, `{ status: "failed", error }` or
 `{ status: "redirecting" }` when this tab is going to Passport. Called while a sign-in runs, it
 brings Passport forward; while a required profile is missing, it opens Passport's profile page.
@@ -125,7 +146,10 @@ ends the client.
 ## What your app receives and does
 
 - A real `@synonymdev/pubky` `Session` with the requested capabilities (checked by the package).
-  You own it: keep it, use it, and sign it out when you drop it.
+  You own it: keep it, use it, and sign it out when you drop it. It is grant-backed by default; with
+  the classic QR on it is a cookie Session, which authenticates the same way but cannot be listed or
+  revoked on its own, and has no delegated restore (a pop-up blocked in classic mode cannot continue
+  in the same tab; the QR code still works).
 - `publicKey` and `profile`, read once after the sign-in and validated by `pubky-app-specs`
   (`name`, and optionally `bio`, `image`, `links`, `status`). With `profile: "required"` it is always
   there; with `"optional"` it is `null` when the person has none or it could not be read. Treat
@@ -153,17 +177,19 @@ complete page; it is a developer demo, not an official app.
 function of those three. The keys are `label.*` (the button), `status.*` (the popover's line),
 `action.*`, `error.<code>`, `picker.*` (the settings) and `ring.*` (the large style):
 
-| Key                | Default                            | Where                                     |
-| ------------------ | ---------------------------------- | ----------------------------------------- |
-| `ring.divider`     | or log in with Pubky Ring          | Between the button and the QR code        |
-| `ring.preparing`   | Preparing QR code…                 | While the Ring request is prepared        |
-| `ring.qr-label`    | QR code to sign in with Pubky Ring | The code's accessible name                |
-| `ring.copy`        | Copy authentication link           | Accessible name of the code's copy action |
-| `ring.copied`      | Link copied                        | Announced after the code was copied       |
-| `ring.copy-failed` | Could not copy                     | Shown under the code when copying failed  |
-| `ring.expired`     | Click to reload                    | The tag on a code that can't be used      |
-| `ring.reload`      | Reload QR code                     | Accessible name of that code              |
-| `ring.open`        | Open in Pubky Ring                 | The link to Pubky Ring on a phone         |
+| Key                    | Default                                      | Where                                     |
+| ---------------------- | -------------------------------------------- | ----------------------------------------- |
+| `ring.divider`         | or scan with Pubky Ring or Bitkit            | Between the button and the QR code        |
+| `ring.divider.classic` | or scan with Pubky Ring                      | The same, with the classic QR on          |
+| `ring.preparing`       | Preparing QR code…                           | While the Ring request is prepared        |
+| `ring.qr-label`        | QR code to sign in with Pubky Ring or Bitkit | The code's accessible name                |
+| `ring.copy`            | Copy authentication link                     | Accessible name of the code's copy action |
+| `ring.copied`          | Link copied                                  | Announced after the code was copied       |
+| `ring.copy-failed`     | Could not copy                               | Shown under the code when copying failed  |
+| `ring.expired`         | Click to reload                              | The tag on a code that can't be used      |
+| `ring.reload`          | Reload QR code                               | Accessible name of that code              |
+| `ring.open`            | Open keychain app                            | The link to the keychain app on a phone   |
+| `ring.classic`         | Older Pubky Ring? Classic QR                 | The classic QR switch                     |
 
 The `MessageKey` type lists every key.
 
@@ -176,7 +202,7 @@ their text), `--passport-danger` (error text), `--passport-font`, `--passport-he
 button's minimum height) and `--passport-qr-size`. The documented parts are `::part(button)` (the
 main button, in every state), `::part(settings)` (the settings control, while no sign-in runs),
 `::part(cancel)` (the cancel control in the settings' place while a sign-in can be cancelled),
-`::part(tray)` (the popover) and `::part(qr)` (the QR code). `cancel` starts from the same styles
+`::part(tray)` (the popover), `::part(qr)` (the QR code) and `::part(icon)` (the button's mark). `cancel` starts from the same styles
 as `settings`; to give the pill one look in every state, style `button`, `settings` and `cancel`
 together. While Passport commits an approval or finishes, the pill is the `button` alone.
 Everything else inside the element is internal and may change.

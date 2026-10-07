@@ -1,12 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useId, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { toast } from "sonner";
 
 import {
   selectedInvite,
   type InviteDestinationErrorCode,
 } from "@/client/logic/local-account/InviteDestinationController";
-import type { HomegateVerificationMethod } from "@/client/logic/homegate/HomegateSignupController";
 import { releaseFinishedAccount } from "@/client/logic/local-account/unfinishedLocalAccount";
 import {
   invitesOnly,
@@ -21,33 +21,27 @@ import {
   type LocalAccountSetupPort,
 } from "@/client/ui/local-account/localAccountCreationFlow";
 import { UnreadableAccountSetup } from "@/client/ui/local-account/unreadableAccountSetup";
-import { BackButton } from "@/client/ui/shared/backButton";
 import { ConfirmDeletionDialog } from "@/client/ui/shared/confirmDeletionDialog";
-import { PubkyBrandIcon } from "@/client/ui/shared/brand/pubkyBrandIcon";
-import { ChoiceCard } from "@/client/ui/shared/choiceCard";
-import { ArrowRightIcon, CircleCheckIcon, KeyRoundIcon } from "@/client/ui/shared/icons";
-import { ACCOUNT_SETUP_STEPS, SetupProgressProvider } from "@/client/ui/shared/setupProgress";
+import { SetupProgressProvider } from "@/client/ui/shared/setupProgress";
 import { VerificationOptions } from "./verificationOptions";
 import {
   usePassportCollaborators,
   type RingProfileControllerPort,
 } from "@/client/ui/passportCollaborators";
-import { Button } from "@/client/ui/shared/primitives/button";
-import { Notice } from "@/client/ui/shared/notice";
-import { PassportNavigation } from "@/client/ui/shared/passportNavigation";
 import { useGoogleIdentityConfiguration } from "@/client/ui/googleIdentityConfiguration";
 import { useHomegateAvailability } from "@/client/ui/homegateAvailability";
 import { usePassportProvider } from "@/client/ui/passportProviderConfiguration";
 import { LightningVerification } from "./lightningVerification";
+import { formatSats } from "./formatSats";
+import { KeychainChoice } from "./keychainChoice";
 import { RingSignupStep } from "./ringSignupStep";
-import { SignupStep } from "./signupStep";
 import { InviteCodeStep } from "./inviteCodeStep";
 import { PhoneNumberStep, SmsCodeStep } from "./smsVerification";
 import { useHomegateSignup } from "./useHomegateSignup";
 
 export function CreateAccountFlow({ ...props }: Parameters<typeof AccountCreation>[0]) {
   return (
-    <SetupProgressProvider steps={ACCOUNT_SETUP_STEPS} current={0}>
+    <SetupProgressProvider current={0}>
       <AccountCreation {...props} />
     </SetupProgressProvider>
   );
@@ -122,6 +116,23 @@ function AccountCreation({
     usesHomegateInvite && signup.view.step === "complete" && !signup.view.restored
       ? signup.view.method
       : undefined;
+  // The amount of the invoice shown, for the payment's confirmation; the probe's price otherwise.
+  const invoiceAmount = useRef<number>(undefined);
+  const shownInvoice = signup.view.step === "lightning" ? signup.view.invoice : null;
+  useEffect(() => {
+    if (shownInvoice) invoiceAmount.current = shownInvoice.amountSat;
+  }, [shownInvoice]);
+  // The verification that just succeeded says so once, as pubky.app's toasts do.
+  const announcedVerification = useRef(false);
+  useEffect(() => {
+    if (!verifiedBy || announcedVerification.current) return;
+    announcedVerification.current = true;
+    if (verifiedBy === "sms") toast.success("Verification Code Valid");
+    else {
+      const amount = invoiceAmount.current ?? methods.lightning.amountSat;
+      toast.success(amount ? `Received payment of ₿ ${formatSats(amount)}` : "Payment received");
+    }
+  }, [verifiedBy, methods.lightning.amountSat]);
   const inviteUsed = Boolean(
     invite && destinations.usedInvite && sameInvite(invite, destinations.usedInvite),
   );
@@ -176,10 +187,7 @@ function AccountCreation({
     // A damaged record is a setup that got past verification, so it stopped at the account step.
     // Blocked storage says nothing about any setup, so nothing is shown as done.
     return (
-      <SetupProgressProvider
-        steps={ACCOUNT_SETUP_STEPS}
-        current={destinations.setupRemovable ? 1 : 0}
-      >
+      <SetupProgressProvider current={destinations.setupRemovable ? 1 : 0}>
         <UnreadableAccountSetup removable={destinations.setupRemovable} onBack={onBack} />
       </SetupProgressProvider>
     );
@@ -208,7 +216,7 @@ function AccountCreation({
 
   if (invite && destinations.destination === "passport") {
     return (
-      <SetupProgressProvider steps={ACCOUNT_SETUP_STEPS} current={1}>
+      <SetupProgressProvider current={1}>
         <LocalAccountCreationFlow
           invite={invite}
           inviteSource={usesHomegateInvite ? "homegate" : "manual"}
@@ -231,7 +239,7 @@ function AccountCreation({
   }
   if (invite && destinations.destination === "ring") {
     return (
-      <SetupProgressProvider steps={ACCOUNT_SETUP_STEPS} current={1}>
+      <SetupProgressProvider current={1}>
         <RingSignupStep
           invite={invite}
           inviteUsed={inviteUsed}
@@ -245,8 +253,8 @@ function AccountCreation({
   if (invite) {
     const discardable = usesHomegateInvite && !destinations.registrationStarted;
     return (
-      <SetupProgressProvider steps={ACCOUNT_SETUP_STEPS} current={1}>
-        <InviteDestinationChoice
+      <SetupProgressProvider current={1}>
+        <KeychainChoice
           checkingInvite={destinations.checkingInvite}
           onPassport={() =>
             destinationController.choosePassport(invite, recheckInvite).then(releaseIfUsed)
@@ -263,7 +271,6 @@ function AccountCreation({
           }
           onLeave={exit}
           inviteSaved={usesHomegateInvite}
-          verifiedBy={verifiedBy}
           restored={
             destinations.resumedInvite !== null
               ? "setup"
@@ -369,175 +376,10 @@ function destinationErrorMessage(code: InviteDestinationErrorCode): string {
       // Both mean the saved setup could not be written; the person never changed an invite.
       return "Passport couldn’t save your progress in this browser. Nothing was lost. Check that site data is allowed for this site, then try again.";
     case "invite_used":
-      return "Pubky Ring has already used this invite. Continue with Pubky Ring to finish that account, or use a different invite.";
+      return "Your keychain app has already used this invite. Continue with keychain to finish that account, or use a different invite.";
     case "invite_redeemed":
       return "This invite has already been used. Use a different invite to continue.";
     case "invite_not_found":
       return "This homeserver does not recognize this invite. Check the code and homeserver, or use a different invite.";
   }
-}
-
-function InviteDestinationChoice({
-  onPassport,
-  onRing,
-  onBack,
-  onLeave,
-  onDiscardInvite,
-  inviteSaved,
-  verifiedBy,
-  restored,
-  registrationStarted,
-  checkingInvite,
-  error,
-}: {
-  onPassport: () => void | Promise<void>;
-  onRing: () => void;
-  /** Returns to the invite entry, while the entered invite can still be changed. */
-  onBack?: (() => void) | undefined;
-  /** Leaves account creation; an unsubmitted key is dropped. */
-  onLeave: () => void;
-  onDiscardInvite?: (() => void) | undefined;
-  /** The invite came from SMS or Lightning verification and is kept for a later visit. */
-  inviteSaved: boolean;
-  /** The verification that has just succeeded in this visit, to confirm it before the choice. */
-  verifiedBy?: HomegateVerificationMethod | undefined;
-  /**
-   * What an earlier visit left in this browser: a key whose setup was started (`setup`), or a
-   * verification that issued the invite (`verification`).
-   */
-  restored?: "setup" | "verification" | undefined;
-  registrationStarted: boolean;
-  checkingInvite: boolean;
-  error?: string | undefined;
-}) {
-  // Both choices wait on the same invite check; only the one pressed shows it.
-  const [choice, setChoice] = useState<"ring" | "passport" | null>(null);
-  if (choice && !checkingInvite) setChoice(null);
-  // The chip also describes the recommended button, so moving between buttons still hears it.
-  const recommendationId = useId();
-  const welcomeBack = restored ? (
-    <Notice tone="info">
-      {restored === "setup"
-        ? "Welcome back. The setup you started is saved in this browser, so you can pick up where you left off."
-        : "Welcome back. Your verification is saved in this browser, so you don’t need to verify again."}
-    </Notice>
-  ) : null;
-  const errorNotice = error ? (
-    <Notice focusOnMount tone="error">
-      {error}
-    </Notice>
-  ) : null;
-  const back = <BackButton onClick={onBack ?? onLeave} />;
-
-  // Signup was submitted with the key saved in this browser, which may already own the account:
-  // only that key can finish it, so there is nothing left to choose.
-  if (registrationStarted)
-    return (
-      <SignupStep
-        accent="account."
-        description="You started creating an account with a key saved in this browser. Continue to finish it with that key."
-        title="Finish your"
-      >
-        {welcomeBack}
-        {errorNotice}
-        <PassportNavigation
-          back={back}
-          confirm={
-            <Button
-              className="w-full"
-              disabled={checkingInvite}
-              loading={choice === "passport"}
-              onClick={() => {
-                setChoice("passport");
-                void onPassport();
-              }}
-              size="lg"
-            >
-              <ArrowRightIcon />
-              Continue
-            </Button>
-          }
-        />
-      </SignupStep>
-    );
-
-  return (
-    // The step column like every setup step, so the stepper, heading and cards share one edge;
-    // each card lays itself out for that width.
-    <SignupStep
-      accent="key live?"
-      description="Your key proves this account is yours. Keep it somewhere only you control."
-      title="Where should your"
-    >
-      {verifiedBy && !restored ? (
-        <p className="flex items-center gap-2 text-sm leading-5 text-foreground" role="status">
-          <CircleCheckIcon className="text-brand" size={16} />
-          {verifiedBy === "lightning"
-            ? "Payment received. You’re verified."
-            : "Phone number verified."}
-        </p>
-      ) : null}
-      {welcomeBack}
-      <div className="grid gap-6">
-        <ChoiceCard
-          description="Keep your key on your phone and approve sign-ins there. Needs the Pubky Ring app."
-          illustration="/illustrations/keychain.png"
-          recommendationId={recommendationId}
-          title="Pubky Ring app"
-        >
-          <Button
-            aria-describedby={recommendationId}
-            className="w-full"
-            onClick={() => {
-              setChoice("ring");
-              onRing();
-            }}
-            disabled={checkingInvite}
-            loading={choice === "ring"}
-            size="lg"
-          >
-            <PubkyBrandIcon /> {choice === "ring" ? "Checking invite…" : "Keep key in Pubky Ring"}
-          </Button>
-        </ChoiceCard>
-        <ChoiceCard
-          description="Passport keeps your key in this browser, and you download a recovery file next."
-          // Not a key like Ring's keychain: the recovery file that comes with this choice.
-          illustration="/illustrations/backup-shield.png"
-          title="This browser"
-        >
-          <Button
-            className="w-full"
-            onClick={() => {
-              setChoice("passport");
-              void onPassport();
-            }}
-            disabled={checkingInvite}
-            loading={choice === "passport"}
-            size="lg"
-            variant="secondary"
-          >
-            <KeyRoundIcon />{" "}
-            {choice === "passport" ? "Checking invite…" : "Keep key in this browser"}
-          </Button>
-        </ChoiceCard>
-      </div>
-      {errorNotice}
-      {inviteSaved && !onBack && !restored ? (
-        <p className="text-sm leading-5 text-muted-foreground">
-          Your verification stays saved in this browser.
-        </p>
-      ) : null}
-      <PassportNavigation
-        // Back, not Cancel: leaving account creation does not answer the app's request.
-        back={back}
-        tertiary={
-          onDiscardInvite ? (
-            <Button disabled={checkingInvite} onClick={onDiscardInvite} variant="linkDestructive">
-              Discard verification
-            </Button>
-          ) : undefined
-        }
-      />
-    </SignupStep>
-  );
 }

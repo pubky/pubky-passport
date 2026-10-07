@@ -19,6 +19,7 @@ button,input{font:inherit}
 .main[aria-busy=true] [data-slot=mark]{animation:p-pulse 1.2s ease-in-out infinite}
 @keyframes p-pulse{50%{opacity:.35}}
 @media (prefers-reduced-motion:reduce){.main[aria-busy=true] [data-slot=mark]{animation:none}.pill{transition:none}}
+::slotted([slot=help]){flex:none;display:inline-flex;align-items:center;padding:0 10px 0 0}
 .settings{flex:none;display:inline-flex;align-items:center;justify-content:center;width:44px;padding:0 4px 0 0;border:0;border-left:1px solid color-mix(in srgb,var(--p-brand) 35%,transparent);background:transparent;color:inherit;cursor:pointer}
 .settings[aria-expanded=true]{background:var(--p-fill-strong)}
 .main:focus-visible,.settings:focus-visible{outline:2px solid var(--p-brand);outline-offset:-5px}
@@ -59,6 +60,13 @@ button,input{font:inherit}
 .qr .press:focus-visible{outline:2px solid var(--p-brand);outline-offset:-2px}
 .qr .tag{position:absolute;top:50%;right:0;padding:8px 16px 8px 28px;background:var(--p-ink);color:#fff;font-size:14px;font-weight:700;white-space:nowrap;transform:translateY(-50%);clip-path:polygon(0 0,100% 0,100% 100%,16px 100%);pointer-events:none}
 .caption{align-self:center;text-align:center;font-size:15px;color:#89898f}
+.classic{display:flex;align-items:center;gap:8px;width:fit-content;min-height:24px;font-size:12px;line-height:16px;color:#89898f;cursor:pointer}
+@media (pointer:coarse){.classic{min-height:44px}}
+.classic input{appearance:none;position:relative;flex:none;width:28px;height:16px;margin:0;border:1px solid var(--p-line);border-radius:999px;background:var(--p-second);cursor:pointer}
+.classic input::after{content:"";position:absolute;top:1px;left:1px;width:12px;height:12px;border-radius:50%;background:var(--p-on-second);transition:transform .15s}
+.classic input:checked{border-color:var(--p-brand)}
+.classic input:checked::after{transform:translateX(12px);background:var(--p-brand)}
+.classic input:focus-visible{outline:2px solid var(--p-brand);outline-offset:2px}
 .sr{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
 `;
 const HIDDEN = ":host{display:none!important}";

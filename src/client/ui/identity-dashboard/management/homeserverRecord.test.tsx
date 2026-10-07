@@ -12,9 +12,9 @@ import { PassportProviderConfiguration } from "@/client/ui/passportProviderConfi
 import { makeInstanceConfig } from "@test-utils/instanceConfig";
 import { HomeserverRecord } from "./homeserverRecord";
 
-const MOCKS = vi.hoisted(() => ({ toastInfo: vi.fn() }));
+const MOCKS = vi.hoisted(() => ({ toastSuccess: vi.fn() }));
 
-vi.mock("sonner", () => ({ toast: { info: MOCKS.toastInfo } }));
+vi.mock("sonner", () => ({ toast: { success: MOCKS.toastSuccess } }));
 
 const PUBLIC_KEY = "x8jpihgjy51fdnaingcp8rum1omfzd6p8bhm7usune41grd97dho5cwy4mra";
 const PROVIDER_HOMESERVER = "ufibwbmed6jeq9k4p583go95wofakh9fwpp4k734trq79pd9u1uy";
@@ -46,7 +46,7 @@ describe("HomeserverRecord", () => {
     const copy = await screen.findByRole("button", { name: "Copy Homeserver" });
     fireEvent.click(copy);
     await waitFor(() => expect(writeText).toHaveBeenCalledWith(OTHER_HOMESERVER));
-    expect(MOCKS.toastInfo).toHaveBeenCalledWith("Homeserver copied");
+    expect(MOCKS.toastSuccess).toHaveBeenCalledWith("Homeserver copied");
     expect(screen.queryByRole("button", { name: "Republish homeserver" })).not.toBeInTheDocument();
   });
 

@@ -1,6 +1,7 @@
 import "client-only";
 
 import type { GoogleAccountProfile } from "@/libs/googleAccountProfile";
+import type { AuthorizationEntryScreen } from "@/client/logic/authorization/entry/authorizationEntry";
 import type { SignupEntryMethod } from "@/client/logic/homegate/verificationMethods";
 import type { LocalAccountDraft } from "@/client/logic/local-account/LocalAccountDraftRepository";
 import type {
@@ -54,15 +55,41 @@ export type ManagementNavigation =
 export type ProfileOrigin = "addition" | "overview" | "manage" | "request" | "app" | "edit";
 
 /**
+ * The start page's screens: Join (a new account: keys of your own, or Google), Sign in (an
+ * identity you already have: Pubky Ring or Bitkit, a recovery file; during a request also Join's
+ * two ways) and the Google sign-in on its own, for an app whose own "Continue with Google" opened
+ * Passport.
+ */
+export type StartScreen = AuthorizationEntryScreen;
+
+/**
  * With an app's request, `choose` lists the identities to sign in with and `home` reviews the
- * request for the active one; with nothing saved, the request starts on `add`, the start page.
- * Without a request, `home` is the active identity's overview and `switch` changes it.
+ * request for the active one; with nothing saved, the request starts on `add`, the start page,
+ * on `screen` (by default Sign in with a request, else Join). Without a request, `home` is the
+ * active identity's overview and `switch` changes it.
  */
 export type SignerNavigation =
   | { view: "home" | "switch" | "manual" | "choose" }
-  | { view: "add" | "import"; back: AdditionOrigin }
-  /** `method` is the way to verify picked on the start page; without one the flow asks. */
-  | { view: "create-account"; back: AdditionOrigin; method?: SignupEntryMethod | undefined }
+  | {
+      view: "add";
+      back: AdditionOrigin;
+      screen?: StartScreen | undefined;
+      /** The start screen this one was opened from (Join ↔ Sign in), which Back returns to. */
+      previous?: StartScreen | undefined;
+    }
+  /** `previous` keeps the start screen's own Back (Join ↔ Sign in) for the way back there. */
+  | { view: "import"; back: AdditionOrigin; previous?: StartScreen | undefined }
+  /**
+   * `method` is the way to verify picked on the start page; without one the flow asks. `from` is
+   * the start screen it was opened from (Join, or a request's Sign in), which Back returns to.
+   */
+  | {
+      view: "create-account";
+      back: AdditionOrigin;
+      method?: SignupEntryMethod | undefined;
+      from?: StartScreen | undefined;
+      previous?: StartScreen | undefined;
+    }
   | { view: "finish-add"; publicKeyZ32: string }
   /** The profile an app waited for is published: back to the app (`told` when it heard of it). */
   | { view: "profile-done"; told: boolean }
@@ -73,7 +100,9 @@ export type SignerNavigation =
   | { view: "profile"; publicKeyZ32: string; from: ProfileOrigin }
   | {
       view: "external";
-      origin: { view: "home" | "choose" } | { view: "add"; back: AdditionOrigin };
+      origin:
+        | { view: "home" | "choose" }
+        | { view: "add"; back: AdditionOrigin; screen?: StartScreen | undefined };
     }
   | ManagementNavigation;
 
@@ -112,22 +141,27 @@ export function findIdentity(
 /**
  * The first screen. A request opens on the list of identities that can sign it, or straight on the
  * active one's review when it is the only one or the request was entered from its overview
- * (`authorizingPublicKeyZ32`); with none that can sign, it opens on the start page. Only a
- * submitted invite forces account setup to resume, because its key may already own an account;
- * unsubmitted setups wait until the person opens account creation again. A submitted draft whose
- * key is already saved finished registering. Profile setup is never forced here: it follows
- * account creation once, and is offered afterwards from the overview and Manage.
+ * (`authorizingPublicKeyZ32`); with none that can sign, it opens on the start page's Sign in. An
+ * app's "Join now" or "Continue with Google" (`entry`) opens on Join or the Google sign-in even
+ * where identities are saved, with Back to their list. Without a request, nothing saved opens on
+ * Join. Only a submitted invite forces account setup to resume, because its key may already own an
+ * account; unsubmitted setups wait until the person opens account creation again. A submitted
+ * draft whose key is already saved finished registering. Profile setup is never forced here: it
+ * follows account creation once, and is offered afterwards from the overview and Manage.
  */
 export function initialSignerNavigation(
   { catalog, requestPending = false }: SignerNavigationContext,
   draft: LocalAccountDraft | null,
   authorizingPublicKeyZ32?: string | undefined,
+  entry?: StartScreen | undefined,
 ): SignerNavigation {
   // A request counts only the identities that can sign it; every other screen counts them all.
   const usable = requestPending ? signingIdentities(catalog) : catalog.identities;
   const saved = usable.length > 0;
   if (draft?.registrationStarted && !findIdentity(catalog, draft.publicIdentity.publicKeyZ32))
     return { view: "create-account", back: saved ? (requestPending ? "choose" : "home") : null };
+  if (requestPending && (entry === "join" || entry === "google"))
+    return { view: "add", back: saved ? "choose" : null, screen: entry };
   if (requestPending && saved) {
     // The only identity, or the one Authorize was pressed on, goes straight to the request's
     // review (Switch still leads to the list); otherwise the person picks one first.
@@ -137,7 +171,7 @@ export function initialSignerNavigation(
       : { view: "choose" };
   }
   // Chosen explicitly, so first-identity setup stays open after its identity is saved.
-  if (!saved) return { view: "add", back: null };
+  if (!saved) return { view: "add", back: null, screen: requestPending ? "sign-in" : "join" };
   return { view: "home" };
 }
 

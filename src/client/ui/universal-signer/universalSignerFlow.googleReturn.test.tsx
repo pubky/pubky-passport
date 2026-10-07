@@ -124,7 +124,7 @@ describe("the page Google returned to for a request's sign-in", () => {
       expect(state.catalog.activePublicKeyZ32).toBe(GOOGLE.publicIdentity.publicKeyZ32);
       expect(screen.getByRole("main", { name: "Returning to the sign-in" })).toBeInTheDocument();
       expect(screen.queryByRole("button", { name: "Authorize" })).not.toBeInTheDocument();
-      expect(screen.queryByRole("region", { name: "Create account" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("region", { name: "Sovereign & Secure" })).not.toBeInTheDocument();
       expect(screen.queryByRole("list", { name: /identity/u })).not.toBeInTheDocument();
       expect(approve).not.toHaveBeenCalled();
       expect(cancel).not.toHaveBeenCalled();
@@ -156,7 +156,7 @@ describe("the page Google returned to for a request's sign-in", () => {
     expect(returnToAuthorization).toHaveBeenCalledOnce();
     // Turning back names no identity to review, and the start page is not shown on this page.
     expect(takeAuthorizeFromIdentity()).toBeUndefined();
-    expect(screen.queryByRole("region", { name: "Create account" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Sovereign & Secure" })).not.toBeInTheDocument();
     expect(cancel).not.toHaveBeenCalled();
   });
 
@@ -201,9 +201,10 @@ describe("a request's start page, before Google", () => {
       }),
     );
 
-    // The start page offers every way in; nothing leaves for Google until the person asks.
+    // The start page offers every way in; nothing leaves for Google until the person asks. A
+    // cookie request goes to Pubky Ring alone.
     const google = await screen.findByRole("button", { name: "Continue with Google" });
-    expect(screen.getByRole("button", { name: "Continue with Pubky Ring" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Use Pubky Ring" })).toBeInTheDocument();
     expect(establishIdentity).not.toHaveBeenCalled();
     await userEvent.setup().click(google);
     expect(establishIdentity).toHaveBeenCalledOnce();
@@ -215,6 +216,35 @@ describe("a request's start page, before Google", () => {
     // The pop-up is the default: the page waits beside it and does not leave for Google.
     expect(screen.getByRole("button", { name: "Show Google’s window" })).toBeInTheDocument();
     expect(screen.queryByRole("main", { name: "Continuing with Google" })).not.toBeInTheDocument();
+    expect(returnToAuthorization).not.toHaveBeenCalled();
+  });
+
+  it("opens on the Google sign-in alone for an app's own Continue with Google, and waits for the press", async () => {
+    const establishIdentity = vi.fn(() => new Promise<never>(() => undefined));
+    createGoogleIdentityController.mockImplementation(() =>
+      mockGoogleIdentityController({ establishIdentity }),
+    );
+    render(
+      withPassportTestProviders(<UniversalSignerFlow />, {
+        createAuthorizationController: () =>
+          fakePassportAuthorizationController(
+            { current: { status: "review", review: REVIEW, entry: "google" } },
+            { approve, cancel },
+          ),
+        createGoogleIdentityController,
+        createLocalIdentityController: () => fakeLocalIdentityController(state),
+      }),
+    );
+
+    expect(await screen.findByRole("heading", { level: 1 })).toHaveAccessibleName(
+      "Continue with Google.",
+    );
+    // Google's window needs a press in this one: nothing starts by itself.
+    expect(screen.queryByRole("region", { name: "Sovereign & Secure" })).not.toBeInTheDocument();
+    expect(establishIdentity).not.toHaveBeenCalled();
+    await userEvent.setup().click(screen.getByRole("button", { name: "Continue with Google" }));
+    expect(establishIdentity).toHaveBeenCalledOnce();
+    expect(screen.getByRole("button", { name: "Show Google’s window" })).toBeInTheDocument();
     expect(returnToAuthorization).not.toHaveBeenCalled();
   });
 });

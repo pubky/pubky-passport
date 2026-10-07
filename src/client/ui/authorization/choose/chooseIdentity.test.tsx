@@ -71,7 +71,7 @@ describe("ChooseIdentity", () => {
     // Below the list, exactly two other ways in, neither one recommended over the list.
     const [another, ring] = [
       screen.getByRole("button", { name: "Use another identity" }),
-      screen.getByRole("button", { name: "Continue with Pubky Ring" }),
+      screen.getByRole("button", { name: "Continue with keychain" }),
     ];
     for (const option of [another, ring]) expect(option).toHaveClass("bg-secondary");
     expect(another.compareDocumentPosition(ring)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
@@ -80,7 +80,7 @@ describe("ChooseIdentity", () => {
         .getAllByRole("button")
         .filter((button) => !list.contains(button))
         .map((button) => button.textContent?.trim()),
-    ).toEqual(["Cancel", "Use another identity", "Continue with Pubky Ring"]);
+    ).toEqual(["Cancel", "Use another identity", "Continue with keychain"]);
     expect(screen.queryByRole("button", { name: "Create account" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Google|recovery file/u })).not.toBeInTheDocument();
     // The count shows how far the list scrolls in a short window.

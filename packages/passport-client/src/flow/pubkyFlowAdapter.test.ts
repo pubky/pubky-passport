@@ -8,16 +8,19 @@ type SdkModule = typeof import("@synonymdev/pubky");
 const sdk = vi.hoisted(() => {
   const kinds: { consumed: boolean; frees: number; free(): void }[] = [];
   const start = vi.fn();
+  const cookie = vi.fn();
   const delegated = vi.fn();
   const facade = {
     publicStorage: { get: async () => new Response(null, { status: 404 }), free() {} },
     startGrantAuthFlow: start,
+    startCookieAuthFlow: cookie,
     resumeDelegatedGrantAuthFlow: delegated,
   };
   const testnetFacade = { ...facade };
   return {
     kinds,
     start,
+    cookie,
     delegated,
     facade,
     testnetFacade,
@@ -80,6 +83,7 @@ const adapter = () =>
 afterEach(() => {
   for (const kind of sdk.kinds.splice(0)) expect(kind.frees).toBe(kind.consumed ? 0 : 1);
   sdk.start.mockReset();
+  sdk.cookie.mockReset();
   sdk.delegated.mockReset();
 });
 function consumingStart(outcome: () => unknown = () => flow) {
@@ -375,4 +379,36 @@ test("a metadata constructor mismatch keeps the duplicate diagnostic without raw
   expect(h.key.free).not.toHaveBeenCalled();
   expect(h.info.free).not.toHaveBeenCalled();
   expect(h.session.free).not.toHaveBeenCalled();
+});
+
+test("with the classic QR on, the request is the legacy cookie sign-in older Pubky Ring needs", async () => {
+  let auth: "grant" | "cookie" = "cookie";
+  const legacy = Object.freeze({ authorizationUrl: "pubkyauth://signin?secret=legacy" });
+  sdk.cookie.mockImplementation((_caps, kind) => {
+    kind.consumed = true;
+    return legacy;
+  });
+  consumingStart();
+  const classic = createPubkyFlowAdapter({
+    ...options,
+    httpRelay: "https://relay.example/inbox",
+    keychainAuth: () => auth,
+  });
+  const callbacks = { xSuccess: "https://app.example/#ok" };
+  expect(await classic.start(callbacks)).toEqual({ ok: true, value: legacy });
+  expect(sdk.cookie).toHaveBeenCalledWith(
+    "/pub/app/:rw",
+    sdk.kinds[0],
+    "https://relay.example/inbox",
+    {
+      xSuccess: "https://app.example/#ok",
+      xSource: "Example",
+    },
+  );
+  expect(sdk.start).not.toHaveBeenCalled();
+  // Read at every start: switching back makes the next request a grant again.
+  auth = "grant";
+  expect(await classic.start()).toEqual({ ok: true, value: flow });
+  expect(sdk.start).toHaveBeenCalledOnce();
+  expect(sdk.cookie).toHaveBeenCalledOnce();
 });

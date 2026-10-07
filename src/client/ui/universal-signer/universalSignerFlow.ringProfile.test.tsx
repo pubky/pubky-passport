@@ -39,6 +39,14 @@ afterEach(() => {
   localStorage.clear();
 });
 
+/** Replaces the random name a new profile starts with. */
+async function renameTo(user: ReturnType<typeof userEvent.setup>, name: string) {
+  const field = await screen.findByLabelText("Name");
+  await user.clear(field);
+  await user.type(field, name);
+  return field;
+}
+
 it("keeps the Ring grant when saving its identity opens the profile editor", async () => {
   const repository = new LocalStorageIdentityRepository();
   expectResultOk(repository.saveExternal(KEY, true));
@@ -74,12 +82,12 @@ it("keeps the Ring grant when saving its identity opens the profile editor", asy
   const user = userEvent.setup();
   // Setup is offered from the overview, never forced when the page opens.
   await user.click(await screen.findByRole("button", { name: "Set up profile" }));
-  await user.type(await screen.findByLabelText("Name"), "Ring Satoshi");
+  await renameTo(user, "Ring Satoshi");
   // The grant goes through the instance's configured relay.
   expect(createRingProfileController).toHaveBeenCalledWith(RELAY);
   expect(ring.isConnected(KEY)).toBe(true);
   expect(connection.dispose).not.toHaveBeenCalled();
-  await user.click(screen.getByRole("button", { name: "Save profile" }));
+  await user.click(screen.getByRole("button", { name: "Continue" }));
   await waitFor(() => expect(connection.publish).toHaveBeenCalledOnce());
   await waitFor(() =>
     expect(expectResultOk(repository.list()).identities[0]?.profileSetupRequired).toBeUndefined(),
@@ -131,17 +139,17 @@ it("returns to the Ring connection when the profile grant has been revoked, keep
 
   const user = userEvent.setup();
   await user.click(await screen.findByRole("button", { name: "Set up profile" }));
-  await user.type(await screen.findByLabelText("Name"), "Ring Satoshi");
-  await user.click(screen.getByRole("button", { name: "Save profile" }));
+  await renameTo(user, "Ring Satoshi");
+  await user.click(screen.getByRole("button", { name: "Continue" }));
   expect(await screen.findByRole("alert")).toHaveTextContent(
-    "Your connection to Pubky Ring ended before your changes were saved.",
+    "Your connection to your keychain ended before your changes were saved.",
   );
   expect(revoked.dispose).toHaveBeenCalledOnce();
   // Saving cannot work until Ring is connected again, so reconnecting takes its place.
-  expect(screen.queryByRole("button", { name: "Save profile" })).not.toBeInTheDocument();
-  await user.click(screen.getByRole("button", { name: "Reconnect Pubky Ring" }));
+  expect(screen.queryByRole("button", { name: "Continue" })).not.toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Reconnect your keychain" }));
   expect(
-    await screen.findByRole("img", { name: "Pubky Ring profile connection QR code" }),
+    await screen.findByRole("img", { name: "Keychain connection QR code" }),
   ).toBeInTheDocument();
   expect(start).toHaveBeenCalledTimes(2);
   expect(expectResultOk(repository.list()).identities[0]?.profileSetupRequired).toBe(true);
@@ -151,11 +159,11 @@ it("returns to the Ring connection when the profile grant has been revoked, keep
   expect(await screen.findByLabelText("Name")).toHaveValue("Ring Satoshi");
   expect(
     screen.getByText(
-      "Pubky Ring is connected again. Your changes are still here. Save to publish them.",
+      "Your keychain is connected again. Your changes are still here. Save to publish them.",
     ),
   ).toBeInTheDocument();
   expect(renewed.publish).not.toHaveBeenCalled();
-  await user.click(screen.getByRole("button", { name: "Save profile" }));
+  await user.click(screen.getByRole("button", { name: "Continue" }));
   await waitFor(() => expect(renewed.publish).toHaveBeenCalledOnce());
 });
 
@@ -206,9 +214,9 @@ it("asks before leaving the reconnect with kept edits, and drops them once disca
 
   const user = userEvent.setup();
   await user.click(await screen.findByRole("button", { name: "Set up profile" }));
-  await user.type(await screen.findByLabelText("Name"), "Ring Satoshi");
-  await user.click(screen.getByRole("button", { name: "Save profile" }));
-  await user.click(await screen.findByRole("button", { name: "Reconnect Pubky Ring" }));
+  await renameTo(user, "Ring Satoshi");
+  await user.click(screen.getByRole("button", { name: "Continue" }));
+  await user.click(await screen.findByRole("button", { name: "Reconnect your keychain" }));
   // The connection says the edits wait for it, and Back asks before throwing them away.
   expect(
     await screen.findByText("Your unsaved profile changes are kept until you leave."),
@@ -216,16 +224,19 @@ it("asks before leaving the reconnect with kept edits, and drops them once disca
   await user.click(screen.getByRole("button", { name: "Back" }));
   expect(screen.getByRole("dialog", { name: "Discard your changes?" })).toBeInTheDocument();
   await user.click(screen.getByRole("button", { name: "Keep editing" }));
-  expect(screen.getByRole("heading", { name: "Connect Pubky Ring." })).toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: "Connect your keychain." })).toBeInTheDocument();
 
   await user.click(screen.getByRole("button", { name: "Back" }));
   await user.click(screen.getByRole("button", { name: "Discard changes" }));
   expect(await screen.findByRole("button", { name: "Set up profile" })).toBeInTheDocument();
 
-  // Opened again, the editor shows what is published, not the discarded edits.
+  // Opened again, the editor shows what is published (nothing yet: a random name to start
+  // with), not the discarded edits.
   await user.click(screen.getByRole("button", { name: "Set up profile" }));
   expect(screen.queryByText(/Your unsaved profile changes/u)).not.toBeInTheDocument();
-  expect(await screen.findByLabelText("Name", {}, { timeout: 3_000 })).toHaveValue("");
+  const name = await screen.findByLabelText("Name", {}, { timeout: 3_000 });
+  expect(name).not.toHaveValue("Ring Satoshi");
+  expect(name).not.toHaveValue("");
   expect(screen.queryByText(/Your changes are still here/u)).not.toBeInTheDocument();
   expect(renewed.publish).not.toHaveBeenCalled();
 });
@@ -271,9 +282,7 @@ it("opens an app request on the start page when only a Ring identity is saved, t
         ),
     }),
   );
-  expect(
-    await screen.findByRole("heading", { name: "Signing in to Original app" }),
-  ).toBeInTheDocument();
+  expect(await screen.findByRole("heading", { name: "Let’s join Pubky." })).toBeInTheDocument();
   expect(screen.getAllByRole("complementary", { name: "Signing in to original.app" })).toHaveLength(
     1,
   );
@@ -282,10 +291,10 @@ it("opens an app request on the start page when only a Ring identity is saved, t
   // the request opens as it does with nothing saved. Passport's own profile request stays out.
   expect(screen.queryByText("Key in Pubky Ring")).not.toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "Authorize" })).not.toBeInTheDocument();
-  expect(screen.getByRole("region", { name: "Create account" })).toBeInTheDocument();
+  expect(screen.getByRole("region", { name: "Sovereign & Secure" })).toBeInTheDocument();
   expect(ring.start).not.toHaveBeenCalled();
 
-  await user.click(screen.getByRole("button", { name: "Continue with Pubky Ring" }));
+  await user.click(screen.getByRole("button", { name: "Use Pubky Ring" }));
   expect(screen.getByRole("heading", { name: "Sign in with Pubky Ring." })).toBeInTheDocument();
   // Ring's hand-off names the app as the review does: its label with the website beside it.
   expect(screen.getByText(/approve the sign-in/u)).toHaveTextContent(
@@ -326,22 +335,37 @@ it("adds an existing Ring identity from the home page without an invite or a pro
     }),
   );
 
-  expect(await screen.findByRole("heading", { name: "Get your pubky." })).toBeInTheDocument();
-  expect(screen.queryByRole("button", { name: "Continue with Pubky Ring" })).toBeNull();
-  const card = screen.getByRole("region", { name: "Pubky Ring" });
+  // An existing identity is Sign in's, which Join links to from the header.
+  expect(await screen.findByRole("heading", { name: "Let’s join Pubky." })).toBeInTheDocument();
+  await userEvent.setup().click(screen.getByRole("button", { name: "Sign in" }));
+  const card = screen.getByRole("region", { name: "Scan QR with keychain." });
   // A computer: the connection runs inside the card from the start, with nothing to press or
   // cancel; the start page stays, with the code and no waiting line under it.
-  expect(within(card).queryByRole("button", { name: "Sign in with Pubky Ring" })).toBeNull();
   expect(
-    await within(card).findByRole("img", { name: "Pubky Ring profile connection QR code" }),
+    within(card).queryByRole("button", { name: "Continue with Pubky Ring or Bitkit" }),
+  ).toBeNull();
+  expect(
+    await within(card).findByRole("img", { name: "Keychain connection QR code" }),
   ).toBeInTheDocument();
-  expect(within(card).getByText(/approve to add your pubky to Passport/u)).toBeInTheDocument();
+  // The card is the connection's own, named by its heading, with its lead and steps, and the
+  // classic switch under the code.
+  expect(
+    within(card).getByRole("heading", { level: 2, name: "Scan QR with keychain." }),
+  ).toBeInTheDocument();
+  expect(
+    within(card).getByText("Use Pubky Ring or Bitkit and follow the instructions below."),
+  ).toBeInTheDocument();
+  expect(within(card).getByRole("list")).toHaveTextContent("Authorize in the app");
+  expect(
+    within(card).getByRole("switch", { name: "Older Pubky Ring? Classic QR" }),
+  ).not.toBeChecked();
+  expect(screen.getAllByRole("region")).toEqual([card]);
   expect(within(card).queryByText(/Waiting for/u)).toBeNull();
   expect(within(card).queryByRole("button", { name: "Cancel" })).toBeNull();
   // Pressing the code copies its link, for Pubky Ring on this device.
   expect(within(card).getByRole("button", { name: "Copy authentication link" })).toBeEnabled();
-  expect(screen.getByRole("heading", { name: "Get your pubky." })).toBeInTheDocument();
-  expect(screen.queryByRole("heading", { name: "Connect Pubky Ring." })).toBeNull();
+  expect(screen.getByRole("heading", { name: "Sign in to Pubky" })).toBeInTheDocument();
+  expect(screen.queryByRole("heading", { name: "Connect your keychain." })).toBeNull();
   expect(
     await screen.findByRole("heading", { name: "Your pubky." }, { timeout: 3_000 }),
   ).toBeInTheDocument();
@@ -369,10 +393,10 @@ it("offers the request handoff instead of a profile connection while an app requ
         }),
     }),
   );
-  expect(
-    await screen.findByRole("button", { name: "Continue with Pubky Ring" }),
-  ).toBeInTheDocument();
-  expect(screen.queryByRole("button", { name: "Sign in with Pubky Ring" })).toBeNull();
+  expect(await screen.findByRole("button", { name: "Use Pubky Ring" })).toBeInTheDocument();
+  // Passport's own connection, with its code and classic switch, stays out of the request.
+  expect(screen.queryByRole("img", { name: "Keychain connection QR code" })).toBeNull();
+  expect(screen.queryByRole("switch", { name: "Older Pubky Ring? Classic QR" })).toBeNull();
 });
 
 it("asks Ring for nothing of its own in front of a request that requires a profile", async () => {
@@ -420,11 +444,9 @@ it("asks Ring for nothing of its own in front of a request that requires a profi
   // A saved Ring identity is not the request's identity, so its profile is neither read nor
   // asked for here: the request opens on the start page, and its Ring sign-in is the way in. The
   // app then asks for the profile itself (`profile-needed`), once it holds a Session.
-  expect(
-    await screen.findByRole("button", { name: "Continue with Pubky Ring" }),
-  ).toBeInTheDocument();
-  expect(screen.getByRole("region", { name: "Create account" })).toBeInTheDocument();
-  expect(screen.queryByRole("heading", { name: "Connect Pubky Ring." })).not.toBeInTheDocument();
+  expect(await screen.findByRole("button", { name: "Use Pubky Ring" })).toBeInTheDocument();
+  expect(screen.getByRole("region", { name: "Sovereign & Secure" })).toBeInTheDocument();
+  expect(screen.queryByRole("heading", { name: "Connect your keychain." })).not.toBeInTheDocument();
   expect(ring.start).not.toHaveBeenCalled();
   expect(load).not.toHaveBeenCalled();
 });
@@ -487,7 +509,7 @@ it("creates the profile an app waits for after its Ring sign-in: grant first, th
   );
   // Nothing saved: the request opens on its start page, and the person continues in Ring there.
   const user = userEvent.setup();
-  await user.click(await screen.findByRole("button", { name: "Continue with Pubky Ring" }));
+  await user.click(await screen.findByRole("button", { name: "Use Pubky Ring" }));
   expect(screen.getByRole("heading", { name: "Sign in with Pubky Ring." })).toBeInTheDocument();
   // Ring approved; the app holds the Session, finds no profile and asks on the bound channel.
   app.needed = KEY;
@@ -501,14 +523,14 @@ it("creates the profile an app waits for after its Ring sign-in: grant first, th
   // The person just approved the app in Ring: the screen says they are signed in, that the app
   // (named as the band names it) needs a profile, and what this second approval is for.
   expect(await screen.findByRole("heading", { name: "Set up your profile." })).toBeInTheDocument();
-  expect(screen.queryByRole("heading", { name: "Connect Pubky Ring." })).toBeNull();
+  expect(screen.queryByRole("heading", { name: "Connect your keychain." })).toBeNull();
   expect(
     screen.getByText(
-      "You’re signed in with Pubky Ring, but original.app needs a public profile. Scan this code with Pubky Ring on your phone and approve, so Passport can create it for you. Passport can only edit your profile and avatar; your private key stays in Pubky Ring.",
+      "You’re signed in, but original.app needs a public profile. Approve in your keychain so Passport can create it.",
     ),
   ).toBeInTheDocument();
   expect(
-    await screen.findByRole("img", { name: "Pubky Ring profile connection QR code" }),
+    await screen.findByRole("img", { name: "Keychain connection QR code" }),
   ).toBeInTheDocument();
   expect(screen.queryByText(/Waiting for/u)).toBeNull();
   expect(screen.queryByRole("button", { name: "Skip for now" })).not.toBeInTheDocument();
@@ -518,11 +540,14 @@ it("creates the profile an app waits for after its Ring sign-in: grant first, th
   // Then the editor, for the app, without a skip; saving publishes and tells the app.
   const name = await screen.findByLabelText("Name", {}, { timeout: 5_000 });
   expect(
-    screen.getByText(/The app you’re signing in to needs a public profile/u),
+    screen.getByText(
+      "The app you’re signing in to needs a public profile. Add at least a name to continue.",
+    ),
   ).toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "Skip for now" })).not.toBeInTheDocument();
+  await user.clear(name);
   await user.type(name, "Ring Person");
-  await user.click(screen.getByRole("button", { name: "Save profile" }));
+  await user.click(screen.getByRole("button", { name: "Continue" }));
   await waitFor(() => expect(grant.publish).toHaveBeenCalledOnce());
   expect(await screen.findByRole("heading", { name: "Profile published." })).toBeInTheDocument();
   expect(profileReady).toHaveBeenCalledOnce();
@@ -560,7 +585,7 @@ it("a /#profile= page connects Ring for its key without saving anything first, a
   // Reopened without the request: nothing names the app, so the copy says "this app".
   expect(await screen.findByRole("heading", { name: "Set up your profile." })).toBeInTheDocument();
   expect(
-    screen.getByText(/^You’re signed in with Pubky Ring, but this app needs a public profile\./u),
+    screen.getByText(/^You’re signed in, but this app needs a public profile\./u),
   ).toBeInTheDocument();
   await waitFor(() =>
     expect(ring.start).toHaveBeenCalledWith(expect.objectContaining({ expectedKey: KEY })),
@@ -570,5 +595,5 @@ it("a /#profile= page connects Ring for its key without saving anything first, a
   expect(screen.queryByRole("button", { name: "Skip for now" })).not.toBeInTheDocument();
   const user = userEvent.setup();
   await user.click(screen.getByRole("button", { name: "Back" }));
-  expect(await screen.findByRole("heading", { name: "Get your pubky." })).toBeInTheDocument();
+  expect(await screen.findByRole("heading", { name: "Let’s join Pubky." })).toBeInTheDocument();
 });

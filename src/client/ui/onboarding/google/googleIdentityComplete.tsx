@@ -1,4 +1,4 @@
-import { GOOGLE_SETUP_STEPS, SetupProgressProvider } from "@/client/ui/shared/setupProgress";
+import { SetupProgressProvider } from "@/client/ui/shared/setupProgress";
 import { PublicKeyCard } from "@/client/ui/shared/publicKeyCard";
 import { SHORT_WINDOW_GAP, SHORT_WINDOW_HEADING } from "@/client/ui/shared/shortWindow";
 
@@ -31,7 +31,7 @@ function GoogleIdentityComplete({
   visibleRecoveryCopyStatus: VisibleRecoveryCopyStatus;
 }) {
   return (
-    <SetupProgressProvider steps={GOOGLE_SETUP_STEPS} current={0}>
+    <SetupProgressProvider current={1}>
       <PassportScreen className="gap-6 md:gap-8 md:pb-0">
         <div className={cn("flex min-h-0 flex-1 flex-col gap-6 md:gap-8", SHORT_WINDOW_GAP)}>
           <div className="flex flex-col gap-6 md:gap-3 [@media(max-height:50rem)]:gap-3">

@@ -3,6 +3,7 @@ import { Result, type Result as ResultType } from "better-result";
 import type { CodedFailure } from "@/libs/result";
 import { LocalStorageIdentityRepository } from "../local-identity/LocalStorageIdentityRepository";
 import type { LocalIdentityMetadata } from "../local-identity/localIdentityModels";
+import type { KeychainAuthMethod } from "../pubky/keychainAuthMethod";
 import { isPubkyPublicKey } from "../pubky/pubkyIdentityKey";
 import {
   ProfileController,
@@ -53,6 +54,8 @@ export type RingConnectionRequest = {
    * Passport cannot know the new key, so the person confirms that Ring connected that one.
    */
   confirmIdentity?: boolean | undefined;
+  /** `cookie` asks the legacy way, for Pubky Ring older than 2.0; `grant` by default. */
+  method?: KeychainAuthMethod | undefined;
 };
 
 /**
@@ -93,6 +96,7 @@ export class RingProfileController {
     expectedKey,
     setupRequired = false,
     confirmIdentity = false,
+    method = "grant",
   }: RingConnectionRequest = {}): Promise<ConnectionResult<void>> {
     this.dispose();
     const generation = this.generation;
@@ -110,7 +114,7 @@ export class RingProfileController {
     } catch (e) {
       return Result.err({ code: "request_failed", cause: e });
     }
-    const connection = await transport.start(this.relay);
+    const connection = await transport.start(this.relay, method);
     if (Result.isError(connection)) {
       return Result.err({ code: "request_failed", cause: connection.error });
     }

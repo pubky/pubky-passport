@@ -4,6 +4,7 @@ import { Result, type Result as ResultType } from "better-result";
 
 import type { CodedFailure } from "@/libs/result";
 import { LocalStorageIdentityRepository } from "../local-identity/LocalStorageIdentityRepository";
+import type { KeychainAuthMethod } from "../pubky/keychainAuthMethod";
 import { isPubkyPublicKey } from "../pubky/pubkyIdentityKey";
 import type {
   PubkyProfileGrantErrorCode,
@@ -58,7 +59,11 @@ export class RingBackupVerifier {
     private readonly now: () => number = Date.now,
   ) {}
 
-  async start(expectedKey: string): Promise<VerificationResult<void>> {
+  /** `method` `cookie` asks the legacy way, for Pubky Ring older than 2.0. */
+  async start(
+    expectedKey: string,
+    method: KeychainAuthMethod = "grant",
+  ): Promise<VerificationResult<void>> {
     this.dispose();
     const generation = this.generation;
     if (!isPubkyPublicKey(expectedKey)) return Result.err({ code: "wrong_identity" });
@@ -71,7 +76,7 @@ export class RingBackupVerifier {
     } catch (e) {
       return Result.err({ code: "request_failed", cause: e });
     }
-    const connection = await transport.start(this.relay);
+    const connection = await transport.start(this.relay, method);
     if (Result.isError(connection)) {
       return Result.err({ code: "request_failed", cause: connection.error });
     }

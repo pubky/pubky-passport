@@ -3,12 +3,12 @@
 Pubky Passport is a web signer for the [Pubky](https://pubky.org) protocol. It keeps Pubky
 identities in the browser and signs in to Pubky apps on their behalf, the way
 [Pubky Ring](https://github.com/pubky/pubky-ring) does on a phone. An identity gets into Passport
-in one of four ways: **Continue with Google**, **Create account** with SMS, Lightning or an invite,
-**Import recovery file** from an encrypted `.pkarr` file, or the **Pubky Ring** card for an identity
-that stays in Ring. Passport signs only with keys the browser holds: a Ring identity is saved for
+in one of four ways: **Continue with Google**, **Manage your own keys** (verified with SMS,
+Lightning or an invite), **Import recovery file** from an encrypted `.pkarr` file, or **Continue
+with Pubky Ring or Bitkit** for an identity whose key stays in that keychain app. Passport signs only with keys the browser holds: a Ring identity is saved for
 its profile alone (its overview shows the profile, the pubky, **Edit profile**, **Log out**, which
-removes it from this browser, and **Switch**; it has no Manage screen), and an app's request reaches Ring through
-**Continue with Pubky Ring**.
+removes it from this browser, and **Switch**; it has no Manage screen), and an app's request reaches Ring
+or Bitkit through **Continue with keychain**.
 
 Production runs at [passport.pubky.app](https://passport.pubky.app).
 
@@ -54,24 +54,35 @@ Passport stays where it was (see
 
 ## Creating an account
 
-The start page's **Create account** card lists the ways to verify a new account as buttons, as the
-instance's Homegate offers them. SMS or Lightning verification with Homegate obtains a homeserver
-invite; an invite code is accepted too, and is checked with the homeserver as it is entered; an
-instance that offers only invites shows the invite entry as the card's one button. The new key then lives either in Pubky Ring or
-in Passport. A Passport key is saved as an unfinished setup until the user downloads a recovery
-file; leaving before the invite is submitted discards it, and picking a way to verify again
-offers any saved setup at the signer choice instead of forcing it. A setup whose signup was already
-submitted opens **Finish your account.** instead, and a file check resumed on a later visit offers
-**Make a new recovery file** if the earlier one is lost.
+Account creation follows pubky.app's onboarding, with its steps in the header (**Create account →
+Identity keys → Profile**). The start page opens on **Join** ("Let’s join Pubky."): **Manage your
+own keys** goes on to verification, **Continue with Google** to the Google sign-in. **Sign in**
+(from the header, and the first screen of an app's request) holds the ways back to an identity the
+person already has: Pubky Ring or Bitkit, Google, or a recovery file. An app picks the first screen
+with `entry=join|google|sign-in` next to `d=` (see [Integration](docs/integration.md)).
+
+**Prove you’re not a robot.** lists the ways to verify a new account as the instance's Homegate
+offers them: a small Lightning payment (at the probe's price), phone verification by SMS, or an
+invite code, which is checked with the homeserver as it is entered. A method blocked in the
+person's country stays visible, dimmed, as "Not available in your country"; an instance that
+offers only invites opens the invite entry directly. SMS or Lightning verification with Homegate
+obtains a homeserver invite. **Pick your keychain.** then presents Pubky Ring and Bitkit on one card
+(one QR code, or one link on a phone, works with either); **Keep key in this browser** first
+lists its tradeoffs, then keeps the key in Passport with a recovery file. A Passport key is saved
+as an unfinished setup until the user downloads a recovery file; leaving before the invite is
+submitted discards it, and picking a way to verify again offers any saved setup at the keychain
+choice instead of forcing it. A setup whose signup was already submitted opens **Finish your
+account.** instead, and a file check resumed on a later visit offers **Make a new recovery file** if
+the earlier one is lost.
 
 ## Profiles
 
 Identities show their public name and avatar from `/pub/pubky.app/profile.json`; an attached Google
 account appears only as a small labelled tag, never as the identity's profile. **Edit profile**
 (on the overview, and in Manage for a key the browser holds) publishes name, bio, links and an optional avatar using `pubky-app-specs` file and
-blob records. A new account is asked for its profile once, right after it is created (an account whose key
-this browser holds first says **Account created.** with its pubky); until **Save profile**
-publishes one, the overview (and Manage, for a key the browser holds) offers **Set up profile**. An app that requires a profile
+blob records. A new account goes on to **Create your profile.** once, right after it is created (a toast says the
+account exists), with a random name such as Blue-Rabbit-Hat filled in where no Google name is
+known; until **Continue** publishes one, the overview (and Manage, for a key the browser holds) offers **Set up profile**. An app that requires a profile
 (`profile=required` next to `d=`, or in its v2 hello) gets one before its review: a chosen identity
 without one opens the profile form inside the sign-in, with no **Skip for now**. After a sign-in
 through Pubky Ring, the app can ask on the same channel (`profile-needed`), or reopen Passport on
@@ -89,8 +100,9 @@ through Pubky Ring, the app can ask on the same channel (`profile-needed`), or r
   review is read. Avatars are shown
   only from the identity's own `/pub/pubky.app/` files and blobs; remote image URLs are never
   fetched. Every read is bounded in size and time.
-- **Avatars.** A chosen image is re-encoded in the browser (at most 512 px) before upload, so
-  EXIF data and the local file name are never published.
+- **Avatars.** A chosen image is first cropped to a square (shown in a round guide, with zoom), as
+  pubky.app does, then re-encoded in the browser (at most 512 px) before upload, so EXIF data and
+  the local file name are never published. **Add link** asks for a label and an address.
 - **Local keys.** A save signs in with the SDK's root `/:rw` session for that one save and signs
   out, revoking it, on every path. A scoped session would need Passport to approve its own grant
   through the HTTP relay, which adds a network party, and the secret key is already in the browser,
@@ -106,7 +118,11 @@ connection replaces it, the identity is removed, or a write is refused). Revokin
 best effort and in practice does not happen: the revocation started on page hide is dropped when
 the page unloads, and closing the tab sends nothing. The grant then stays valid on the homeserver,
 and neither Passport nor Ring can list or revoke it. Whether Ring and the homeserver accept the write-only scopes still needs a device
-test. Closing a connection also deletes the SDK's delegated keys from the browser. See
+test. Closing a connection also deletes the SDK's delegated keys from the browser. Pubky Ring older
+than 2.0 cannot approve grants: a per-device **Older Pubky Ring? Classic QR** switch
+under Passport's own keychain requests (this connection, and the backup check) makes them the
+legacy cookie sign-in with the same capabilities. It is off by default (Pubky Ring 2.0 and Bitkit
+use grants, and Bitkit refuses the legacy kind) and never changes an app's own request. See
 [Client contract](docs/signup-integration.md#client-contract).
 
 ## Add Passport sign-in to your app

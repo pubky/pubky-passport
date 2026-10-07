@@ -240,3 +240,26 @@ test.each([false, true])(
     expect(closed).toHaveBeenCalledOnce();
   },
 );
+
+test("the screen the sign-in asks for follows the request in the window's address", () => {
+  const fake = new FakePopupWindow();
+  const clock = new FakeClock();
+  const open = vi.fn<(...args: string[]) => Window | null | undefined>(() => fake.window);
+  let entry: "join" | "google" | "sign-in" | undefined = "join";
+  const popup = new BrowserPopup(
+    () => window,
+    open,
+    clock,
+    () => entry,
+  );
+  resources.push({ fake, clock, popup });
+  popup.open({ ...REQUEST, authorizationUrl: AUTH });
+  expect(open.mock.calls[0]![0]).toBe(
+    INSTANCE.origin + "/authorize#d=" + encodeURIComponent(AUTH) + "&entry=join",
+  );
+  entry = "google";
+  expect(popup.navigate(fake.window, INSTANCE, AUTH)).toBe(true);
+  expect(fake.navigations.at(-1)).toBe(
+    INSTANCE.origin + "/authorize#d=" + encodeURIComponent(AUTH) + "&entry=google",
+  );
+});

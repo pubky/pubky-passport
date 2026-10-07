@@ -42,14 +42,19 @@ describe("Sonner", () => {
     const title = await screen.findByText("Saved");
     const notification = title.closest("[data-sonner-toast]");
     expect(notification).toHaveAttribute("data-type", "success");
-    expect(notification).toHaveClass("!border-brand/50");
+    expect(notification).toHaveClass("!border-brand");
     // A brand tint over an opaque base, so nothing behind the toast shows through.
     expect(notification).toHaveClass("bg-[#141419]", "from-brand/25", "to-brand/25");
     expect(notification).not.toHaveClass("bg-brand/25");
+    // A dark tick in a filled brand circle, as pubky.app's success toasts show it.
     const icon = notification?.querySelector("[data-icon] svg");
     expect(icon).not.toBeNull();
-    expect(icon).toHaveAttribute("viewBox", "0 0 20 20");
-    expect(icon?.parentElement).toHaveClass("text-brand");
+    expect(icon).toHaveAttribute("viewBox", "0 0 11.9967 8.66333");
+    expect(notification?.querySelector("[data-icon]")?.firstElementChild).toHaveClass(
+      "rounded-full",
+      "bg-brand",
+      "text-background",
+    );
   });
 
   it("renders a failure as an error with a close button, in Passport's font", async () => {

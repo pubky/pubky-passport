@@ -91,10 +91,14 @@ function navigations(page: Page): string[] {
   return urls;
 }
 
-/** The request's start page: nothing is saved, so it is the request's first step. */
+/**
+ * The request's start page: nothing is saved, so its first step is Join, under the band that
+ * says nobody confirmed who asks (M3). Returns its Quick & Easy card, which holds Google.
+ */
 async function startPage(page: Page) {
-  await expect(page.getByRole("heading", UNVERIFIED_HEADING)).toBeVisible();
-  return page.getByRole("region", { name: "Create account" });
+  await expect(page.getByRole("heading", { name: "Let’s join Pubky." })).toBeVisible();
+  await expect(page.getByRole("complementary", UNVERIFIED_BAND)).toBeVisible();
+  return page.getByRole("region", { name: "Quick & Easy" });
 }
 
 async function storageDump(page: Page): Promise<string> {
@@ -124,10 +128,10 @@ test("Continue with Google opens Google's own window by default, and the request
   // Nothing of the request was saved for a return: there is none.
   expect(await page.evaluate((key) => sessionStorage.getItem(key), STORAGE_KEY)).toBeNull();
   expect(await storageDump(page)).not.toContain("redirect-access-canary");
-  // The request is still this page's: Back shows its start page, and Cancel answers the app.
+  // The request is still this page's: Back shows its start page, whose own Back answers the app.
   await page.getByRole("button", { name: "Back", exact: true }).click();
   await startPage(page);
-  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  await page.getByRole("button", { name: "Back", exact: true }).click();
   await expect(page).toHaveURL("https://client.example/cancel");
 });
 
@@ -169,8 +173,10 @@ test("closing Google's window is not a block: Passport stays on the request and 
   // Back returns to the request's start page, where every way in is still offered.
   await page.getByRole("button", { name: "Back", exact: true }).click();
   await expect(
-    (await startPage(page)).getByRole("button", { name: "Continue with SMS" }),
+    (await startPage(page)).getByRole("button", { name: "Continue with Google", exact: true }),
   ).toBeVisible();
+  await expect(page.getByRole("button", { name: "Use Pubky Ring", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Import it" })).toBeVisible();
 });
 
 test("a blocked Google window says so and continues in this tab", async ({ context, page }) => {
@@ -212,7 +218,7 @@ test("with Google's window blocked, the sign-in completes in the same window and
   await page.goto(`${SECURE_ORIGIN}${ENTRY}`);
   // Passport does not leave for Google by itself: the start page offers it beside the other ways.
   const create = await startPage(page);
-  await expect(create.getByRole("button", { name: "Continue with SMS" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Use Pubky Ring", exact: true })).toBeVisible();
   expect(requests).toHaveLength(0);
   await create.getByRole("button", { name: "Continue with Google", exact: true }).click();
 
@@ -288,8 +294,8 @@ test("in the same tab, Google's answer is not asked for twice, and Back from its
   await startPage(page);
   expect(new URL(page.url()).pathname).toBe("/authorize");
   expect(new URL(page.url()).hash).toBe("");
-  // Cancel there answers the app, as it always did.
-  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  // Back there answers the app: it is the request's first step.
+  await page.getByRole("button", { name: "Back", exact: true }).click();
   await expect(page).toHaveURL("https://client.example/cancel");
 });
 
@@ -386,8 +392,8 @@ test("a reload of the callback page cannot resume the request a second time", as
   // The saved request was consumed on return: a reload is Passport's plain start page.
   page.on("dialog", (dialog) => void dialog.accept());
   await page.reload();
-  await expect(page.getByRole("heading", { name: "Get your pubky." })).toBeVisible();
-  await expect(page.getByRole("heading", UNVERIFIED_HEADING)).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Let’s join Pubky." })).toBeVisible();
+  await expect(page.getByRole("complementary", UNVERIFIED_BAND)).toHaveCount(0);
 });
 
 /** Opens the request in a Passport window of the app's own, as an integrating page does. */

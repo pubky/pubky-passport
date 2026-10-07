@@ -48,6 +48,7 @@ describe("an app's request", () => {
     expect(initialSignerNavigation(context([], null, true), null)).toEqual({
       view: "add",
       back: null,
+      screen: "sign-in",
     });
   });
 
@@ -126,7 +127,7 @@ describe("an app's request", () => {
     const start = { view: "add", back: null };
     // Only Ring identities saved: the request opens as if nothing were saved.
     const onlyRing = context([RING], "ring", true);
-    expect(initialSignerNavigation(onlyRing, null)).toEqual(start);
+    expect(initialSignerNavigation(onlyRing, null)).toEqual({ ...start, screen: "sign-in" });
     expect(resolveSignerNavigation(home, onlyRing)).toEqual(start);
     expect(resolveSignerNavigation({ view: "choose" }, onlyRing)).toEqual(start);
     expect(resolveSignerNavigation({ view: "switch" }, onlyRing)).toEqual(start);
@@ -164,7 +165,34 @@ describe("an app's request", () => {
 
 describe("initialSignerNavigation", () => {
   it("opens addition explicitly when nothing is saved", () => {
-    expect(initialSignerNavigation(context([]), null)).toEqual({ view: "add", back: null });
+    expect(initialSignerNavigation(context([]), null)).toEqual({
+      view: "add",
+      back: null,
+      screen: "join",
+    });
+  });
+
+  it("opens an app's request on the screen it asked for", () => {
+    const none = context([], null, true);
+    const saved = context([READY], "ready", true);
+    expect(initialSignerNavigation(none, null, undefined, "join")).toEqual({
+      view: "add",
+      back: null,
+      screen: "join",
+    });
+    // Join and Google open even where identities are saved; Back leads to their list.
+    expect(initialSignerNavigation(saved, null, undefined, "google")).toEqual({
+      view: "add",
+      back: "choose",
+      screen: "google",
+    });
+    // Sign in is what a request opens on anyway: a saved identity goes straight to its review.
+    expect(initialSignerNavigation(saved, null, undefined, "sign-in")).toEqual({ view: "home" });
+    expect(initialSignerNavigation(none, null, undefined, "sign-in")).toEqual({
+      view: "add",
+      back: null,
+      screen: "sign-in",
+    });
   });
 
   it("starts home when identities exist", () => {
@@ -172,7 +200,11 @@ describe("initialSignerNavigation", () => {
   });
 
   it("resumes only a submitted account setup", () => {
-    expect(initialSignerNavigation(context([]), DRAFT)).toEqual({ view: "add", back: null });
+    expect(initialSignerNavigation(context([]), DRAFT)).toEqual({
+      view: "add",
+      back: null,
+      screen: "join",
+    });
     expect(initialSignerNavigation(context([]), { ...DRAFT, registrationStarted: true })).toEqual({
       view: "create-account",
       back: null,
@@ -307,6 +339,20 @@ describe("account creation", () => {
     const create: SignerNavigation = { view: "create-account", back: null, method: "sms" };
     expect(resolveSignerNavigation(create, context([]))).toBe(create);
     expect(resolveSignerNavigation(create, context([READY], "ready", true))).toBe(create);
+  });
+
+  it("keeps the start screen it was opened from, and that screen's own Back, for its Back", () => {
+    // A request's Sign in that Join opened: Back returns to Sign in, whose Back returns to Join.
+    const fromSignIn: SignerNavigation = {
+      view: "create-account",
+      back: null,
+      from: "sign-in",
+      previous: "join",
+    };
+    expect(resolveSignerNavigation(fromSignIn, context([], null, true))).toBe(fromSignIn);
+    expect(resolveSignerNavigation(fromSignIn, context([READY], "ready", true))).toBe(fromSignIn);
+    const fromJoin: SignerNavigation = { view: "create-account", back: "home", from: "join" };
+    expect(resolveSignerNavigation(fromJoin, context([READY]))).toBe(fromJoin);
   });
 });
 

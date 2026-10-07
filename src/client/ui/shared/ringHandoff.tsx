@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { type ReactNode, useEffect, useRef } from "react";
 
 import type { DeepLinkLauncher } from "@/client/logic/universal-signer/deepLinkLauncher";
 import { PubkyBrandIcon } from "./brand/pubkyBrandIcon";
@@ -21,6 +21,8 @@ export type RingHandoffLabels = {
   open: string;
   tooLarge: string;
   unavailable: string;
+  /** While the link is being opened; "Opening Pubky Ring…" unless the hand-off names another. */
+  opening?: string;
 };
 
 /** While the link is being opened, whatever the action is called otherwise. */
@@ -46,14 +48,26 @@ const OPENING = "Opening Pubky Ring…";
  * before this card, e.g. from the button that opened the screen.
  */
 export function RingHandoff({
+  bare = false,
+  buttonVariant,
   labels,
   launcher: sharedLauncher,
+  openIcon,
   openOnReady = false,
   preparing = false,
   spent,
   url,
 }: {
+  /**
+   * The code or button alone, for a screen that lays out its own card (a keychain hand-off, which
+   * says where to get either app itself).
+   */
+  bare?: boolean;
   labels: RingHandoffLabels;
+  /** The open button's icon; Pubky Ring's mark unless the hand-off names another. */
+  openIcon?: ReactNode;
+  /** The phone's button look; by default the brand pill, or the card's own inside a card. */
+  buttonVariant?: "default" | "secondary" | undefined;
   launcher?: DeepLinkLauncher | undefined;
   /** The person's press started this hand-off: follow the link once, as soon as it exists. */
   openOnReady?: boolean;
@@ -68,7 +82,8 @@ export function RingHandoff({
 }) {
   // Inside a card that names Pubky Ring, the phone's button is that card's own, pressed: it keeps
   // that button's look.
-  const variant = useRingHandoffAlignment() === "start" ? "secondary" : "default";
+  const alignedVariant = useRingHandoffAlignment() === "start" ? "secondary" : "default";
+  const variant = buttonVariant ?? alignedVariant;
   const mode = useRingHandoffMode();
   const [launch, launcher] = useDeepLinkLauncher(sharedLauncher);
   const link = preparing || spent ? undefined : url;
@@ -94,8 +109,8 @@ export function RingHandoff({
       size="lg"
       variant={variant}
     >
-      {busy ? <Spinner decorative /> : <PubkyBrandIcon />}
-      {busy ? OPENING : labels.open}
+      {busy ? <Spinner decorative /> : (openIcon ?? <PubkyBrandIcon />)}
+      {busy ? (labels.opening ?? OPENING) : labels.open}
     </ButtonLink>
   );
 
@@ -115,7 +130,7 @@ export function RingHandoff({
       // The button's place while the link is made, so it stays where the person pressed.
       <Button aria-busy className="w-full" disabled size="lg" variant={variant}>
         <Spinner decorative />
-        {openOnReady ? OPENING : labels.open}
+        {openOnReady ? (labels.opening ?? OPENING) : labels.open}
       </Button>
     ) : (
       <RingQrCode label={labels.qrCode} url={undefined} />
@@ -141,6 +156,7 @@ export function RingHandoff({
       </>
     );
 
+  if (bare) return handoff;
   return <RingHandoffCard label={labels.section}>{handoff}</RingHandoffCard>;
 }
 

@@ -1,11 +1,12 @@
-import { PubkyBrandIcon } from "@/client/ui/shared/brand/pubkyBrandIcon";
+import { KeychainBrandIcon } from "@/client/ui/shared/brand/keychainBrands";
 import { UserRoundPlusIcon } from "@/client/ui/shared/icons";
 import { OrDivider } from "@/client/ui/shared/orDivider";
 import { Button } from "@/client/ui/shared/primitives/button";
 
 /**
  * The other ways to answer a request, below an "or": the start page for an identity that is not
- * saved here yet, and Pubky Ring, which gets the request unchanged. The identity list and the
+ * saved here yet, and the person's keychain app (Pubky Ring or Bitkit), which gets the request
+ * unchanged. The identity list and the
  * permission review both end with it, so neither is a dead end for someone whose identity is
  * elsewhere, and neither action competes with the screen's own (a row, or Authorize).
  */
@@ -23,7 +24,7 @@ export function OtherWaysIn({
   return (
     <div className="flex flex-col gap-4 [@media(max-height:50rem)]:gap-3">
       <OrDivider />
-      {/* A narrower inset keeps "Continue with Pubky Ring" on one line beside Use another
+      {/* A narrower inset keeps "Continue with keychain" on one line beside Use another
           identity in the app's 520px popup. */}
       <div className="grid gap-3 min-[30rem]:grid-cols-2">
         <Button
@@ -42,7 +43,7 @@ export function OtherWaysIn({
           size="lg"
           variant="secondary"
         >
-          <PubkyBrandIcon /> Continue with Pubky Ring
+          <KeychainBrandIcon /> Continue with keychain
         </Button>
       </div>
     </div>

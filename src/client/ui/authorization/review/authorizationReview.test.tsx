@@ -264,7 +264,7 @@ describe("AuthorizationReview of a request a v2 hello bound", () => {
     const or = screen.getByText("or", { exact: true });
     expect(authorize.compareDocumentPosition(or)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
     const another = screen.getByRole("button", { name: "Use another identity" });
-    const ring = screen.getByRole("button", { name: "Continue with Pubky Ring" });
+    const ring = screen.getByRole("button", { name: "Continue with keychain" });
     for (const other of [another, ring]) {
       expect(other).toHaveClass("bg-secondary");
       expect(or.compareDocumentPosition(other)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
@@ -306,7 +306,7 @@ describe("AuthorizationReview of a request a v2 hello bound", () => {
       // The cancelling button shows its work and stays focusable; while signing it is disabled.
       if (cancelDisabled) expect(cancel).toBeDisabled();
       else expect(cancel).toHaveAttribute("aria-busy", "true");
-      for (const name of ["Switch identity", "Use another identity", "Continue with Pubky Ring"])
+      for (const name of ["Switch identity", "Use another identity", "Continue with keychain"])
         expect(screen.getByRole("button", { name })).toBeDisabled();
     },
   );

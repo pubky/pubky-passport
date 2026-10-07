@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { PassportScreen } from "./passportScreen";
 import { DisplayHeading } from "./primitives/typography";
-import { SetupProgressProvider } from "./setupProgress";
+import { SetupProgressProvider, SetupProgressSlot } from "./setupProgress";
 
 describe("PassportScreen", () => {
   beforeEach(() => {
@@ -99,13 +99,15 @@ describe("PassportScreen", () => {
     expect(screen.queryByRole("navigation")).not.toBeInTheDocument();
 
     cleanup();
+    // The progress shows in the header's slot, which the root layout renders above every screen.
+    render(<SetupProgressSlot />);
     render(
-      <SetupProgressProvider steps={["Account", "Keys", "Profile"]} current={1}>
+      <SetupProgressProvider current={1}>
         <PassportScreen>Content</PassportScreen>
       </SetupProgressProvider>,
     );
-    expect(screen.getByRole("main")).toContainElement(
-      screen.getByRole("navigation", { name: "Account setup progress" }),
-    );
+    const progress = screen.getByRole("navigation", { name: "Account setup progress" });
+    expect(document.getElementById("passport-header-progress")).toContainElement(progress);
+    expect(screen.getByRole("main")).not.toContainElement(progress);
   });
 });

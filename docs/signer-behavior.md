@@ -9,21 +9,36 @@ Account creation and identity management are in
 
 Passport opens a request in two steps. Only identities whose key the browser holds count here: an
 identity whose key stays in Pubky Ring is saved in Passport for its profile only, is never listed
-for a request, and signs through **Continue with Pubky Ring** alone. With exactly one such identity
+for a request, and signs through **Continue with keychain** alone. With exactly one such identity
 (and active) the request opens straight on that identity's permission review; so does a request a
 user enters by hand from an identity's overview (**Authorize**), which opens on that identity's
 review. Otherwise it first lists those identities. The list and the review both end with the same
-"or": **Use another identity** and **Continue with Pubky Ring**. **Use another identity** opens
-the start page, keeping the request; **Back** returns to where it was opened.
+"or": **Use another identity** and **Continue with keychain** (Pubky Ring or Bitkit).
+**Use another identity** opens the start page on **Sign in**, keeping the request; **Back** returns
+to where it was opened.
 
-The start page is two cards and a quiet link: **Create account** with the ways to verify that the
-instance's Homegate offers as buttons (**Continue with SMS**, **Continue with Lightning**,
-**Continue with Google**, and **Enter invite manually**), **Pubky Ring**, and **Have a recovery
-file? Import it**. Without an identity Passport can sign with (nothing saved, or only Ring
-identities) the request opens on that start page under the heading **Signing in to {app}**, and its
-Pubky Ring card holds **Continue with Pubky Ring**; opened through **Use another identity** the card
-is left out, since the screen before it already offers Ring. (Without a request the card holds
-**Sign in with Pubky Ring**, which adds an existing Ring identity inside the card.)
+The start page has three screens, laid out as pubky.app's onboarding. **Join** ("Let’s join
+Pubky.") creates an account: **Sovereign & Secure → Manage your own keys** goes on to verification
+and the keychain choice, **Quick & Easy → Continue with Google** to the Google sign-in; its header
+offers **Sign in**. **Sign in** ("Sign in to Pubky") is for an identity the person already has:
+without a request it is the keychain card (on a computer the QR frame's **Scan QR with keychain.**
+with its code and steps) and **Have a recovery file? Import it** only, and Back returns to Join,
+which has the rest. The **Google** screen is the Google sign-in alone, with what it
+means and one button (Google's window needs a press in Passport's own). Without an identity
+Passport can sign with (nothing saved, or only Ring identities) a request opens on **Sign in**, or
+on the screen the app asked for with `entry=join|google|sign-in` next to `d=` (Join and Google even
+when identities are saved, with **Back** to their list); its band reads **Signing in to {app}**,
+and **Back** on that first screen answers the app with a cancellation. During a request with
+nothing saved, Join and Sign in are one screen, Join itself (the "Create account" step, its two
+cards) without **Sign in** in the header: under the cards **Have a recovery file? Import it** and,
+unless the app's bound v2 hello carries the `keychain` feature (the app shows its own keychain code
+or "Open keychain app"), **Use Pubky Ring or Bitkit** (Pubky Ring alone for a legacy cookie
+request), which hands the app's request on unchanged; then the consent line, always last. While a
+hello may still bind, that line waits. The feature only hides the line; it grants nothing. Back
+from account creation returns to this screen. Without a request the keychain card is Passport's
+own connection, which adds an existing Pubky Ring or Bitkit identity inside the card (its QR code
+at once on a computer).
+Without a request `/` opens on Join while nothing is saved.
 
 Every step names the app the way permission review does: with its callback host when its
 `x-source` label differs from it, or with a notice when the request has no callbacks. The list
@@ -32,18 +47,26 @@ opens the permission review: **Cancel** in the header (as on the list), **Author
 action under the request, then the "or". **Switch** on the identity's card leads back to the list
 and is shown only when more than one identity can sign. An identity with an attached Google account
 shows it, and one without a public profile is named after its key. Switching identities or
-creating an account preserves the original request; a new account is asked for its public profile
-once, and **Skip for now** there goes on to the review, unless the app requires a profile (see
-[Requiring a profile](#requiring-a-profile)).
+creating an account preserves the original request; a new account goes on to **Create your
+profile.** once, and its **Continue** (or **Skip for now**) goes on to the review, unless the app
+requires a profile (see [Requiring a profile](#requiring-a-profile)). The review stays a step of its
+own: the account's first sign-in to the app is approved there, never on the profile screen.
 
 ## Permissions
 
 A request for broad access (for example `/:rw`, or `/pub` and `/priv` with or without their
-trailing slash, which reach every app's folder) is flagged on the list, on the request's start page
-and on the Pubky Ring screen as well as on the review, where its primary action names what it
+trailing slash, which reach every app's folder) is flagged on the list, on the request's Join while
+it offers "Use Pubky Ring or Bitkit" (which hands the request on unreviewed; a phone opens the app
+from that press) and on the keychain screen as well as on the review, where its primary action names what it
 gives, such as **Allow changing all your data** or **Allow reading all public data**, and the
 sentence above it says the same. Each permission shows a plain title above its exact path, and
-tells the app's own folder (`/pub/<callback host>/`) from the folders of other apps. Namespaces
+tells the app's own folder (`/pub/<callback host>/`) from the folders of other apps. The list ranks
+what is at stake: rows are grouped under **Can read and change** (any write) above **Can only
+read**, each group most sensitive first (broad access, then private `/priv/` data, then public
+`/pub/` data, the app's own public folder last). A write row carries a strong badge, a read-only
+row a quiet outline; private rows carry a lock and full-strength text, public rows a globe and
+muted text, and where a request asks for both, a line under the list says why ("Anyone can already see public data; private data
+is only visible to you and the apps you allow."). Namespaces
 people know by their product get their names and a short line on what they hold: the Pubky App's
 known folders by what is in them (**Your posts**, **Your public profile**), `/pub/pubky.app/` and
 `/pub/social/` as **Your public Pubky social data**, `/priv/social/` as **Your private Pubky social
@@ -54,11 +77,15 @@ folds away only entries in the app's own public folder; broad entries, the Pubky
 private folders and other apps' folders always stay in view, and a request without callbacks never
 folds. Local approval always requires an explicit **Authorize** (or **Allow …**) action.
 
-## Continue with Pubky Ring
+## Continue with keychain
 
-**Continue with Pubky Ring** hands the app's request to Ring unchanged, and the user picks the
-identity in Ring. On a phone or tablet (a coarse pointer) it follows the `pubkyauth://` link at
-once and keeps one **Open Pubky Ring** button in place to open it again with the same request,
+**Continue with keychain** hands the app's request unchanged to the person's keychain app, and the
+user picks the identity there. A grant request (`signin_grant`) works with Pubky Ring 2.0 and
+Bitkit, and the screen names both; a legacy cookie request (`signin`, which an app makes for Pubky
+Ring older than 2.0) works with Pubky Ring only, and the screen names Pubky Ring alone. Passport
+never rebuilds an app's request, so this screen has no classic QR switch: the app's own switch
+decides the kind. On a phone or tablet (a coarse pointer) it follows the `pubkyauth://` link at
+once and keeps one **Open keychain app** button in place to open it again with the same request,
 never a QR code (a phone cannot scan its own screen; the store badges under it are there for a
 phone without Ring). With a mouse or trackpad (a fine pointer, such as an app's desktop popup) it
 shows the QR code directly, since a computer cannot open the link. Pressing the QR code copies the
@@ -74,6 +101,18 @@ ends the Ring step once Ring's answer is there (what it then tells the app is de
 hand back to, Passport goes on to its own home. Where it can do neither, the screen stays until
 the app closes it.
 
+## Classic QR for Pubky Ring older than 2.0
+
+Pubky Ring before 2.0 approves only the legacy cookie sign-in. Under every keychain request Passport
+makes itself (the keychain connection on **Sign in**, the profile connection of a Ring-held
+identity, and the Pubky Ring backup check) a switch **Older Pubky Ring? Classic QR**
+makes the same request, with the same capabilities, as a cookie sign-in, and a new QR code or link
+replaces the current one. It is off by default, kept per device in `localStorage`
+(`pubky-passport/keychain-auth/v1`), and never offered on the signup QR or on an app's own
+request. Bitkit refuses the cookie kind, so the switch names Pubky Ring alone. A cookie session is
+signed out like a grant session when the connection closes; it cannot be listed or revoked on its
+own from Ring.
+
 ## Outcome screens
 
 When the answer cannot reach the app through a callback or a message, Passport ends on an outcome
@@ -84,7 +123,7 @@ A request that expired before Passport loaded is told apart from a link that can
 of these offers **Close window** in a popup; in a tab of its own, the expired and invalid screens
 go **Back to the app** when the app's page sent the user there, and the others offer a way to
 Passport's start page. If the browser blocks Passport's storage during a request, Passport offers
-**Continue with Pubky Ring** beside **Cancel**. Opening `/` without a request shows the selected
+**Continue with keychain** beside **Cancel**. Opening `/` without a request shows the selected
 identity overview, or the add screen on first use. An unfinished local account setup resumes its
 saved key and backup step after a reload.
 
@@ -127,7 +166,8 @@ leaving drops the request without an outcome message; the request itself is neve
 does not survive a reload. A popup the app's page opened is never guarded: the page owns it and may
 close it at any time without the user seeing a prompt, for example once Pubky Ring's session
 arrives through the relay, at its attempt deadline or on its own cancel. While a request is
-pending, the footer's legal links open in a new tab and the logo is not a link. If the browser
+pending, the footer's legal links and those of the consent line under the ways to create an
+account open in a new tab, and the logo is not a link. If the browser
 restores a page that was left mid-request from its back/forward cache, Passport says the request
 has closed and offers **Close window** (or, without an opener, a way back to Passport) instead of
 showing actions that could no longer answer the app.
@@ -202,8 +242,7 @@ An app that requires a pubky.app profile says so in its hello or next to `d=` (s
 [Requiring a profile](integration.md#requiring-a-profile)). Before the review, Passport reads the
 chosen identity's `/pub/pubky.app/profile.json`, the read the review makes anyway. Found, the review
 shows as usual. Missing, or not a valid profile, the profile form opens inside the sign-in, saying
-the app needs a public profile; there is no **Skip for now** (a new account's **Account created.**
-screen drops it too), and **Back** returns to the identity list, where **Cancel** answers the app.
+the app needs a public profile; there is no **Skip for now**, and **Back** returns to the identity list, where **Cancel** answers the app.
 Once the profile is published, the review follows in the same window. A read that fails shows
 **Couldn't read your profile.** with **Try again**, never the review. The request itself is
 unchanged.

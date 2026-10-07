@@ -119,6 +119,54 @@ describe("RingSignIn", () => {
     expect(stop).toHaveBeenCalledOnce();
   });
 
+  it("names Pubky Ring alone for a cookie request, and the keychain for a grant one", () => {
+    usePointer(false);
+    renderRingSignIn(undefined);
+
+    // Bitkit refuses the legacy cookie kind: only Pubky Ring is named.
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Sign in with Pubky Ring." }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/approve the sign-in/u)).toHaveTextContent(
+      /^Scan this code with Pubky Ring on your phone, then choose an identity/u,
+    );
+    expect(screen.getByRole("region", { name: "Sign in with Pubky Ring" })).toBeInTheDocument();
+    expect(screen.queryByText(/Bitkit|keychain\./u)).toBeNull();
+
+    cleanup();
+    renderRingSignIn(undefined, { ...REVIEW, authenticationMethod: "grant" });
+
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Sign in with keychain." }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/approve the sign-in/u)).toHaveTextContent(
+      /^Scan this code with Pubky Ring or Bitkit on your phone, then choose an identity/u,
+    );
+    expect(screen.getByRole("region", { name: "Sign in with your keychain" })).toBeInTheDocument();
+  });
+
+  it("names either keychain app on a phone for a grant request, and Pubky Ring for a cookie one", () => {
+    usePointer(true);
+    renderRingSignIn(undefined);
+
+    expect(screen.getByText(/approve the sign-in/u)).toHaveTextContent(
+      /^Choose an identity in Pubky Ring and approve the sign-in/u,
+    );
+    expect(screen.getByRole("link", { name: "Open Pubky Ring" })).toHaveAttribute("href", REQUEST);
+
+    cleanup();
+    renderRingSignIn(undefined, { ...REVIEW, authenticationMethod: "grant" });
+
+    expect(screen.getByText(/approve the sign-in/u)).toHaveTextContent(
+      /^Choose an identity in your keychain app and approve the sign-in/u,
+    );
+    expect(screen.getByRole("link", { name: "Open keychain app" })).toHaveAttribute(
+      "href",
+      REQUEST,
+    );
+    expect(screen.queryByText(/in Pubky Ring and approve/u)).toBeNull();
+  });
+
   it("never names a request nobody verified after its label or website, and warns (M3)", () => {
     releaseTestOpener();
     usePointer(false);

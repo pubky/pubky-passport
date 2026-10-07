@@ -8,6 +8,7 @@ const VARIANTS = {
     "mb-0 mt-auto w-full max-w-none rounded-t-xl border bg-popover p-6 text-foreground shadow-[0_50px_100px_rgba(5,5,10,0.75)] backdrop:bg-black/75 sm:m-auto sm:max-w-[375px] sm:rounded-xl",
 } as const;
 
+/** A dialog that focuses its `data-autofocus` control, else the first one, when it opens. */
 type DialogProps = Omit<ComponentPropsWithoutRef<"dialog">, "onCancel" | "open"> & {
   onOpenChange: (open: boolean) => void;
   open: boolean;
@@ -25,6 +26,9 @@ function Dialog({ className, onOpenChange, open, variant, ...props }: DialogProp
     const opener = open ? document.activeElement : null;
     if (open && !element.open) {
       element.showModal();
+      // React's `autoFocus` runs when the closed dialog mounts, so it is lost: the field marked
+      // `data-autofocus` takes focus from `showModal`'s first control instead.
+      element.querySelector<HTMLElement>("[data-autofocus]")?.focus();
     } else if (!open && element.open) {
       element.close();
     }

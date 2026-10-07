@@ -104,14 +104,16 @@ it("says a plain link's app finds the profile itself, and Back leaves the editor
   expect(save).toHaveBeenCalledOnce();
 });
 
-it("connects Pubky Ring for exactly the linked key when its identity is in Ring", async () => {
+it("connects the keychain for exactly the linked key when its identity is in Pubky Ring", async () => {
   state.catalog = {
     activePublicKeyZ32: KEY,
     identities: [{ publicIdentity: { publicKeyZ32: KEY }, keySource: "ring" }],
   };
   const ring = ringConnection();
   mount({ status: "edit", publicKeyZ32: KEY }, ring);
-  expect(await screen.findByRole("heading", { name: "Connect Pubky Ring." })).toBeInTheDocument();
+  expect(
+    await screen.findByRole("heading", { name: "Connect your keychain." }),
+  ).toBeInTheDocument();
   await waitFor(() =>
     expect(ring.start).toHaveBeenCalledWith(expect.objectContaining({ expectedKey: KEY })),
   );
@@ -126,7 +128,9 @@ it("explains a key this Passport does not hold and offers only connecting that k
   const ring = ringConnection();
   const user = userEvent.setup();
   mount({ status: "edit", publicKeyZ32: KEY }, ring);
-  expect(await screen.findByRole("heading", { name: "Connect Pubky Ring." })).toBeInTheDocument();
+  expect(
+    await screen.findByRole("heading", { name: "Connect your keychain." }),
+  ).toBeInTheDocument();
   expect(screen.getByText(/This pubky is not saved in this Passport/u)).toBeInTheDocument();
   await waitFor(() =>
     expect(ring.start).toHaveBeenCalledWith(expect.objectContaining({ expectedKey: KEY })),

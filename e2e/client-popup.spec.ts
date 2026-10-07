@@ -1,9 +1,11 @@
 import { readFile } from "node:fs/promises";
 import { CLIENT_RELAY_SECRET, clientAuthRequest } from "./helpers/pubkyAuthRequests";
 import { test, expect, type Page } from "./helpers/passportTest";
-import { UNVERIFIED_BAND, UNVERIFIED_HEADING } from "./helpers/requester";
+import { UNVERIFIED_BAND } from "./helpers/requester";
 
 const CLIENT = "https://client.example";
+/** The start page a request opens on when Passport has no identity to sign it with. */
+const START_HEADING = { name: "Let’s join Pubky." } as const;
 type Harness = {
   configure(origin: string, request: string, prepared: boolean): void;
   navigate(): boolean;
@@ -64,8 +66,9 @@ test("a synchronous blank popup displays text, navigates to Passport and permits
     await page.evaluate(() => (window as unknown as HarnessWindow).__popupHarness.navigate()),
   ).toBe(true);
   await expect(popup).toHaveURL(new URL("/authorize", baseURL!).href);
-  // M3: without a hello nothing names the requester, and the band says Passport can't tell.
-  await expect(popup.getByRole("heading", UNVERIFIED_HEADING)).toBeVisible();
+  // Nothing saved: the request opens on Join. M3: without a hello nothing names the
+  // requester, and the band says Passport can't tell.
+  await expect(popup.getByRole("heading", START_HEADING)).toBeVisible();
   await expect(popup.getByRole("complementary", UNVERIFIED_BAND)).toBeVisible();
   await page.evaluate(() => {
     const h = (window as unknown as HarnessWindow).__popupHarness;
@@ -88,8 +91,9 @@ test("a prepared popup opens the fragment directly and native user closure is de
 }) => {
   const { popup, requests } = await setup(page, baseURL!, true);
   await expect(popup).toHaveURL(new URL("/authorize", baseURL!).href);
-  // M3: without a hello nothing names the requester, and the band says Passport can't tell.
-  await expect(popup.getByRole("heading", UNVERIFIED_HEADING)).toBeVisible();
+  // Nothing saved: the request opens on Join. M3: without a hello nothing names the
+  // requester, and the band says Passport can't tell.
+  await expect(popup.getByRole("heading", START_HEADING)).toBeVisible();
   await expect(popup.getByRole("complementary", UNVERIFIED_BAND)).toBeVisible();
   expect(await popup.evaluate(() => window.name)).toBe("pubky-passport-client-popup-attempt-001");
   await popup.close();

@@ -2,6 +2,7 @@ import "client-only";
 
 import {
   Keypair,
+  type AuthFlow,
   AuthFlowKind,
   Pubky,
   PublicKey,
@@ -29,6 +30,7 @@ import {
   sniffImageType,
   type ProfileWrite,
 } from "../profile/profile";
+import type { KeychainAuthMethod } from "./keychainAuthMethod";
 import { pubkyNetwork } from "./pubkyNetwork";
 import {
   holdDelegatedKeys,
@@ -938,11 +940,21 @@ export class PubkyProfileTransport {
 
 /** Starts a delegated profile grant without obtaining the identity's private key. */
 export class PubkyRingProfileTransport {
-  /** `relay` is the instance's configured HTTP relay for Passport's own grant requests. */
-  start(relay: string): Promise<PubkyProfileGrantResult<RingProfileGrant>> {
-    return startRingGrant("start_ring_profile_grant", relay, PROFILE_CAPABILITIES, {
-      xSource: "Pubky Passport profile",
-    });
+  /**
+   * `relay` is the instance's configured HTTP relay for Passport's own grant requests; `method`
+   * `cookie` asks the legacy way, for Pubky Ring older than 2.0.
+   */
+  start(
+    relay: string,
+    method: KeychainAuthMethod = "grant",
+  ): Promise<PubkyProfileGrantResult<RingProfileGrant>> {
+    return startRingGrant(
+      "start_ring_profile_grant",
+      relay,
+      PROFILE_CAPABILITIES,
+      { xSource: "Pubky Passport profile" },
+      method,
+    );
   }
 }
 
@@ -953,24 +965,51 @@ export class PubkyRingProfileTransport {
  * a request without capabilities is not device-tested yet.
  */
 export class PubkyRingVerificationTransport {
-  /** `relay` is the instance's configured HTTP relay for Passport's own grant requests. */
-  start(relay: string): Promise<PubkyProfileGrantResult<RingProfileGrant>> {
-    return startRingGrant("start_ring_verification", relay, [], {
-      xSource: "Pubky Passport backup check",
-    });
+  /**
+   * `relay` is the instance's configured HTTP relay for Passport's own grant requests; `method`
+   * `cookie` asks the legacy way, for Pubky Ring older than 2.0.
+   */
+  start(
+    relay: string,
+    method: KeychainAuthMethod = "grant",
+  ): Promise<PubkyProfileGrantResult<RingProfileGrant>> {
+    return startRingGrant(
+      "start_ring_verification",
+      relay,
+      [],
+      { xSource: "Pubky Passport backup check" },
+      method,
+    );
   }
 }
 
+/**
+ * Starts one of Passport's own requests for Pubky Ring: a grant (`grant`, the default), or the
+ * legacy cookie sign-in (`cookie`) that Pubky Ring older than 2.0 needs. Both yield a `Session`
+ * that the same {@link RingProfileGrant} checks, uses and signs out; a cookie flow holds no
+ * delegated key.
+ */
 async function startRingGrant(
   operation: PubkyOperation,
   relay: string,
   capabilities: readonly string[],
   xCallback: { xSource: string },
+  method: KeychainAuthMethod = "grant",
 ): Promise<PubkyProfileGrantResult<RingProfileGrant>> {
   let pubky: Pubky | undefined;
   let release: DelegatedKeyRelease | undefined;
   try {
     pubky = createPubky();
+    if (method === "cookie") {
+      // The SDK takes ownership of AuthFlowKind, so the caller must not free it afterward.
+      const flow = pubky.startCookieAuthFlow(
+        capabilities.join(",") as Capabilities,
+        AuthFlowKind.signin(),
+        relay,
+        xCallback,
+      );
+      return Result.ok(new RingProfileGrant(pubky, flow, undefined, capabilities));
+    }
     // Keys of flows whose page closed before their cleanup finished.
     await clearUnusedDelegatedKeys(pubky);
     release = await holdDelegatedKeys();
@@ -1005,7 +1044,8 @@ export class RingProfileGrant {
    */
   constructor(
     private readonly pubky: Pubky,
-    private readonly flow: GrantAuthFlow,
+    /** A grant flow, or the legacy cookie flow for Pubky Ring older than 2.0. */
+    private readonly flow: GrantAuthFlow | AuthFlow,
     private readonly release: DelegatedKeyRelease = async () => undefined,
     private readonly required: readonly string[] = PROFILE_CAPABILITIES,
   ) {}

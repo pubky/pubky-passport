@@ -20,6 +20,7 @@ import {
   resolveSignerNavigation,
   signingIdentities,
   type SignerNavigation,
+  type StartScreen,
 } from "@/client/logic/universal-signer/signerNavigation";
 import { AuthorizationFlow } from "@/client/ui/authorization/authorizationFlow";
 import { ChooseIdentity } from "@/client/ui/authorization/choose/chooseIdentity";
@@ -46,7 +47,7 @@ import { ErrorScreen } from "@/client/ui/shared/errorScreen";
 import { Notice } from "@/client/ui/shared/notice";
 import { LoadingScreen } from "@/client/ui/shared/loadingScreen";
 import { OutcomeScreen } from "@/client/ui/shared/outcomeScreen";
-import { ACCOUNT_SETUP_STEPS, SetupProgressProvider } from "@/client/ui/shared/setupProgress";
+import { SetupProgressProvider } from "@/client/ui/shared/setupProgress";
 import { AddIdentity } from "./addIdentity";
 import { IdentitiesUnavailable } from "./identitiesUnavailable";
 import { IdentityManagementScreens } from "./identityManagementScreens";
@@ -164,6 +165,7 @@ function ReadyPassport({
       context,
       Result.isOk(draft) ? draft.value : null,
       takeAuthorizeFromIdentity(),
+      authorization.status === "review" ? authorization.entry : undefined,
     );
   });
   const navigation = resolveSignerNavigation(storedNavigation, context);
@@ -243,9 +245,11 @@ function ReadyPassport({
     if (authorization.status !== "manual-entry") actions.rememberProfileNeeded(appProfileKey);
   }, [appProfileKey, authorization.status, actions]);
   // The app as the sign-in band names it; a page reopened on `/#profile=` has no request to name.
-  const { requester: appRequester } = useAuthorizationRequester(
-    "review" in authorization ? authorization.review : undefined,
-  );
+  const {
+    requester: appRequester,
+    appOffersKeychain,
+    awaitingHello,
+  } = useAuthorizationRequester("review" in authorization ? authorization.review : undefined);
   const appProfileView =
     appProfileKey !== undefined &&
     ((navigation.view === "profile" && navigation.from === "app") ||
@@ -275,8 +279,16 @@ function ReadyPassport({
     onUseRing: () => openRing({ view: "home" }),
   };
   const addBack = "back" in navigation ? navigation.back : null;
-  // Account creation and import open from the start page, and Back returns there.
-  const backToStart = () => navigate({ view: "add", back: addBack });
+  // The start page's screen: Sign in for a request, Join otherwise, unless one was picked.
+  const startScreen: StartScreen =
+    (navigation.view === "add" ? navigation.screen : undefined) ??
+    (hasRequest ? "sign-in" : "join");
+  // Account creation opens from Join (or a request's Sign in) and import from Sign in; Back returns
+  // to that screen.
+  // The start screen's own Back (where it was opened from) survives the detour.
+  const startPrevious = "previous" in navigation ? navigation.previous : undefined;
+  const backToStart = (screen: StartScreen) => () =>
+    navigate({ view: "add", back: addBack, screen, previous: startPrevious });
   /**
    * Hands the request to Pubky Ring. A phone follows the deep link from this very press, which is
    * what lets the browser open the app; a computer goes straight to the QR code.
@@ -401,9 +413,7 @@ function ReadyPassport({
           );
           // Unfinished setup shows the same last step as the profile form this connection opens.
           return setupRequired && !forApp ? (
-            <SetupProgressProvider steps={ACCOUNT_SETUP_STEPS} current={2}>
-              {connection}
-            </SetupProgressProvider>
+            <SetupProgressProvider current={2}>{connection}</SetupProgressProvider>
           ) : (
             connection
           );
@@ -415,7 +425,6 @@ function ReadyPassport({
             created={
               from === "addition" && identity.keySource !== "ring" && !identity.googleAccount
             }
-            forRequest={hasRequest}
             requiredByRequest={profileRequired || forApp}
             withoutSetupSteps={forApp || forEditLink}
             identity={identity}
@@ -553,18 +562,34 @@ function ReadyPassport({
         // with Back to the list once an identity arrives), or Use another identity from the list.
         return (
           <AddIdentity
+            // Until a hello that may still come has bound, the keychain line waits: it would flash
+            // and go for an app that offers its own.
+            appOffersKeychain={appOffersKeychain || awaitingHello}
             googleReturn={googleReturn && hasRequest ? { onLeave: leaveGoogleReturn } : undefined}
             request={authorization.status === "review" ? authorization.review : undefined}
-            onUseRing={hasRequest ? () => openRing({ view: "add", back: addBack }) : undefined}
+            onUseRing={
+              hasRequest
+                ? () => openRing({ view: "add", back: addBack, screen: "sign-in" })
+                : undefined
+            }
+            screen={startScreen}
+            onScreen={(screen) =>
+              navigate({ view: "add", back: addBack, screen, previous: startScreen })
+            }
+            onPrevious={
+              navigation.view === "add" && navigation.previous
+                ? () => navigate({ view: "add", back: addBack, screen: navigation.previous })
+                : undefined
+            }
             // Adds an existing Ring identity; without setup required its profile stays as it is.
             ringConnection={
               hasRequest
                 ? undefined
                 : // `close` is Cancel on a phone; a computer's card has nothing to cancel.
-                  (close) => (
+                  (close, layout) => (
                     <RingProfileConnection
                       controller={ringProfile}
-                      embedded
+                      embedded={layout ?? true}
                       onBack={close}
                       // On a phone the card's own press started this: Ring opens when it can.
                       openOnReady={close !== undefined}
@@ -584,16 +609,22 @@ function ReadyPassport({
             onCancel={addBack ? undefined : cancelRequest}
             onComplete={completeAddition}
             onCreateAccount={(method) =>
-              navigate({ view: "create-account", back: addBack, method })
+              navigate({
+                view: "create-account",
+                back: addBack,
+                method,
+                from: startScreen,
+                previous: startPrevious,
+              })
             }
-            onImport={() => navigate({ view: "import", back: addBack })}
+            onImport={() => navigate({ view: "import", back: addBack, previous: startPrevious })}
           />
         );
       case "import":
         return (
           <BackupImportFlow
             defaultHomeserver={providerHomeserver}
-            onBack={backToStart}
+            onBack={backToStart("sign-in")}
             onComplete={(identity) => {
               // The next screen is the overview or the app's review, which do not say it worked.
               toast.success("Recovery file imported", {
@@ -610,7 +641,9 @@ function ReadyPassport({
             ringProfileController={ringProfile}
             inviteHomeserver={providerHomeserver ?? ""}
             method={navigation.method}
-            onBack={backToStart}
+            // A setup resumed on load was opened from nowhere: its way back is the start page's
+            // own first screen (Sign in for a request, Join otherwise).
+            onBack={backToStart(navigation.from ?? startScreen)}
             onLocalComplete={completeAddition}
           />
         );

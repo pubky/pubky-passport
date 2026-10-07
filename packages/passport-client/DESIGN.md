@@ -83,7 +83,9 @@ pop-up or same-tab request tells Passport the requirement (in the hello, or as `
 next to `d=`). After a Pubky Ring sign-in through Passport's window, a bound Passport that
 advertised `profile-setup` is asked once (`profile-needed`) and its `profile-ready` triggers quick
 rereads. A Pubky Ring QR sign-in from the large element does not pass through Passport and relies on
-the package's own check. The SDK read may finish later; its result is ignored after the attempt ends
+the package's own check. While a prepared keychain request is held (a large element's lease), every
+hello carries the `keychain` feature, so Passport does not offer a second keychain route on its
+request Join; it is a display hint only. The SDK read may finish later; its result is ignored after the attempt ends
 and its storage wrapper is freed when the read settles. Real homeserver profile reads and Ring scans
 remain unverified.
 
@@ -92,7 +94,21 @@ remain unverified.
 The same-tab flow is created with callbacks on the page's own origin and saved with the SDK's
 delegated save: the proof-of-possession key stays non-extractable in IndexedDB, and the saved
 string, which still carries the request's relay secret, goes into the initiating tab's
-`sessionStorage`. A browser that cannot hold delegated state cannot continue in the same tab.
+`sessionStorage`. A browser that cannot hold delegated state cannot continue in the same tab, and
+neither can a classic QR (legacy cookie) flow: the SDK's cookie `AuthFlow` has no delegated save,
+so the resume path (`resumeDelegatedGrantAuthFlow`) is never taken for it and a blocked pop-up in
+classic mode fails as `popup_blocked` while the in-page QR code keeps working.
+
+## Classic QR
+
+Pubky Ring before 2.0 approves only the legacy cookie sign-in. The flow adapter reads the client's
+per-device choice (`pubky-passport-client/keychain-auth/v1` in the app origin's `localStorage`) at
+every start: `grant` (the default) calls `startGrantAuthFlow`, `cookie` calls
+`startCookieAuthFlow(capabilities, kind, httpRelay, xCallback)` with the same capabilities and
+callbacks, without a client ID or PoP key. One flow serves the QR code and Passport's pop-up, so the
+choice shapes both. Switching dispatches `RING_RELOAD`, which rotates a prepared (`ready`) flow and
+leaves a running attempt alone. The delivered cookie `Session` goes through the same capability
+check and profile read as a grant session.
 Creating that flow ignores its result after cancellation, replacement or Session delivery, and does
 not navigate, poll or free the saved flow.
 
@@ -136,7 +152,8 @@ A long `appName` or `clientId` makes the QR denser. The SDK percent-encodes the 
 non-ASCII `appName` character costs 9–12 bytes. Tests compare rendered module grids with the
 untouched upstream encoder, compiled independently (see `test-vectors/qrcode.md`). The element's QR
 cutoff is 2,331 UTF-8 bytes; a link too long for H (over 1,273 bytes) is drawn at M without the
-logo, and above the cutoff Ring can only be opened through "Open in Pubky Ring" on the same device.
+logo, and above the cutoff the keychain app can only be opened through "Open keychain app" on the
+same device.
 
 ## Instance choices
 

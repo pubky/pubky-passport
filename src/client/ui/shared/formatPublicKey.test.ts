@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { shortCopiedValue, shortPublicKey } from "./formatPublicKey";
+import { shortPublicKey } from "./formatPublicKey";
 
 describe("shortPublicKey", () => {
   it("keeps keys of up to twelve characters intact", () => {
@@ -9,16 +9,5 @@ describe("shortPublicKey", () => {
 
   it("elides the middle of longer keys with one ellipsis character, keeping their case", () => {
     expect(shortPublicKey("abcdefghijklm")).toBe("abcd…jklm");
-  });
-});
-
-describe("shortCopiedValue", () => {
-  it("keeps values of up to thirty-two characters intact", () => {
-    const value = "a".repeat(32);
-    expect(shortCopiedValue(value)).toBe(value);
-  });
-
-  it("truncates longer values after thirty-two characters", () => {
-    expect(shortCopiedValue(`${"a".repeat(32)}b`)).toBe(`${"a".repeat(32)}...`);
   });
 });
