@@ -25,6 +25,7 @@ import { FieldMessage } from "@/client/ui/shared/primitives/fieldMessage";
 import { canRestoreFiles, FileField } from "@/client/ui/shared/primitives/fileField";
 import { Input } from "@/client/ui/shared/primitives/input";
 import { Label } from "@/client/ui/shared/primitives/label";
+import { TEXT_MEASURE } from "@/client/ui/shared/primitives/typography";
 import {
   REVEALABLE_PASSWORD_INPUT_PROPS,
   RevealPasswordButton,
@@ -219,12 +220,12 @@ export function BackupImportFlow({
         </RecoveryCard>
         {/* An account made through this Passport may still live on a homeserver entered at signup
             or named by its invite, so the question is about the homeserver, not the Passport. */}
-        <Notice id="import-homeserver-warning" tone="warning">
+        <Notice className={TEXT_MEASURE} id="import-homeserver-warning" tone="warning">
           Continue only if you signed up here without entering a different homeserver. If you’re not
           sure, go back: pointing it to the wrong homeserver hides your profile and data from apps.
         </Notice>
         {formError ? (
-          <Notice focusOnMount tone="error">
+          <Notice className={TEXT_MEASURE} focusOnMount tone="error">
             {formError.message}
           </Notice>
         ) : null}
@@ -316,7 +317,7 @@ export function BackupImportFlow({
           </div>
         </RecoveryCard>
         {formError ? (
-          <Notice focusOnMount tone="error">
+          <Notice className={TEXT_MEASURE} focusOnMount tone="error">
             {formError.message}
             {existing && onSelectExisting ? (
               <Button onClick={() => onSelectExisting(existing)} size="sm" variant="secondary">

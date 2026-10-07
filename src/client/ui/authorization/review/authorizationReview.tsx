@@ -95,54 +95,68 @@ function AuthorizationReview({
           stay in view in the app's 760px popup. */}
       <div className={cn("flex flex-1 flex-col gap-6", SHORT_WINDOW_GAP)}>
         <RequestHeading compact hostId={hostId} review={review} warning={false} />
-        <CallbackOriginWarning warning={opener.callbackWarning} />
-        <BroadAccessWarning capabilities={review.capabilities} />
-        <PermissionList callbackHost={opener.ownHost} capabilities={review.capabilities} />
-        <SelectedIdentity identity={identity} onSwitch={onSwitch} disabled={busy} />
-        <div className="flex flex-col gap-2">
-          <p className="break-words text-sm font-medium leading-5 text-muted-foreground">
-            {describeWhatTheAppSees(review, identity, opener.bound ? label : undefined)}
-            <strong className="font-bold text-foreground">
-              {describeAuthorizationEffect(
-                review.capabilities,
-                broad,
-                opener.bound && labelledHost ? `${label} (${labelledHost})` : requester,
-              )}
-            </strong>
-          </p>
-          {opener.unverified ? null : status}
-        </div>
-        {opener.unverified ? (
-          // M3: the warning stands right above Authorize and gives its place to each step of the
-          // answer once Authorize is pressed, so neither moves the actions.
-          <div className="grid">
-            <UnverifiedRequestNotice
-              className={cn("[grid-area:1/1]", busy && "invisible")}
-              id={hostId}
-            />
-            {status}
-          </div>
-        ) : null}
-        <Button
-          aria-describedby={describedHost ? hostId : undefined}
-          // A broad grant's longer label wraps on desktop too instead of overflowing its column.
-          className={cn("mt-auto w-full md:mt-0", broad && "md:whitespace-normal")}
-          disabled={!identity || cancelling}
-          loading={signing}
-          onClick={onAuthorize}
-          size="lg"
-          type="button"
+        {/* From lg two columns of the track, as Manage identity's cards: what the app asks for on
+            the left, the identity that answers and the answer itself on the right. Below lg one
+            column in the same order, Authorize at the window's bottom on a phone. */}
+        <div
+          className={cn(
+            "flex flex-1 flex-col gap-6 lg:grid lg:grid-cols-2 lg:items-start lg:gap-x-12",
+            SHORT_WINDOW_GAP,
+          )}
         >
-          <CheckIcon />
-          {authorizationButtonLabel(phase, phaseOutcome, broad)}
-        </Button>
-        {onUseAnotherIdentity && onUseRing ? (
-          <OtherWaysIn
-            disabled={busy}
-            onOpenRing={onUseRing}
-            onUseAnotherIdentity={onUseAnotherIdentity}
-          />
-        ) : null}
+          <div className={cn("flex min-w-0 flex-col gap-6", SHORT_WINDOW_GAP)}>
+            <CallbackOriginWarning warning={opener.callbackWarning} />
+            <BroadAccessWarning capabilities={review.capabilities} />
+            <PermissionList callbackHost={opener.ownHost} capabilities={review.capabilities} />
+          </div>
+          <div className={cn("flex min-w-0 flex-1 flex-col gap-6", SHORT_WINDOW_GAP)}>
+            <SelectedIdentity identity={identity} onSwitch={onSwitch} disabled={busy} />
+            <div className="flex flex-col gap-2">
+              <p className="break-words text-sm font-medium leading-5 text-muted-foreground">
+                {describeWhatTheAppSees(review, identity, opener.bound ? label : undefined)}
+                <strong className="font-bold text-foreground">
+                  {describeAuthorizationEffect(
+                    review.capabilities,
+                    broad,
+                    opener.bound && labelledHost ? `${label} (${labelledHost})` : requester,
+                  )}
+                </strong>
+              </p>
+              {opener.unverified ? null : status}
+            </div>
+            {opener.unverified ? (
+              // M3: the warning stands right above Authorize and gives its place to each step of
+              // the answer once Authorize is pressed, so neither moves the actions.
+              <div className="grid">
+                <UnverifiedRequestNotice
+                  className={cn("[grid-area:1/1]", busy && "invisible")}
+                  id={hostId}
+                />
+                {status}
+              </div>
+            ) : null}
+            <Button
+              aria-describedby={describedHost ? hostId : undefined}
+              // A broad grant's longer label wraps on desktop too instead of overflowing its column.
+              className={cn("mt-auto w-full md:mt-0", broad && "md:whitespace-normal")}
+              disabled={!identity || cancelling}
+              loading={signing}
+              onClick={onAuthorize}
+              size="lg"
+              type="button"
+            >
+              <CheckIcon />
+              {authorizationButtonLabel(phase, phaseOutcome, broad)}
+            </Button>
+            {onUseAnotherIdentity && onUseRing ? (
+              <OtherWaysIn
+                disabled={busy}
+                onOpenRing={onUseRing}
+                onUseAnotherIdentity={onUseAnotherIdentity}
+              />
+            ) : null}
+          </div>
+        </div>
       </div>
     </PassportScreen>
   );

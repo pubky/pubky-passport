@@ -46,14 +46,16 @@ export function OnboardingScreen({
           "max-md:min-h-[calc(100svh-var(--passport-header-height)-var(--passport-context-band-height))]",
         className,
       )}
-      width="wide"
     >
       <div className="flex flex-col gap-3 md:gap-4">
         <DisplayHeading accent={accent} className="[&>span]:inline" data-window-title={windowTitle}>
           {title}{" "}
         </DisplayHeading>
         {lead ? (
-          <LeadText className={leadFrom === "md" ? "hidden md:block" : undefined}>{lead}</LeadText>
+          // Account creation's leads are one line in pubky.app's frames; they keep the track.
+          <LeadText className={cn("max-w-none", leadFrom === "md" && "hidden md:block")}>
+            {lead}
+          </LeadText>
         ) : null}
       </div>
       {children}

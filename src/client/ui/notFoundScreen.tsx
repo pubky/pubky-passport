@@ -1,6 +1,7 @@
 "use client";
 
 import { ArrowRightIcon } from "@/client/ui/shared/icons";
+import { PassportNavigation } from "@/client/ui/shared/passportNavigation";
 import { PassportScreen } from "@/client/ui/shared/passportScreen";
 import { ButtonLink } from "@/client/ui/shared/primitives/button";
 import { DisplayHeading, LeadText } from "@/client/ui/shared/primitives/typography";
@@ -21,10 +22,16 @@ export function NotFoundScreen() {
           and start signing in again.
         </LeadText>
       </div>
-      <ButtonLink className="w-full md:w-fit" href="/" size="lg">
-        <ArrowRightIcon />
-        Go to Passport
-      </ButtonLink>
+      {/* The way on, where every screen has it: across a phone's column, at the track's end from
+          md. */}
+      <PassportNavigation
+        confirm={
+          <ButtonLink className="w-full" href="/" size="lg">
+            <ArrowRightIcon />
+            Go to Passport
+          </ButtonLink>
+        }
+      />
     </PassportScreen>
   );
 }

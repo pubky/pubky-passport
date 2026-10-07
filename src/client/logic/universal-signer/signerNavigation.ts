@@ -50,7 +50,7 @@ export type ManagementNavigation =
  * for an app's request that needs a profile before its review (`request`), where Back returns to
  * the identity list and nothing skips it, for an app that holds a Session and waits for this
  * key's profile (`app`: its `profile-needed`, or `/#profile=<key>`), which ends on `profile-done`,
- * or from an app's edit link (`edit`: `/#edit-profile=<key>`), which ends on `profile-updated`.
+ * or from an app's edit link (`edit`: `/#edit-profile=<key>`), which leaves the page once saved.
  */
 export type ProfileOrigin = "addition" | "overview" | "manage" | "request" | "app" | "edit";
 
@@ -93,8 +93,6 @@ export type SignerNavigation =
   | { view: "finish-add"; publicKeyZ32: string }
   /** The profile an app waited for is published: back to the app (`told` when it heard of it). */
   | { view: "profile-done"; told: boolean }
-  /** The profile an app's edit link opened is published (`told` when that app heard of it). */
-  | { view: "profile-updated"; told: boolean }
   /** An edit link in any shape but `/#edit-profile=<key>`. */
   | { view: "edit-invalid" }
   | { view: "profile"; publicKeyZ32: string; from: ProfileOrigin }
@@ -221,12 +219,7 @@ export function resolveSignerNavigation(
     findIdentity(catalog, navigation.publicKeyZ32)?.keySource === "ring"
   )
     return resolveSignerNavigation({ view: "home" }, context);
-  if (
-    appProfile ||
-    navigation.view === "profile-done" ||
-    navigation.view === "profile-updated" ||
-    navigation.view === "edit-invalid"
-  )
+  if (appProfile || navigation.view === "profile-done" || navigation.view === "edit-invalid")
     return navigation;
   if (requestPending) {
     if (navigation.view === "switch") return resolveSignerNavigation({ view: "choose" }, context);

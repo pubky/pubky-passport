@@ -1018,7 +1018,7 @@ async function openEditLink(page: Page, baseURL: string, key: string) {
   return { popup: await popup, hello, messages };
 }
 
-test("an app's edit link opens that identity's editor and tells only that app it is updated", async ({
+test("an app's edit link opens that identity's editor, tells only that app it is updated and closes", async ({
   page,
   baseURL,
 }) => {
@@ -1039,10 +1039,10 @@ test("an app's edit link opens that identity's editor and tells only that app it
   expect(new URL(edit.popup.url()).hash).toBe("");
   await expect(edit.popup.getByRole("button", { name: "Skip for now" })).toHaveCount(0);
   await name.fill("After");
+  const closed = edit.popup.waitForEvent("close", { timeout: 20_000 });
   await edit.popup.getByRole("button", { name: "Save", exact: true }).click();
-  await expect(edit.popup.getByRole("heading", { name: "Profile updated." })).toBeVisible({
-    timeout: 20_000,
-  });
+  // Saved: the app's pop-up closes at once, with no outcome screen of its own.
+  await closed;
   expect(JSON.parse(written.get("/pub/pubky.app/profile.json")!)).toMatchObject({ name: "After" });
   // Only profile.json and avatar media are written, and the app hears the key, nothing else.
   expect(
@@ -1066,7 +1066,7 @@ test("an app's edit link opens that identity's editor and tells only that app it
   ]);
 });
 
-test("a plain edit link works without an opener; a key not here or a bad link edits nothing", async ({
+test("a plain edit link works without an opener and goes back, or home; a key not here or a bad link edits nothing", async ({
   page,
 }) => {
   test.setTimeout(60_000);
@@ -1084,18 +1084,41 @@ test("a plain edit link works without an opener; a key not here or a bad link ed
     if (url.hostname === "homeserver.example") return homeserver(route);
     return route.abort();
   });
-  // A link loads the document: leave first, as a link from an app's page would arrive.
+  // A link loads the document: leave first, as a link from an app's page would arrive. Saved, the
+  // tab goes back to that page (it may not close: it has a page before this one).
   await page.goto("/privacy-policy");
   await page.goto(`/#edit-profile=${PROFILE_KEY}`);
   await expect(page.getByLabel("Name", { exact: true })).toHaveValue("Plain", { timeout: 20_000 });
   await page.getByLabel("Name", { exact: true }).fill("Plain Edited");
   await page.getByRole("button", { name: "Save", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Profile updated." })).toBeVisible({
+  await expect(page).toHaveURL(/\/privacy-policy$/u, { timeout: 20_000 });
+  expect(JSON.parse(written.get("/pub/pubky.app/profile.json")!)).toMatchObject({
+    name: "Plain Edited",
+  });
+
+  // A tab with no page before it (a link's new tab, `noopener`), in a browser that refuses to let
+  // it close: Passport's home.
+  await page.context().addInitScript(() => {
+    window.close = () => undefined;
+  });
+  const opened = page.context().waitForEvent("page");
+  await page.evaluate(
+    (link) => window.open(link, "_blank", "noopener"),
+    `/#edit-profile=${PROFILE_KEY}`,
+  );
+  const fresh = await opened;
+  await fresh.waitForLoadState();
+  expect(await fresh.evaluate(() => history.length)).toBe(1);
+  await expect(fresh.getByLabel("Name", { exact: true })).toHaveValue("Plain Edited", {
     timeout: 20_000,
   });
-  await expect(
-    page.getByText("Return to the app: it shows your new profile once it reads it again."),
-  ).toBeVisible();
+  await fresh.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(fresh.getByRole("heading", { name: "Your pubky." })).toBeVisible({
+    timeout: 20_000,
+  });
+  await expect(fresh.getByText("Profile published")).toBeVisible();
+  await expect(fresh.getByRole("heading", { name: "Profile updated." })).toHaveCount(0);
+  await fresh.close();
 
   // A key this Passport does not hold: only Pubky Ring, bound to that key, can connect it.
   const other = "8pinxxgqs41n4aididenw5apqp1urfmzdztr8jt4abrkdn435ewo";

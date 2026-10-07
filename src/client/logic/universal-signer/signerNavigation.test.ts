@@ -381,11 +381,9 @@ describe("account creation", () => {
 });
 
 describe("an app's edit link", () => {
-  it("keeps the editor of a key not saved, whose Ring connection says so, and its end screens", () => {
+  it("keeps the editor of a key not saved, whose Ring connection says so, and an invalid link", () => {
     const unsaved = { view: "profile", publicKeyZ32: "y".repeat(52), from: "edit" } as const;
     expect(resolveSignerNavigation(unsaved, context([READY], "ready"))).toBe(unsaved);
-    const updated = { view: "profile-updated", told: false } as const;
-    expect(resolveSignerNavigation(updated, context([READY], "ready"))).toBe(updated);
     const invalid = { view: "edit-invalid" } as const;
     expect(resolveSignerNavigation(invalid, context([], null))).toBe(invalid);
     // Any other editor for a key that is not saved falls back home.

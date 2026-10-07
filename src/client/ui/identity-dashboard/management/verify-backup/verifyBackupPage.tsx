@@ -50,7 +50,7 @@ export function VerifyBackupPage({
   ) => Promise<LocalIdentityBackupCheckResult>;
 }) {
   return (
-    <PassportScreen className="gap-4 md:pb-6" width="wide">
+    <PassportScreen className="gap-4 md:pb-6">
       <DisplayHeading accent="backup." aria-label="Verify your backup." className="[&>span]:inline">
         Verify your{" "}
       </DisplayHeading>

@@ -10,6 +10,7 @@ import {
 import { useAuthorizationRequester } from "@/client/ui/authorization/useAuthorizationRequester";
 import { BackButton } from "@/client/ui/shared/backButton";
 import { PassportNavigation } from "@/client/ui/shared/passportNavigation";
+import { TEXT_MEASURE } from "@/client/ui/shared/primitives/typography";
 import { RingHandoffScreen } from "@/client/ui/shared/ringHandoffScreen";
 import { useDeepLinkLauncher, useRingHandoffMode } from "@/client/ui/shared/useRingHandoff";
 import { ExternalSignerRequest } from "./externalSignerRequest";
@@ -74,8 +75,8 @@ export function RingSignIn({
       }
       navigation={<PassportNavigation back={<BackButton onClick={onBack} />} />}
     >
-      {opener.unverified ? <UnverifiedRequestNotice /> : null}
-      <BroadAccessWarning capabilities={review.capabilities} />
+      {opener.unverified ? <UnverifiedRequestNotice className={TEXT_MEASURE} /> : null}
+      <BroadAccessWarning capabilities={review.capabilities} className={TEXT_MEASURE} />
       <ExternalSignerRequest
         getAuthorizationUrl={getAuthorizationUrl}
         launcher={handoffLauncher}

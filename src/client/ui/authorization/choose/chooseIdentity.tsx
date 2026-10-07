@@ -10,6 +10,7 @@ import { PassportHeaderAction } from "@/client/ui/shared/passportHeaderAction";
 import { PassportScreen } from "@/client/ui/shared/passportScreen";
 import { SHORT_WINDOW_GAP } from "@/client/ui/shared/shortWindow";
 import { Button } from "@/client/ui/shared/primitives/button";
+import { TEXT_MEASURE } from "@/client/ui/shared/primitives/typography";
 import { BroadAccessWarning } from "../broadAccessWarning";
 import { OtherWaysIn } from "../otherWaysIn";
 import { RequestHeading } from "../requestHeading";
@@ -73,7 +74,7 @@ export function ChooseIdentity({
         </Button>
       </PassportHeaderAction>
       <RequestHeading compact review={review} />
-      <BroadAccessWarning capabilities={review.capabilities} />
+      <BroadAccessWarning capabilities={review.capabilities} className={TEXT_MEASURE} />
       <div className={cn("flex min-h-0 flex-1 flex-col gap-2", FILL_SPACE)}>
         <div className="flex items-baseline justify-between gap-3 text-sm font-medium leading-5 text-muted-foreground">
           <p id={listId}>Choose the identity to sign in with.</p>
@@ -88,8 +89,9 @@ export function ChooseIdentity({
           aria-labelledby={listId}
           className={cn(
             // The bottom fades, so a row cut by the edge reads as more to scroll to; the scroll
-            // padding keeps a focused row clear of the fade.
-            "-mx-1 flex min-h-24 flex-1 scroll-pt-2 scroll-pb-8 flex-col gap-2 overflow-y-auto overscroll-contain p-1 pb-8 [mask-image:linear-gradient(to_bottom,black_calc(100%-2rem),transparent)]",
+            // padding keeps a focused row clear of the fade. From lg the rows fill two columns of
+            // the track, so none runs its whole width.
+            "-mx-1 flex min-h-24 flex-1 scroll-pt-2 scroll-pb-8 flex-col gap-2 overflow-y-auto overscroll-contain p-1 pb-8 [mask-image:linear-gradient(to_bottom,black_calc(100%-2rem),transparent)] lg:grid lg:grid-cols-2 lg:content-start",
             FILL_SPACE,
           )}
           onFocus={revealKeyboardFocus}
@@ -102,6 +104,7 @@ export function ChooseIdentity({
             return (
               <li className="shrink-0" key={publicKeyZ32}>
                 <IdentityRow
+                  className="h-full"
                   identity={identity}
                   onClick={() => onSelect(publicKeyZ32)}
                   trailing={<ArrowRightIcon className="shrink-0 text-muted-foreground" />}
@@ -112,7 +115,7 @@ export function ChooseIdentity({
         </ul>
       </div>
       {selectionFailed ? (
-        <Notice tone="error">
+        <Notice className={TEXT_MEASURE} tone="error">
           Couldn&apos;t choose this identity. Your browser didn&apos;t let Passport save your
           choice. Try again.
         </Notice>

@@ -147,9 +147,14 @@ page renders.
   another key is refused ("Pubky Ring approved a different identity…") and nothing is written.
 
 Passport never edits another identity than the link's. Saving writes `profile.json` and the avatar
-files only, then shows **Profile updated.**; an app whose v2 hello named the key
-(`editProfileKey`) hears `profile-updated` with that key, sent to its own origin only. A plain link
-has nobody to tell, and the app reads the profile again itself.
+files only; an app whose v2 hello named the key (`editProfileKey`) hears `profile-updated` with that
+key, sent to its own origin only. A plain link has nobody to tell, and the app reads the profile
+again itself. Then the page leaves, with only the **Profile published** toast and no outcome
+screen (after about a second when it told an app, so the message arrives before its window goes;
+at once otherwise): the window closes where a script may close it (the app's pop-up, or a tab the link
+opened); a link followed in the same tab goes back to the page before (the app); with neither (no
+page before, and a window the browser will not close), it ends at Passport's home. A profile edited
+from Passport's own overview or Manage returns there as before.
 
 ## Testnet instances
 

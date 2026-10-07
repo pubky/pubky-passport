@@ -3,6 +3,7 @@ import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Result } from "better-result";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { EDIT_LINK_MESSAGE_DELAY_MS } from "@/client/ui/authorization/requestExit";
 import { UniversalSignerFlow } from "@/client/ui/universal-signer/universalSignerFlow";
 import { fakeLocalIdentityController } from "@test-utils/fakeLocalIdentityController";
 import { fakePassportAuthorizationController } from "@test-utils/fakePassportAuthorizationController";
@@ -68,7 +69,10 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-it("opens the editor of the linked browser key, not the active one, and tells the app", async () => {
+it("opens the editor of the linked key, tells the app and closes the window it opened", async () => {
+  // The app's pop-up, or a tab its link opened: a script may close it.
+  const close = vi.fn(() => vi.stubGlobal("closed", true));
+  vi.stubGlobal("close", close);
   const user = userEvent.setup();
   mount({ status: "edit", publicKeyZ32: KEY });
   const name = await screen.findByLabelText("Name");
@@ -78,24 +82,44 @@ it("opens the editor of the linked browser key, not the active one, and tells th
   await user.clear(name);
   await user.type(name, "Satoshi Nakamoto");
   await user.click(screen.getByRole("button", { name: "Save" }));
-  expect(await screen.findByRole("heading", { name: "Profile updated." })).toBeInTheDocument();
+  // Told first; the window goes a moment later, so the message reaches the app.
+  await waitFor(() => expect(profileUpdated).toHaveBeenCalledOnce());
+  expect(close).not.toHaveBeenCalled();
+  await waitFor(() => expect(close).toHaveBeenCalledOnce(), {
+    timeout: EDIT_LINK_MESSAGE_DELAY_MS + 2000,
+  });
   expect(save).toHaveBeenCalledOnce();
   expect(save.mock.calls[0]?.[0]).toBe(KEY);
   expect(profileUpdated).toHaveBeenCalledOnce();
-  expect(
-    screen.getByText("The app that opened Passport knows: it shows your new profile."),
-  ).toBeInTheDocument();
+  // No outcome screen of its own: the window is gone.
+  expect(screen.queryByRole("heading", { name: "Profile updated." })).not.toBeInTheDocument();
+  expect(screen.queryByRole("heading", { name: "Your pubky." })).not.toBeInTheDocument();
 });
 
-it("says a plain link's app finds the profile itself, and Back leaves the editor for home", async () => {
-  profileUpdated.mockReturnValueOnce(false);
+it("goes back to the app after saving from a link followed in the same tab", async () => {
+  // A window no script opened, with the app's page before it in this tab.
+  vi.stubGlobal("close", vi.fn());
+  const back = vi.fn();
+  vi.stubGlobal("history", { length: 2, back });
   const user = userEvent.setup();
   mount({ status: "edit", publicKeyZ32: KEY });
   await user.click(await screen.findByRole("button", { name: "Save" }));
-  expect(await screen.findByRole("heading", { name: "Profile updated." })).toBeInTheDocument();
-  expect(
-    screen.getByText("Return to the app: it shows your new profile once it reads it again."),
-  ).toBeInTheDocument();
+  await waitFor(() => expect(back).toHaveBeenCalledOnce(), {
+    timeout: EDIT_LINK_MESSAGE_DELAY_MS + 2000,
+  });
+  expect(profileUpdated).toHaveBeenCalledOnce();
+  expect(screen.queryByRole("heading", { name: "Profile updated." })).not.toBeInTheDocument();
+});
+
+it("ends at Passport's home without a page to go back to, and Back leaves the editor there", async () => {
+  profileUpdated.mockReturnValueOnce(false);
+  // Neither closable nor with a page before it (jsdom's history holds this page alone).
+  vi.stubGlobal("close", vi.fn());
+  const user = userEvent.setup();
+  mount({ status: "edit", publicKeyZ32: KEY });
+  await user.click(await screen.findByRole("button", { name: "Save" }));
+  expect(await screen.findByRole("heading", { name: "Your pubky." })).toBeInTheDocument();
+  expect(screen.queryByRole("heading", { name: "Profile updated." })).not.toBeInTheDocument();
   cleanup();
   mount({ status: "edit", publicKeyZ32: KEY });
   await screen.findByLabelText("Name");

@@ -39,7 +39,11 @@ import {
   usePassportAuthorization,
   type AuthorizationController,
 } from "@/client/ui/authorization/usePassportAuthorization";
-import { goToPassport } from "@/client/ui/authorization/requestExit";
+import {
+  EDIT_LINK_MESSAGE_DELAY_MS,
+  goToPassport,
+  leaveEditLink,
+} from "@/client/ui/authorization/requestExit";
 import { useAuthorizationRequester } from "@/client/ui/authorization/useAuthorizationRequester";
 import { usePendingRequestGuard } from "@/client/ui/authorization/usePendingRequestGuard";
 import {
@@ -518,9 +522,13 @@ function ReadyPassport({
               if (forApp) {
                 navigate({ view: "profile-done", told: controller.profileReady() });
               }
-              // The app whose link opened the editor hears of it, if it opened this window.
+              // The app whose link opened the editor hears of it, if it opened this window, and
+              // the page leaves for the app: the toast is all it shows. A message just sent gets
+              // a moment to reach the app before its window goes.
               else if (forEditLink) {
-                navigate({ view: "profile-updated", told: controller.profileUpdated() });
+                if (controller.profileUpdated())
+                  window.setTimeout(() => leaveEditLink(goHome), EDIT_LINK_MESSAGE_DELAY_MS);
+                else leaveEditLink(goHome);
               }
               // Saving returns to where the editor was opened, like its Back.
               else if (from === "manage") navigate({ view: "manage", publicKeyZ32 });
@@ -562,32 +570,6 @@ function ReadyPassport({
               navigation.told
                 ? "Return to the app: it finishes signing you in with your profile."
                 : "Return to the app and sign in again there: it will find your profile."
-            }
-            title="Profile"
-          />
-        );
-      case "profile-updated":
-        return (
-          <OutcomeScreen
-            accent="updated."
-            action={
-              // A window a link opened in a tab of its own may close itself; otherwise home.
-              <Button
-                className="w-full"
-                onClick={() => {
-                  window.close();
-                  if (!window.closed) goHome();
-                }}
-                size="lg"
-              >
-                <XIcon />
-                Close window
-              </Button>
-            }
-            description={
-              navigation.told
-                ? "The app that opened Passport knows: it shows your new profile."
-                : "Return to the app: it shows your new profile once it reads it again."
             }
             title="Profile"
           />

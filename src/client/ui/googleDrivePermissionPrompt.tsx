@@ -81,7 +81,8 @@ function GooglePermissionGuide({
 }) {
   const width = compact ? "max-w-[360px]" : "max-w-[480px]";
   return (
-    <figure aria-label={label} className="flex w-full flex-col items-center gap-3">
+    // Centred in a phone's column; from md on the track's start edge, under the screen's text.
+    <figure aria-label={label} className="flex w-full flex-col items-center gap-3 md:items-start">
       <div className={cn("w-full overflow-hidden rounded-2xl ring-1 ring-border", width)}>
         <Image
           alt="Animation of a pointer ticking Select all, which ticks both Google Drive boxes, then pressing Continue."
@@ -101,7 +102,9 @@ function GooglePermissionGuide({
         />
       </div>
       {label === undefined ? (
-        <figcaption className={cn("text-center text-sm leading-5 text-muted-foreground", width)}>
+        <figcaption
+          className={cn("text-center text-sm leading-5 text-muted-foreground md:text-left", width)}
+        >
           {GUIDE_CAPTION}
         </figcaption>
       ) : null}

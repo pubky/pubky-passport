@@ -31,6 +31,21 @@ describe("PassportScreen", () => {
     expect(window.scrollTo).toHaveBeenCalledWith({ top: 0, behavior: "instant" });
   });
 
+  it("lays every screen out on the wide track, never the old 588px column", () => {
+    render(
+      <PassportScreen>
+        <h1>Plain heading</h1>
+      </PassportScreen>,
+    );
+
+    // 24px from a phone's or popup's sides; from md the header row's 40px inset, up to a 1200px
+    // content track.
+    const main = screen.getByRole("main");
+    expect(main).toHaveClass("w-full", "max-w-[1280px]", "px-6", "md:px-10");
+    expect(main).not.toHaveClass("max-w-[588px]");
+    expect(main).not.toHaveClass("md:px-0");
+  });
+
   it("focuses the screen itself when it has no heading that takes focus", () => {
     render(
       <PassportScreen>

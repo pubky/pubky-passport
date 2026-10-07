@@ -224,7 +224,7 @@ function MigrateToPubkyRing({
       <RingHandoffCard label="Copy your key to Pubky Ring">
         {mode === "open" ? (
           <>
-            <Notice className="w-full" tone="warning">
+            <Notice className="w-full max-w-md" tone="warning">
               {LINK_WARNING}
             </Notice>
             <Button
@@ -242,7 +242,7 @@ function MigrateToPubkyRing({
           </>
         ) : (
           <>
-            <Notice className="w-full" tone="warning">
+            <Notice className="w-full max-w-md" tone="warning">
               {QR_WARNING}
             </Notice>
             {/* The square is the control: a placeholder until pressed, then the code, which hides

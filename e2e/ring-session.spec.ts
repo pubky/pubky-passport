@@ -173,9 +173,8 @@ test("a stored profile grant opens the editor after a reload and from an edit li
   ]);
   await name.fill("Carol D.");
   await page.getByRole("button", { name: "Save", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Profile updated." })).toBeVisible({
-    timeout: 15_000,
-  });
+  // Saved, the link's page leaves: back to the page the link was followed from.
+  await expect(page).toHaveURL(/\/privacy-policy$/u, { timeout: 15_000 });
   expect(net.writeTokens).toEqual([restored, net.grantExchanges[2]!.token]);
   // Nothing revoked it: the grant stays stored for the next edit.
   expect(net.grantSignouts).toEqual([]);

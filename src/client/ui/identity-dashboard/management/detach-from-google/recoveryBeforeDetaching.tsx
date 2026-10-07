@@ -3,13 +3,14 @@ import type { ReactNode } from "react";
 import type { KeyBackupFile } from "@/client/logic/local-identity/keyBackup";
 import { formatBackupDate } from "@/client/ui/identity-dashboard/backupStatus";
 import { ArrowRightIcon, DownloadIcon, ScanIcon } from "@/client/ui/shared/icons";
+import { cn } from "@/client/ui/shared/mergeClassNames";
 import { Notice } from "@/client/ui/shared/notice";
 import { OnboardingCard } from "@/client/ui/shared/onboardingCard";
 import { BackButton } from "@/client/ui/shared/backButton";
 import { PassportNavigation } from "@/client/ui/shared/passportNavigation";
 import { PassportScreen } from "@/client/ui/shared/passportScreen";
 import { Button } from "@/client/ui/shared/primitives/button";
-import { LeadText } from "@/client/ui/shared/primitives/typography";
+import { LeadText, TEXT_MEASURE } from "@/client/ui/shared/primitives/typography";
 import { ONLY_COPY_WORD } from "./confirmGoogleDetachment";
 
 /**
@@ -66,24 +67,24 @@ function RecoveryBeforeDetaching({
           </RecoveryMethodButton>
         </OnboardingCard>
         {backupChecked ? (
-          <Notice className="md:mt-3" tone="info">
+          <Notice className={cn("md:mt-3", TEXT_MEASURE)} tone="info">
             Your recovery file opened with its password. Keep the file and its password somewhere
             safe.
           </Notice>
         ) : recordedBackup?.verified ? (
-          <Notice className="md:mt-3" tone="info">
+          <Notice className={cn("md:mt-3", TEXT_MEASURE)} tone="info">
             You checked a recovery file of this key on {formatBackupDate(recordedBackup.at)}. Make
             sure you still have the file and its password.
           </Notice>
         ) : ringVerifiedAt ? (
-          <Notice className="md:mt-3" tone="info">
+          <Notice className={cn("md:mt-3", TEXT_MEASURE)} tone="info">
             Pubky Ring signed in with this key on {formatBackupDate(ringVerifiedAt)}. Make sure
             Pubky Ring still has it.
           </Notice>
         ) : (
           // Pubky Ring cannot report an import by itself, and a file made elsewhere is out of
           // sight.
-          <Notice className="md:mt-3" tone="warning">
+          <Notice className={cn("md:mt-3", TEXT_MEASURE)} tone="warning">
             No backup of this key has been verified. You can still detach, but you’ll type{" "}
             {ONLY_COPY_WORD} to confirm that this browser keeps the only copy of your key.
           </Notice>

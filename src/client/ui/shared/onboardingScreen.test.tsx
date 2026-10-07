@@ -31,6 +31,9 @@ describe("OnboardingScreen", () => {
     expect(screen.getByText("Pubky.")).toHaveClass("text-brand");
     const lead = screen.getByText("How would you like to create your pubky?");
     expect(lead.tagName).toBe("P");
+    // Account creation's one-line leads keep the whole track, as in pubky.app's frames.
+    expect(lead).toHaveClass("max-w-none");
+    expect(lead).not.toHaveClass("max-w-3xl");
     expect(heading.parentElement).toContainElement(lead);
     expect(document.title).toBe("Let’s join Pubky | Pubky Passport");
   });

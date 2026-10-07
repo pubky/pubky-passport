@@ -21,11 +21,13 @@ describe("GoogleDetachmentComplete", () => {
         /Your Google backup has been removed. You’re still signed in on this device./,
       ),
     ).toBeInTheDocument();
-    // The shared success layout: checkmark, then one full-width Done at the bottom of a phone.
+    // The shared success layout: checkmark, then one full-width Done at the bottom of a phone
+    // (from md at the track's end).
     expect(container.querySelector('img[src*="checkmark.png"]')).toHaveClass("size-40");
     const done = screen.getByRole("button", { name: "Done" });
     expect(done).toHaveClass("w-full");
-    expect(done.parentElement).toHaveClass("mt-auto", "md:mt-0");
+    expect(done.parentElement).toHaveClass("md:col-start-3");
+    expect(done.parentElement?.parentElement).toHaveClass("mt-auto", "md:mt-0");
     await userEvent.setup().click(done);
     expect(onDone).toHaveBeenCalledOnce();
   });

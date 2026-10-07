@@ -322,8 +322,11 @@ link.rel = "noopener noreferrer";
 The link carries only the public key, in the fragment. Passport opens that identity's editor only
 when it holds the key or Pubky Ring approves its profile grant for exactly that key; it never edits
 another identity, and it writes only `profile.json` and avatar media. Nothing comes back to your
-page: no Session, no token. After the person returns, read the profile again from the homeserver
-or Nexus. If you open the editor in a pop-up you keep a handle to (without `noopener`), say a v2
+page: no Session, no token. Once saved, Passport leaves without a screen of its own: a pop-up or a
+tab your link opened closes (about a second after `profile-updated`, so the message reaches you
+first), and a link followed in the same tab goes back to your page (with no
+page to go back to, Passport's home). After the person returns, read the profile again from the
+homeserver or Nexus. If you open the editor in a pop-up you keep a handle to (without `noopener`), say a v2
 hello with `editProfileKey: publicKey` (see [Opener protocol v2](#opener-protocol-v2)) and
 Passport posts `profile-updated` to your origin once it is saved. The package has no
 `editProfile()` method yet.

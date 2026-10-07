@@ -1,8 +1,9 @@
 import { type ReactNode, useId, useLayoutEffect, useRef } from "react";
 
+import { cn } from "./mergeClassNames";
 import { PassportNavigation } from "./passportNavigation";
 import { PassportScreen } from "./passportScreen";
-import { DisplayHeading, LeadText } from "./primitives/typography";
+import { DisplayHeading, LeadText, TEXT_MEASURE } from "./primitives/typography";
 
 /** Codes that help support find a failure; people do not need them to recover. */
 type TechnicalDetail = { code: string; detail?: string | undefined };
@@ -80,7 +81,7 @@ function ErrorScreen({
         </DisplayHeading>
         <LeadText id={causeId}>{cause}</LeadText>
         {nextStep ? (
-          <p className="text-base font-medium leading-6" id={nextStepId}>
+          <p className={cn("text-base font-medium leading-6", TEXT_MEASURE)} id={nextStepId}>
             {nextStep}
           </p>
         ) : null}

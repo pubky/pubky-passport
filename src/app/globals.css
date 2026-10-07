@@ -40,8 +40,6 @@
   color-scheme: dark;
   --passport-context-band-height: 0px;
   --passport-header-height: 84px;
-  /* Desktop Passport canvas is 588px: the 281px art column is fixed, the copy column flexes. */
-  --passport-content-columns: minmax(0, 1fr) 281px;
   --passport-recovery-heading-min-height: 136px;
   --passport-recovery-body-min-height: 224px;
   --passport-navigation-columns: 120px 1fr minmax(228px, max-content);
