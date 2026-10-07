@@ -47,7 +47,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
         <ParserTimeScripts />
       </head>
       <body>
-        <header className="flex h-[calc(var(--passport-header-height)+var(--passport-context-band-height))] min-h-[calc(var(--passport-header-height)+var(--passport-context-band-height))] w-full shrink-0 items-center justify-between gap-3 bg-[linear-gradient(180deg,rgba(5,5,10,0.96),rgba(5,5,10,0))] px-6 pt-[var(--passport-context-band-height)] md:px-10">
+        <header className="flex h-[calc(var(--passport-header-height)+var(--passport-context-band-height))] min-h-[calc(var(--passport-header-height)+var(--passport-context-band-height))] w-full shrink-0 items-center justify-between gap-3 bg-[linear-gradient(180deg,rgba(5,5,10,0.96),rgba(5,5,10,0))] px-6 pt-[var(--passport-context-band-height)] min-[64.0625rem]:px-10">
           <div className="flex min-w-0 shrink-0 flex-col">
             {instance.network.network === "testnet" ? (
               <div className="flex items-center gap-3">

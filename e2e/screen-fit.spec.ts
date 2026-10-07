@@ -310,7 +310,7 @@ for (const viewport of [
 
 /**
  * V16: where a screen lays out. Below a desktop window (up to 1024px: phones, the app's popup,
- * tablets) every screen runs the full width, 24px from the window's sides and 40px from md, as the
+ * tablets) every screen runs the full width in one column, 24px from the window's sides, as the
  * header row; on a desktop (wider than 1024px) Passport's own screens (`native`) keep their 588px
  * column in the middle, and only the v27 frames and the screens designed wide (`wide`) the 1200px
  * track, where the heading (or `start`) starts on the track's edge. Nothing scrolls sideways.
@@ -333,9 +333,15 @@ async function expectColumn(
         window: document.documentElement.clientWidth,
       };
     });
-  await expect.poll(async () => Number.isFinite((await measure()).left)).toBe(true);
-  const column = await measure();
-  const inset = column.window >= 768 ? 40 : 24;
+  let column = await measure();
+  await expect
+    .poll(async () => {
+      column = await measure();
+      return Number.isFinite(column.left) && Number.isFinite(column.right);
+    })
+    .toBe(true);
+  // 24px from the window's sides up to 1024px (phones, the popup, tablets); 40px on a desktop.
+  const inset = column.window > 1024 ? 40 : 24;
   const [left, width] =
     kind === "native" && column.window > 1024
       ? [(column.window - 588) / 2, 588]
@@ -484,11 +490,8 @@ for (const viewport of [
     await expectColumn(page, "native");
   });
 
-  test(`the recovery file and Google screens take ${where} at ${viewport.width}px`, async ({
-    context,
-    page,
-  }) => {
-    test.setTimeout(90_000);
+  test(`the recovery file screens take ${where} at ${viewport.width}px`, async ({ page }) => {
+    test.setTimeout(60_000);
     await page.setViewportSize(viewport);
     await page.goto("/");
     await page.getByRole("banner").getByRole("button", { name: "Sign in" }).click();
@@ -520,7 +523,12 @@ for (const viewport of [
     await download;
     await expect(page.getByRole("heading", { name: "Verify recovery file." })).toBeVisible();
     await expectColumn(page, "native");
+  });
 
+  // Its own test: Google's window and the screens around it take their time on a loaded machine.
+  test(`the Google screens take ${where} at ${viewport.width}px`, async ({ context, page }) => {
+    test.setTimeout(60_000);
+    await page.setViewportSize(viewport);
     // Google: its explainer is a v27 frame; Passport's own waiting, error and Drive screens follow.
     await page.goto(authorizeUrl(REQUEST, "&entry=google"));
     await expect(page.getByRole("heading", { name: "Continue with Google." })).toBeVisible();

@@ -100,13 +100,13 @@ describe("PassportScreen", () => {
         <h1 tabIndex={-1}>Your pubky.</h1>
       </PassportScreen>,
     );
-    // Full width below a desktop window, 40px in from md; the 588px column above 1024px.
+    // Full width below a desktop window, 24px in; the 588px column above 1024px.
     expect(screen.getByRole("main")).toHaveClass(
       "max-w-[1280px]",
-      "md:px-10",
       "min-[64.0625rem]:max-w-[588px]",
       "min-[64.0625rem]:px-0",
     );
+    expect(screen.getByRole("main").className).not.toMatch(/md:px-10/u);
     unmount();
     render(
       <PassportScreen width="wide">
@@ -114,8 +114,9 @@ describe("PassportScreen", () => {
       </PassportScreen>,
     );
     const wide = screen.getByRole("main");
-    expect(wide).toHaveClass("max-w-[1280px]", "md:px-10");
-    expect(wide.className).not.toMatch(/min-\[64\.0625rem\]/u);
+    // The v27 track: 24px in below a desktop window, 40px on one.
+    expect(wide).toHaveClass("max-w-[1280px]", "min-[64.0625rem]:px-10");
+    expect(wide.className).not.toMatch(/max-w-\[588px\]/u);
   });
 
   it("shows setup progress only inside a setup flow", () => {
