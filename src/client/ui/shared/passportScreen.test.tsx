@@ -31,21 +31,6 @@ describe("PassportScreen", () => {
     expect(window.scrollTo).toHaveBeenCalledWith({ top: 0, behavior: "instant" });
   });
 
-  it("lays every screen out on the wide track, never the old 588px column", () => {
-    render(
-      <PassportScreen>
-        <h1>Plain heading</h1>
-      </PassportScreen>,
-    );
-
-    // 24px from a phone's or popup's sides; from md the header row's 40px inset, up to a 1200px
-    // content track.
-    const main = screen.getByRole("main");
-    expect(main).toHaveClass("w-full", "max-w-[1280px]", "px-6", "md:px-10");
-    expect(main).not.toHaveClass("max-w-[588px]");
-    expect(main).not.toHaveClass("md:px-0");
-  });
-
   it("focuses the screen itself when it has no heading that takes focus", () => {
     render(
       <PassportScreen>
@@ -107,6 +92,30 @@ describe("PassportScreen", () => {
 
     expect(screen.getByLabelText("Invite code")).toHaveFocus();
     expect(window.scrollTo).toHaveBeenCalledOnce();
+  });
+
+  it("keeps Passport's own screens in their column on a desktop only, and the v27 frames wide", () => {
+    const { unmount } = render(
+      <PassportScreen>
+        <h1 tabIndex={-1}>Your pubky.</h1>
+      </PassportScreen>,
+    );
+    // Full width below a desktop window, 40px in from md; the 588px column above 1024px.
+    expect(screen.getByRole("main")).toHaveClass(
+      "max-w-[1280px]",
+      "md:px-10",
+      "min-[64.0625rem]:max-w-[588px]",
+      "min-[64.0625rem]:px-0",
+    );
+    unmount();
+    render(
+      <PassportScreen width="wide">
+        <h1 tabIndex={-1}>Let’s join Pubky.</h1>
+      </PassportScreen>,
+    );
+    const wide = screen.getByRole("main");
+    expect(wide).toHaveClass("max-w-[1280px]", "md:px-10");
+    expect(wide.className).not.toMatch(/min-\[64\.0625rem\]/u);
   });
 
   it("shows setup progress only inside a setup flow", () => {

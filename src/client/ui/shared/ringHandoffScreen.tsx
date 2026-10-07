@@ -2,7 +2,7 @@ import { createContext, type ReactNode, useContext } from "react";
 
 import { cn } from "./mergeClassNames";
 import { PassportScreen } from "./passportScreen";
-import { DisplayHeading, LeadText, TEXT_MEASURE } from "./primitives/typography";
+import { DisplayHeading, LeadText } from "./primitives/typography";
 import { SHORT_WINDOW_GAP, SHORT_WINDOW_HEADING } from "./shortWindow";
 
 /**
@@ -103,13 +103,10 @@ export function RingHandoffStatus({ children }: { children: ReactNode }) {
   const alignment = useRingHandoffAlignment();
   return (
     <p
-      // Centred under the code or link it is about in a phone's column, and from md on the
-      // track's start edge like the screen's other text; on a card's text edge like the code.
+      // Centred under the code or link it is about, or on a card's text edge like the code.
       className={cn(
         "flex items-start gap-2 text-sm leading-5 text-muted-foreground",
-        alignment === "start"
-          ? "justify-start text-left"
-          : cn("justify-center text-center md:justify-start md:text-left", TEXT_MEASURE),
+        alignment === "start" ? "justify-start text-left" : "justify-center text-center",
       )}
       role="status"
     >

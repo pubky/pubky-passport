@@ -2,12 +2,6 @@ import type { ComponentPropsWithoutRef, ComponentPropsWithRef, ReactNode } from 
 
 import { cn } from "@/client/ui/shared/mergeClassNames";
 
-/**
- * The longest line running text takes on a screen's wide track (a lead, a notice or a paragraph
- * between cards): about 70 characters of a lead, so a sentence never runs across the whole 1200px.
- */
-const TEXT_MEASURE = "max-w-3xl";
-
 function DisplayHeading({
   accent,
   accentClassName,
@@ -46,13 +40,11 @@ function DisplayHeading({
   );
 }
 
-/** A screen's lead, under its heading, kept to `TEXT_MEASURE`. */
 function LeadText({ className, ...props }: ComponentPropsWithoutRef<"p">) {
   return (
     <p
       className={cn(
         "text-xl font-light leading-7 text-muted-foreground md:text-2xl md:leading-8",
-        TEXT_MEASURE,
         className,
       )}
       {...props}
@@ -60,4 +52,4 @@ function LeadText({ className, ...props }: ComponentPropsWithoutRef<"p">) {
   );
 }
 
-export { DisplayHeading, LeadText, TEXT_MEASURE };
+export { DisplayHeading, LeadText };

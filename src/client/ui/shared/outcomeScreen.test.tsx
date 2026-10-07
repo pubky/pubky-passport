@@ -44,10 +44,7 @@ describe("OutcomeScreen", () => {
       expect(
         order[index - 1]!.compareDocumentPosition(order[index]!) & Node.DOCUMENT_POSITION_FOLLOWING,
       ).toBeTruthy();
-    // On a phone the way on sits at the bottom of the screen; from md at the track's end.
-    expect(done.parentElement).toHaveClass("md:col-start-3");
-    expect(done.parentElement?.parentElement).toHaveClass("mt-auto", "md:mt-0");
-    // From md the checkmark sits centred in a card across the track.
-    expect(checkmark?.parentElement).toHaveClass("justify-center", "md:bg-card", "md:p-12");
+    // On a phone the way on sits at the bottom of the screen.
+    expect(done.parentElement).toHaveClass("mt-auto", "md:mt-0");
   });
 });

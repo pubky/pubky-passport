@@ -112,8 +112,7 @@ function ManualAuthorization({
               Paste or scan the authorization request from the app you want to connect.
             </LeadText>
           </div>
-          {/* A link's field, as wide as account creation's fields, not the whole track. */}
-          <div className="flex flex-col gap-2 md:max-w-xl">
+          <div className="flex flex-col gap-2">
             <Label className="leading-5 md:leading-4" htmlFor="authorization-link">
               Authorization link
             </Label>

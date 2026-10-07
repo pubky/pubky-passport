@@ -61,8 +61,6 @@ describe("ChooseIdentity", () => {
     const list = screen.getByRole("list", { name: "Choose the identity to sign in with." });
     // Explicit, so WebKit keeps the list (and its count) despite the removed markers.
     expect(list).toHaveAttribute("role", "list");
-    // From lg the rows fill two columns of the wide track.
-    expect(list).toHaveClass("lg:grid", "lg:grid-cols-2");
     const rows = within(list).getAllByRole("button");
     expect(rows.map((row) => row.textContent)).toEqual([
       expect.stringContaining("Other"),
@@ -136,8 +134,6 @@ describe("ChooseIdentity", () => {
     expect(screen.getByRole("alert")).toHaveTextContent(
       "This app asks for access to all your data, public and private.",
     );
-    // A sentence, not a banner across the wide track: it keeps to the text measure.
-    expect(screen.getByRole("alert")).toHaveClass("font-medium", "max-w-3xl");
   });
 
   it("never presents the label of a request nobody verified as who asks (M3)", () => {

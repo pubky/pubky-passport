@@ -6,18 +6,17 @@ import { SetupProgress } from "./setupProgress";
 const APP_TITLE = "Pubky Passport";
 
 /**
- * One step of Passport. Every step lays out on the same track as pubky.app's onboarding: from md
- * the header row's 40px inset on either side, up to a 1200px content track (1280px with the
- * inset), its heading on the track's start edge under the logo; below md, such as on a phone or in
- * an app's 520px sign-in popup, 24px from the window's sides. Cards take the track's width and
- * their content's height; running text keeps to `TEXT_MEASURE`.
- *
- * When it appears, focus moves to its heading (unless a field on it claimed focus first), so
- * screen readers announce the step by name, and the window title names the step too: in the app's
- * sign-in popup the title is the window's only label. A heading whose name alone would not do as
- * that label (an app-supplied one) gives the title in `data-window-title`.
+ * One step of Passport. When it appears, focus moves to its heading (unless a field on it claimed
+ * focus first), so screen readers announce the step by name, and the window title names the step
+ * too: in the app's sign-in popup the title is the window's only label. A heading whose name alone
+ * would not do as that label (an app-supplied one) gives the title in `data-window-title`.
  */
-function PassportScreen({ className, children, ...props }: ComponentPropsWithoutRef<"main">) {
+function PassportScreen({
+  className,
+  children,
+  width = "compact",
+  ...props
+}: ComponentPropsWithoutRef<"main"> & { width?: "compact" | "wide" }) {
   const screen = useRef<HTMLElement>(null);
   // Children's effects run first; take focus only when nothing on this screen claimed it. A
   // heading opts in to programmatic focus with tabindex; the screen itself is the fallback.
@@ -51,7 +50,14 @@ function PassportScreen({ className, children, ...props }: ComponentPropsWithout
       ref={screen}
       tabIndex={-1}
       className={cn(
-        "mx-auto flex w-full max-w-[1280px] grow flex-col px-6 pb-6 pt-3 outline-none md:px-10 md:pb-10 md:pt-2",
+        "mx-auto flex grow outline-none w-full flex-col px-6 pb-6 pt-3 md:pb-10 md:pt-2",
+        // Below a desktop window (phones, the app's popup, tablets up to 1024px) every screen runs
+        // the full width, 40px in from md as the header row; on a desktop (64.0625rem, 1025px at
+        // the default font size; in rem so it orders after md) Passport's own screens keep their
+        // 588px column, and only the v27 frames (`wide`) the 1200px track.
+        width === "wide"
+          ? "max-w-[1280px] md:px-10"
+          : "max-w-[1280px] md:px-10 min-[64.0625rem]:max-w-[588px] min-[64.0625rem]:px-0",
         className,
       )}
       {...props}

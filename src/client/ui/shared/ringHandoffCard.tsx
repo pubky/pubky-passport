@@ -14,19 +14,16 @@ export const RING_ILLUSTRATION = "/illustrations/scan.png";
  * The card every Pubky Ring hand-off shows its code or button in (an app's sign-in, a signup,
  * Passport's profile connection, its backup check, a key export), so all of them look the same:
  * the hand-off (`children`) and, under it, where to get Pubky Ring. On a screen of its own the card
- * spans the track and, from lg, centres Pubky Ring's scan illustration and the hand-off with the
- * store badges side by side in it, as pubky.app's QR frame does. Inside a card that already names
- * Pubky Ring and shows the illustration (the start page's, the one on Verify your backup) it adds
- * no surface of its own, and both start on that card's text edge.
+ * has Pubky Ring's scan illustration on its left from lg, as the choice cards do, and the hand-off
+ * and the store badges are centred in the rest. Inside a card that already names Pubky Ring and
+ * shows the illustration (the start page's, the one on Verify your backup) it adds no surface of
+ * its own, and both start on that card's text edge.
  */
 export function RingHandoffCard({ children, label }: { children: ReactNode; label: string }) {
   const start = useRingHandoffAlignment() === "start";
   const column = (
     <div
-      className={cn(
-        "flex w-full min-w-0 flex-col gap-4",
-        start ? "items-start" : "items-center lg:w-auto",
-      )}
+      className={cn("flex w-full min-w-0 flex-col gap-4", start ? "items-start" : "items-center")}
     >
       {children}
       {/* The badges alone; the question stays for screen readers. */}
@@ -48,15 +45,15 @@ export function RingHandoffCard({ children, label }: { children: ReactNode; labe
   return (
     <section
       aria-label={label}
-      className="flex w-full min-w-0 gap-6 rounded-md bg-card p-6 md:p-8 lg:items-center lg:justify-center lg:gap-12 lg:p-12 [@media(max-height:50rem)]:py-4"
+      className="flex w-full min-w-0 gap-6 rounded-md bg-card p-6 md:p-8 lg:gap-8 [@media(max-height:50rem)]:py-4"
     >
       <Image
         alt=""
         aria-hidden="true"
-        className="hidden size-36 shrink-0 object-contain lg:block lg:size-48"
-        height={192}
+        className="hidden size-36 shrink-0 self-start object-contain lg:block"
+        height={144}
         src={RING_ILLUSTRATION}
-        width={192}
+        width={144}
       />
       {column}
     </section>

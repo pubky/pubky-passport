@@ -6,11 +6,10 @@ import type { GoogleAccountProfile } from "@/libs/googleAccountProfile";
 import type { VisibleRecoveryCopyStatus } from "@/client/logic/google-identity/GoogleIdentityController";
 import type { PubkyPublicIdentity } from "@/client/logic/pubky/pubkyIdentityKey";
 import { cn } from "@/client/ui/shared/mergeClassNames";
-import { PassportNavigation } from "@/client/ui/shared/passportNavigation";
 import { PassportScreen } from "@/client/ui/shared/passportScreen";
 import { ArrowRightIcon } from "@/client/ui/shared/icons";
 import { Button } from "@/client/ui/shared/primitives/button";
-import { DisplayHeading, LeadText, TEXT_MEASURE } from "@/client/ui/shared/primitives/typography";
+import { DisplayHeading, LeadText } from "@/client/ui/shared/primitives/typography";
 import { GoogleAccountCard } from "./googleAccountCard";
 import { VisibleCopyNotice } from "./visibleCopyNotice";
 
@@ -46,18 +45,13 @@ function GoogleIdentityComplete({
             <LeadText>Stored backup in Google Drive.</LeadText>
           </div>
           <div className={cn("flex flex-col gap-6", SHORT_WINDOW_GAP)}>
-            <VisibleCopyNotice className={TEXT_MEASURE} status={visibleRecoveryCopyStatus} />
+            <VisibleCopyNotice status={visibleRecoveryCopyStatus} />
             <GoogleAccountCard account={googleAccount} />
             <PublicKeyCard publicKey={identity.publicKeyZ32} />
-            {/* The way on fills a phone's column and ends the track from md. */}
-            <PassportNavigation
-              confirm={
-                <Button className="w-full" onClick={onContinue} size="lg">
-                  <ArrowRightIcon />
-                  Continue
-                </Button>
-              }
-            />
+            <Button className="w-full" onClick={onContinue} size="lg">
+              <ArrowRightIcon />
+              Continue
+            </Button>
           </div>
         </div>
       </PassportScreen>

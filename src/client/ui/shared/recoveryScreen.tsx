@@ -1,8 +1,7 @@
 import { useEffect, useRef, type ReactNode } from "react";
-import { cn } from "./mergeClassNames";
 import { OnboardingCard } from "./onboardingCard";
 import { PassportScreen } from "./passportScreen";
-import { DisplayHeading, LeadText, TEXT_MEASURE } from "./primitives/typography";
+import { DisplayHeading, LeadText } from "./primitives/typography";
 
 type RecoveryScreenProps = { description: ReactNode; children: ReactNode } & (
   | {
@@ -38,18 +37,14 @@ export function RecoveryScreen(props: RecoveryScreenProps) {
   if (accent === undefined) {
     return (
       <PassportScreen key={name} className="gap-6">
-        {/* Across the track like every card from md, its question and answers kept to a
-            readable column on the card's start edge. */}
-        <section className="flex min-w-0 flex-col rounded-2xl border border-border bg-popover p-6 sm:p-8 md:p-12">
-          <div className={cn("flex min-w-0 flex-col gap-6", TEXT_MEASURE)}>
-            <div className="space-y-2">
-              <h1 className="text-2xl font-bold leading-8 outline-none" ref={heading} tabIndex={-1}>
-                {title}
-              </h1>
-              <p className="text-sm leading-5 text-muted-foreground">{description}</p>
-            </div>
-            {children}
+        <section className="flex min-w-0 flex-col gap-6 rounded-2xl border border-border bg-popover p-6 sm:p-8">
+          <div className="space-y-2">
+            <h1 className="text-2xl font-bold leading-8 outline-none" ref={heading} tabIndex={-1}>
+              {title}
+            </h1>
+            <p className="text-sm leading-5 text-muted-foreground">{description}</p>
           </div>
+          {children}
         </section>
       </PassportScreen>
     );
@@ -73,9 +68,8 @@ export function RecoveryScreen(props: RecoveryScreenProps) {
 }
 
 /**
- * A recovery step's fields. From md they sit in a card across the track, beside the concept's
- * illustration from lg, in the column account creation's cards keep their fields to (as the phone
- * and invite steps); below md, where the illustration is hidden, they sit on the page as in v1,
+ * A recovery step's fields. From md they sit in a card beside the concept's illustration, like the
+ * other setup steps; below md, where the illustration is hidden, they sit on the page as in v1,
  * which keeps the step's primary action within the app's 760px sign-in popup.
  */
 export function RecoveryCard({

@@ -5,7 +5,7 @@ import { limitCombiningMarks } from "@/libs/text/limitCombiningMarks";
 import { cn } from "@/client/ui/shared/mergeClassNames";
 import { Notice } from "@/client/ui/shared/notice";
 import { SHORT_WINDOW_HEADING } from "@/client/ui/shared/shortWindow";
-import { DisplayHeading, TEXT_MEASURE } from "@/client/ui/shared/primitives/typography";
+import { DisplayHeading } from "@/client/ui/shared/primitives/typography";
 import { useAuthorizationRequester } from "./useAuthorizationRequester";
 
 /**
@@ -97,9 +97,7 @@ export function RequestHeading({
           Sign-in
         </DisplayHeading>
         {review.requesterName ? <UnverifiedName name={review.requesterName} /> : null}
-        {warning && asker.unverified ? (
-          <UnverifiedRequestNotice className={TEXT_MEASURE} id={hostId} />
-        ) : null}
+        {warning && asker.unverified ? <UnverifiedRequestNotice id={hostId} /> : null}
       </div>
     );
   }

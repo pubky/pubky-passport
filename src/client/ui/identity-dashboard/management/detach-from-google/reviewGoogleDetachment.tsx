@@ -8,7 +8,7 @@ import { Notice } from "@/client/ui/shared/notice";
 import { PassportNavigation } from "@/client/ui/shared/passportNavigation";
 import { PassportScreen } from "@/client/ui/shared/passportScreen";
 import { Button } from "@/client/ui/shared/primitives/button";
-import { DisplayHeading, LeadText, TEXT_MEASURE } from "@/client/ui/shared/primitives/typography";
+import { DisplayHeading, LeadText } from "@/client/ui/shared/primitives/typography";
 
 /** Names the Google account whose backup goes, for people with more than one. */
 function ReviewGoogleDetachment({
@@ -36,13 +36,11 @@ function ReviewGoogleDetachment({
       </div>
 
       {/* The step before made sure of another backup; this says only what detaching keeps. */}
-      <Notice className={TEXT_MEASURE} tone="info">
+      <Notice tone="info">
         You’ll stay signed in on this device and can back up to Google again.
       </Notice>
 
-      {/* From md the illustration sits centred in a card across the track, as pubky.app draws a
-          step's single picture. */}
-      <div className="relative flex h-[248px] w-full items-center justify-center md:h-auto md:rounded-lg md:bg-card md:p-12">
+      <div className="relative flex h-[248px] w-full items-center justify-center md:h-56 lg:-ml-[101px] lg:w-[790px]">
         <Image
           alt=""
           aria-hidden="true"

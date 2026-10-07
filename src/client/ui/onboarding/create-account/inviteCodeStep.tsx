@@ -191,7 +191,7 @@ export function InviteCodeStep({
           if (candidate && canContinue) onContinue(candidate);
         }}
       >
-        <OnboardingCard illustration="/illustrations/invite.png">
+        <OnboardingCard illustration="/illustrations/invite.png" size="wide">
           {/* The homeserver comes first: a well-formed code is looked up on it right away. */}
           {changingHomeserver ? (
             <div className="flex flex-col gap-2">

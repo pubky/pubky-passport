@@ -10,7 +10,6 @@ import { PassportHeaderAction } from "@/client/ui/shared/passportHeaderAction";
 import { PassportScreen } from "@/client/ui/shared/passportScreen";
 import { SHORT_WINDOW_GAP } from "@/client/ui/shared/shortWindow";
 import { Button } from "@/client/ui/shared/primitives/button";
-import { TEXT_MEASURE } from "@/client/ui/shared/primitives/typography";
 import { BroadAccessWarning } from "../broadAccessWarning";
 import { OtherWaysIn } from "../otherWaysIn";
 import { RequestHeading } from "../requestHeading";
@@ -65,7 +64,7 @@ export function ChooseIdentity({
         </Button>
       </PassportHeaderAction>
       <RequestHeading compact review={review} />
-      <BroadAccessWarning capabilities={review.capabilities} className={TEXT_MEASURE} />
+      <BroadAccessWarning capabilities={review.capabilities} />
       <div className="flex flex-col gap-2">
         <div className="flex items-baseline justify-between gap-3 text-sm font-medium leading-5 text-muted-foreground">
           <p id={listId}>Choose the identity to sign in with.</p>
@@ -78,8 +77,7 @@ export function ChooseIdentity({
         </div>
         <ul
           aria-labelledby={listId}
-          // From lg the rows fill two columns of the track, so none runs its whole width.
-          className="flex flex-col gap-2 lg:grid lg:grid-cols-2"
+          className="flex flex-col gap-2"
           // Tailwind's preflight removes list markers, and WebKit then drops the list semantics
           // unless the role is explicit.
           role="list"
@@ -89,7 +87,6 @@ export function ChooseIdentity({
             return (
               <li key={publicKeyZ32}>
                 <IdentityRow
-                  className="h-full"
                   identity={identity}
                   onClick={() => onSelect(publicKeyZ32)}
                   trailing={<ArrowRightIcon className="shrink-0 text-muted-foreground" />}
@@ -100,7 +97,7 @@ export function ChooseIdentity({
         </ul>
       </div>
       {selectionFailed ? (
-        <Notice className={TEXT_MEASURE} tone="error">
+        <Notice tone="error">
           Couldn&apos;t choose this identity. Your browser didn&apos;t let Passport save your
           choice. Try again.
         </Notice>

@@ -69,13 +69,10 @@ describe("RingHandoff", () => {
 
     const card = screen.getByRole("region", { name: "Sign in with Pubky Ring" });
     expect(card).toHaveClass("rounded-md", "bg-card");
-    // Across the track, from lg the illustration and the code centred side by side in it, as
-    // pubky.app's QR frame.
-    expect(card).toHaveClass("lg:justify-center", "lg:items-center", "lg:p-12");
     // The illustration the choice cards show for Pubky Ring, from lg, decoration only.
     const illustration = container.querySelector('img[src*="scan.png"]');
     expect(illustration).toHaveAttribute("aria-hidden", "true");
-    expect(illustration).toHaveClass("hidden", "lg:block", "lg:size-48");
+    expect(illustration).toHaveClass("hidden", "lg:block", "self-start");
     // Where to get Pubky Ring is part of the card, centred under the code, and the question is
     // left to screen readers.
     const install = card.querySelector('[data-slot="ring-install"]')!;
@@ -93,7 +90,7 @@ describe("RingHandoff", () => {
     ).toHaveAttribute("target", "_blank");
     const qr = screen.getByRole("img", { name: "Pubky authorization QR code" });
     expect(qr.compareDocumentPosition(install) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(install.parentElement).toHaveClass("items-center", "lg:w-auto");
+    expect(install.parentElement).toHaveClass("items-center");
   });
 
   it("starts on the text edge, without a surface or illustration, inside a card that names Pubky Ring", () => {

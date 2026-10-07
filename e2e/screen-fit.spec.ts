@@ -50,103 +50,6 @@ async function horizontalOverflow(page: Page): Promise<number> {
   return page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
 }
 
-/** Two saved identities: the request opens on its list, and Switch identity lists both. */
-async function seedTwoIdentities(page: Page): Promise<void> {
-  await seedGoogleIdentity(page);
-  await storeLocalIdentities(page, [{ publicKeyZ32: SECOND_KEY }], { replace: false });
-}
-
-/**
- * V13: every screen lays out on the v27 track, the one Join uses. From md the window's 40px inset,
- * as the header row's, up to 1280px, so a 1200px content track; below md (a phone, the app's
- * 520px popup) 24px from the window's sides. The screen's heading (or a confirmation's card,
- * `start`) starts on the track's start edge, under the logo, and nothing scrolls sideways.
- * Returns the track's edges.
- */
-async function expectTrack(
-  page: Page,
-  start = page.locator("main h1").first(),
-): Promise<{ left: number; right: number }> {
-  await expect(start).toBeVisible();
-  const track = await page.locator("main").evaluate((main) => {
-    const box = main.getBoundingClientRect();
-    const style = getComputedStyle(main);
-    return {
-      left: box.left + parseFloat(style.paddingLeft),
-      right: box.right - parseFloat(style.paddingRight),
-      window: document.documentElement.clientWidth,
-    };
-  });
-  const inset = track.window >= 768 ? 40 : 24;
-  const outside = Math.max(0, (track.window - 1280) / 2);
-  expect(Math.abs(track.left - (outside + inset))).toBeLessThanOrEqual(1);
-  expect(
-    Math.abs(track.right - track.left - (Math.min(track.window, 1280) - 2 * inset)),
-  ).toBeLessThanOrEqual(1);
-  expect(Math.abs((await start.boundingBox())!.x - track.left)).toBeLessThanOrEqual(1);
-  if (track.window <= 1280) {
-    const logo = await page
-      .getByRole("banner")
-      .getByRole("img", { name: "Pubky", exact: true })
-      .boundingBox();
-    expect(Math.abs(logo!.x - track.left)).toBeLessThanOrEqual(1);
-  }
-  expect(await horizontalOverflow(page)).toBe(0);
-  return track;
-}
-
-/** A card or column that spans the whole track. */
-async function expectAcrossTrack(
-  card: Locator,
-  track: { left: number; right: number },
-): Promise<void> {
-  const box = (await card.boundingBox())!;
-  expect(Math.abs(box.x - track.left)).toBeLessThanOrEqual(1);
-  expect(Math.abs(box.x + box.width - track.right)).toBeLessThanOrEqual(1);
-}
-
-/** `second` sits beside `first` (one row of two columns) or under it (one column). */
-async function expectBeside(first: Locator, second: Locator, beside: boolean): Promise<void> {
-  const a = (await first.boundingBox())!;
-  const b = (await second.boundingBox())!;
-  if (beside) expect(b.x).toBeGreaterThanOrEqual(a.x + a.width);
-  else expect(b.y).toBeGreaterThanOrEqual(a.y + a.height);
-}
-
-/**
- * Google's window answers at once as GOOGLE_ACCOUNT, granting `scope` (by default only the first
- * Drive permission), and Drive holds nothing.
- */
-async function grantFirstDrivePermission(
-  context: BrowserContext,
-  scope = "https://www.googleapis.com/auth/drive.appdata",
-): Promise<void> {
-  await context.route("https://accounts.google.com/o/oauth2/v2/auth**", async (route) => {
-    const request = new URL(route.request().url());
-    const claims = Buffer.from(
-      JSON.stringify({ sub: "google-1", nonce: request.searchParams.get("nonce") }),
-    ).toString("base64url");
-    const callback = new URL(request.searchParams.get("redirect_uri")!);
-    callback.hash = new URLSearchParams({
-      access_token: "e2e-drive-token",
-      id_token: `header.${claims}.signature`,
-      state: request.searchParams.get("state")!,
-      scope,
-      expires_in: "3600",
-    }).toString();
-    await route.fulfill({
-      contentType: "text/html",
-      body: `<!doctype html><script>location.replace(${JSON.stringify(callback.href)})</script>`,
-    });
-  });
-  await context.route("https://openidconnect.googleapis.com/v1/userinfo", (route) =>
-    route.fulfill({ json: { sub: "google-1", email: GOOGLE_ACCOUNT.email, name: "Alex" } }),
-  );
-  await context.route("https://www.googleapis.com/drive/v3/files**", (route) =>
-    route.fulfill({ json: { files: [] } }),
-  );
-}
-
 test("each step names itself in the window title and takes focus on its heading", async ({
   page,
 }) => {
@@ -332,327 +235,6 @@ test("the overview starts its heading where the other popup screens do", async (
   expect(overview!.x).toBe(switcher!.x);
 });
 
-/** The v27 Join's track, which every other screen lines up with. */
-async function joinTrack(page: Page): Promise<{ left: number; right: number }> {
-  await page.goto("/");
-  await expect(page.getByRole("heading", { name: "Let’s join Pubky." })).toBeVisible();
-  return expectTrack(page);
-}
-
-const PERMISSIONS = (page: Page) =>
-  page.locator("section", { has: page.getByRole("heading", { name: /^Requested permissions/u }) });
-
-for (const viewport of [
-  { width: 1280, height: 720 },
-  { width: 1024, height: 768 },
-]) {
-  test(`the overview and every identity screen use Join's track at ${viewport.width}px`, async ({
-    page,
-  }) => {
-    test.setTimeout(90_000);
-    await page.setViewportSize(viewport);
-    await mockPublicProfile(page, null);
-    const join = await joinTrack(page);
-    await seedGoogleIdentity(page, PROFILE_KEY);
-    await storeLocalIdentities(page, [{ publicKeyZ32: SECOND_KEY }], { replace: false });
-
-    await page.goto("/");
-    await expect(page.getByRole("heading", { name: "Your pubky." })).toBeVisible();
-    expect(await expectTrack(page)).toEqual(join);
-    // One card across the track, the identity beside its actions, so no button runs its width.
-    const card = page.getByRole("region", { name: "Selected identity" });
-    await expectAcrossTrack(card, join);
-    await expectBeside(
-      card.getByRole("heading", { level: 2 }),
-      card.getByRole("button", { name: "Authorize an app" }),
-      true,
-    );
-
-    await page.getByRole("button", { name: "Switch identity", exact: true }).click();
-    await expect(page.getByRole("heading", { name: "Switch identity." })).toBeVisible();
-    await expectTrack(page);
-    const rows = page.getByRole("list", { name: "Saved identities" }).getByRole("listitem");
-    await expectBeside(rows.nth(0), rows.nth(1), true);
-    await page.getByRole("button", { name: "Back", exact: true }).click();
-
-    await page.getByRole("button", { name: "Authorize an app" }).click();
-    await expect(page.getByRole("heading", { name: "Authorize an app." })).toBeVisible();
-    await expectTrack(page);
-
-    const manage = async () => {
-      await page.goto("/");
-      await page.getByRole("button", { name: "Manage identity" }).click();
-      await expect(page.getByRole("heading", { name: "Manage identity." })).toBeVisible();
-    };
-    await manage();
-    await expectTrack(page);
-    await page.getByRole("button", { name: "Download recovery file" }).click();
-    await expect(page.getByRole("heading", { name: "Make a recovery file." })).toBeVisible();
-    await expectAcrossTrack(
-      page.locator("main section", { has: page.getByLabel("Enter strong password") }),
-      await expectTrack(page),
-    );
-
-    await manage();
-    await page.getByRole("button", { name: "Migrate to Pubky Ring" }).click();
-    await expect(page.getByRole("heading", { name: "Migrate to Pubky Ring." })).toBeVisible();
-    await expectAcrossTrack(
-      page.getByRole("region", { name: "Copy your key to Pubky Ring" }),
-      await expectTrack(page),
-    );
-
-    await manage();
-    await page.getByRole("button", { name: "Verify backup" }).click();
-    await expect(page.getByRole("heading", { name: "Verify your backup." })).toBeVisible();
-    await expectTrack(page);
-
-    await manage();
-    await page.getByRole("button", { name: "Detach from Google" }).click();
-    await expect(page.getByRole("heading", { name: "Back up your pubky first." })).toBeVisible();
-    await expectTrack(page);
-    await page.getByRole("button", { name: "Continue to detach" }).click();
-    await expect(page.getByRole("heading", { name: "Detach from Google." })).toBeVisible();
-    await expectTrack(page);
-
-    // A confirmation is a card across the track, its question on the track's start edge.
-    await manage();
-    await page.getByRole("button", { name: "Remove from this browser" }).click();
-    const confirmation = page.locator("main section").first();
-    await expect(page.locator("main h1")).toHaveText(/^Remove this (identity|key) from/u);
-    await expectAcrossTrack(confirmation, await expectTrack(page, confirmation));
-  });
-
-  test(`a request's screens use Join's track at ${viewport.width}px`, async ({ page }) => {
-    test.setTimeout(60_000);
-    await page.setViewportSize(viewport);
-    await page.route(ANY_HTTPS_URL, (route) => route.abort());
-    const join = await joinTrack(page);
-    await seedTwoIdentities(page);
-
-    await page.goto(authorizeUrl(REQUEST));
-    const list = page.getByRole("list", { name: "Choose the identity to sign in with." });
-    await expect(list).toBeVisible();
-    expect(await expectTrack(page)).toEqual(join);
-    // From lg the rows fill two columns of the track.
-    await expectBeside(list.getByRole("listitem").nth(0), list.getByRole("listitem").nth(1), true);
-
-    await list.getByRole("button").first().click();
-    await expect(page.getByRole("button", { name: "Authorize", exact: true })).toBeVisible();
-    await expectTrack(page);
-    // From lg what the app asks for on the left, the identity and the answer on the right.
-    await expectBeside(
-      PERMISSIONS(page),
-      page.getByRole("region", { name: "Selected identity" }),
-      true,
-    );
-
-    await page.getByRole("button", { name: "Cancel", exact: true }).click();
-    await expect(page.getByRole("heading", { name: "Sign-in cancelled." })).toBeVisible();
-    await expectTrack(page);
-
-    await page.goto(authorizeUrl("pubkyauth://signin?caps=nope"));
-    await expect(page.getByRole("heading", { name: "Invalid sign-in link." })).toBeVisible();
-    await expectTrack(page);
-
-    await page.goto("/no-such-page");
-    await expect(page.getByRole("heading", { name: "Page not found." })).toBeVisible();
-    await expectTrack(page);
-
-    // With nothing saved the request opens on Join, whose keychain line leads to Pubky Ring.
-    await page.evaluate(() => localStorage.clear());
-    await page.goto(authorizeUrl(REQUEST));
-    await page.getByRole("button", { name: /^Use Pubky Ring/u }).click();
-    await expect(page.getByRole("heading", { name: /^Sign in with /u })).toBeVisible();
-    await expectAcrossTrack(
-      page.getByRole("region", { name: /^Sign in with /u }),
-      await expectTrack(page),
-    );
-  });
-
-  test(`the recovery file screens use Join's track at ${viewport.width}px`, async ({ page }) => {
-    test.setTimeout(60_000);
-    await page.setViewportSize(viewport);
-    const join = await joinTrack(page);
-
-    await page.getByRole("banner").getByRole("button", { name: "Sign in" }).click();
-    await page.getByRole("button", { name: "Import it", exact: true }).click();
-    await expect(page.getByRole("heading", { name: "Import recovery file." })).toBeVisible();
-    expect(await expectTrack(page)).toEqual(join);
-    // One card across the track, as account creation's: its fields keep a 576px column.
-    const card = page.locator("main section", { has: page.getByLabel("Recovery file password") });
-    await expectAcrossTrack(card, join);
-    expect((await page.getByLabel("Recovery file password").boundingBox())!.width).toBeLessThan(
-      600,
-    );
-
-    await page.goto("/");
-    await page.getByRole("button", { name: "Manage your own keys" }).click();
-    await page.getByRole("button", { name: "Invite code", exact: true }).click();
-    await page.getByLabel("Enter invite code", { exact: true }).fill("AB12-CD34-EF56");
-    await page.getByRole("button", { name: "Continue", exact: true }).click();
-    await page.getByRole("button", { name: "Keep key in this browser" }).click();
-    await page
-      .getByRole("dialog", { name: "Be aware of these tradeoffs:" })
-      .getByRole("button", { name: "Create in browser anyway" })
-      .click();
-    await expect(page.getByRole("heading", { name: "Protect your key." })).toBeVisible();
-    await expectAcrossTrack(
-      page.locator("main section", { has: page.getByLabel("Enter strong password") }),
-      await expectTrack(page),
-    );
-    await page.getByLabel("Enter strong password", { exact: true }).fill("correct horse battery");
-    const download = page.waitForEvent("download");
-    await page.getByRole("button", { name: "Download recovery file" }).click();
-    await download;
-    await expect(page.getByRole("heading", { name: "Verify recovery file." })).toBeVisible();
-    await expectTrack(page);
-  });
-
-  test(`the Google screens use Join's track at ${viewport.width}px`, async ({ context, page }) => {
-    test.setTimeout(60_000);
-    await page.setViewportSize(viewport);
-    const join = await joinTrack(page);
-
-    await page.goto(authorizeUrl(REQUEST, "&entry=google"));
-    await expect(page.getByRole("heading", { name: "Continue with Google." })).toBeVisible();
-    expect(await expectTrack(page)).toEqual(join);
-
-    // Google's window waits for the person: the waiting screen.
-    await context.route("https://accounts.google.com/o/oauth2/v2/auth**", (route) =>
-      route.fulfill({ contentType: "text/html", body: "<!doctype html><title>Google</title>" }),
-    );
-    await page.goto("/");
-    const waiting = page.waitForEvent("popup");
-    await page.getByRole("button", { name: "Continue with Google", exact: true }).click();
-    const google = await waiting;
-    await expect(page.getByRole("heading", { name: /^Requesting Google/u })).toBeVisible();
-    await expectTrack(page);
-    await google.close();
-    await expect(page.getByRole("heading", { name: "Google sign-in cancelled." })).toBeVisible();
-    await expectTrack(page);
-
-    // Google answers with one Drive permission: the permission screen, its guide on the track.
-    await context.unroute("https://accounts.google.com/o/oauth2/v2/auth**");
-    await grantFirstDrivePermission(context);
-    await page.goto("/");
-    await page.getByRole("button", { name: "Continue with Google", exact: true }).click();
-    await expect(page.getByRole("heading", { name: "Drive access optional." })).toBeVisible();
-    const track = await expectTrack(page);
-    expect(Math.abs((await page.getByRole("figure").boundingBox())!.x - track.left)).toBeLessThan(
-      1,
-    );
-  });
-}
-
-test("Backup ready and a finished step's checkmark card use Join's track at 1280px", async ({
-  context,
-  page,
-}) => {
-  test.setTimeout(90_000);
-  await page.setViewportSize({ width: 1280, height: 720 });
-  await mockGoogleCreation(context, GOOGLE_ACCOUNT);
-  await page.goto(`${SECURE_ORIGIN}${authorizeUrl(REQUEST)}`);
-  await page.getByRole("button", { name: "Continue with Google", exact: true }).click();
-  await page.getByRole("button", { name: "Skip the folder copy" }).click();
-  await expect(page.getByRole("heading", { name: "Backup ready." })).toBeVisible({
-    timeout: 20_000,
-  });
-  const track = await expectTrack(page);
-  // The new pubky in account creation's card across the track; Continue ends the track.
-  await expectAcrossTrack(
-    page.locator("main section", { has: page.getByRole("heading", { name: "Your pubky" }) }),
-    track,
-  );
-  const next = (await page.getByRole("button", { name: "Continue", exact: true }).boundingBox())!;
-  expect(Math.abs(next.x + next.width - track.right)).toBeLessThanOrEqual(1);
-
-  // Detaching a Google account whose recovery file was checked ends on the shared success screen.
-  await context.unrouteAll({ behavior: "ignoreErrors" });
-  // Everything else stays off the network; Google's answers below take precedence.
-  await context.route(ANY_HTTPS_URL, (route) => route.abort());
-  await grantFirstDrivePermission(
-    context,
-    "https://www.googleapis.com/auth/drive.appdata https://www.googleapis.com/auth/drive.file",
-  );
-  await page.goto("/terms-of-service");
-  await storeLocalIdentities(page, [{ publicKeyZ32: FIRST_KEY, googleAccount: GOOGLE_ACCOUNT }], {
-    active: FIRST_KEY,
-  });
-  await page.evaluate((key) => {
-    localStorage.setItem(
-      `pubky-passport/local-identities/v1/identity-backup/${key}`,
-      JSON.stringify({ v: 1, verifiedAt: "2026-09-28T10:00:00.000Z" }),
-    );
-  }, FIRST_KEY);
-  await page.goto("/");
-  await page.getByRole("button", { name: "Manage identity" }).click();
-  await page.getByRole("button", { name: "Detach from Google" }).click();
-  await page.getByRole("button", { name: "Continue to detach" }).click();
-  await page.getByRole("button", { name: "Detach from Google" }).click();
-  await page.getByLabel("Type DETACH to confirm").fill("DETACH");
-  await page.getByRole("button", { name: "Confirm detachment" }).click();
-  await expect(page.getByRole("heading", { name: "Detached from Google." })).toBeVisible();
-  const outcome = await expectTrack(page);
-  // The checkmark centred in a card across the track; Done ends the track.
-  await expectAcrossTrack(page.locator('main img[src*="checkmark"]').locator(".."), outcome);
-  const done = (await page.getByRole("button", { name: "Done" }).boundingBox())!;
-  expect(Math.abs(done.x + done.width - outcome.right)).toBeLessThanOrEqual(1);
-});
-
-for (const viewport of [
-  { width: 375, height: 812 },
-  { width: 520, height: 760 },
-]) {
-  test(`a phone and the app's popup keep the compact column at ${viewport.width}px`, async ({
-    page,
-  }) => {
-    test.setTimeout(60_000);
-    await page.setViewportSize(viewport);
-    await page.route(ANY_HTTPS_URL, (route) => route.abort());
-    // 24px from the window's sides and one column: Join, the overview, the switcher, a request's
-    // list and its review, a recovery file, and an outcome.
-    await joinTrack(page);
-    await seedTwoIdentities(page);
-    await page.goto("/");
-    await expect(page.getByRole("heading", { name: "Your pubky." })).toBeVisible();
-    await expectTrack(page);
-    const card = page.getByRole("region", { name: "Selected identity" });
-    await expectBeside(
-      card.getByRole("heading", { level: 2 }),
-      card.getByRole("button", { name: "Authorize an app" }),
-      false,
-    );
-    await page.getByRole("button", { name: "Switch identity", exact: true }).click();
-    await expectTrack(page);
-    const rows = page.getByRole("list", { name: "Saved identities" }).getByRole("listitem");
-    await expectBeside(rows.nth(0), rows.nth(1), false);
-
-    await page.goto(authorizeUrl(REQUEST));
-    const list = page.getByRole("list", { name: "Choose the identity to sign in with." });
-    await expect(list).toBeVisible();
-    await expectTrack(page);
-    await expectBeside(list.getByRole("listitem").nth(0), list.getByRole("listitem").nth(1), false);
-    await list.getByRole("button").first().click();
-    await expect(page.getByRole("button", { name: "Authorize", exact: true })).toBeVisible();
-    await expectTrack(page);
-    await expectBeside(
-      PERMISSIONS(page),
-      page.getByRole("region", { name: "Selected identity" }),
-      false,
-    );
-    await page.getByRole("button", { name: "Cancel", exact: true }).click();
-    await expect(page.getByRole("heading", { name: "Sign-in cancelled." })).toBeVisible();
-    await expectTrack(page);
-
-    await page.evaluate(() => localStorage.clear());
-    await page.goto("/");
-    await page.getByRole("banner").getByRole("button", { name: "Sign in" }).click();
-    await page.getByRole("button", { name: "Import it", exact: true }).click();
-    await expect(page.getByRole("heading", { name: "Import recovery file." })).toBeVisible();
-    await expectTrack(page);
-  });
-}
-
 /**
  * The space between `above`'s bottom and `below`'s top: the screen's own gap when they follow each
  * other in the flow.
@@ -723,6 +305,244 @@ for (const viewport of [
     const lastContent = page.locator("main > *").filter({ hasNot: back }).last();
     expect(await gapBetween(lastContent, back)).toBeLessThanOrEqual(32);
     await expectFooterLast(page, viewport);
+  });
+}
+
+/**
+ * V16: where a screen lays out. Below a desktop window (up to 1024px: phones, the app's popup,
+ * tablets) every screen runs the full width, 24px from the window's sides and 40px from md, as the
+ * header row; on a desktop (wider than 1024px) Passport's own screens (`native`) keep their 588px
+ * column in the middle, and only the v27 frames and the screens designed wide (`wide`) the 1200px
+ * track, where the heading (or `start`) starts on the track's edge. Nothing scrolls sideways.
+ */
+async function expectColumn(
+  page: Page,
+  kind: "native" | "wide",
+  start = page.locator("main h1").first(),
+): Promise<void> {
+  await expect(start).toBeVisible();
+  // Measured once the screen's main is in the document: one replaced while it renders has no
+  // computed style.
+  const measure = () =>
+    page.locator("main").evaluate((main) => {
+      const box = main.getBoundingClientRect();
+      const style = getComputedStyle(main);
+      return {
+        left: box.left + parseFloat(style.paddingLeft),
+        right: box.right - parseFloat(style.paddingRight),
+        window: document.documentElement.clientWidth,
+      };
+    });
+  await expect.poll(async () => Number.isFinite((await measure()).left)).toBe(true);
+  const column = await measure();
+  const inset = column.window >= 768 ? 40 : 24;
+  const [left, width] =
+    kind === "native" && column.window > 1024
+      ? [(column.window - 588) / 2, 588]
+      : [
+          Math.max(0, (column.window - 1280) / 2) + inset,
+          Math.min(column.window, 1280) - 2 * inset,
+        ];
+  expect(Math.abs(column.left - left)).toBeLessThanOrEqual(1);
+  expect(Math.abs(column.right - column.left - width)).toBeLessThanOrEqual(1);
+  if (kind === "wide")
+    expect(Math.abs((await start.boundingBox())!.x - column.left)).toBeLessThanOrEqual(1);
+  expect(await horizontalOverflow(page)).toBe(0);
+}
+
+/** Two saved identities: the request opens on its list, and Switch identity lists both. */
+async function seedTwoIdentities(page: Page): Promise<void> {
+  await seedGoogleIdentity(page);
+  await storeLocalIdentities(page, [{ publicKeyZ32: SECOND_KEY }], { replace: false });
+}
+
+/** Google's window answers at once as GOOGLE_ACCOUNT, granting only the first Drive permission. */
+async function grantFirstDrivePermission(context: BrowserContext): Promise<void> {
+  await context.route("https://accounts.google.com/o/oauth2/v2/auth**", async (route) => {
+    const request = new URL(route.request().url());
+    const claims = Buffer.from(
+      JSON.stringify({ sub: "google-1", nonce: request.searchParams.get("nonce") }),
+    ).toString("base64url");
+    const callback = new URL(request.searchParams.get("redirect_uri")!);
+    callback.hash = new URLSearchParams({
+      access_token: "e2e-drive-token",
+      id_token: `header.${claims}.signature`,
+      state: request.searchParams.get("state")!,
+      scope: "https://www.googleapis.com/auth/drive.appdata",
+      expires_in: "3600",
+    }).toString();
+    await route.fulfill({
+      contentType: "text/html",
+      body: `<!doctype html><script>location.replace(${JSON.stringify(callback.href)})</script>`,
+    });
+  });
+  await context.route("https://openidconnect.googleapis.com/v1/userinfo", (route) =>
+    route.fulfill({ json: { sub: "google-1", email: GOOGLE_ACCOUNT.email, name: "Alex" } }),
+  );
+  await context.route("https://www.googleapis.com/drive/v3/files**", (route) =>
+    route.fulfill({ json: { files: [] } }),
+  );
+}
+
+for (const viewport of [
+  { width: 1280, height: 720 },
+  { width: 1024, height: 768 },
+  { width: 768, height: 1024 },
+]) {
+  const where = viewport.width > 1024 ? "their column on a desktop" : "the full width";
+  test(`the overview and the identity screens take ${where} at ${viewport.width}px`, async ({
+    page,
+  }) => {
+    test.setTimeout(90_000);
+    await page.setViewportSize(viewport);
+    await mockPublicProfile(page, null);
+    await page.goto("/");
+    await expectColumn(page, "wide");
+    await seedGoogleIdentity(page, PROFILE_KEY);
+    await storeLocalIdentities(page, [{ publicKeyZ32: SECOND_KEY }], { replace: false });
+
+    await page.goto("/");
+    await expect(page.getByRole("heading", { name: "Your pubky." })).toBeVisible();
+    await expectColumn(page, "native");
+    await page.getByRole("button", { name: "Switch identity", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Switch identity." })).toBeVisible();
+    await expectColumn(page, "native");
+    await page.getByRole("button", { name: "Back", exact: true }).click();
+    await page.getByRole("button", { name: "Authorize an app" }).click();
+    await expect(page.getByRole("heading", { name: "Authorize an app." })).toBeVisible();
+    await expectColumn(page, "native");
+
+    const manage = async () => {
+      await page.goto("/");
+      await page.getByRole("button", { name: "Manage identity" }).click();
+      await expect(page.getByRole("heading", { name: "Manage identity." })).toBeVisible();
+    };
+    // Manage identity and Verify your backup were wide by design before v27.
+    await manage();
+    await expectColumn(page, "wide");
+    await page.getByRole("button", { name: "Download recovery file" }).click();
+    await expect(page.getByRole("heading", { name: "Make a recovery file." })).toBeVisible();
+    await expectColumn(page, "native");
+    await manage();
+    await page.getByRole("button", { name: "Migrate to Pubky Ring" }).click();
+    await expect(page.getByRole("heading", { name: "Migrate to Pubky Ring." })).toBeVisible();
+    await expectColumn(page, "native");
+    await manage();
+    await page.getByRole("button", { name: "Verify backup" }).click();
+    await expect(page.getByRole("heading", { name: "Verify your backup." })).toBeVisible();
+    await expectColumn(page, "wide");
+    await manage();
+    await page.getByRole("button", { name: "Detach from Google" }).click();
+    await expect(page.getByRole("heading", { name: "Back up your pubky first." })).toBeVisible();
+    await expectColumn(page, "native");
+    await page.getByRole("button", { name: "Continue to detach" }).click();
+    await expect(page.getByRole("heading", { name: "Detach from Google." })).toBeVisible();
+    await expectColumn(page, "native");
+    await manage();
+    await page.getByRole("button", { name: "Remove from this browser" }).click();
+    await expect(page.locator("main h1")).toHaveText(/^Remove this (identity|key) from/u);
+    await expectColumn(page, "native");
+  });
+
+  test(`a request's own screens take ${where} at ${viewport.width}px`, async ({ page }) => {
+    test.setTimeout(60_000);
+    await page.setViewportSize(viewport);
+    await page.route(ANY_HTTPS_URL, (route) => route.abort());
+    await seedTwoIdentities(page);
+
+    await page.goto(authorizeUrl(REQUEST));
+    await expect(
+      page.getByRole("list", { name: "Choose the identity to sign in with." }),
+    ).toBeVisible();
+    await expectColumn(page, "native");
+    await page
+      .getByRole("list", { name: "Choose the identity to sign in with." })
+      .getByRole("button")
+      .first()
+      .click();
+    await expect(page.getByRole("button", { name: "Authorize", exact: true })).toBeVisible();
+    await expectColumn(page, "native");
+    await page.getByRole("button", { name: "Cancel", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Sign-in cancelled." })).toBeVisible();
+    await expectColumn(page, "native");
+
+    await page.goto(authorizeUrl("pubkyauth://signin?caps=nope"));
+    await expect(page.getByRole("heading", { name: "Invalid sign-in link." })).toBeVisible();
+    await expectColumn(page, "native");
+    await page.goto("/no-such-page");
+    await expect(page.getByRole("heading", { name: "Page not found." })).toBeVisible();
+    await expectColumn(page, "native");
+
+    // With nothing saved the request opens on the v27 Join; its keychain line leads to the
+    // hand-off, Passport's own.
+    await page.evaluate(() => localStorage.clear());
+    await page.goto(authorizeUrl(REQUEST));
+    await expect(page.getByRole("heading", { name: "Let’s join Pubky." })).toBeVisible();
+    await expectColumn(page, "wide");
+    await page.getByRole("button", { name: /^Use Pubky Ring/u }).click();
+    await expect(page.getByRole("heading", { name: /^Sign in with /u })).toBeVisible();
+    await expectColumn(page, "native");
+  });
+
+  test(`the recovery file and Google screens take ${where} at ${viewport.width}px`, async ({
+    context,
+    page,
+  }) => {
+    test.setTimeout(90_000);
+    await page.setViewportSize(viewport);
+    await page.goto("/");
+    await page.getByRole("banner").getByRole("button", { name: "Sign in" }).click();
+    await expect(page.getByRole("heading", { name: "Sign in to Pubky" })).toBeVisible();
+    await expectColumn(page, "wide");
+    await page.getByRole("button", { name: "Import it", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Import recovery file." })).toBeVisible();
+    await expectColumn(page, "native");
+
+    await page.goto("/");
+    await page.getByRole("button", { name: "Manage your own keys" }).click();
+    await expectColumn(page, "wide");
+    await page.getByRole("button", { name: "Invite code", exact: true }).click();
+    await page.getByLabel("Enter invite code", { exact: true }).fill("AB12-CD34-EF56");
+    await expectColumn(page, "wide");
+    await page.getByRole("button", { name: "Continue", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Pick your keychain." })).toBeVisible();
+    await expectColumn(page, "wide");
+    await page.getByRole("button", { name: "Keep key in this browser" }).click();
+    await page
+      .getByRole("dialog", { name: "Be aware of these tradeoffs:" })
+      .getByRole("button", { name: "Create in browser anyway" })
+      .click();
+    await expect(page.getByRole("heading", { name: "Protect your key." })).toBeVisible();
+    await expectColumn(page, "native");
+    await page.getByLabel("Enter strong password", { exact: true }).fill("correct horse battery");
+    const download = page.waitForEvent("download");
+    await page.getByRole("button", { name: "Download recovery file" }).click();
+    await download;
+    await expect(page.getByRole("heading", { name: "Verify recovery file." })).toBeVisible();
+    await expectColumn(page, "native");
+
+    // Google: its explainer is a v27 frame; Passport's own waiting, error and Drive screens follow.
+    await page.goto(authorizeUrl(REQUEST, "&entry=google"));
+    await expect(page.getByRole("heading", { name: "Continue with Google." })).toBeVisible();
+    await expectColumn(page, "wide");
+    await context.route("https://accounts.google.com/o/oauth2/v2/auth**", (route) =>
+      route.fulfill({ contentType: "text/html", body: "<!doctype html><title>Google</title>" }),
+    );
+    await page.goto("/");
+    const waiting = page.waitForEvent("popup");
+    await page.getByRole("button", { name: "Continue with Google", exact: true }).click();
+    const google = await waiting;
+    await expect(page.getByRole("heading", { name: /^Requesting Google/u })).toBeVisible();
+    await expectColumn(page, "native");
+    await google.close();
+    await expect(page.getByRole("heading", { name: "Google sign-in cancelled." })).toBeVisible();
+    await expectColumn(page, "native");
+    await context.unroute("https://accounts.google.com/o/oauth2/v2/auth**");
+    await grantFirstDrivePermission(context);
+    await page.goto("/");
+    await page.getByRole("button", { name: "Continue with Google", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Drive access optional." })).toBeVisible();
+    await expectColumn(page, "native");
   });
 }
 

@@ -2,7 +2,6 @@ import {
   capabilityReach,
   type AuthorizationRequestReview,
 } from "@/client/logic/authorization/request/ValidatedPubkyAuthRequest";
-import { cn } from "@/client/ui/shared/mergeClassNames";
 import { Notice } from "@/client/ui/shared/notice";
 
 /**
@@ -13,14 +12,12 @@ import { Notice } from "@/client/ui/shared/notice";
  */
 export function BroadAccessWarning({
   capabilities,
-  className,
 }: {
   capabilities: AuthorizationRequestReview["capabilities"];
-  className?: string | undefined;
 }) {
   const warning = describeBroadAccess(capabilities);
   return warning ? (
-    <Notice className={cn("font-medium", className)} tone="error">
+    <Notice className="font-medium" tone="error">
       {warning}
     </Notice>
   ) : null;

@@ -15,7 +15,7 @@ import { OutcomeScreen } from "@/client/ui/shared/outcomeScreen";
 import { PassportNavigation } from "@/client/ui/shared/passportNavigation";
 import { PassportScreen } from "@/client/ui/shared/passportScreen";
 import { Button } from "@/client/ui/shared/primitives/button";
-import { DisplayHeading, LeadText, TEXT_MEASURE } from "@/client/ui/shared/primitives/typography";
+import { DisplayHeading, LeadText } from "@/client/ui/shared/primitives/typography";
 import { useBackupToGoogle } from "./useBackupToGoogle";
 
 export function BackupToGoogle({
@@ -60,10 +60,7 @@ export function BackupToGoogle({
         title="Google account"
       >
         <GoogleAccountCard account={state.backup.googleAccount} />
-        <VisibleCopyNotice
-          className={TEXT_MEASURE}
-          status={state.backup.visibleRecoveryCopyStatus}
-        />
+        <VisibleCopyNotice status={state.backup.visibleRecoveryCopyStatus} />
       </OutcomeScreen>
     );
   }
@@ -76,7 +73,7 @@ export function BackupToGoogle({
         Choose a Google account that doesn’t already have a Passport backup. {DRIVE_PERMISSION_HINT}
       </LeadText>
       {state.status === "failed" ? (
-        <Notice className={TEXT_MEASURE} tone="error">
+        <Notice tone="error">
           {googleIdentityErrorMessage(state.error, { operation: "attach" })}
         </Notice>
       ) : null}

@@ -111,7 +111,7 @@ function IdentityManagement({
     );
 
   return (
-    <PassportScreen className="gap-6">
+    <PassportScreen width="wide" className="gap-6">
       <DisplayHeading accent="identity." aria-label="Manage identity.">
         Manage
       </DisplayHeading>

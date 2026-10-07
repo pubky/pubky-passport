@@ -464,7 +464,7 @@ function ProfileEditor({
   }
 
   return (
-    <PassportScreen className="gap-6">
+    <PassportScreen width="wide" className="gap-6">
       <div className="space-y-3">
         <DisplayHeading accent="profile." className="[&>span]:inline">
           {required ? "Create your " : "Your "}

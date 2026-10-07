@@ -109,7 +109,7 @@ export function PhoneNumberStep({
           if (!refused) onSendCode(normalized);
         }}
       >
-        <OnboardingCard illustration="/illustrations/phone-number.png">
+        <OnboardingCard illustration="/illustrations/phone-number.png" size="wide">
           <div className="flex flex-col gap-3">
             <label className="text-xl font-bold leading-7" htmlFor="phone-number">
               Phone number
@@ -279,7 +279,7 @@ export function SmsCodeStep({
           if (valid && !pending) onVerify(phoneNumber, code);
         }}
       >
-        <OnboardingCard illustration="/illustrations/sms-verification.png">
+        <OnboardingCard illustration="/illustrations/sms-verification.png" size="wide">
           <div className="flex flex-col gap-3">
             <label className="text-xl font-bold leading-7" htmlFor="sms-code">
               Verification code

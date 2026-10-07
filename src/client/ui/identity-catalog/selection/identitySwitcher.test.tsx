@@ -54,8 +54,6 @@ describe("IdentitySwitcher", () => {
     expect(list).toHaveAttribute("role", "list");
     expect(screen.getByRole("heading", { level: 2, name: "Saved identities" })).toBeInTheDocument();
     expect(within(list).getAllByRole("listitem")).toHaveLength(IDENTITIES.length);
-    // From lg the rows fill two columns of the wide track.
-    expect(list).toHaveClass("lg:grid", "lg:grid-cols-2");
     const activeRow = within(list).getByRole("button", { name: /Active Account/ });
     expect(activeRow).toHaveAttribute("aria-current", "true");
     expect(within(list).getAllByRole("button", { current: true })).toEqual([activeRow]);

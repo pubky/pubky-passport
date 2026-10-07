@@ -49,23 +49,6 @@ describe("AuthorizationReview of a request a v2 hello bound", () => {
     releaseTestOpener();
   });
 
-  it("puts the request on the left and the identity with the answer on the right from lg", () => {
-    renderReview({ requesterName: "Acme Notes", callbackHost: "notes.example" });
-
-    const permissions = screen
-      .getByRole("heading", { name: /^Requested permissions/u })
-      .closest("section")!;
-    const identity = screen.getByRole("region", { name: "Selected identity" });
-    const authorize = screen.getByRole("button", { name: "Authorize" });
-    const columns = permissions.parentElement!.parentElement!;
-    expect(columns).toHaveClass("lg:grid", "lg:grid-cols-2");
-    expect(identity.parentElement).toBe(authorize.parentElement);
-    expect(identity.parentElement?.parentElement).toBe(columns);
-    expect(
-      permissions.compareDocumentPosition(identity) & Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
-  });
-
   it("names the callback host under an app label that differs from it", () => {
     // Bound from the look-alike host itself, so no other origin is involved.
     releaseTestOpener();

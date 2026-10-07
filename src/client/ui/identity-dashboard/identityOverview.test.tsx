@@ -53,19 +53,6 @@ describe("IdentityOverview", () => {
     expect(onBackup).toHaveBeenCalledOnce();
   });
 
-  it("lays one card across the track: from lg the identity on the left, its actions on the right", () => {
-    renderOverview({ publicIdentity: PUBLIC_IDENTITY });
-
-    const card = screen.getByRole("region", { name: "Selected identity" });
-    expect(card).toHaveClass("lg:grid", "lg:grid-cols-[minmax(0,1fr)_minmax(0,26rem)]");
-    // Two groups in reading order: the identity with what it still needs, then its actions.
-    const [identity, actions] = Array.from(card.children);
-    expect(identity).toContainElement(screen.getByRole("heading", { level: 2 }));
-    expect(identity).toContainElement(screen.getByText(/This key is saved only in this browser/u));
-    expect(actions).toContainElement(screen.getByRole("button", { name: "Authorize an app" }));
-    expect(actions).toContainElement(screen.getByRole("button", { name: "Switch identity" }));
-  });
-
   it("asks to check a backup file that was never opened, or to make a new one", () => {
     const { onBackup, onVerifyBackup } = renderOverview({
       publicIdentity: PUBLIC_IDENTITY,

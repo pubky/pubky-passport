@@ -23,7 +23,6 @@ import { PassportNavigation } from "@/client/ui/shared/passportNavigation";
 import { RecoveryScreen } from "@/client/ui/shared/recoveryScreen";
 import { Button } from "@/client/ui/shared/primitives/button";
 import { Spinner } from "@/client/ui/shared/primitives/spinner";
-import { TEXT_MEASURE } from "@/client/ui/shared/primitives/typography";
 import {
   IdentityProgress,
   progressSteps,
@@ -372,7 +371,7 @@ export function LocalAccountCreationFlow({
             />
           )}
           {abandonError && !confirmingAbandon ? (
-            <Notice className={TEXT_MEASURE} focusOnMount tone="error">
+            <Notice focusOnMount tone="error">
               {abandonError}
             </Notice>
           ) : null}

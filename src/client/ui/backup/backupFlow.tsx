@@ -21,7 +21,6 @@ import { FieldMessage } from "@/client/ui/shared/primitives/fieldMessage";
 import { FileField } from "@/client/ui/shared/primitives/fileField";
 import { Input } from "@/client/ui/shared/primitives/input";
 import { Label } from "@/client/ui/shared/primitives/label";
-import { TEXT_MEASURE } from "@/client/ui/shared/primitives/typography";
 import {
   REVEALABLE_PASSWORD_INPUT_PROPS,
   RevealPasswordButton,
@@ -398,7 +397,7 @@ export function BackupFlow({
           </div>
         </RecoveryCard>
         {formError ? (
-          <Notice className={TEXT_MEASURE} focusOnMount tone="error">
+          <Notice focusOnMount tone="error">
             {formError}
           </Notice>
         ) : null}
