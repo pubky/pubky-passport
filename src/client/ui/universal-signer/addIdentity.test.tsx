@@ -91,7 +91,7 @@ it("renders an invite-only instance without Google or Homegate credentials", () 
   expect(screen.getByRole("button", { name: "Import it" })).toBeEnabled();
   expect(
     within(screen.getByRole("region", { name: "Pubky Ring" })).getByRole("button", {
-      name: "Continue with Pubky Ring",
+      name: "Continue with Pubky Ring or Bitkit",
     }),
   ).toBeEnabled();
 });
@@ -226,7 +226,7 @@ describe("AddIdentity", () => {
     expect(screen.queryByText(/Create or restore an account with Google/u)).toBeNull();
     // Each card is the illustrated card: a picture, its name, one line about it, then its actions.
     expect(cards[0]).toHaveTextContent("Create a pubky and choose where its key lives.");
-    expect(cards[1]).toHaveTextContent("Sign in with the key you keep in Pubky Ring.");
+    expect(cards[1]).toHaveTextContent("Sign in with the key you keep in Pubky Ring or Bitkit.");
     expect(cards[0]!.querySelector("img")).toHaveAttribute(
       "src",
       expect.stringContaining("identity-keys.png"),
@@ -266,7 +266,37 @@ describe("AddIdentity", () => {
       "SMS isn’t available in your country. You can use Lightning or an invite code.",
     );
     expect(notes[0]).not.toHaveClass("sr-only");
-    expect(screen.getAllByRole("button", { name: "Check again" })).toHaveLength(1);
+    // A block is an answer, not a failed check: checking again would only give it again.
+    expect(screen.queryByRole("button", { name: "Check again" })).not.toBeInTheDocument();
+  });
+
+  it("keeps Check again through the re-check once a check failed, and offers none for a block", () => {
+    const view = (sms: MethodAvailability["status"]) =>
+      withPassportTestProviders(
+        <HomegateAvailabilityContext
+          value={{
+            methods: {
+              google: { status: "available" },
+              sms: { status: sms },
+              lightning: { status: "available" },
+            },
+            retry: vi.fn(),
+          }}
+        >
+          {addIdentity()}
+        </HomegateAvailabilityContext>,
+      );
+    const rendered = render(view("blocked"));
+    expect(screen.queryByRole("button", { name: "Check again" })).not.toBeInTheDocument();
+
+    rendered.rerender(view("unknown"));
+    const retry = screen.getByRole("button", { name: "Check again" });
+    retry.focus();
+    rendered.rerender(view("checking"));
+    // The pressed button stays mounted, focused and busy while the method is checked again.
+    expect(screen.getByRole("button", { name: "Check again" })).toBe(retry);
+    expect(retry).toHaveFocus();
+    expect(retry).toHaveAttribute("aria-busy", "true");
   });
 
   it("shows a method still being checked as working, and leaves out one whose check failed", () => {
@@ -396,8 +426,8 @@ describe("Pubky Ring on the start page", () => {
     // Nothing to press: the card holds the connection from the start, and gives it no Cancel.
     expect(within(card).getByText("Pubky Ring profile connection QR code")).toBeInTheDocument();
     expect(connection).toHaveBeenCalledWith(undefined);
-    expect(screen.queryByRole("button", { name: "Sign in with Pubky Ring" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Continue with Pubky Ring" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Sign in with Pubky Ring or Bitkit" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Continue with Pubky Ring/u })).toBeNull();
     // It takes no focus from the page's heading.
     expect(card).not.toContainElement(document.activeElement as HTMLElement);
   });
@@ -420,24 +450,28 @@ describe("Pubky Ring on the start page", () => {
 
     const card = screen.getByRole("region", { name: "Pubky Ring" });
     expect(
-      screen.queryByRole("button", { name: "Continue with Pubky Ring" }),
+      screen.queryByRole("button", { name: /^Continue with Pubky Ring/u }),
     ).not.toBeInTheDocument();
     // No request is made until the person asks: preparing one loads the SDK and opens a request.
     expect(connection).not.toHaveBeenCalled();
     expect(card).not.toContainElement(document.activeElement as HTMLElement);
     const user = userEvent.setup();
-    await user.click(within(card).getByRole("button", { name: "Sign in with Pubky Ring" }));
+    await user.click(
+      within(card).getByRole("button", { name: "Sign in with Pubky Ring or Bitkit" }),
+    );
 
     // The connection replaces the button inside the card, and focus follows it there.
     expect(within(card).getByText("Pubky Ring connection")).toBeInTheDocument();
     expect(connection).toHaveBeenLastCalledWith(expect.any(Function));
-    expect(screen.queryByRole("button", { name: "Sign in with Pubky Ring" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Sign in with Pubky Ring or Bitkit" })).toBeNull();
     expect(card).toContainElement(document.activeElement as HTMLElement);
     expect(screen.getByRole("heading", { level: 1, name: "Get your pubky." })).toBeInTheDocument();
 
     await user.click(within(card).getByRole("button", { name: "Cancel" }));
     expect(screen.queryByText("Pubky Ring connection")).not.toBeInTheDocument();
-    expect(within(card).getByRole("button", { name: "Sign in with Pubky Ring" })).toHaveFocus();
+    expect(
+      within(card).getByRole("button", { name: "Sign in with Pubky Ring or Bitkit" }),
+    ).toHaveFocus();
   });
 
   it("hands a pending request to Ring from the Pubky Ring card", async () => {
@@ -451,7 +485,7 @@ describe("Pubky Ring on the start page", () => {
     // A full button, named as on the identity list.
     expect(ring).toHaveClass("bg-secondary");
     expect(
-      screen.queryByRole("button", { name: "Sign in with Pubky Ring" }),
+      screen.queryByRole("button", { name: "Sign in with Pubky Ring or Bitkit" }),
     ).not.toBeInTheDocument();
     await userEvent.setup().click(ring);
     expect(onUseRing).toHaveBeenCalledOnce();
@@ -466,8 +500,61 @@ describe("Pubky Ring on the start page", () => {
       screen.getByRole("region", { name: "Create account" }),
     ]);
     expect(screen.queryByRole("button", { name: /Pubky Ring/u })).not.toBeInTheDocument();
-    // One card keeps the narrow column.
-    expect(screen.getByRole("main")).toHaveClass("max-w-[588px]");
+    // One card keeps the narrow column on a desktop (and the full width below it).
+    expect(screen.getByRole("main")).toHaveClass("min-[64.0625rem]:max-w-[588px]");
+  });
+});
+
+describe("the card an app's entry points at", () => {
+  it.each([
+    ["ring", "Continue with Pubky Ring"],
+    ["google", "Continue with Google"],
+  ] as const)("gives the %s card's button the focus the heading took", (focus, name) => {
+    renderAddIdentity(addIdentity({ focus, request: request(), onUseRing: vi.fn() }));
+
+    const button = screen.getByRole("button", { name });
+    expect(button).toHaveFocus();
+    expect(button.closest(`[data-start-focus="${focus}"]`)).not.toBeNull();
+    expect(screen.getByRole("heading", { level: 1 })).not.toHaveFocus();
+  });
+
+  it("leaves the focus on the heading without an entry", () => {
+    renderAddIdentity(addIdentity({ request: request(), onUseRing: vi.fn() }));
+
+    expect(screen.getByRole("heading", { level: 1 })).toHaveFocus();
+  });
+
+  it("leaves the focus on the heading when the card it points at is not offered", () => {
+    // Opened from the identity list (Back leads there), the start page leaves its Ring card out.
+    renderAddIdentity(
+      addIdentity({ focus: "ring", request: request(), onBack: vi.fn(), onUseRing: vi.fn() }),
+    );
+
+    expect(screen.queryByRole("button", { name: /^Continue with Pubky Ring/u })).toBeNull();
+    expect(screen.getByRole("heading", { level: 1 })).toHaveFocus();
+  });
+});
+
+describe("the Pubky Ring card's keychains", () => {
+  it("names Pubky Ring or Bitkit for a grant request, and Pubky Ring alone for a legacy one", () => {
+    renderAddIdentity(
+      addIdentity({ request: request({ authenticationMethod: "grant" }), onUseRing: vi.fn() }),
+    );
+    const card = screen.getByRole("region", { name: "Pubky Ring" });
+    expect(
+      within(card).getByText("Sign in with the key you keep in Pubky Ring or Bitkit."),
+    ).toBeInTheDocument();
+    expect(
+      within(card).getByRole("button", { name: "Continue with Pubky Ring or Bitkit" }),
+    ).toBeEnabled();
+    cleanup();
+    // Bitkit refuses the legacy cookie sign-in.
+    renderAddIdentity(addIdentity({ request: request(), onUseRing: vi.fn() }));
+    expect(
+      within(screen.getByRole("region", { name: "Pubky Ring" })).getByRole("button", {
+        name: "Continue with Pubky Ring",
+      }),
+    ).toBeEnabled();
   });
 });
 

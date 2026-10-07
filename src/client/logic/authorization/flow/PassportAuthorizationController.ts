@@ -3,7 +3,10 @@ import "client-only";
 import { Result } from "better-result";
 
 import { LOGGER, safeErrorLogFields } from "@/libs/logger/logger";
-import type { AuthorizationEntry } from "@/client/logic/authorization/entry/authorizationEntry";
+import type {
+  AuthorizationEntry,
+  AuthorizationEntryScreen,
+} from "@/client/logic/authorization/entry/authorizationEntry";
 import {
   type AuthorizationRequestReview,
   ValidatedPubkyAuthRequest,
@@ -54,6 +57,11 @@ export type PassportAuthorizationViewState =
        * hello. A signal for Passport's own steps, never a credential or part of the request.
        */
       profileRequired?: true;
+      /**
+       * The screen the app asked, next to `d=`, to open on when no identity here can sign: a
+       * hint for Passport's first screen, never a credential or part of the request.
+       */
+      entry?: AuthorizationEntryScreen;
     }
   | { status: "preparing"; review: AuthorizationRequestReview }
   | { status: "granting"; review: AuthorizationRequestReview }
@@ -169,6 +177,7 @@ export class PassportAuthorizationController {
       ...(entry.profile === "required" || openerChannel?.verifiedOpener()?.profile === "required"
         ? { profileRequired: true as const }
         : {}),
+      ...(entry.entry ? { entry: entry.entry } : {}),
     };
     // A hello's requirement is not in the request itself: a Google round trip must keep it.
     if (this.state.profileRequired) requireProfileAfterGoogleRedirect(entry.request);

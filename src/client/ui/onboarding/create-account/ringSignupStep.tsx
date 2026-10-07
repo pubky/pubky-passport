@@ -18,7 +18,7 @@ import type { LocalIdentityMetadata } from "@/client/logic/local-identity/localI
 const SIGNUP_LABELS = {
   section: "Pubky Ring signup",
   qrCode: "Pubky Ring signup QR code",
-  open: "Continue with Pubky Ring",
+  open: "Continue with Pubky Ring or Bitkit",
   tooLarge: "This signup is too big for a QR code. Open it in Pubky Ring on this device.",
   unavailable: "This signup is no longer available. Go back and choose your signer again.",
 };
@@ -81,8 +81,8 @@ export function RingSignupStep({
       // The pointer, not the width, decides: a computer scans, a phone opens Ring directly.
       instruction={
         scanning
-          ? "Open Pubky Ring on your phone, tap ‘Add Pubky’, then ‘Scan signup QR’."
-          : "Continue in Pubky Ring on this phone to create your account. Your private key stays in Pubky Ring."
+          ? "Open Pubky Ring or Bitkit on your phone, tap ‘Add Pubky’, then ‘Scan signup QR’."
+          : "Continue in Pubky Ring or Bitkit on this phone to create your account. Your private key stays in that app."
       }
       // Passport notices the signup itself and goes on, so there is no way forward to press.
       navigation={<PassportNavigation back={<BackButton onClick={onBack} />} />}

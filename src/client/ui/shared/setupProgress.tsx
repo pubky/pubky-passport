@@ -36,7 +36,11 @@ export function SetupProgress() {
   if (!progress) return null;
   const last = progress.steps.length - 1;
   return (
-    <nav aria-label="Account setup progress" className="mx-auto mb-2 w-full max-w-[588px]">
+    // The steps span the screen's column: the 588px one on a desktop, the full width below it.
+    <nav
+      aria-label="Account setup progress"
+      className="mx-auto mb-2 w-full min-[64.0625rem]:max-w-[588px]"
+    >
       <ol className="flex items-start">
         {progress.steps.map((label, index) => {
           const state =

@@ -26,7 +26,15 @@ import { describePassportState, type ButtonView } from "../view/describeState.js
 import type { AttemptResult } from "./AttemptResult.js";
 import { ClientRuntime, type ClientPlatform } from "./ClientRuntime.js";
 import type { InternalClient, PreparedLease, ReturnResult, Unsubscribe } from "./InternalClient.js";
-import type { PassportClient, PassportView, SignedIn, SignInResult } from "./PassportClient.js";
+import { readKeychainAuth } from "../config/keychainAuth.js";
+import type {
+  PassportClient,
+  PassportEntry,
+  PassportView,
+  SignedIn,
+  SignInOptions,
+  SignInResult,
+} from "./PassportClient.js";
 
 const BROWSER: ClientPlatform = {
   available: () => typeof window !== "undefined" && typeof document !== "undefined",
@@ -93,6 +101,7 @@ export function publicClient(client: InternalClient): PassportClient {
       busy: signedIn ? false : busy,
       ...(signedIn ? { signedIn } : {}),
       instance: Object.freeze({ origin, isCustom }),
+      classicQr: client.classicQr(),
     });
   };
   // Coalesced, so the state change and the Session that follows it arrive as one view.
@@ -114,9 +123,16 @@ export function publicClient(client: InternalClient): PassportClient {
     changed();
   });
   return Object.freeze({
-    signIn() {
+    signIn(options?: SignInOptions) {
       // Synchronous up to the window opening, as the click requires.
-      return client.signIn().then(toPublicResult);
+      const entry = options?.entry;
+      return client
+        .signIn(entry === "join" || entry === "google" || entry === "sign-in" ? entry : undefined)
+        .then(toPublicResult);
+    },
+    setClassicQr(on: boolean) {
+      client.setClassicQr(on === true);
+      changed();
     },
     describe,
     subscribe(listener: (view: PassportView) => void) {
@@ -181,14 +197,29 @@ class Client implements InternalClient {
     return { defaultHost: this.#defaultHost, ...(appName !== undefined ? { appName } : {}) };
   }
 
-  signIn(): Promise<AttemptResult> {
+  signIn(entry?: PassportEntry): Promise<AttemptResult> {
     const runtime = this.#ensure();
     if (!runtime)
       return Promise.resolve({
         status: "failed",
         error: this.#error(this.#disposed ? "internal" : "unsupported_environment"),
       });
-    return runtime.signIn();
+    return runtime.signIn(entry);
+  }
+
+  setEntry(entry: PassportEntry | undefined): void {
+    this.#ensure()?.setEntry(entry);
+  }
+
+  setClassicQr(on: boolean): void {
+    this.#ensure()?.setClassicQr(on);
+  }
+
+  classicQr(): boolean {
+    // Read without starting the runtime: describing the client must not set it up.
+    if (this.#runtime) return this.#runtime.classicQr();
+    if (this.#disposed || !this.platform.available()) return false;
+    return readKeychainAuth(() => this.platform.window().localStorage) === "cookie";
   }
 
   perform(action: PassportAction): void {

@@ -119,6 +119,15 @@ describe("RingSignIn", () => {
     expect(stop).toHaveBeenCalledOnce();
   });
 
+  it("names Pubky Ring or Bitkit for a grant request, Pubky Ring alone for a legacy one", () => {
+    releaseTestOpener();
+    usePointer(false);
+    renderRingSignIn(undefined, { ...REVIEW, authenticationMethod: "grant" });
+    expect(screen.getByText(/approve the sign-in/u)).toHaveTextContent(
+      "Scan this code with Pubky Ring or Bitkit on your phone, then choose an identity and approve the sign-in.",
+    );
+  });
+
   it("never names a request nobody verified after its label or website, and warns (M3)", () => {
     releaseTestOpener();
     usePointer(false);

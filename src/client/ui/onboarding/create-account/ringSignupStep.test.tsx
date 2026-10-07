@@ -166,16 +166,16 @@ describe("RingSignupStep", () => {
     expect(
       screen.getByRole("heading", { name: "Create your account in Pubky Ring." }),
     ).toBeInTheDocument();
-    expect(screen.getByText(/Continue in Pubky Ring on this phone/u)).toBeInTheDocument();
+    expect(screen.getByText(/Continue in Pubky Ring or Bitkit on this phone/u)).toBeInTheDocument();
 
-    const link = screen.getByRole("link", { name: "Continue with Pubky Ring" });
+    const link = screen.getByRole("link", { name: "Continue with Pubky Ring or Bitkit" });
     link.addEventListener("click", (event) => event.preventDefault());
     await userEvent.setup({ advanceTimers: vi.advanceTimersByTime }).click(link);
     act(() => vi.advanceTimersByTime(2_000));
 
     // The same link to try again, the same instruction, and no code a phone could not scan.
-    expect(screen.getByRole("link", { name: "Continue with Pubky Ring" })).toBe(link);
-    expect(screen.getByText(/Continue in Pubky Ring on this phone/u)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Continue with Pubky Ring or Bitkit" })).toBe(link);
+    expect(screen.getByText(/Continue in Pubky Ring or Bitkit on this phone/u)).toBeInTheDocument();
     expect(screen.queryByRole("img", { name: "Pubky Ring signup QR code" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Continue to profile" })).toBeNull();
   });

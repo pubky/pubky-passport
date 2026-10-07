@@ -177,6 +177,8 @@ test("a popup sign-in navigates to /authorize, confirms v2 and delivers the Sess
     message: {
       type: "pubky-passport.hello",
       version: 2,
+      // No element holds a prepared request, so the app offers no keychain route of its own.
+      features: ["outcome-v2", "status"],
       profile: "optional",
       // A40: the hello names exactly this request by digest, never by its secret-bearing URL.
       request: requestDigest(flow.url),
@@ -342,6 +344,7 @@ test("the package entry constructs without a browser and the first browser call 
     tone: "neutral",
     busy: false,
     instance: { origin: "https://passport.pubky.app", isCustom: false },
+    classicQr: false,
   });
   const reference = setup();
   const window = vi.fn(() => reference.page.page);
@@ -423,6 +426,7 @@ test("the public client returns the Session with its key and profile and keeps i
     busy: false,
     signedIn,
     instance: { origin: PASSPORT, isCustom: false },
+    classicQr: false,
   });
   expect(views.at(-1)).toEqual(client.describe());
   // The state change and the Session that follows it reach listeners as one view.
@@ -434,6 +438,7 @@ test("the public client returns the Session with its key and profile and keeps i
     tone: "neutral",
     busy: false,
     instance: { origin: PASSPORT, isCustom: false },
+    classicQr: false,
   });
   expect(views.at(-1)?.signedIn).toBeUndefined();
   session.session.free();
@@ -478,6 +483,7 @@ test("reset() cancels a sign-in in progress", async () => {
     tone: "neutral",
     busy: false,
     instance: { origin: PASSPORT, isCustom: false },
+    classicQr: false,
   });
 });
 
@@ -593,4 +599,51 @@ test("after Passport was closed, the button reopens its profile page bound to th
     expect(await pending).toMatchObject({ status: "signed-in", profile: { name: "Ring Person" } });
   expect(profilePage.window.closed).toBe(true);
   session.session.free();
+});
+
+test("the hello names the app's keychain route while an element holds a prepared request", async () => {
+  const popup = live();
+  const h = setup({ profile: "optional" }, fakePage(), [popup.window]);
+  const client = publicClient(h.client);
+  // A large element shows the keychain's code or its "Open keychain app" button.
+  const lease = h.client.prepare();
+  await flush();
+  const result = client.signIn();
+  await flush();
+  expect(popup.posts[0]).toMatchObject({
+    origin: PASSPORT,
+    message: { type: "pubky-passport.hello", features: ["outcome-v2", "status", "keychain"] },
+  });
+  // Released, the app offers none: the next hello says so.
+  lease.release();
+  h.clock.advance(250);
+  const hellos = popup.posts.filter(
+    ({ message }) => (message as { type: string }).type === "pubky-passport.hello",
+  );
+  expect(hellos.length).toBeGreaterThan(1);
+  expect(hellos.at(-1)).toMatchObject({
+    message: { type: "pubky-passport.hello", features: ["outcome-v2", "status"] },
+  });
+  client.reset();
+  expect(await result).toMatchObject({ status: "failed", error: { code: "cancelled" } });
+});
+
+test("a sign-in for one screen opens Passport on it, and the classic QR is kept for this device", async () => {
+  const popup = live();
+  const h = setup({}, fakePage(), [popup.window]);
+  const client = publicClient(h.client);
+  expect(client.describe().classicQr).toBe(false);
+  client.setClassicQr(true);
+  expect(client.describe().classicQr).toBe(true);
+  expect(h.page.page.localStorage.getItem("pubky-passport-client/keychain-auth/v1")).toBe("cookie");
+  const result = client.signIn({ entry: "join" });
+  await flush();
+  expect(popup.navigations).toEqual([
+    `${PASSPORT}/authorize#d=${encodeURIComponent(h.flows[0]!.url)}&entry=join`,
+  ]);
+  client.reset();
+  expect(await result).toMatchObject({ status: "failed", error: { code: "cancelled" } });
+  client.setClassicQr(false);
+  expect(h.page.page.localStorage.getItem("pubky-passport-client/keychain-auth/v1")).toBeNull();
+  expect(client.describe().classicQr).toBe(false);
 });

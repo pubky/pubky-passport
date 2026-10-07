@@ -19,8 +19,6 @@ const REQUEST =
   "&x-cancel=https%3A%2F%2Fnotes.example%2Fcancel";
 const BROAD_REQUEST = REQUEST.replace("caps=/pub/notes.example/:rw", "caps=/:rw");
 const POPUP = { width: 520, height: 760 };
-/** The list's bottom fade, over which a row reads as more to scroll to. */
-const LIST_FADE_PX = 32;
 
 async function seedIdentities(page: Page) {
   await page.goto("/");
@@ -80,7 +78,7 @@ function recordHandoffs(page: Page): string[] {
 test.describe("choosing an identity first", () => {
   test.use({ viewport: POPUP });
 
-  test("lists the identities Passport can sign with to fill the popup, then reviews the one chosen", async ({
+  test("lists the identities Passport can sign with, the other ways in right below, then reviews the one chosen", async ({
     page,
   }) => {
     await seedIdentities(page);
@@ -94,14 +92,23 @@ test.describe("choosing an identity first", () => {
     await expect(rows.first()).toContainText("work@example.com");
     await expect(page.getByText("or", { exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "Authorize", exact: true })).toHaveCount(0);
-    // The screen fills the popup below the header; the other ways in stay in view at its bottom.
+    // As on the review, the other ways in follow the list at the screen's gap, nothing is pinned,
+    // and the page footer comes last (at the popup's bottom edge when the page fits it).
+    const lastRow = (await identityList(page).getByRole("listitem").last().boundingBox())!;
+    const or = (await page.getByText("or", { exact: true }).boundingBox())!;
+    expect(or.y - (lastRow.y + lastRow.height)).toBeGreaterThan(0);
+    expect(or.y - (lastRow.y + lastRow.height)).toBeLessThanOrEqual(32);
+    expect(await page.locator("[data-sticky-actions]").count()).toBe(0);
     const layout = await page.evaluate(() => ({
       mainBottom: document.querySelector("main")!.getBoundingClientRect().bottom,
       footerTop: document.querySelector("body > footer")!.getBoundingClientRect().top,
+      footerBottom: document.querySelector("body > footer")!.getBoundingClientRect().bottom,
+      pageHeight: document.documentElement.scrollHeight,
       width: document.documentElement.scrollWidth,
     }));
-    expect(Math.abs(layout.mainBottom - POPUP.height)).toBeLessThanOrEqual(1);
-    expect(layout.footerTop).toBeGreaterThanOrEqual(POPUP.height - 1);
+    expect(layout.footerTop).toBeGreaterThanOrEqual(layout.mainBottom - 1);
+    if (layout.pageHeight <= POPUP.height)
+      expect(Math.abs(layout.footerBottom - POPUP.height)).toBeLessThanOrEqual(1);
     expect(layout.width).toBeLessThanOrEqual(POPUP.width);
     for (const bottom of await bottoms(page, ["Use another identity", "Continue with Pubky Ring"]))
       expect(bottom).toBeLessThanOrEqual(POPUP.height);
@@ -110,7 +117,7 @@ test.describe("choosing an identity first", () => {
     const selected = page.getByRole("region", { name: "Selected identity" });
     // The key keeps its own case in the review, as in the list.
     await expect(selected).toContainText("Pubky tkrq…p7qy");
-    await expect(page.getByRole("list", { name: "Requested permissions" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Requested permissions" })).toBeVisible();
     // The primary action stays in view in the popup; Cancel answers from the header.
     const [authorize] = await bottoms(page, ["Authorize"]);
     expect(authorize).toBeLessThanOrEqual(POPUP.height);
@@ -230,7 +237,9 @@ test.describe("choosing an identity first", () => {
     await page.route("https://notes.example/**", (route) =>
       route.fulfill({ body: "<!doctype html><title>Returned</title>", contentType: "text/html" }),
     );
+    await seedIdentities(page);
     await openRequest(page);
+    await expect(identityList(page).getByRole("button")).toHaveCount(2);
     await page.getByRole("button", { name: "Cancel", exact: true }).click();
     await expect(page).toHaveURL("https://notes.example/cancel");
   });
@@ -239,7 +248,7 @@ test.describe("choosing an identity first", () => {
 test.describe("a long list in the popup", () => {
   test.use({ viewport: POPUP });
 
-  test("shows how many identities it lists, a clear part of the next row, and no Ring identity", async ({
+  test("shows how many identities it lists, every row in the page's flow, and no Ring identity", async ({
     page,
   }) => {
     await page.goto("/");
@@ -266,27 +275,21 @@ test.describe("a long list in the popup", () => {
     const list = identityList(page);
     await expect(list.getByRole("button")).toHaveCount(10);
     await expect(page.getByText("Key in Pubky Ring", { exact: true })).toHaveCount(0);
-    const listBox = (await list.boundingBox())!;
-    const clearBottom = listBox.y + listBox.height - LIST_FADE_PX;
-    const rows = await list.getByRole("button").evaluateAll((buttons) =>
-      buttons.map((button) => {
-        const box = button.getBoundingClientRect();
-        return { top: box.top, bottom: box.bottom, text: button.textContent ?? "" };
-      }),
-    );
-    // Whole rows above the fade, then at least a third of the next one.
-    const cut = rows.find((row) => row.bottom > clearBottom)!;
-    expect(rows.indexOf(cut)).toBeGreaterThanOrEqual(2);
-    expect(clearBottom - cut.top).toBeGreaterThanOrEqual((cut.bottom - cut.top) / 3);
-    for (const bottom of await bottoms(page, ["Use another identity", "Continue with Pubky Ring"]))
-      expect(bottom).toBeLessThanOrEqual(POPUP.height);
-
-    // Moving through the list by keyboard keeps the focused row clear of the fade.
-    await list.getByRole("button").first().focus();
-    for (let step = 0; step < 3; step++) await page.keyboard.press("Tab");
-    const focused = (await list.locator("button:focus").boundingBox())!;
-    expect(focused.y + focused.height).toBeLessThanOrEqual(clearBottom + 1);
-    expect(focused.y).toBeGreaterThanOrEqual(listBox.y);
+    // The page scrolls as a whole: the list holds every row, and the other ways in follow it.
+    const layout = await list.evaluate((node) => ({
+      scrolls: node.scrollHeight > node.clientHeight + 1,
+      listBottom: node.getBoundingClientRect().bottom,
+      pageHeight: document.documentElement.scrollHeight,
+    }));
+    expect(layout.scrolls).toBe(false);
+    expect(layout.pageHeight).toBeGreaterThan(POPUP.height);
+    const [another] = await bottoms(page, ["Use another identity"]);
+    expect(another).toBeGreaterThan(layout.listBottom);
+    // Tabbing past the last row reaches them.
+    await list.getByRole("button").last().focus();
+    await page.keyboard.press("Tab");
+    await expect(page.getByRole("button", { name: "Use another identity" })).toBeFocused();
+    await expect(page.getByRole("button", { name: "Use another identity" })).toBeInViewport();
   });
 });
 
@@ -337,7 +340,7 @@ test.describe("reading profiles", () => {
     await identityList(page)
       .getByRole("button", { name: /1aeh…dwdy/u })
       .click();
-    await expect(page.getByRole("list", { name: "Requested permissions" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Requested permissions" })).toBeVisible();
     await expect.poll(() => relayReads.length).toBeGreaterThan(0);
     await page.waitForTimeout(500);
     // Only the identity chosen for the review is resolved.

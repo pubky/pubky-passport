@@ -9,6 +9,7 @@ import {
   type Session,
   type SessionInfo,
 } from "@synonymdev/pubky";
+import type { KeychainAuth } from "../config/keychainAuth.js";
 import type { PubkyFacade } from "../config/PassportClientOptions.js";
 import { mapSdkError } from "../errors/mapSdkError.js";
 import type { PassportErrorOptions } from "../errors/PassportError.js";
@@ -90,6 +91,8 @@ export interface FlowOptions {
   readonly pkarrRelays?: readonly string[];
   /** The HTTP relay inbox of the request; unset uses the SDK's default relay. */
   readonly httpRelay?: string;
+  /** Read at every start: `cookie` makes the legacy request older Pubky Ring needs. */
+  readonly keychainAuth?: () => KeychainAuth;
 }
 
 /** Static and browser-dependent configuration is validated before this runtime boundary. */
@@ -107,6 +110,17 @@ export function createPubkyFlowAdapter(
       let kind: AuthFlowKind | undefined;
       try {
         const pubky = facade();
+        if (options.keychainAuth?.() === "cookie") {
+          kind = AuthFlowKind.signin();
+          // The legacy cookie sign-in, for Pubky Ring older than 2.0: no client ID, no PoP key.
+          const flow = pubky.startCookieAuthFlow(
+            options.capabilities as Capabilities,
+            kind,
+            options.httpRelay ?? null,
+            { ...callbacks, xSource: options.appName },
+          );
+          return { ok: true, value: flow };
+        }
         const start = pubky.startGrantAuthFlow.bind(pubky);
         const sdkOptions = {
           clientId: options.clientId,

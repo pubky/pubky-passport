@@ -7,6 +7,7 @@ import { resolveClientOptions } from "../config/resolveClientOptions.js";
 import { BrowserPopup } from "../popup/BrowserPopup.js";
 import { createRingLink } from "../shared/RingLink.js";
 import { PassportChannel, type ChannelObserver } from "./PassportChannel.js";
+import { KEYCHAIN_FEATURE } from "./passportMessages.js";
 import { startAttempt } from "../../test/startAttempt.js";
 
 const ATTEMPT = "abcdefghijklmnopqrstuv";
@@ -109,6 +110,46 @@ test("a testnet client names its network in every hello", () => {
     { ...hello(), network: "testnet" },
     { ...hello(), network: "testnet" },
   ]);
+  channel.dispose();
+});
+
+test("names the app's own keychain route only in the hellos sent while it offers one", () => {
+  const fake = new FakePopupWindow();
+  const clock = new FakeClock();
+  let offered = false;
+  const keychainOffered = vi.fn(() => offered);
+  const channel = new PassportChannel(
+    ATTEMPT,
+    "required",
+    new BrowserPopup(() => window, undefined, clock),
+    { event: vi.fn() },
+    () => window,
+    clock,
+    "mainnet",
+    keychainOffered,
+  );
+  // Constructing asks nothing: the app is asked when a hello is sent.
+  expect(keychainOffered).not.toHaveBeenCalled();
+  expect(KEYCHAIN_FEATURE).toBe("keychain");
+  channel.startHandshake(fake.window, ORIGIN, REQUEST_DIGEST);
+  offered = true;
+  clock.advance(250);
+  offered = false;
+  clock.advance(250);
+  expect(fake.posts.map(({ message }) => message)).toEqual([
+    hello(),
+    { ...hello(), features: ["outcome-v2", "status", KEYCHAIN_FEATURE] },
+    hello(),
+  ]);
+  // Asked afresh for every hello, never remembered from an earlier one.
+  expect(keychainOffered).toHaveBeenCalledTimes(3);
+  // A profile page's hello says the same while the app offers its keychain.
+  offered = true;
+  channel.startProfileHandshake(fake.window, ORIGIN, "approved-key");
+  expect(fake.posts.at(-1)?.message).toMatchObject({
+    features: ["outcome-v2", "status", KEYCHAIN_FEATURE],
+    profileKey: "approved-key",
+  });
   channel.dispose();
 });
 

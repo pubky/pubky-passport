@@ -511,6 +511,34 @@ function XIcon(props: IconProps) {
   );
 }
 
+function GlobeIcon(props: IconProps) {
+  return (
+    <Glyph height={16} viewBox="0 0 24 24" width={16} {...props}>
+      <path
+        d="M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20ZM2 12h20M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20Z"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="2"
+      />
+    </Glyph>
+  );
+}
+
+function LockIcon(props: IconProps) {
+  return (
+    <Glyph height={16} viewBox="0 0 24 24" width={16} {...props}>
+      <path
+        d="M5 11h14a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2Zm2 0V7a5 5 0 0 1 10 0v4"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="2"
+      />
+    </Glyph>
+  );
+}
+
 export {
   AppWindowIcon,
   ArrowLeftIcon,
@@ -530,8 +558,10 @@ export {
   EyeOffIcon,
   FileTextIcon,
   FolderIcon,
+  GlobeIcon,
   KeyRoundIcon,
   LinkOffIcon,
+  LockIcon,
   LogInIcon,
   LogOutIcon,
   PencilIcon,

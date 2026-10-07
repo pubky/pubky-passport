@@ -20,6 +20,8 @@ interface EffectOptions {
   profile: "required" | "optional";
   /** Named in the hello, so a Passport on another network refuses the request. */
   network?: PubkyNetwork;
+  /** The app offers a keychain route of its own (a prepared Ring request); named in the hello. */
+  keychainOffered?: () => boolean;
   readProfile(publicKey: string): Promise<ProfileRead>;
   event(
     event:
@@ -211,6 +213,7 @@ export class AttemptEffects implements AttemptEffectPort {
         this.options.appWindow,
         this.options.clock,
         this.options.network,
+        this.options.keychainOffered,
       ),
     };
     this.#channel = channel;

@@ -195,14 +195,17 @@ describe("UniversalSignerFlow with an authorization request", () => {
       screen.getAllByRole("complementary", { name: "Signing in to requesting.app" }),
     ).toHaveLength(1);
     expect(screen.getByText("/pub/requesting.app/")).toBeInTheDocument();
-    const permissions = screen.getByRole("list", { name: "Requested permissions" });
-    expect(
-      within(permissions)
+    expect(screen.getByRole("heading", { name: "Requested permissions" })).toBeInTheDocument();
+    // Grouped by what each row allows, changing first.
+    const rows = (name: string) =>
+      within(screen.getByRole("list", { name }))
         .getAllByRole("listitem")
-        .map((item) => item.textContent),
-    ).toEqual([
-      "This app's own data, /pub/requesting.app/, Read & write",
-      "Another app's data: “paykit”, /pub/paykit/, Read only",
+        .map((item) => item.textContent);
+    expect(rows("Can read and change")).toEqual([
+      "Public: This app's own data, /pub/requesting.app/, Read & write",
+    ]);
+    expect(rows("Can only read")).toEqual([
+      "Public: Another app's data: “paykit”, /pub/paykit/, Read only",
     ]);
     expect(screen.getByText("First User")).toBeInTheDocument();
     expect(screen.getByText(/^Authorizing will allow/u).closest("p")).toHaveTextContent(
@@ -413,7 +416,7 @@ describe("UniversalSignerFlow with an authorization request", () => {
     expect(warning).toHaveAttribute("data-tone", "error");
   });
 
-  it("lists permissions in the requested order", async () => {
+  it("groups permissions by what they allow, the most sensitive first", async () => {
     MOCKS.authorizationState = {
       status: "review",
       review: {
@@ -435,12 +438,13 @@ describe("UniversalSignerFlow with an authorization request", () => {
     const permissionSection = permissionHeading.closest("section");
     expect(permissionHeading).toHaveClass("leading-5");
     expect(permissionSection).toHaveClass("p-[15px]");
-    expect(
-      Array.from(
-        permissionSection?.querySelectorAll("bdi.font-mono") ?? [],
-        (path) => path.textContent,
-      ),
-    ).toEqual(["/pub/ordinary.app/", "/pub/", "/priv/vault/", "/"]);
+    const paths = (name: string) =>
+      within(screen.getByRole("list", { name }))
+        .getAllByRole("listitem")
+        .map((item) => item.querySelector("bdi.font-mono")?.textContent);
+    expect(paths("Can read and change")).toEqual(["/priv/vault/"]);
+    // Broad access first, in the order the app asked for it, then another app's public folder.
+    expect(paths("Can only read")).toEqual(["/pub/", "/", "/pub/ordinary.app/"]);
   });
 
   it.each([
@@ -738,7 +742,7 @@ describe("UniversalSignerFlow with an authorization request", () => {
       screen.getByRole("region", { name: "Create account" }),
     ]);
     expect(screen.queryByRole("button", { name: "Continue with Pubky Ring" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Sign in with Pubky Ring" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Sign in with Pubky Ring or Bitkit" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Cancel" })).not.toBeInTheDocument();
     expect(
       screen.getAllByRole("complementary", { name: "Signing in to requesting.app" }),

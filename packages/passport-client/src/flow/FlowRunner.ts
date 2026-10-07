@@ -96,6 +96,10 @@ export class FlowRunner {
     if (this.#polled || this.#retired || this.#stopped || this.#initialFailure) {
       return { ok: false, error: new PassportError("internal", this.#errors) };
     }
+    // A cookie flow (the classic QR) cannot be saved: a same-tab sign-in is not offered for it.
+    if (!this.#flow.saveDelegated) {
+      return { ok: false, error: new PassportError("internal", this.#errors) };
+    }
     try {
       return { ok: true, value: this.#flow.saveDelegated() };
     } catch (e) {

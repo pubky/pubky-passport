@@ -14,6 +14,7 @@ import {
   RING_KEY,
   ringApproves,
   seedRingIdentity,
+  storedSessions,
 } from "./helpers/pubkyRing";
 import { UNVERIFIED_HEADING, UNVERIFIED_WARNING } from "./helpers/requester";
 
@@ -46,6 +47,9 @@ async function profileConnectionRequest(page: Page): Promise<URL> {
   await expect(link).toHaveAttribute("href", /^pubkyauth:\/\//u);
   return new URL((await link.getAttribute("href"))!);
 }
+
+/** Passport's own keychain requests on this device: grants, or the legacy kind for older Ring. */
+const CLASSIC_QR = { name: "Older Pubky Ring? Classic QR" } as const;
 
 test("adds an existing Ring identity from the home page with a write-only grant, leaving its profile", async ({
   page,
@@ -125,6 +129,9 @@ test("a computer's Pubky Ring card shows its code at once: nothing to press, not
     card.getByRole("link", { name: "Download Pubky Ring on the App Store" }),
   ).toBeVisible();
   await expect(card.getByRole("link", { name: "Get Pubky Ring on Google Play" })).toBeVisible();
+  // Under the code, the classic QR switch for Pubky Ring before 2.0, off by default.
+  const classic = card.getByRole("switch", CLASSIC_QR);
+  await expect(classic).not.toBeChecked();
   // Pubky's tile: light, the code at 176 in a 192 tile, Ring's mark over the centre.
   const tile = card.locator('[data-state="ready"]');
   const tileBox = (await tile.boundingBox())!;
@@ -139,6 +146,16 @@ test("a computer's Pubky Ring card shows its code at once: nothing to press, not
   const appStoreBox = (await appStore.boundingBox())!;
   expect(appStoreBox.y).toBeGreaterThan(tileBox.y + tileBox.height);
   expect(Math.abs(appStoreBox.x - heading.x)).toBeLessThanOrEqual(1);
+  // The switch is one quiet line below the code, on the same edge.
+  const classicBox = (await classic.boundingBox())!;
+  expect(classicBox.y).toBeGreaterThanOrEqual(tileBox.y + tileBox.height);
+  expect(classicBox.x).toBeGreaterThanOrEqual(tileBox.x - 1);
+  // Its line is the label and nothing more, and no sentence on the card explains it.
+  await expect(
+    card.locator("label").filter({ has: page.getByRole("switch", CLASSIC_QR) }),
+  ).toHaveText(CLASSIC_QR.name, { useInnerText: true });
+  await expect(card.getByText(/classic/iu)).toHaveCount(1);
+  await expect(card.getByText(/older than 2\.0|works only with/u)).toHaveCount(0);
   // Corners as pubky.app's cards have them.
   expect(await card.evaluate((element) => getComputedStyle(element).borderRadius)).toBe("8px");
 
@@ -164,6 +181,54 @@ test("a computer's Pubky Ring card shows its code at once: nothing to press, not
   await expect(page.getByText("Carol", { exact: true })).toBeVisible();
   expect(net.exchangedGrants).toEqual([PROFILE_CAPABILITIES]);
   expect(net.writes).toEqual([]);
+});
+
+test("a computer's classic QR switch makes the Pubky Ring card's code a legacy sign-in, kept after a reload", async ({
+  page,
+  isMobile,
+}) => {
+  test.skip(isMobile, "A phone shows no code: it opens Pubky Ring.");
+  await mockRingNetwork(page);
+  const copied = await recordClipboard(page);
+  await page.goto("/");
+  const card = page.getByRole("region", { name: "Pubky Ring", exact: true });
+  const code = card.getByRole("img", { name: "Pubky Ring profile connection QR code" });
+  await expect(code).toBeVisible({ timeout: 15_000 });
+  /** The link the code encodes, as pressing it copies it. */
+  const copiedLink = async () => {
+    await card.getByRole("button", { name: "Copy authentication link" }).click();
+    return (await copied()).at(-1) ?? "";
+  };
+  // Off by default: the grant request Pubky Ring 2.0 and Bitkit approve.
+  const classic = card.getByRole("switch", CLASSIC_QR);
+  await expect(classic).not.toBeChecked();
+  expect(await copiedLink()).toMatch(/^pubkyauth:\/\/signin_grant\?/u);
+
+  // On, the code is replaced by the same request made the legacy way, with the same capabilities.
+  await classic.click();
+  await expect(classic).toBeChecked();
+  await expect.poll(copiedLink).toMatch(/^pubkyauth:\/\/signin\?/u);
+  const legacy = new URL(await copiedLink());
+  expect(legacy.searchParams.get("caps")?.split(",")).toEqual(PROFILE_CAPABILITIES);
+  expect(legacy.searchParams.get("relay")).toBe(E2E_HTTP_RELAY_URL);
+  expect(await code.locator("path").last().getAttribute("d")).toBe(qrModules(legacy.href));
+
+  // The choice is this device's: a new visit starts with the switch on and the legacy code.
+  await page.reload();
+  await expect(classic).toBeChecked();
+  await expect(code).toBeVisible({ timeout: 15_000 });
+  await expect.poll(copiedLink).toMatch(/^pubkyauth:\/\/signin\?/u);
+  expect(await page.evaluate(() => localStorage.getItem("pubky-passport/keychain-auth/v1"))).toBe(
+    "cookie",
+  );
+
+  // Off again, the code is a grant once more and nothing of the choice stays stored.
+  await classic.click();
+  await expect(classic).not.toBeChecked();
+  await expect.poll(copiedLink).toMatch(/^pubkyauth:\/\/signin_grant\?/u);
+  expect(
+    await page.evaluate(() => localStorage.getItem("pubky-passport/keychain-auth/v1")),
+  ).toBeNull();
 });
 
 test("a phone's Pubky Ring card opens Ring from its one button, which stays, and Cancel ends it", async ({
@@ -300,6 +365,8 @@ test("keeps profile edits across a Ring reconnect and publishes them only on Sav
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await expect(page.locator("main").getByRole("alert")).toContainText("Your edits are kept.");
   await expect(page.getByRole("button", { name: "Save", exact: true })).toHaveCount(0);
+  // The stored grant is forgotten with it, so reconnecting asks Pubky Ring instead of restoring.
+  await expect.poll(() => storedSessions(page)).toEqual([]);
   await page.getByRole("button", { name: "Reconnect Pubky Ring" }).click();
   // The edits wait for this connection, so leaving it asks first.
   await expect(
@@ -321,6 +388,10 @@ test("keeps profile edits across a Ring reconnect and publishes them only on Sav
   // Saved, the editor returns to the overview it was opened from.
   await expect(page.getByRole("heading", { name: "Your pubky." })).toBeVisible();
   expect(net.writes.some((write) => write.endsWith("/pub/pubky.app/profile.json"))).toBe(true);
+  // The new approval's grant is the one stored now.
+  expect(await storedSessions(page)).toMatchObject([
+    { publicKey: RING_KEY, grantId: net.grantExchanges.at(-1)!.grantId },
+  ]);
 });
 
 test("an abandoned Ring connection leaves no delegated key in the browser", async ({ page }) => {
@@ -451,22 +522,21 @@ test("a saved Ring identity is not offered for an app's request: Ring signs thro
   expect(net.relayRequests).toEqual([]);
 });
 
-test("an app's request lists only identities whose key this browser holds", async ({ page }) => {
+test("an app's request counts only identities whose key this browser holds", async ({ page }) => {
   await mockRingNetwork(page, { profile: { name: "Carol" } });
   await seedRingIdentity(page);
   // A second identity, with its key in this browser; the Ring identity stays the active one.
   await storeLocalIdentities(page, [{ publicKeyZ32: BROWSER_KEY }], { replace: false });
   await page.goto(`/authorize#d=${encodeURIComponent(APP_REQUEST)}`);
 
-  const list = page.getByRole("list", { name: "Choose the identity to sign in with." });
-  await expect(list.getByRole("button")).toHaveCount(1);
+  // The browser-held identity is the only one that can sign: the request opens on its review,
+  // chosen as a press on the list would; Ring never stands in for it, and nothing is approved.
+  await expect(page.getByRole("button", { name: "Authorize", exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("list", { name: "Choose the identity to sign in with." }),
+  ).toHaveCount(0);
   await expect(page.getByText("Key in Pubky Ring", { exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Continue with Pubky Ring" })).toBeVisible();
-
-  // Choosing the browser-held identity opens its review; Ring never stands in for it.
-  await list.getByRole("button").click();
-  await expect(page.getByRole("button", { name: "Authorize", exact: true })).toBeVisible();
-  await expect(page.getByText("Key in Pubky Ring", { exact: true })).toHaveCount(0);
   expect(
     await page.evaluate(() => localStorage.getItem("pubky-passport/local-identities/v1/active")),
   ).toBe(BROWSER_KEY);

@@ -64,14 +64,20 @@ offers any saved setup at the signer choice instead of forcing it. A setup whose
 submitted opens **Finish your account.** instead, and a file check resumed on a later visit offers
 **Make a new recovery file** if the earlier one is lost.
 
+An app can point a request's first screen with `entry=join|google|sign-in` next to `d=` (see
+[Integration](docs/integration.md)), only for someone without an identity that can sign it:
+`join` opens **Create your account.** (Back returns to the start page), `sign-in` the start page
+with its Pubky Ring card's button focused, `google` with its Google button focused. Identities
+that can sign the request always come first: one opens on its review, several on their list.
+
 ## Profiles
 
 Identities show their public name and avatar from `/pub/pubky.app/profile.json`; an attached Google
 account appears only as a small labelled tag, never as the identity's profile. **Edit profile**
 (on the overview, and in Manage for a key the browser holds) publishes name, bio, links and an optional avatar using `pubky-app-specs` file and
 blob records. A new account is asked for its profile once, right after it is created (an account whose key
-this browser holds first says **Account created.** with its pubky); until **Save profile**
-publishes one, the overview (and Manage, for a key the browser holds) offers **Set up profile**. An app that requires a profile
+this browser holds first says **Account created.** with its pubky), with a random name such as
+Blue-Rabbit-Hat filled in where no Google name is known; until **Continue** publishes one, the overview (and Manage, for a key the browser holds) offers **Set up profile**. An app that requires a profile
 (`profile=required` next to `d=`, or in its v2 hello) gets one before its review: a chosen identity
 without one opens the profile form inside the sign-in, with no **Skip for now**. After a sign-in
 through Pubky Ring, the app can ask on the same channel (`profile-needed`), or reopen Passport on
@@ -89,8 +95,9 @@ through Pubky Ring, the app can ask on the same channel (`profile-needed`), or r
   review is read. Avatars are shown
   only from the identity's own `/pub/pubky.app/` files and blobs; remote image URLs are never
   fetched. Every read is bounded in size and time.
-- **Avatars.** A chosen image is re-encoded in the browser (at most 512 px) before upload, so
-  EXIF data and the local file name are never published.
+- **Avatars.** A chosen image is first cropped to a square (shown in a round guide, with zoom), as
+  pubky.app does, then re-encoded in the browser (at most 512 px) before upload, so EXIF data and
+  the local file name are never published. **Add link** asks for a label and an address.
 - **Local keys.** A save signs in with the SDK's root `/:rw` session for that one save and signs
   out, revoking it, on every path. A scoped session would need Passport to approve its own grant
   through the HTTP relay, which adds a network party, and the secret key is already in the browser,
@@ -100,13 +107,20 @@ through Pubky Ring, the app can ask on the same channel (`profile-needed`), or r
 Ring-held identities are remembered by public key; their private keys stay in Ring. Profile editing
 requests a separate write-only grant for `profile.json` plus the `pubky.app` `files/` and `blobs/`
 directories (an avatar's blob and file IDs are not known before upload); profiles are read
-publicly. The grant is held in memory for the page session and never changes a client's
-authorization request. Passport revokes it when it closes the connection inside the page (another
-connection replaces it, the identity is removed, or a write is refused). Revoking on page leave is
-best effort and in practice does not happen: the revocation started on page hide is dropped when
-the page unloads, and closing the tab sends nothing. The grant then stays valid on the homeserver,
-and neither Passport nor Ring can list or revoke it. Whether Ring and the homeserver accept the write-only scopes still needs a device
-test. Closing a connection also deletes the SDK's delegated keys from the browser. See
+publicly. Approved as a grant, it is kept in the SDK's browser session store (its PoP key
+non-extractable in IndexedDB, bound to the identity and this Passport origin) and reused without a
+new approval for that identity's profile edits, `/#edit-profile` and an app sign-in's profile step
+until it expires or is revoked; only when no valid grant is stored does Passport show **Connect
+Pubky Ring.** It never changes a client's authorization request. **Disconnect keychain** on the
+identity's overview, and removing the identity, revoke it on the homeserver and forget it; the
+keychain's Authorized Apps (Pubky Ring 2.0) revokes it too, and a grant the homeserver refuses is
+forgotten. The classic QR (legacy cookie) connection is not stored: the SDK's store keeps grant
+sessions only, so it lasts for the page. Whether Ring and the homeserver accept the write-only
+scopes, and revocation from Ring's Authorized Apps, still need a device test. Pubky Ring older
+than 2.0 cannot approve grants: a per-device **Older Pubky Ring? Classic QR** switch under
+Passport's own keychain requests (this connection, and the backup check) makes them the legacy
+cookie sign-in with the same capabilities. It is off by default (Pubky Ring 2.0 and Bitkit use
+grants, and Bitkit refuses the legacy kind) and never changes an app's own request. See
 [Client contract](docs/signup-integration.md#client-contract).
 
 ## Add Passport sign-in to your app

@@ -4,7 +4,7 @@ import type { PassportDiagnostic } from "../shared/PassportDiagnostic.js";
 
 export type PubkyFacade = Pick<
   Pubky,
-  "startGrantAuthFlow" | "resumeDelegatedGrantAuthFlow" | "publicStorage"
+  "startGrantAuthFlow" | "resumeDelegatedGrantAuthFlow" | "publicStorage" | "startCookieAuthFlow"
 >;
 
 export interface PassportTimeouts {

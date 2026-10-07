@@ -16,6 +16,95 @@ function linkField(page: Page, number: number, label: "Title" | "Address") {
   return page.getByRole("group", { name: `Link ${number}` }).getByLabel(label, { exact: true });
 }
 
+/** Adds a link through the Add link dialog: its label, its address, then Save Link. */
+async function addLink(page: Page, label: string, url: string) {
+  await page.getByRole("button", { name: "Add link" }).click();
+  const dialog = page.getByRole("dialog", { name: "Add link" });
+  await dialog.getByLabel("Label", { exact: true }).fill(label);
+  await dialog.getByLabel("URL", { exact: true }).fill(url);
+  await dialog.getByRole("button", { name: "Save Link" }).click();
+  await expect(dialog).toBeHidden();
+}
+
+/** Picks the avatar fixture and takes the crop dialog's square as it opens. */
+async function chooseAvatar(page: Page) {
+  await page.getByLabel("Choose avatar file").setInputFiles("e2e/fixtures/profile-avatar.png");
+  const crop = page.getByRole("dialog", { name: "Crop your avatar" });
+  await crop.getByRole("button", { name: "Use photo" }).click();
+  await expect(crop).toBeHidden();
+}
+
+/** pubky.app's random names: an adjective and two different nouns ("Blue-Rabbit-Hat"). */
+const RANDOM_NAME = /^[A-Z][a-z]+-[A-Z][a-z]+-[A-Z][a-z]+$/u;
+const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+
+/**
+ * The identity's homeserver, which takes a profile publish: PKARR relays serve its record, the
+ * local key's grant is exchanged for a session, and every write is kept by its `/pub/` path and
+ * served back to later reads.
+ */
+async function mockWritableHomeserver(page: Page) {
+  const written = new Map<string, Buffer>();
+  await page.route(/^https:\/\/(?!localhost[:/]|127\.0\.0\.1[:/])/u, async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    if (PKARR_RELAY_HOSTS.has(url.hostname)) {
+      if (request.method() !== "GET") return route.fulfill({ status: 204, body: "" });
+      const body = homeserverRecord(url.pathname.slice(1));
+      return route.fulfill(
+        body ? { status: 200, body, contentType: "application/octet-stream" } : { status: 404 },
+      );
+    }
+    if (url.hostname !== "homeserver.example") return route.abort();
+    if (url.pathname === "/auth/grant/session" && request.method() === "POST")
+      return route.fulfill({ json: sessionFor(request.postDataJSON() as { grant: string }) });
+    const path = url.pathname.slice(Math.max(0, url.pathname.indexOf("/pub/")));
+    if (request.method() === "PUT") {
+      written.set(path, request.postDataBuffer() ?? Buffer.alloc(0));
+      return route.fulfill({ status: 200, body: "" });
+    }
+    const stored = written.get(path);
+    if (request.method() === "GET" && stored)
+      return route.fulfill({ status: 200, body: stored, contentType: "application/octet-stream" });
+    return route.fulfill({ status: request.method() === "GET" ? 404 : 200, body: "" });
+  });
+  return {
+    /** The published `profile.json`, once written. */
+    profile: () => {
+      const body = written.get("/pub/pubky.app/profile.json");
+      return body ? (JSON.parse(body.toString("utf8")) as Record<string, unknown>) : undefined;
+    },
+    /** Every avatar blob written. */
+    blobs: () =>
+      [...written].filter(([path]) => path.startsWith("/pub/pubky.app/blobs/")).map(([, b]) => b),
+  };
+}
+
+/** The homeserver's answer to a grant exchange: a session for exactly what the grant names. */
+function sessionFor({ grant }: { grant: string }) {
+  const claims = JSON.parse(Buffer.from(grant.split(".")[1]!, "base64url").toString("utf8")) as {
+    iss: string;
+    client_id: string;
+    caps: string[];
+    jti: string;
+    exp: number;
+  };
+  const now = Math.floor(Date.now() / 1000);
+  return {
+    token: "e2e-bearer",
+    session: {
+      homeserver: HOMESERVER,
+      pubky: claims.iss,
+      client_id: claims.client_id,
+      capabilities: claims.caps,
+      grant_id: claims.jti,
+      token_expires_at: now + 3_600,
+      grant_expires_at: claims.exp,
+      created_at: now,
+    },
+  };
+}
+
 const PROFILE = {
   name: "Satoshi",
   bio: "Authored the Bitcoin white paper, developed Bitcoin, mined 1st block.",
@@ -39,11 +128,13 @@ test("profile setup follows Figma, preserves identity on reload and failed saves
   await expect(page.getByLabel("Name", { exact: true })).toBeVisible();
   await page.screenshot({ path: info.outputPath("profile-empty.png"), fullPage: true });
   await expect(page.getByRole("heading", { name: "Create your profile." })).toBeFocused();
+  // Nothing is published yet, so a random name starts the profile.
+  await expect(page.getByLabel("Name", { exact: true })).toHaveValue(RANDOM_NAME);
   await page.getByLabel("Name", { exact: true }).fill(PROFILE.name);
   await page.getByLabel("Bio", { exact: true }).fill(PROFILE.bio);
   await page.getByLabel("Website", { exact: true }).fill(PROFILE.links[0]!.url);
   await page.getByLabel("X (Twitter)", { exact: true }).fill("@satoshi");
-  await page.getByLabel("Choose avatar file").setInputFiles("e2e/fixtures/profile-avatar.png");
+  await chooseAvatar(page);
   await expect(page.getByRole("button", { name: "Delete", exact: true })).toBeVisible();
   await expect(page.getByRole("img", { name: "Your avatar" })).toHaveAttribute("src", /^blob:/);
   await page.screenshot({ path: info.outputPath("profile-filled.png"), fullPage: true });
@@ -59,9 +150,9 @@ test("profile setup follows Figma, preserves identity on reload and failed saves
   await expect(page.getByRole("heading", { name: "Your pubky." })).toBeFocused();
   await page.getByRole("button", { name: "Set up profile" }).click();
   await page.getByLabel("Name", { exact: true }).fill(PROFILE.name);
-  await page.getByLabel("Choose avatar file").setInputFiles("e2e/fixtures/profile-avatar.png");
+  await chooseAvatar(page);
   // The avatar is re-encoded in the browser, then the homeserver answers the session with a 503.
-  await page.getByRole("button", { name: "Save profile", exact: true }).click();
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
   await expect(page.locator("main").getByRole("alert")).toContainText(
     "Could not save your profile",
     {
@@ -94,11 +185,13 @@ test("marks each invalid field where it is, with the limits shown before saving"
   const name = page.getByLabel("Name", { exact: true });
   const bio = page.getByLabel("Bio", { exact: true });
   const website = page.getByLabel("Website", { exact: true });
+  // The field is filled with a random name, and says only its limits.
+  await expect(name).toHaveValue(RANDOM_NAME);
   await expect(name).toHaveAccessibleDescription("3–50 characters. Shown publicly.");
   await expect(bio).toHaveAccessibleDescription("0 of 160 characters");
   // Enter submits from the invalid Name field itself, where focus already is, so the form's status
   // says why nothing was saved.
-  const refusal = page.locator("form").getByRole("status");
+  const refusal = page.locator("form").filter({ has: name }).getByRole("status");
   await name.fill("Al");
   await name.press("Enter");
   await expect(refusal).toHaveText(
@@ -109,12 +202,12 @@ test("marks each invalid field where it is, with the limits shown before saving"
   await bio.fill("b".repeat(161));
   await expect(page.getByText("161/160")).toBeVisible();
   await website.fill("my website");
-  await page.getByRole("button", { name: "Add link" }).click();
-  await linkField(page, 3, "Address").fill("https://github.com/satoshi");
+  // The dialog wants a label and an address; whether the address is one is judged on saving.
+  await addLink(page, "GitHub", "my github");
 
-  // The popup: Save profile sits far below the Name field it has to point back to.
+  // The popup: Continue sits far below the Name field it has to point back to.
   await page.setViewportSize({ width: 520, height: 760 });
-  await page.getByRole("button", { name: "Save profile", exact: true }).click();
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
   await expect(name).toBeFocused();
   await expect(refusal).toHaveText("4 fields need changes. Name: Enter a name of 3–50 characters.");
   await expect(name).toBeInViewport({ ratio: 1 });
@@ -130,7 +223,10 @@ test("marks each invalid field where it is, with the limits shown before saving"
       website,
       "Enter a full address with its scheme, like https://example.com or mailto:you@example.com.",
     ],
-    [linkField(page, 3, "Title"), "Give this link a title."],
+    [
+      linkField(page, 3, "Address"),
+      "Enter a full address with its scheme, like https://example.com or mailto:you@example.com.",
+    ],
   ] as const) {
     await expect(control).toHaveAttribute("aria-invalid", "true");
     await expect(control).toHaveAccessibleDescription(message);
@@ -141,10 +237,10 @@ test("marks each invalid field where it is, with the limits shown before saving"
   await expect(name).not.toHaveAttribute("aria-invalid");
   await bio.fill("Bitcoin");
   await website.fill("https://bitcoin.org");
-  await linkField(page, 3, "Title").fill("GitHub");
+  await linkField(page, 3, "Address").fill("https://github.com/satoshi");
   expect(writes).toEqual([]);
   // Every field passes, so the save runs and meets the unavailable homeserver.
-  await page.getByRole("button", { name: "Save profile", exact: true }).click();
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
   await expect(page.locator("main").getByRole("alert")).toContainText(
     "Could not save your profile",
     { timeout: 15000 },
@@ -190,29 +286,134 @@ test("says the profile is public before it is filled in, and flags a name taken 
   await expect(name).toHaveAccessibleDescription("3–50 characters. Shown publicly.");
 });
 
-test("refuses a damaged avatar as soon as it is picked, beside the picker", async ({ page }) => {
+test("refuses a damaged avatar as soon as it is picked, in its crop or beside the picker", async ({
+  page,
+}) => {
   await mockPublicProfile(page, null);
   await seedProfileIdentity(page);
   await page.getByRole("button", { name: "Set up profile" }).click();
   const picker = page.getByLabel("Choose avatar file");
   await expect(picker).toHaveAccessibleDescription("PNG, JPEG, WebP, or GIF, up to 5 MB.");
-  // An image type and name over bytes no browser can decode.
+  // An image type and name over bytes no browser can decode: the crop that opens says so, and
+  // there is nothing to use.
   await picker.setInputFiles({
     name: "holiday.png",
     mimeType: "image/png",
     buffer: Buffer.from("this is not really a png image"),
   });
-  const message = page.getByRole("region", { name: "Avatar" }).getByRole("alert");
-  await expect(message).toHaveText(
+  const crop = page.getByRole("dialog", { name: "Crop your avatar" });
+  await expect(crop.getByRole("alert")).toHaveText(
     "This image can’t be opened. Choose a PNG, JPEG, WebP, or GIF image up to 5 MB.",
   );
+  await expect(crop.getByRole("button", { name: "Use photo" })).toBeDisabled();
+  await crop.getByRole("button", { name: "Cancel" }).click();
+  await expect(crop).toBeHidden();
   // The placeholder stays, with nothing to delete.
   await expect(page.getByRole("button", { name: "Delete", exact: true })).toHaveCount(0);
   await expect(page.getByRole("img", { name: "Your avatar" })).toHaveCount(0);
 
-  await picker.setInputFiles("e2e/fixtures/profile-avatar.png");
+  // A file that is no image at all never reaches the crop: the picker says why, beside it.
+  await picker.setInputFiles({
+    name: "notes.txt",
+    mimeType: "text/plain",
+    buffer: Buffer.from("not an image"),
+  });
+  const message = page.getByRole("region", { name: "Avatar" }).getByRole("alert");
+  await expect(message).toHaveText("Choose a PNG, JPEG, WebP, or GIF image up to 5 MB.");
+  await expect(picker).toHaveAccessibleDescription(
+    "Choose a PNG, JPEG, WebP, or GIF image up to 5 MB.",
+  );
+  await expect(crop).toBeHidden();
+
+  await chooseAvatar(page);
   await expect(page.getByRole("img", { name: "Your avatar" })).toHaveAttribute("src", /^blob:/);
   await expect(message).toHaveCount(0);
+});
+
+test("Add link asks for a label and an address, and the link is published with its title", async ({
+  page,
+}) => {
+  const homeserver = await mockWritableHomeserver(page);
+  await seedProfileIdentity(page);
+  await page.getByRole("button", { name: "Set up profile" }).click();
+  await page.getByLabel("Name", { exact: true }).fill(PROFILE.name);
+
+  await page.getByRole("button", { name: "Add link" }).click();
+  const dialog = page.getByRole("dialog", { name: "Add link" });
+  const label = dialog.getByLabel("Label", { exact: true });
+  const url = dialog.getByLabel("URL", { exact: true });
+  await expect(label).toBeFocused();
+  // Both are needed before the link joins the form.
+  await dialog.getByRole("button", { name: "Save Link" }).click();
+  await expect(label).toHaveAccessibleDescription("Give this link a label.");
+  await expect(url).toHaveAccessibleDescription(
+    "Enter a full address with its scheme, like https://example.com or mailto:you@example.com.",
+  );
+  expect((await new AxeBuilder({ page }).include("dialog[open]").analyze()).violations).toEqual([]);
+  await label.fill("GitHub");
+  await url.fill("https://github.com/satoshi");
+  await dialog.getByRole("button", { name: "Save Link" }).click();
+  await expect(dialog).toBeHidden();
+  // The added link is a group of its own, its title and address filled in from the dialog.
+  await expect(linkField(page, 3, "Title")).toHaveValue("GitHub");
+  await expect(linkField(page, 3, "Address")).toHaveValue("https://github.com/satoshi");
+  await expect(page.getByRole("button", { name: "Remove link 3 (GitHub)" })).toBeVisible();
+
+  // Cancel adds nothing, and the next link starts from empty fields.
+  await page.getByRole("button", { name: "Add link" }).click();
+  await expect(label).toHaveValue("");
+  await label.fill("Blog");
+  await dialog.getByRole("button", { name: "Cancel" }).click();
+  await expect(dialog).toBeHidden();
+  await expect(page.getByRole("group", { name: "Link 4" })).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  // Published as typed, under its title; the empty Website and X links are left out.
+  await expect
+    .poll(() => homeserver.profile(), { timeout: 15_000 })
+    .toMatchObject({
+      name: PROFILE.name,
+      links: [{ title: "GitHub", url: "https://github.com/satoshi" }],
+    });
+});
+
+test("a chosen avatar is cropped first, and Use photo uploads the cropped square", async ({
+  page,
+}) => {
+  const homeserver = await mockWritableHomeserver(page);
+  await seedProfileIdentity(page);
+  await page.getByRole("button", { name: "Set up profile" }).click();
+  await page.getByLabel("Name", { exact: true }).fill(PROFILE.name);
+
+  // The 96px fixture opens in the crop, and nothing is the avatar until Use photo.
+  await page.getByLabel("Choose avatar file").setInputFiles("e2e/fixtures/profile-avatar.png");
+  const crop = page.getByRole("dialog", { name: "Crop your avatar" });
+  await expect(crop).toBeVisible();
+  await expect(page.getByRole("img", { name: "Your avatar" })).toHaveCount(0);
+  const zoom = crop.getByRole("slider", { name: "Zoom" });
+  await expect(zoom).toHaveValue("1");
+  await zoom.fill("2");
+  await expect(zoom).toHaveValue("2");
+  expect((await new AxeBuilder({ page }).include("dialog[open]").analyze()).violations).toEqual([]);
+  await crop.getByRole("button", { name: "Use photo" }).click();
+  await expect(crop).toBeHidden();
+  await expect(page.getByRole("img", { name: "Your avatar" })).toHaveAttribute("src", /^blob:/);
+  await expect(page.getByRole("button", { name: "Delete", exact: true })).toBeVisible();
+
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await expect
+    .poll(() => homeserver.profile(), { timeout: 15_000 })
+    .toMatchObject({
+      name: PROFILE.name,
+      image: expect.stringMatching(
+        new RegExp(`^pubky://${PROFILE_KEY}/pub/pubky\\.app/files/`, "u"),
+      ),
+    });
+  // What was uploaded is the crop, a 512px square PNG, not the 96px file that was chosen.
+  const [avatar, ...others] = homeserver.blobs();
+  expect(others).toEqual([]);
+  expect(avatar!.subarray(0, 8)).toEqual(PNG_SIGNATURE);
+  expect([avatar!.readUInt32BE(16), avatar!.readUInt32BE(20)]).toEqual([512, 512]);
 });
 
 test("an unreadable published profile opens an empty editor instead of blocking setup", async ({
@@ -223,6 +424,8 @@ test("an unreadable published profile opens an empty editor instead of blocking 
   await page.getByRole("button", { name: "Set up profile" }).click();
   await expect(page.getByRole("heading", { name: "Create your profile." })).toBeVisible();
   await expect(page.getByText("We couldn’t read your current profile.")).toBeVisible();
+  // Nothing of the unreadable profile is kept, and no random name either: saving replaces a
+  // profile that is still published, so the name is the person's to give.
   await expect(page.getByLabel("Name", { exact: true })).toHaveValue("");
   // Saving replaces the profile other apps show, so the button says so.
   await expect(page.getByRole("button", { name: "Replace profile", exact: true })).toBeEnabled();
@@ -262,8 +465,9 @@ test("profile form stays accessible in narrow and short windows with five links"
   await page
     .getByLabel("Name", { exact: true })
     .fill("A very long identity name that fits the profile");
-  for (let index = 0; index < 3; index++)
-    await page.getByRole("button", { name: "Add link" }).click();
+  await addLink(page, "GitHub", "https://github.com/satoshi");
+  await addLink(page, "Nostr", "https://njump.me/satoshi");
+  await addLink(page, "A link with a long title that has to wrap", "https://example.com/");
   const footer = page.locator("footer");
   for (const viewport of [
     { width: 375, height: 667 },
@@ -278,7 +482,7 @@ test("profile form stays accessible in narrow and short windows with five links"
     const mainBox = await page.locator("main").boundingBox();
     const footerBox = await footer.boundingBox();
     expect(footerBox!.y).toBeGreaterThanOrEqual(mainBox!.y + mainBox!.height - 1);
-    // The bar pinned below md keeps Back and Save profile in one row, so it covers little of the form.
+    // The bar pinned below md keeps Back and Continue in one row, so it covers little of the form.
     if (viewport.width < 768)
       expect((await page.locator("[data-sticky-actions]").boundingBox())!.height).toBeLessThan(100);
     await page.screenshot({
@@ -296,8 +500,9 @@ test("in the app's popup, a focused field scrolls clear of the actions pinned be
   await seedProfileIdentity(page);
   await page.getByRole("button", { name: "Set up profile" }).click();
   await expect(page.getByLabel("Name", { exact: true })).toBeVisible();
-  for (let index = 0; index < 3; index++)
-    await page.getByRole("button", { name: "Add link" }).click();
+  await addLink(page, "GitHub", "https://github.com/satoshi");
+  await addLink(page, "Nostr", "https://njump.me/satoshi");
+  await addLink(page, "Blog", "https://example.com/");
   const lastLink = page
     .getByRole("group", { name: /^Link \d+$/u })
     .last()
@@ -362,28 +567,8 @@ async function mockSmsSignup(page: Page) {
     if (url.pathname.startsWith("/signup_tokens/"))
       return route.fulfill({ json: { status: "valid" } });
     if (url.pathname === "/auth/grant/signup") return route.fulfill({ status: 200, body: "" });
-    if (url.pathname === "/auth/grant/session" && request.method() === "POST") {
-      const { grant } = request.postDataJSON() as { grant: string };
-      const claims = JSON.parse(
-        Buffer.from(grant.split(".")[1]!, "base64url").toString("utf8"),
-      ) as { iss: string; client_id: string; caps: string[]; jti: string; exp: number };
-      const now = Math.floor(Date.now() / 1000);
-      return route.fulfill({
-        json: {
-          token: "e2e-bearer",
-          session: {
-            homeserver: HOMESERVER,
-            pubky: claims.iss,
-            client_id: claims.client_id,
-            capabilities: claims.caps,
-            grant_id: claims.jti,
-            token_expires_at: now + 3_600,
-            grant_expires_at: claims.exp,
-            created_at: now,
-          },
-        },
-      });
-    }
+    if (url.pathname === "/auth/grant/session" && request.method() === "POST")
+      return route.fulfill({ json: sessionFor(request.postDataJSON() as { grant: string }) });
     return route.fulfill({ status: request.method() === "GET" ? 404 : 200, body: "" });
   });
 }
@@ -434,11 +619,11 @@ for (const [name, viewport, entry] of [
     await expect(page.getByRole("heading", { name: "Create your profile." })).toBeVisible();
     await expect(page.getByLabel("Name", { exact: true })).toBeVisible();
     // No Back here: Skip for now is the one way on without a profile, so it shares the pinned
-    // bar with Save profile, in one row, in the first screenful above the long form.
+    // bar with Continue, in one row, in the first screenful above the long form.
     await expect(page.getByRole("button", { name: "Back", exact: true })).toHaveCount(0);
     const later = (await page.getByRole("button", { name: "Skip for now" }).boundingBox())!;
     const finish = (await page
-      .getByRole("button", { name: "Save profile", exact: true })
+      .getByRole("button", { name: "Continue", exact: true })
       .boundingBox())!;
     for (const box of [later, finish]) {
       expect(box.y).toBeGreaterThanOrEqual(0);
