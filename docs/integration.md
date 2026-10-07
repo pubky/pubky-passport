@@ -517,8 +517,12 @@ identities or local storage and carries no request URL, capabilities or relay se
   request to Pubky Ring) or `"granting"` (the person committed the approval). Ignore phases you do
   not know.
 - **Outcomes.** With a bound opener, terminal outcomes use version 2 and go to that origin even
-  without callbacks; Passport closes after a matching acknowledgement and otherwise falls back to
-  the callback or its own screen. A Pubky Ring hand-off sends no v2 outcome: the window stays on
+  without callbacks. After `success` or `error` Passport closes after a matching acknowledgement and
+  otherwise falls back to the callback or its own screen. After `cancel` it closes the pop-up at
+  your acknowledgement, or one second after posting without one, and never visits the cancel
+  callback; a window still open a second after that close shows Passport's cancelled screen with
+  **Close window**. Each close logs which path ran (`authorize.opener_handoff.closing`,
+  `path=acknowledged|timer`). A Pubky Ring hand-off sends no v2 outcome: the window stays on
   its Ring screen for you to close when your `Session` arrives, and once Passport sees Ring's
   answer taken on your relay channel it ends the request as `completed` and shows its own home.
 - **Completed.** `ready` with `request.status: "completed"` means only that the request ended in

@@ -449,6 +449,29 @@ test("cancelling in Passport ends the attempt as cancelled and closes the popup"
   expect((await facade(page)).publicKeys).toEqual([]);
 });
 
+test("Back on Join, the request's first screen, answers the app and closes the popup at once", async ({
+  page,
+  baseURL,
+}) => {
+  // Nothing saved in Passport: the popup opens on Join, whose Back answers the app.
+  await openClient(page, baseURL!);
+  const popup = await openPopup(page);
+  await expect
+    .poll(async () => (await facade(page)).state)
+    .toMatchObject({ status: "waiting", handshake: "confirmed" });
+  await expect(popup.getByRole("heading", START_HEADING)).toBeVisible();
+  const closed = popup.waitForEvent("close", { timeout: 5_000 });
+  await popup.getByRole("button", { name: "Back", exact: true }).click();
+  await expect
+    .poll(async () => (await facade(page)).state)
+    .toMatchObject({ status: "failed", error: { code: "cancelled" } });
+  await closed;
+  await expect(page.locator("pubky-passport").getByRole("status")).toHaveText(
+    "Sign-in was cancelled.",
+  );
+  expect((await facade(page)).publicKeys).toEqual([]);
+});
+
 test("the large element's Ring code copies its link, expires blurred and reloads a fresh request", async ({
   page,
   baseURL,

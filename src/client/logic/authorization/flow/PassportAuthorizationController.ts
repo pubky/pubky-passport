@@ -491,6 +491,8 @@ export class PassportAuthorizationController {
       });
       return this.update(localState);
     }
+    // The app has its answer, but the pop-up did not go: the outcome and its Close stay here.
+    if (handoffStatus === "stayed-open") return this.update(localState);
     if (handoffStatus !== "unavailable") return this.state;
 
     if (callback) {
