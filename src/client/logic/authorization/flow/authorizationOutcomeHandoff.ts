@@ -3,8 +3,12 @@ import "client-only";
 import { LOGGER, safeErrorLogFields } from "@/libs/logger/logger";
 
 export type AuthorizationOutcome = "success" | "error" | "cancel";
+/**
+ * How an outcome reached the app. `stayed-open`: Passport closed the app's pop-up after a cancel,
+ * yet the page still runs, so it shows the outcome itself.
+ */
 export type AuthorizationHandoffStatus =
-  "aborted" | "acknowledged-and-closed" | "navigated" | "unavailable";
+  "aborted" | "acknowledged-and-closed" | "navigated" | "stayed-open" | "unavailable";
 
 const MESSAGE_TYPE = "pubky-passport.authorization-outcome";
 const ACKNOWLEDGEMENT_TYPE = "pubky-passport.authorization-outcome-ack";

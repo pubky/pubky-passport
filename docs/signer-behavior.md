@@ -90,6 +90,9 @@ When the answer cannot reach the app through a callback or a message, Passport e
 screen: an approval, a cancellation, an approval that did not reach the relay (the user starts
 again in the app), or an identity whose key could not be unlocked in the browser. It names the app
 only when the request has callbacks, beside their host; the `x-source` label alone never names it.
+A cancellation in a pop-up whose app bound the request with a v2 hello closes the window
+instead, at the app's acknowledgement or a second after the answer without one; the cancelled
+screen shows there only when the window is still open a second after that close.
 A request that expired before Passport loaded is told apart from a link that cannot be used. Each
 of these offers **Close window** in a popup; in a tab of its own, the expired and invalid screens
 go **Back to the app** when the app's page sent the user there, and the others offer a way to

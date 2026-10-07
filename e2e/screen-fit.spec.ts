@@ -289,8 +289,13 @@ async function expectColumn(
         window: document.documentElement.clientWidth,
       };
     });
-  await expect.poll(async () => Number.isFinite((await measure()).left)).toBe(true);
-  const column = await measure();
+  let column = await measure();
+  await expect
+    .poll(async () => {
+      column = await measure();
+      return Number.isFinite(column.left) && Number.isFinite(column.right);
+    })
+    .toBe(true);
   // 24px from the window's sides up to 1024px (phones, the popup, tablets); 40px on a desktop.
   const inset = column.window > 1024 ? 40 : 24;
   const [left, width] =
