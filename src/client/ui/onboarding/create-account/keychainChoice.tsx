@@ -83,6 +83,8 @@ export function KeychainChoice({
     return (
       <OnboardingScreen
         accent="account."
+        // Its actions lead on: pinned to a phone's window.
+        stickyActions
         actions={
           <PassportNavigation
             back={back}

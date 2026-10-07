@@ -261,7 +261,7 @@ test("long identity and permission lists stay inside the page with a separated f
   );
   await page.goto("about:blank");
   await page.goto(`${baseURL}/authorize#d=${encodeURIComponent(request.href)}`);
-  // The list fills the window and scrolls inside it, so the other ways in stay in view.
+  // The page scrolls as a whole: the list holds every row, and the other ways in follow it.
   const list = page.getByRole("list", { name: "Choose the identity to sign in with." });
   await expect(list.getByRole("button")).toHaveCount(14);
   const choice = await page.evaluate(() => {
@@ -275,8 +275,8 @@ test("long identity and permission lists stay inside the page with a separated f
       width: document.documentElement.scrollWidth,
     };
   });
-  expect(choice.scrolls).toBe(true);
-  expect(choice.ringBottom).toBeLessThanOrEqual(760);
+  expect(choice.scrolls).toBe(false);
+  expect(choice.ringBottom).toBeGreaterThan(760);
   expect(choice.width).toBeLessThanOrEqual(520);
   await list.getByRole("button").last().scrollIntoViewIfNeeded();
   await list.getByRole("button").last().click();

@@ -85,7 +85,7 @@ describe("ChooseIdentity", () => {
     ).toEqual(["Cancel", "Use another identity", "Continue with keychain"]);
     expect(screen.queryByRole("button", { name: "Create account" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Google|recovery file/u })).not.toBeInTheDocument();
-    // The count shows how far the list scrolls in a short window.
+    // The count says how many identities follow.
     expect(screen.getByText("2 identities")).toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
 
@@ -98,32 +98,6 @@ describe("ChooseIdentity", () => {
     expect(handlers.onOpenRing).toHaveBeenCalledOnce();
     expect(handlers.onUseAnotherIdentity).toHaveBeenCalledOnce();
     expect(handlers.onCancel).toHaveBeenCalledOnce();
-  });
-
-  it("brings a row reached by keyboard fully into the list's view, but not a pressed one", async () => {
-    const scrollIntoView = vi.fn();
-    Element.prototype.scrollIntoView = scrollIntoView;
-    // jsdom has no focus heuristics; the browser matches :focus-visible for keyboard focus only.
-    let keyboard = false;
-    const matches = Element.prototype.matches;
-    vi.spyOn(Element.prototype, "matches").mockImplementation(function (
-      this: Element,
-      selector: string,
-    ) {
-      return selector === ":focus-visible" ? keyboard : matches.call(this, selector);
-    });
-    renderChooser([PLAIN, OTHER], null);
-    const rows = within(
-      screen.getByRole("list", { name: "Choose the identity to sign in with." }),
-    ).getAllByRole("button");
-    const user = userEvent.setup();
-
-    await user.click(rows[0]!);
-    expect(scrollIntoView).not.toHaveBeenCalled();
-    keyboard = true;
-    await user.tab();
-    expect(rows[1]).toHaveFocus();
-    expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest" });
   });
 
   it("names identities from the summary this browser kept, without reading profiles", () => {

@@ -65,6 +65,8 @@ export function PhoneNumberStep({
   return (
     <OnboardingScreen
       accent="phone."
+      // Its actions lead on: pinned to a phone's window.
+      stickyActions
       actions={
         <PassportNavigation
           back={<BackButton className="max-[30rem]:w-full" onClick={onBack} />}
@@ -228,6 +230,8 @@ export function SmsCodeStep({
   return (
     <OnboardingScreen
       accent="code."
+      // Its actions lead on: pinned to a phone's window.
+      stickyActions
       actions={
         <div className="flex flex-col gap-4 md:flex-row md:items-center">
           <BackButton className="max-[30rem]:w-full" onClick={onBack} />

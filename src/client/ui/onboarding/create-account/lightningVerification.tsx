@@ -63,6 +63,8 @@ export function LightningVerification({
   return (
     <OnboardingScreen
       accent="pay."
+      // Its actions lead on: pinned to a phone's window.
+      stickyActions
       actions={
         <PassportNavigation
           back={<BackButton className="max-[30rem]:w-full" onClick={onBack} />}

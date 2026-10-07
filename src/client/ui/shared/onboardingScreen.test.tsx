@@ -66,11 +66,12 @@ describe("OnboardingScreen", () => {
     expect(document.title).toBe("Pay | Pubky Passport");
   });
 
-  it("puts its actions after the content, in the container pinned on phones", () => {
+  it("pins actions that lead on after the content, in the container pinned on phones", () => {
     render(
       <OnboardingScreen
         accent="phone."
         actions={<button type="button">Send Code</button>}
+        stickyActions
         title="Enter"
       >
         <p>Phone number field</p>
@@ -84,6 +85,26 @@ describe("OnboardingScreen", () => {
     expect(actions).toHaveClass("sticky", "bottom-0", "md:static");
     // The screen fills a phone's window, so the actions sit at its bottom edge.
     expect(main.className).toMatch(/max-md:min-h-/u);
+  });
+
+  it("keeps a Back-only action in the flow, right after the content, with the footer last", () => {
+    render(
+      <OnboardingScreen
+        accent="Pubky."
+        actions={<button type="button">Back</button>}
+        title="Let’s join"
+      >
+        <p>Join cards</p>
+      </OnboardingScreen>,
+    );
+
+    const main = screen.getByRole("main");
+    const back = screen.getByRole("button", { name: "Back" });
+    expect(main.querySelector("[data-sticky-actions]")).toBeNull();
+    expect(main.lastElementChild).toContainElement(back);
+    expect(main.lastElementChild?.className ?? "").not.toMatch(/sticky/u);
+    // Nothing stretches the screen to the window: the page footer follows the content.
+    expect(main.className).not.toMatch(/max-md:min-h-/u);
   });
 
   it("leaves the page footer to follow the content when there are no actions", () => {

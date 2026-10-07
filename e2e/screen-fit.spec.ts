@@ -653,6 +653,79 @@ for (const viewport of [
   });
 }
 
+/**
+ * The space between `above`'s bottom and `below`'s top: the screen's own gap when they follow each
+ * other in the flow.
+ */
+async function gapBetween(above: Locator, below: Locator): Promise<number> {
+  const top = (await below.boundingBox())!.y;
+  const box = (await above.boundingBox())!;
+  return top - (box.y + box.height);
+}
+
+/** Nothing pinned, and the page footer last: at the window's bottom when the page fits it. */
+async function expectFooterLast(page: Page, viewport: { width: number; height: number }) {
+  expect(await page.locator("[data-sticky-actions]").count()).toBe(0);
+  const layout = await page.evaluate(() => ({
+    mainBottom: document.querySelector("main")!.getBoundingClientRect().bottom,
+    footerTop: document.querySelector("body > footer")!.getBoundingClientRect().top,
+    footerBottom: document.querySelector("body > footer")!.getBoundingClientRect().bottom,
+    pageHeight: document.documentElement.scrollHeight,
+    width: document.documentElement.scrollWidth,
+  }));
+  expect(layout.footerTop).toBeGreaterThanOrEqual(layout.mainBottom - 1);
+  expect(layout.width).toBeLessThanOrEqual(viewport.width);
+  if (layout.pageHeight <= viewport.height)
+    expect(Math.abs(layout.footerBottom - viewport.height)).toBeLessThanOrEqual(1);
+}
+
+for (const viewport of [
+  { width: 375, height: 812 },
+  { width: 520, height: 760 },
+] as const) {
+  test(`a request's screens end on their actions, in the flow, with the footer last at ${viewport.width}x${viewport.height}`, async ({
+    page,
+  }) => {
+    await page.setViewportSize(viewport);
+    await page.goto("/");
+    await storeLocalIdentities(
+      page,
+      [FIRST_KEY, SECOND_KEY].map((publicKeyZ32, index) => ({
+        publicKeyZ32,
+        googleAccount: { ...GOOGLE_ACCOUNT, googleSubject: `google-${index}` },
+      })),
+      { active: FIRST_KEY },
+    );
+    await page.goto(authorizeUrl(REQUEST));
+    const or = page.getByText("or", { exact: true });
+
+    // The identity list: its last row, then the "or" and both ways in at the screen's gap.
+    const rows = page
+      .getByRole("list", { name: "Choose the identity to sign in with." })
+      .getByRole("listitem");
+    await expect(rows).toHaveCount(2);
+    expect(await gapBetween(rows.last(), or)).toBeLessThanOrEqual(32);
+    await expectFooterLast(page, viewport);
+
+    // The review, the model: Authorize, then the "or" and both ways in.
+    await rows.first().getByRole("button").click();
+    const authorize = page.getByRole("button", { name: "Authorize", exact: true });
+    await expect(authorize).toBeVisible();
+    expect(await gapBetween(authorize, or)).toBeLessThanOrEqual(32);
+    await expectFooterLast(page, viewport);
+
+    // The request's Join: Back is no way on, so it follows the content instead of being pinned.
+    await page.goto("/");
+    await storeLocalIdentities(page, []);
+    await page.goto(authorizeUrl(REQUEST));
+    await expect(page.getByRole("heading", { name: "Let’s join Pubky." })).toBeVisible();
+    const back = page.getByRole("button", { name: "Back", exact: true });
+    const lastContent = page.locator("main > *").filter({ hasNot: back }).last();
+    expect(await gapBetween(lastContent, back)).toBeLessThanOrEqual(32);
+    await expectFooterLast(page, viewport);
+  });
+}
+
 test("the detach review's illustration stays inside a 768px window", async ({ page }) => {
   await page.setViewportSize({ width: 768, height: 1024 });
   await mockPublicProfile(page, null);

@@ -916,7 +916,7 @@ async function resumeSavedSetup(page: Page) {
 test.describe("in the app's 520x760 popup", () => {
   test.use({ viewport: { width: 520, height: 760 }, hasTouch: false });
 
-  test("the keychain choice keeps its store badges, and the signup its QR code, and Back in view", async ({
+  test("the keychain choice keeps its store badges, and the signup its QR code, in view, with Back right after", async ({
     page,
   }) => {
     await openVerification(page, REQUEST_ENTRY);
@@ -924,24 +924,31 @@ test.describe("in the app's 520x760 popup", () => {
     await page.getByLabel("Enter invite code").fill(MANUAL_INVITE);
     await page.getByRole("button", { name: "Continue" }).click();
     await expect(page.getByRole("heading", { name: "Pick your keychain." })).toBeVisible();
-    await expectInView([
-      page.getByRole("link", { name: "Get Bitkit on Google Play" }),
-      page.getByRole("button", { name: "Back", exact: true }),
-    ]);
+    await expectInView([page.getByRole("link", { name: "Get Bitkit on Google Play" })]);
+    await expectBackInFlow();
     await openRingSignup(page);
 
     await expect(page.getByRole("img", { name: "Keychain signup QR code" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Scan QR with keychain." })).toBeVisible();
-    await expectInView([
-      page.getByRole("img", { name: "Keychain signup QR code" }),
-      page.getByRole("button", { name: "Back", exact: true }),
-    ]);
+    await expectInView([page.getByRole("img", { name: "Keychain signup QR code" })]);
+    await expectBackInFlow();
 
     async function expectInView(controls: ReturnType<Page["getByRole"]>[]) {
       for (const control of controls) {
         const box = (await control.boundingBox())!;
         expect(box.y + box.height).toBeLessThanOrEqual(760);
       }
+    }
+
+    /** Back alone is no way on: it follows the content, unpinned, with the page footer last. */
+    async function expectBackInFlow() {
+      expect(await page.locator("[data-sticky-actions]").count()).toBe(0);
+      const back = page.getByRole("button", { name: "Back", exact: true });
+      await back.scrollIntoViewIfNeeded();
+      await expect(back).toBeInViewport();
+      const footer = (await page.locator("body > footer").boundingBox())!;
+      const box = (await back.boundingBox())!;
+      expect(footer.y).toBeGreaterThanOrEqual(box.y + box.height);
     }
   });
 });
