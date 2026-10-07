@@ -172,7 +172,11 @@ describe("Join", () => {
     expect(
       screen.getByRole("heading", { level: 1, name: "Let’s join Pubky." }),
     ).toBeInTheDocument();
-    expect(screen.getByText("How would you like to create your pubky?")).toBeInTheDocument();
+    // The desktop frame's lead; the phone frame has none.
+    expect(screen.getByText("How would you like to create your pubky?")).toHaveClass(
+      "hidden",
+      "md:block",
+    );
     const cards = screen.getAllByRole("region");
     expect(cards).toEqual([
       screen.getByRole("region", { name: "Sovereign & Secure" }),

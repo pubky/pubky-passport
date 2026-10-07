@@ -35,6 +35,23 @@ describe("OnboardingScreen", () => {
     expect(document.title).toBe("Let’s join Pubky | Pubky Passport");
   });
 
+  it("shows a lead from md only when asked, as where a phone's frame has none", () => {
+    render(
+      <OnboardingScreen accent="Pubky." lead="From md" leadFrom="md" title="Let’s join">
+        <p>Cards</p>
+      </OnboardingScreen>,
+    );
+    expect(screen.getByText("From md")).toHaveClass("hidden", "md:block");
+    cleanup();
+
+    render(
+      <OnboardingScreen accent="Pubky." lead="Always" title="Let’s join">
+        <p>Cards</p>
+      </OnboardingScreen>,
+    );
+    expect(screen.getByText("Always")).not.toHaveClass("hidden");
+  });
+
   it("names the window by the title it is given over the heading's words", () => {
     render(
       <OnboardingScreen accent="to pay." title="Scan" windowTitle="Pay">

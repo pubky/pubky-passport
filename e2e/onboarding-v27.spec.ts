@@ -76,6 +76,21 @@ async function openRequestLink(page: Page, request: string, extra = "") {
   await page.goto(clientAuthorizationPath(request) + extra);
 }
 
+test("Join's lead is the desktop frame's alone: shown on a computer, left out on a phone, with or without a request", async ({
+  page,
+  isMobile,
+}) => {
+  const lead = page.getByText("How would you like to create your pubky?", { exact: true });
+  await page.goto("/");
+  await expect(page.getByRole("heading", { name: "Let’s join Pubky." })).toBeVisible();
+  if (isMobile) await expect(lead).toBeHidden();
+  else await expect(lead).toBeVisible();
+  await openRequest(page);
+  await expect(page.getByRole("heading", { name: "Let’s join Pubky." })).toBeVisible();
+  if (isMobile) await expect(lead).toBeHidden();
+  else await expect(lead).toBeVisible();
+});
+
 test("without a request the start page opens on Join and moves to Sign in and back", async ({
   page,
 }) => {

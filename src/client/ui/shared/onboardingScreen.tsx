@@ -18,6 +18,7 @@ export function OnboardingScreen({
   children,
   className,
   lead,
+  leadFrom,
   title,
   windowTitle,
 }: {
@@ -28,6 +29,8 @@ export function OnboardingScreen({
   children: ReactNode;
   className?: string;
   lead?: ReactNode;
+  /** `md`: the lead shows from md only, where a phone's design frame has none (Join). */
+  leadFrom?: "md" | undefined;
   /** The heading's first words. */
   title: ReactNode;
   /** The window's title, where the heading's words change with the screen's width. */
@@ -49,7 +52,9 @@ export function OnboardingScreen({
         <DisplayHeading accent={accent} className="[&>span]:inline" data-window-title={windowTitle}>
           {title}{" "}
         </DisplayHeading>
-        {lead ? <LeadText>{lead}</LeadText> : null}
+        {lead ? (
+          <LeadText className={leadFrom === "md" ? "hidden md:block" : undefined}>{lead}</LeadText>
+        ) : null}
       </div>
       {children}
       {actions ? <OnboardingActions>{actions}</OnboardingActions> : null}

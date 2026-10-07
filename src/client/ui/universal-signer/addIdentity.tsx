@@ -203,6 +203,8 @@ function JoinScreen({
         accent="Pubky."
         actions={actions}
         lead="How would you like to create your pubky?"
+        // The desktop frame (45785-544607) has this line; the phone's (544494) has none.
+        leadFrom="md"
         title="Let’s join"
       >
         {/* The keychain line hands the request on without its review (a phone opens the app from
