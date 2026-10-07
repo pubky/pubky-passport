@@ -78,18 +78,18 @@ describe("IdentitiesUnavailable", () => {
     expect(screen.queryByText("unreadable_store")).toBeNull();
   });
 
-  it("offers Pubky Ring beside Cancel during a request, which needs no storage here", async () => {
+  it("offers the keychain beside Cancel during a request, which needs no storage here", async () => {
     const user = userEvent.setup();
     const { cancel } = renderScreen({ status: "review", review: REVIEW });
 
     expect(screen.queryByRole("button", { name: "Try again" })).not.toBeInTheDocument();
     expect(
-      screen.getByText(/^Continue with Pubky Ring instead, or cancel this sign-in/u),
+      screen.getByText(/^Continue with your keychain instead, or cancel this sign-in/u),
     ).toBeVisible();
     await user.click(screen.getByRole("button", { name: "Cancel" }));
     expect(cancel).toHaveBeenCalledOnce();
 
-    await user.click(screen.getByRole("button", { name: "Continue with Pubky Ring" }));
+    await user.click(screen.getByRole("button", { name: "Continue with keychain" }));
     expect(screen.getByRole("heading", { name: "Sign in with Pubky Ring." })).toBeInTheDocument();
     expect(screen.getByRole("img", { name: "Pubky authorization QR code" })).toBeInTheDocument();
 
@@ -106,7 +106,7 @@ describe("IdentitiesUnavailable", () => {
       watchExternalApproval,
     });
 
-    await user.click(screen.getByRole("button", { name: "Continue with Pubky Ring" }));
+    await user.click(screen.getByRole("button", { name: "Continue with keychain" }));
 
     expect(screen.queryByRole("button", { name: /I approved/u })).toBeNull();
     expect(watchExternalApproval).toHaveBeenCalledOnce();

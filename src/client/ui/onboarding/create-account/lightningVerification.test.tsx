@@ -1,14 +1,14 @@
 /** @vitest-environment jsdom */
 
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { LightningVerification } from "./lightningVerification";
 
-const MOCKS = vi.hoisted(() => ({ toastError: vi.fn(), toastInfo: vi.fn() }));
-vi.mock("sonner", () => ({ toast: { error: MOCKS.toastError, info: MOCKS.toastInfo } }));
+const MOCKS = vi.hoisted(() => ({ toastError: vi.fn(), toastSuccess: vi.fn() }));
+vi.mock("sonner", () => ({ toast: { error: MOCKS.toastError, success: MOCKS.toastSuccess } }));
 
 const invoice = {
   id: "550e8400-e29b-41d4-a716-446655440000",
@@ -37,42 +37,68 @@ describe("LightningVerification", () => {
     vi.clearAllMocks();
   });
 
-  it("exposes one heading name and one description to assistive technology", () => {
+  it("asks a computer to scan and a phone to tap, under one window title", () => {
     renderInvoice();
-    const heading = screen.getByRole("heading", { level: 1, name: "Pay with Lightning." });
-    // Sentence case, one wording at every width: no Title Case "Scan to Pay." or "Tap to Pay.".
-    expect(heading).not.toHaveAttribute("aria-label");
-    expect(heading).toHaveTextContent(/^Pay with Lightning\.$/u);
-    const description = screen.getByText("Pay the invoice with your favorite bitcoin wallet.");
-    expect(description).toHaveClass("sr-only");
-    for (const visual of [
-      "Scan the QR code with your favorite wallet.",
-      "Tap Pay now to open the invoice in your bitcoin wallet.",
-    ])
-      expect(screen.getByText(visual)).toHaveAttribute("aria-hidden", "true");
+    // Both wordings are in the page and the width shows one; the window keeps one title.
+    const heading = screen.getByRole("heading", { level: 1 });
+    expect(heading).toHaveAttribute("data-window-title", "Pay");
+    expect(document.title).toBe("Pay | Pubky Passport");
+    expect(within(heading).getByText("Scan to")).toHaveClass("hidden", "md:inline");
+    expect(within(heading).getByText("Tap to")).toHaveClass("md:hidden");
+    expect(within(heading).getByText("pay.")).toBeInTheDocument();
+    expect(screen.getByText("Scan the QR with your favorite wallet.")).toHaveClass(
+      "hidden",
+      "md:inline",
+    );
+    expect(screen.getByText("Pay with your favorite bitcoin wallet.")).toHaveClass("md:hidden");
+    // The code a computer scans, in the card with the payment.
+    const card = screen.getByRole("region", { name: "Bitcoin Lightning payment" });
+    expect(
+      within(card).getByRole("img", { name: "Lightning payment invoice" }),
+    ).toBeInTheDocument();
+    expect(within(card).getByRole("heading", { name: "Bitcoin Lightning Payment" })).toBeVisible();
   });
 
   it.each([
     ["the invoice has expired", invoice, true],
     ["the invoice is still being created", null, false],
-  ] as const)("names no Pay now or QR code while %s", (_, shown, expired) => {
-    render(
-      <LightningVerification
-        invoice={shown}
-        expired={expired}
-        pending={false}
-        error={null}
-        onBack={vi.fn()}
-        onCreateInvoice={vi.fn()}
-        onCheckPayment={vi.fn()}
-      />,
-    );
-    // Neither is on the screen now, so the lead doesn't point at them.
-    const lead = screen.getByText("Pay the invoice with your favorite bitcoin wallet.");
-    expect(lead).toBeVisible();
-    expect(lead).not.toHaveClass("sr-only");
-    expect(screen.queryByText(/Pay now|QR code/u)).toBeNull();
-    expect(screen.queryByRole("link", { name: /Pay now/u })).toBeNull();
+  ] as const)(
+    "keeps the design's heading and lead, with no Pay Now or QR code, while %s",
+    (_, shown, expired) => {
+      render(
+        <LightningVerification
+          invoice={shown}
+          expired={expired}
+          pending={false}
+          error={null}
+          onBack={vi.fn()}
+          onCreateInvoice={vi.fn()}
+          onCheckPayment={vi.fn()}
+        />,
+      );
+      // The design's words stay in every state; the card says what there is to do now.
+      const heading = screen.getByRole("heading", { level: 1 });
+      expect(within(heading).getByText("Scan to")).toBeInTheDocument();
+      expect(within(heading).getByText("Tap to")).toBeInTheDocument();
+      expect(within(heading).getByText("pay.")).toBeInTheDocument();
+      expect(screen.queryByText(/Ready to/u)).toBeNull();
+      expect(screen.getByText("Scan the QR with your favorite wallet.")).toBeInTheDocument();
+      expect(screen.getByText("Pay with your favorite bitcoin wallet.")).toBeInTheDocument();
+      expect(screen.queryByText("Pay the invoice with your favorite bitcoin wallet.")).toBeNull();
+      // Neither Pay Now nor a code is on the screen now.
+      expect(screen.queryByText(/Pay Now/u)).toBeNull();
+      expect(screen.queryByRole("link", { name: /Pay Now/u })).toBeNull();
+      expect(screen.queryByRole("img", { name: "Lightning payment invoice" })).toBeNull();
+    },
+  );
+
+  it("says it waits for the payment and when the invoice expires, as a short local time", () => {
+    renderInvoice();
+
+    const expires = new Date(invoice.expiresAt).toLocaleTimeString([], { timeStyle: "short" });
+    expect(
+      within(screen.getByRole("region", { name: "Bitcoin Lightning payment" })).getByRole("status"),
+    ).toHaveTextContent(`Waiting for payment · expires ${expires}`);
   });
 
   it("names the amount in sats, grouped the same way in every locale", () => {
@@ -87,11 +113,10 @@ describe("LightningVerification", () => {
         onCheckPayment={vi.fn()}
       />,
     );
-    const amount = screen.getByText("1,000");
-    expect(amount).toHaveTextContent(/^1,000 sats$/u);
-    expect(amount).not.toHaveAttribute("aria-label");
-    expect(screen.queryByText(/₿/u)).not.toBeInTheDocument();
-    expect(screen.getByText("One-time payment to verify your new account.")).toBeVisible();
+    // ₿ stands for sats, as on pubky.app; a screen reader hears the unit in words.
+    const amount = screen.getByText("₿ 1,000");
+    expect(amount).toHaveAttribute("aria-label", "1,000 sats");
+    expect(screen.getByText("Please pay ₿1,000 to continue.")).toBeVisible();
   });
 
   it("confirms copying the invoice only after the clipboard succeeds", async () => {
@@ -105,12 +130,12 @@ describe("LightningVerification", () => {
     Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
     renderInvoice();
 
-    fireEvent.click(screen.getByRole("button", { name: "Copy invoice" }));
+    fireEvent.click(screen.getByRole("button", { name: "Copy Invoice" }));
     expect(writeText).toHaveBeenCalledWith(invoice.bolt11Invoice);
-    expect(MOCKS.toastInfo).not.toHaveBeenCalled();
+    expect(MOCKS.toastSuccess).not.toHaveBeenCalled();
     finishCopy();
     await waitFor(() =>
-      expect(MOCKS.toastInfo).toHaveBeenCalledWith("Invoice copied to clipboard"),
+      expect(MOCKS.toastSuccess).toHaveBeenCalledWith("Invoice copied to clipboard"),
     );
   });
 
@@ -121,14 +146,14 @@ describe("LightningVerification", () => {
     });
     renderInvoice();
 
-    fireEvent.click(screen.getByRole("button", { name: "Copy invoice" }));
+    fireEvent.click(screen.getByRole("button", { name: "Copy Invoice" }));
     await waitFor(() =>
       expect(MOCKS.toastError).toHaveBeenCalledWith(
         "Could not copy invoice",
         expect.objectContaining({ description: "Select and copy the invoice manually." }),
       ),
     );
-    expect(MOCKS.toastInfo).not.toHaveBeenCalledWith("Invoice copied to clipboard");
+    expect(MOCKS.toastSuccess).not.toHaveBeenCalled();
     const manualCopy = screen.getByRole("textbox", { name: "Lightning invoice" });
     expect(manualCopy).toHaveTextContent(invoice.bolt11Invoice);
     expect(manualCopy).toHaveAttribute("aria-readonly", "true");
@@ -155,7 +180,7 @@ describe("LightningVerification", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Copy invoice" }));
+    fireEvent.click(screen.getByRole("button", { name: "Copy Invoice" }));
     const manualCopy = await screen.findByRole("textbox", { name: "Lightning invoice" });
     // Text that wraps to its full length: no fixed number of rows or height that cuts it off.
     expect(manualCopy).toHaveTextContent(bolt11Invoice);
@@ -167,17 +192,18 @@ describe("LightningVerification", () => {
     expect(window.getSelection()?.toString()).toBe(bolt11Invoice);
   });
 
-  it("makes paying the way on, with copying the invoice a secondary action in the card", () => {
+  it("gives a phone Pay Now in the card, with Copy Invoice the action after Back", () => {
     renderInvoice();
-    const pay = screen.getByRole("link", { name: "Pay now" });
+    const card = screen.getByRole("region", { name: "Bitcoin Lightning payment" });
+    const pay = within(card).getByRole("link", { name: "Pay Now" });
     expect(pay).toHaveAttribute("href", `lightning:${invoice.bolt11Invoice}`);
-    // The primary, last in the action row after Back; a computer scans the QR code instead.
+    // The phone's primary, in the card; a computer scans the QR code instead.
     expect(pay).toHaveClass("bg-brand/16", "md:hidden");
     const back = screen.getByRole("button", { name: "Back" });
-    expect(back.compareDocumentPosition(pay) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    const copy = screen.getByRole("button", { name: "Copy invoice" });
+    const copy = screen.getByRole("button", { name: "Copy Invoice" });
+    expect(card).not.toContainElement(copy);
     expect(copy).not.toHaveClass("bg-brand/16");
-    expect(copy.closest("section")).not.toBeNull();
+    expect(back.compareDocumentPosition(copy) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it("shows only the check as busy while an expired invoice's payment is checked", async () => {
@@ -236,7 +262,7 @@ describe("LightningVerification", () => {
 
     // The pressed button is gone with the expired card; focus lands on the invoice, not the page.
     expect(screen.queryByRole("button", { name: /invoice…$/u })).toBeNull();
-    expect(screen.getByRole("heading", { name: "Bitcoin Lightning payment" })).toHaveFocus();
+    expect(screen.getByRole("heading", { name: "Bitcoin Lightning Payment" })).toHaveFocus();
   });
 
   it("offers no retry while the first invoice is created, and only the error after a failure", () => {

@@ -1,10 +1,12 @@
 import type { GrantAuthFlow, Session, XCallbackParams } from "@synonymdev/pubky";
 import type { mapSdkError } from "../errors/mapSdkError.js";
 
-export type FlowHandle = Pick<
-  GrantAuthFlow,
-  "authorizationUrl" | "tryPollOnce" | "saveDelegated" | "free"
->;
+/**
+ * A native flow: a grant flow, or the legacy cookie flow (`classic QR`), which has no delegated
+ * save, so a same-tab sign-in cannot resume it.
+ */
+export type FlowHandle = Pick<GrantAuthFlow, "authorizationUrl" | "tryPollOnce" | "free"> &
+  Partial<Pick<GrantAuthFlow, "saveDelegated">>;
 export type FlowCallbacks = Pick<XCallbackParams, "xSuccess" | "xCancel" | "xError">;
 export type FlowResult<T> =
   { ok: true; value: T } | ({ ok: false } & ReturnType<typeof mapSdkError>);

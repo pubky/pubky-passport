@@ -2,6 +2,7 @@ import "client-only";
 
 import {
   Keypair,
+  type AuthFlow,
   AuthFlowKind,
   Pubky,
   PublicKey,
@@ -29,6 +30,7 @@ import {
   sniffImageType,
   type ProfileWrite,
 } from "../profile/profile";
+import type { KeychainAuthMethod } from "./keychainAuthMethod";
 import { pubkyNetwork } from "./pubkyNetwork";
 import {
   holdDelegatedKeys,
@@ -633,6 +635,7 @@ type PubkyOperation =
   | "create_recovery_file"
   | "dispose_adapter"
   | "dispose_identity_key"
+  | "disconnect_ring_profile_grant"
   | "dispose_ring_profile_grant"
   | "export_secret_key"
   | "poll_ring_profile_grant"
@@ -642,6 +645,8 @@ type PubkyOperation =
   | "resolve_homeserver"
   | "restore_identity_key"
   | "restore_recovery_file"
+  | "resume_ring_profile_grant"
+  | "save_ring_profile_grant"
   | "signin"
   | "signup"
   | "start_ring_profile_grant"
@@ -674,6 +679,7 @@ type PubkyFailureStage =
   | "sdk_publish"
   | "sdk_resolution"
   | "sdk_restore"
+  | "sdk_session_store"
   | "sdk_signin"
   | "sdk_signup"
   | "sdk_write";
@@ -692,6 +698,7 @@ type PubkyCleanupStage =
   | "session_public_key_free"
   | "session_signout"
   | "session_store_free"
+  | "session_store_remove"
   | "signer_free"
   | "storage_free";
 
@@ -936,14 +943,226 @@ export class PubkyProfileTransport {
   }
 }
 
-/** Starts a delegated profile grant without obtaining the identity's private key. */
+/**
+ * Passport's own client ID for its grants: its origin's host, so a grant names the instance that
+ * holds it (and Ring lists it under that name).
+ */
+function passportClientId(): string {
+  return globalThis.location?.host ?? PASSPORT_CLIENT_ID;
+}
+
+/** A stored profile grant is reused only while at least this long remains of it. */
+const STORED_GRANT_MARGIN_SECONDS = 60;
+
+/**
+ * Starts a delegated profile grant without obtaining the identity's private key, and keeps an
+ * approved one for its identity: the SDK's browser session store holds it (its PoP key
+ * non-extractable in IndexedDB, bound to this origin) until it expires or is revoked, so the next
+ * profile edit for that key reconnects without asking the keychain again.
+ */
 export class PubkyRingProfileTransport {
-  /** `relay` is the instance's configured HTTP relay for Passport's own grant requests. */
-  start(relay: string): Promise<PubkyProfileGrantResult<RingProfileGrant>> {
-    return startRingGrant("start_ring_profile_grant", relay, PROFILE_CAPABILITIES, {
-      xSource: "Pubky Passport profile",
-    });
+  /**
+   * `relay` is the instance's configured HTTP relay for Passport's own grant requests; `method`
+   * `cookie` asks the legacy way, for Pubky Ring older than 2.0.
+   */
+  start(
+    relay: string,
+    method: KeychainAuthMethod = "grant",
+  ): Promise<PubkyProfileGrantResult<RingProfileGrant>> {
+    return startRingGrant(
+      "start_ring_profile_grant",
+      relay,
+      PROFILE_CAPABILITIES,
+      { xSource: "Pubky Passport profile" },
+      method,
+      // Only a grant can be stored; the legacy cookie sign-in lasts for the page.
+      method === "grant",
+    );
   }
+
+  /**
+   * The stored profile grant of `publicKey`, connected again without asking the keychain; `undefined`
+   * when none is stored, it is about to expire, or the homeserver no longer accepts it (revoked in
+   * the keychain's Authorized Apps, say), in which case its record is removed.
+   */
+  async resume(publicKey: string): Promise<PubkyProfileGrantResult<RingProfileGrant | undefined>> {
+    let pubky: Pubky | undefined;
+    let store: BrowserSessionStore | undefined;
+    let release: DelegatedKeyRelease | undefined;
+    let session: Session | undefined;
+    try {
+      pubky = createPubky();
+      release = await holdDelegatedKeys();
+      store = pubky.browserSessionStore;
+      const id = await storedProfileGrantId(store, publicKey);
+      if (!id) return Result.ok(undefined);
+      try {
+        session = await store.restore(id);
+      } catch (e) {
+        // Revoked or no longer valid: forget it, and connect anew.
+        logCleanupFailure("resume_ring_profile_grant", "session_store_remove", e);
+        await removeStored("resume_ring_profile_grant", store, id);
+        return Result.ok(undefined);
+      }
+      const info = session.info;
+      try {
+        const key = info.publicKey;
+        let restoredKey: string;
+        try {
+          restoredKey = key.z32();
+        } finally {
+          cleanup("resume_ring_profile_grant", "session_public_key_free", () => key.free());
+        }
+        if (restoredKey !== publicKey || !isProfileGrant(info.capabilities)) {
+          await removeStored("resume_ring_profile_grant", store, id);
+          return Result.ok(undefined);
+        }
+      } finally {
+        cleanup("resume_ring_profile_grant", "session_info_free", () => info.free());
+      }
+      const grant = RingProfileGrant.restored(pubky, session, publicKey, id, release);
+      session = undefined;
+      pubky = undefined;
+      release = undefined;
+      return Result.ok(grant);
+    } catch (e) {
+      return failure("resume_ring_profile_grant", "sdk_session_store", "grant_failed", e);
+    } finally {
+      if (session) cleanup("resume_ring_profile_grant", "session_free", () => session?.free());
+      cleanup("resume_ring_profile_grant", "session_store_free", () => store?.free());
+      await release?.();
+      cleanup("resume_ring_profile_grant", "pubky_free", () => pubky?.free());
+    }
+  }
+
+  /** Whether a profile grant for `publicKey` is stored in this browser (Manage's Disconnect). */
+  async stored(publicKey: string): Promise<boolean> {
+    let pubky: Pubky | undefined;
+    let store: BrowserSessionStore | undefined;
+    try {
+      pubky = createPubky();
+      store = pubky.browserSessionStore;
+      return (await storedProfileGrantId(store, publicKey)) !== undefined;
+    } catch (e) {
+      logCleanupFailure("resume_ring_profile_grant", "session_store_free", e);
+      return false;
+    } finally {
+      cleanup("resume_ring_profile_grant", "session_store_free", () => store?.free());
+      cleanup("resume_ring_profile_grant", "pubky_free", () => pubky?.free());
+    }
+  }
+
+  /**
+   * Revokes the stored profile grant of `publicKey` (the session signs out, which deletes the grant
+   * on the homeserver) and forgets it. A grant the homeserver no longer accepts is only forgotten.
+   */
+  async disconnect(publicKey: string): Promise<PubkyProfileGrantResult<void>> {
+    let pubky: Pubky | undefined;
+    let store: BrowserSessionStore | undefined;
+    let release: DelegatedKeyRelease | undefined;
+    try {
+      pubky = createPubky();
+      release = await holdDelegatedKeys();
+      store = pubky.browserSessionStore;
+      const tried = new Set<string>();
+      for (;;) {
+        const id = await storedProfileGrantId(store, publicKey, 0);
+        if (!id) return Result.ok();
+        // A record that could not be removed is not tried twice: the disconnect did not finish.
+        if (tried.has(id))
+          return failure("disconnect_ring_profile_grant", "sdk_session_store", "grant_failed");
+        tried.add(id);
+        let session: Session | undefined;
+        try {
+          session = await store.restore(id);
+        } catch (e) {
+          logCleanupFailure("disconnect_ring_profile_grant", "session_signout", e);
+        }
+        await revokeSession("disconnect_ring_profile_grant", session);
+        if (!(await removeStored("disconnect_ring_profile_grant", store, id)))
+          return failure("disconnect_ring_profile_grant", "sdk_session_store", "grant_failed");
+      }
+    } catch (e) {
+      return failure("disconnect_ring_profile_grant", "sdk_session_store", "grant_failed", e);
+    } finally {
+      cleanup("disconnect_ring_profile_grant", "session_store_free", () => store?.free());
+      await release?.();
+      cleanup("disconnect_ring_profile_grant", "pubky_free", () => pubky?.free());
+    }
+  }
+}
+
+/**
+ * The stored record of Passport's profile grant for `publicKey`: this origin's client ID, exactly
+ * the write-only profile capabilities, and more than `marginSeconds` left before it expires.
+ */
+async function storedProfileGrantId(
+  store: BrowserSessionStore,
+  publicKey: string,
+  marginSeconds = STORED_GRANT_MARGIN_SECONDS,
+): Promise<string | undefined> {
+  if (!(await store.isAvailable())) return undefined;
+  await removeExpired(store, "resume_ring_profile_grant");
+  const records = await store.list();
+  let found: string | undefined;
+  const clientId = passportClientId();
+  const now = Date.now() / 1000;
+  for (const record of records) {
+    try {
+      if (
+        found === undefined &&
+        record.publicKey === publicKey &&
+        record.clientId === clientId &&
+        isProfileGrant(record.capabilities) &&
+        record.grantExpiresAt > now + marginSeconds
+      )
+        found = record.id;
+    } finally {
+      cleanup("resume_ring_profile_grant", "session_store_free", () => record.free());
+    }
+  }
+  return found;
+}
+
+/** Exactly Passport's write-only profile grant: nothing to read, nothing beyond the profile. */
+function isProfileGrant(capabilities: readonly string[]): boolean {
+  return (
+    grantsCapabilities(capabilities, PROFILE_CAPABILITIES) &&
+    capabilities.every((capability) => grantsCapabilities(PROFILE_CAPABILITIES, [capability]))
+  );
+}
+
+/** Removes one stored record; `false` when the store refused. */
+async function removeStored(
+  operation: PubkyOperation,
+  store: BrowserSessionStore,
+  id: string,
+): Promise<boolean> {
+  try {
+    await store.remove(id);
+    return true;
+  } catch (e) {
+    logCleanupFailure(operation, "session_store_remove", e);
+    return false;
+  }
+}
+
+/**
+ * Removes the records of grants that have expired: useless, and they would keep the delegated keys
+ * of abandoned flows from ever being cleared.
+ */
+async function removeExpired(store: BrowserSessionStore, operation: PubkyOperation): Promise<void> {
+  const records = await store.list();
+  const expired: string[] = [];
+  const now = Date.now() / 1000;
+  for (const record of records) {
+    try {
+      if (record.grantExpiresAt <= now) expired.push(record.id);
+    } finally {
+      cleanup(operation, "session_store_free", () => record.free());
+    }
+  }
+  for (const id of expired) await removeStored(operation, store, id);
 }
 
 /**
@@ -953,24 +1172,52 @@ export class PubkyRingProfileTransport {
  * a request without capabilities is not device-tested yet.
  */
 export class PubkyRingVerificationTransport {
-  /** `relay` is the instance's configured HTTP relay for Passport's own grant requests. */
-  start(relay: string): Promise<PubkyProfileGrantResult<RingProfileGrant>> {
-    return startRingGrant("start_ring_verification", relay, [], {
-      xSource: "Pubky Passport backup check",
-    });
+  /**
+   * `relay` is the instance's configured HTTP relay for Passport's own grant requests; `method`
+   * `cookie` asks the legacy way, for Pubky Ring older than 2.0.
+   */
+  start(
+    relay: string,
+    method: KeychainAuthMethod = "grant",
+  ): Promise<PubkyProfileGrantResult<RingProfileGrant>> {
+    return startRingGrant(
+      "start_ring_verification",
+      relay,
+      [],
+      { xSource: "Pubky Passport backup check" },
+      method,
+    );
   }
 }
 
+/**
+ * Starts one of Passport's own requests for Pubky Ring: a grant (`grant`, the default), or the
+ * legacy cookie sign-in (`cookie`) that Pubky Ring older than 2.0 needs. Both yield a `Session`
+ * that the same {@link RingProfileGrant} checks, uses and signs out; a cookie flow holds no
+ * delegated key.
+ */
 async function startRingGrant(
   operation: PubkyOperation,
   relay: string,
   capabilities: readonly string[],
   xCallback: { xSource: string },
+  method: KeychainAuthMethod = "grant",
+  persist = false,
 ): Promise<PubkyProfileGrantResult<RingProfileGrant>> {
   let pubky: Pubky | undefined;
   let release: DelegatedKeyRelease | undefined;
   try {
     pubky = createPubky();
+    if (method === "cookie") {
+      // The SDK takes ownership of AuthFlowKind, so the caller must not free it afterward.
+      const flow = pubky.startCookieAuthFlow(
+        capabilities.join(",") as Capabilities,
+        AuthFlowKind.signin(),
+        relay,
+        xCallback,
+      );
+      return Result.ok(new RingProfileGrant(pubky, flow, undefined, capabilities));
+    }
     // Keys of flows whose page closed before their cleanup finished.
     await clearUnusedDelegatedKeys(pubky);
     release = await holdDelegatedKeys();
@@ -978,9 +1225,9 @@ async function startRingGrant(
     const flow = await pubky.startGrantAuthFlow(
       capabilities.join(",") as Capabilities,
       AuthFlowKind.signin(),
-      { clientId: globalThis.location?.host ?? PASSPORT_CLIENT_ID, relay, xCallback },
+      { clientId: passportClientId(), relay, xCallback },
     );
-    return Result.ok(new RingProfileGrant(pubky, flow, release, capabilities));
+    return Result.ok(new RingProfileGrant(pubky, flow, release, capabilities, persist));
   } catch (e) {
     await release?.();
     cleanup(operation, "pubky_free", () => pubky?.free());
@@ -989,29 +1236,49 @@ async function startRingGrant(
 }
 
 /**
- * Owns one pending Ring request and the page-scoped grant it yields: Passport's profile grant, or
- * the verification of a key that asks for no capabilities.
+ * Owns one pending Ring request and the grant it yields: Passport's profile grant, or the
+ * verification of a key that asks for no capabilities. A profile grant (`persist`) is stored once
+ * approved and outlives the page; a verification, and the legacy cookie sign-in, last for the page.
  */
 export class RingProfileGrant {
   private session: Session | undefined;
   private publicKey: string | undefined;
+  /** The browser session store's record of this grant, once stored. */
+  private storedId: string | undefined;
   private disposed = false;
   private busy = false;
   private cleaned = false;
 
   /**
    * `release` frees this grant's hold on the browser's delegated keys; `required` lists what the
-   * approval must grant.
+   * approval must grant; `persist` stores the approved grant for its identity.
    */
   constructor(
     private readonly pubky: Pubky,
-    private readonly flow: GrantAuthFlow,
+    /** A grant flow, the legacy cookie flow for Pubky Ring older than 2.0, or none when restored. */
+    private readonly flow: GrantAuthFlow | AuthFlow | undefined,
     private readonly release: DelegatedKeyRelease = async () => undefined,
     private readonly required: readonly string[] = PROFILE_CAPABILITIES,
+    private readonly persist = false,
   ) {}
 
+  /** A profile grant restored from the browser session store: connected, nothing to approve. */
+  static restored(
+    pubky: Pubky,
+    session: Session,
+    publicKey: string,
+    storedId: string,
+    release: DelegatedKeyRelease,
+  ): RingProfileGrant {
+    const grant = new RingProfileGrant(pubky, undefined, release, PROFILE_CAPABILITIES, true);
+    grant.session = session;
+    grant.publicKey = publicKey;
+    grant.storedId = storedId;
+    return grant;
+  }
+
   authorizationUrl(): string | undefined {
-    return this.disposed || this.session ? undefined : this.flow.authorizationUrl;
+    return this.disposed || this.session ? undefined : this.flow?.authorizationUrl;
   }
 
   /** Resolves the approving identity once Ring has granted every required capability. */
@@ -1019,6 +1286,7 @@ export class RingProfileGrant {
     if (this.disposed) return Result.ok(undefined);
     if (this.publicKey) return Result.ok(this.publicKey);
     if (this.busy) return failure("poll_ring_profile_grant", "grant_state", "grant_busy");
+    if (!this.flow) return failure("poll_ring_profile_grant", "grant_state", "grant_failed");
     this.busy = true;
     try {
       this.session = await this.flow.tryPollOnce();
@@ -1031,10 +1299,10 @@ export class RingProfileGrant {
         const key = info.publicKey;
         try {
           this.publicKey = key.z32();
-          return Result.ok(this.publicKey);
         } finally {
           cleanup("poll_ring_profile_grant", "session_public_key_free", () => key.free());
         }
+        return Result.ok(this.publicKey);
       } finally {
         cleanup("poll_ring_profile_grant", "session_info_free", () => info.free());
       }
@@ -1062,10 +1330,76 @@ export class RingProfileGrant {
     }
     this.busy = true;
     try {
-      return await applyProfileWrites("publish_ring_profile", this.session, writes);
+      const written = await applyProfileWrites("publish_ring_profile", this.session, writes);
+      // Refused: the grant was revoked (in the keychain's Authorized Apps, say), so forget it.
+      if (
+        Result.isError(written) &&
+        written.error.code === "publish_unauthorized" &&
+        this.storedId
+      ) {
+        await this.forget("publish_ring_profile");
+      }
+      return written;
     } finally {
       this.busy = false;
       await this.cleanup();
+    }
+  }
+
+  /**
+   * Stores the approved profile grant for its identity, once Passport accepted that identity (the
+   * expected key, or a Ring signup's confirmed one). Only exactly the write-only profile grant is
+   * kept; a wider approval lasts for the page and is revoked when the connection closes. A failure
+   * only logs: the grant then lasts for the page, as before.
+   */
+  async keep(): Promise<void> {
+    if (!this.persist || this.storedId || this.disposed || this.busy || !this.session) return;
+    const info = this.session.info;
+    let exact: boolean;
+    try {
+      exact = isProfileGrant(info.capabilities);
+    } finally {
+      cleanup("save_ring_profile_grant", "session_info_free", () => info.free());
+    }
+    if (!exact) return;
+    this.busy = true;
+    try {
+      await this.store();
+    } finally {
+      this.busy = false;
+      await this.cleanup();
+    }
+  }
+
+  private async store(): Promise<void> {
+    if (!this.session) return;
+    let store: BrowserSessionStore | undefined;
+    try {
+      store = this.pubky.browserSessionStore;
+      if (!(await store.isAvailable())) return;
+      const saved = await store.save(this.session);
+      try {
+        this.storedId = saved.id;
+      } finally {
+        cleanup("save_ring_profile_grant", "session_store_free", () => saved.free());
+      }
+    } catch (e) {
+      logCleanupFailure("save_ring_profile_grant", "session_store_free", e);
+    } finally {
+      cleanup("save_ring_profile_grant", "session_store_free", () => store?.free());
+    }
+  }
+
+  private async forget(operation: PubkyOperation): Promise<void> {
+    const id = this.storedId;
+    if (!id) return;
+    this.storedId = undefined;
+    let store: BrowserSessionStore | undefined;
+    try {
+      store = this.pubky.browserSessionStore;
+      await removeStored(operation, store, id);
+    } finally {
+      cleanup(operation, "session_store_free", () => store?.free());
     }
   }
 
@@ -1075,14 +1409,17 @@ export class RingProfileGrant {
   }
 
   /**
-   * Revokes and frees once disposed, after any SDK call in progress has settled, then deletes the
-   * browser's delegated keys unless another grant still signs with one.
+   * Once disposed, after any SDK call in progress has settled: a stored profile grant is only freed
+   * (it stays valid for its identity's next edit); any other session is revoked. Then the browser's
+   * delegated keys are deleted unless another grant still signs with one or a grant is stored.
    */
   private async cleanup(): Promise<void> {
     if (!this.disposed || this.busy || this.cleaned) return;
     this.cleaned = true;
-    await revokeSession("dispose_ring_profile_grant", this.session);
-    cleanup("dispose_ring_profile_grant", "flow_free", () => this.flow.free());
+    if (this.storedId)
+      cleanup("dispose_ring_profile_grant", "session_free", () => this.session?.free());
+    else await revokeSession("dispose_ring_profile_grant", this.session);
+    cleanup("dispose_ring_profile_grant", "flow_free", () => this.flow?.free());
     await this.release();
     await clearUnusedDelegatedKeys(this.pubky);
     cleanup("dispose_ring_profile_grant", "pubky_free", () => this.pubky.free());
@@ -1123,8 +1460,8 @@ function errorMessage(error: unknown): string {
 
 /**
  * Deletes the SDK's browser-held delegated PoP keys, including those of abandoned flows, unless a
- * grant in any Passport tab may still sign with one. Passport saves no sessions in the SDK's
- * browser store, so nothing else is removed. Deleting a key revokes nothing.
+ * grant in any Passport tab may still sign with one, or a profile grant is stored: the store keeps
+ * its key with the others, and clearing them would break it. Deleting a key revokes nothing.
  */
 async function clearUnusedDelegatedKeys(pubky: Pubky): Promise<void> {
   let store: BrowserSessionStore | undefined;
@@ -1133,7 +1470,12 @@ async function clearUnusedDelegatedKeys(pubky: Pubky): Promise<void> {
     if (!GrantAuthFlow.isDelegationAvailable) return;
     await whenDelegatedKeysUnused(async () => {
       store = pubky.browserSessionStore;
-      await store.clearAll();
+      await removeExpired(store, "dispose_ring_profile_grant");
+      const records = await store.list();
+      const anyStored = records.length > 0;
+      for (const record of records)
+        cleanup("dispose_ring_profile_grant", "session_store_free", () => record.free());
+      if (!anyStored) await store.clearAll();
     });
   } catch (e) {
     logCleanupFailure("dispose_ring_profile_grant", "delegated_keys_clear", e);

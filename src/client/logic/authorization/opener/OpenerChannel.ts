@@ -22,6 +22,11 @@ export const OPENER_HELLO_GRACE_MS = 1_000;
  * Ring sign-in) and answers `profile-ready` once the profile is published.
  */
 const SUPPORTED_FEATURES = ["outcome-v2", "status", "profile-setup"] as const;
+/**
+ * In an app's hello: the app offers its own keychain route (its code or "Open keychain app"), so a
+ * request's Join leaves Passport's "Use Pubky Ring or Bitkit" out. A display hint; grants nothing.
+ */
+export const OPENER_KEYCHAIN_FEATURE = "keychain";
 const APPROVAL_FAILURE_REASONS = [
   "storage_unavailable",
   "identity_unavailable",

@@ -5,6 +5,7 @@ import type { MessageContext } from "../errors/messageTypes.js";
 import type { InstanceChangeResult, PassportInstance } from "../instance/PassportInstance.js";
 import type { ButtonView } from "../view/describeState.js";
 import type { AttemptResult } from "./AttemptResult.js";
+import type { PassportEntry } from "./PassportClient.js";
 
 export type Unsubscribe = () => void;
 /** `stray`: this page is a same-tab return that belongs to a sign-in in another tab. */
@@ -19,7 +20,12 @@ export interface PreparedLease {
 /** The element's and the tests' view of a client; apps get the smaller PassportClient. */
 export interface InternalClient {
   /** Call in the click handler; never rejects. A blocked popup continues in this tab by itself. */
-  signIn(): Promise<AttemptResult>;
+  signIn(entry?: PassportEntry): Promise<AttemptResult>;
+  /** The screen the next sign-in opens Passport on, set by an element just before it acts. */
+  setEntry(entry: PassportEntry | undefined): void;
+  /** Turns the classic QR (legacy cookie sign-in) on or off for this device. */
+  setClassicQr(on: boolean): void;
+  classicQr(): boolean;
   /** Window-opening actions must be called in the click handler. */
   perform(action: PassportAction): void;
   prepare(): PreparedLease;

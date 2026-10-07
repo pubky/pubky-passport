@@ -8,24 +8,24 @@ test("offers only manual invites on a provider without Google or Homegate", asyn
   await mockHomeserverRecords(page);
   await page.goto("/");
 
-  await expect(page.getByRole("heading", { name: "Get your pubky." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Let’s join Pubky." })).toBeVisible();
   // Passport names no provider.
   await expect(page.getByText(/Hosted by/u)).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Continue with Google" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /Google/u })).toHaveCount(0);
 
-  // The Create account card offers the one way in here, an invite, as its button.
-  const create = page.getByRole("region", { name: "Create account" });
-  await expect(create.getByRole("button")).toHaveText(["Enter invite manually"]);
-  await expect(page.getByRole("button", { name: "Continue with SMS" })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Continue with Lightning" })).toHaveCount(0);
-  await create.getByRole("button", { name: "Enter invite manually" }).click();
+  // Join offers the one way in here, keys of your own, alone: no Google card beside it.
+  await expect(page.getByRole("region", { name: "Quick & Easy" })).toHaveCount(0);
+  await expect(page.getByRole("main").getByRole("button")).toHaveText(["Manage your own keys"]);
+  await page.getByRole("button", { name: "Manage your own keys" }).click();
 
-  // The invite entry opens directly, in the step column, with the provider's terms that the
-  // method list would have shown.
-  await expect(page.getByRole("heading", { name: "Use an invite." })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Enter invite manually" })).toHaveCount(0);
+  // With an invite the only way to verify, the invite entry opens directly instead of a method
+  // list, in the onboarding's wide column, with the provider's terms that list would have shown.
+  await expect(page.getByRole("heading", { name: "Use invite." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Prove you’re not a robot." })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Phone number", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /^Bitcoin payment/u })).toHaveCount(0);
   await expect(page.getByText(/Creating an account here needs an invite code/u)).toBeVisible();
-  await expect(page.getByRole("main")).toHaveCSS("max-width", "588px");
+  await expect(page.getByRole("main")).toHaveCSS("max-width", "1280px");
   await expect(page.locator("#invite-homeserver")).toHaveText(INVITE_ONLY_PROVIDER.homeserver);
   // The provider's homeserver only prefills the invite; any other one can be entered.
   await page.getByRole("button", { name: "Change homeserver" }).click();
@@ -51,5 +51,5 @@ test("offers only manual invites on a provider without Google or Homegate", asyn
 
   // Back leaves account creation, as there is no method list to return to.
   await page.getByRole("button", { name: "Back", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Get your pubky." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Let’s join Pubky." })).toBeVisible();
 });

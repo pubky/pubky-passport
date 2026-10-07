@@ -1,9 +1,13 @@
-import { holdHttpsRequests } from "./helpers/network";
+import { holdHttpsRequests, PKARR_RELAY_HOSTS } from "./helpers/network";
 import { expect, test, type Page } from "./helpers/passportTest";
 import { emulateCoarsePointer } from "./helpers/pointer";
 import AxeBuilder from "@axe-core/playwright";
 import { E2E_HTTP_RELAY_URL, E2E_SIGNUP_HOMESERVER } from "./helpers/e2eServer";
-import { HOMESERVER as TEST_HOMESERVER, mockHomeserverRecords } from "./helpers/pubkyProfile";
+import {
+  HOMESERVER as TEST_HOMESERVER,
+  homeserverRecord,
+  mockHomeserverRecords,
+} from "./helpers/pubkyProfile";
 import { mockRingNetwork, RING_KEY, ringApproves } from "./helpers/pubkyRing";
 import { UNVERIFIED_BAND } from "./helpers/requester";
 
@@ -14,18 +18,66 @@ const MANUAL_INVITE = "AB12-CD34-EF56";
 const RING_INVITE = "R1NG-5GNP-QW7X";
 const AUTHORIZATION_REQUEST =
   "pubkyauth://signin?caps=/pub/example.app/:rw&relay=https://relay.client.example/inbox&secret=kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8&x-source=Client%20App&x-success=https%3A%2F%2Fclient.example%2Fsuccess&x-error=https%3A%2F%2Fclient.example%2Ferror&x-cancel=https%3A%2F%2Fclient.example%2Fcancel";
+const REQUEST_ENTRY = `/authorize#d=${encodeURIComponent(AUTHORIZATION_REQUEST)}`;
+/** Where to get either keychain app, as the keychain card links them. */
+const STORE_LINKS = [
+  ["Download Pubky Ring on the App Store", "https://apps.apple.com/us/app/pubky-ring/id6739356756"],
+  [
+    "Get Pubky Ring on Google Play",
+    "https://play.google.com/store/apps/details?id=to.pubky.ring&hl=en-US",
+  ],
+  ["Download Bitkit on the App Store", "https://get.bitkit.to/iOS"],
+  ["Get Bitkit on Google Play", "https://get.bitkit.to/PlayStore"],
+] as const;
 
 test("creates an account inside the root signer experience", async ({ page }) => {
-  await page.goto("/");
-  // The way to verify is picked on the start page; account creation opens on it.
-  await page.getByRole("button", { name: "Enter invite manually" }).click();
-  await expect(page.getByRole("heading", { name: "Use an invite." })).toBeVisible();
+  // Join's keys of your own lead to Verify, where the way to verify is picked.
+  await openVerification(page);
+  await page.getByRole("button", { name: "Invite code", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Use invite." })).toBeVisible();
   await expect(page.getByText(E2E_SIGNUP_HOMESERVER, { exact: true })).toBeVisible();
   await page.getByLabel("Enter invite code").fill(MANUAL_INVITE);
   await page.getByRole("button", { name: "Continue" }).click();
 
-  await expect(page.getByRole("button", { name: "Keep key in Pubky Ring" })).toBeVisible();
-  await expect(page.getByRole("button", { name: /Keep key in this browser/u })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Pick your keychain." })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Continue with keychain" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Keep key in this browser" })).toBeVisible();
+});
+
+test("the keychain card links both apps' stores; keys in this browser come after their tradeoffs", async ({
+  page,
+}) => {
+  await reachDestinationChoice(page);
+  await expect(page.getByRole("navigation", { name: "Account setup progress" })).toContainText(
+    "Step 2 of 3: Identity keys",
+  );
+  // One card for both keychain apps, with where to get each.
+  const keychains = page.getByRole("region", { name: "Keychain apps" });
+  for (const [name, href] of STORE_LINKS)
+    await expect(keychains.getByRole("link", { name })).toHaveAttribute("href", href);
+
+  // The browser is the quiet way, and it says what it gives up first; Cancel changes nothing.
+  await page.getByRole("button", { name: "Keep key in this browser" }).click();
+  const tradeoffs = page.getByRole("dialog", { name: "Be aware of these tradeoffs:" });
+  await expect(tradeoffs.getByRole("listitem")).toHaveText([
+    "Browser-based key generation",
+    "Less secure than mobile keychain",
+    "Suboptimal sign-in experience",
+  ]);
+  await tradeoffs.getByRole("button", { name: "Cancel" }).click();
+  await expect(tradeoffs).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Pick your keychain." })).toBeVisible();
+  expect(
+    await page.evaluate(() => localStorage.getItem("pubky-passport/local-account-draft/v1")),
+  ).toBeNull();
+
+  // Past them, the key is made here and its recovery file comes next.
+  await keepKeyInBrowser(page);
+  await expect(page.getByRole("heading", { name: "Protect your key." })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Download recovery file" })).toBeVisible();
+  expect(
+    await page.evaluate(() => localStorage.getItem("pubky-passport/local-account-draft/v1")),
+  ).not.toBeNull();
 });
 
 test("goes on to the profile by itself once Pubky Ring used the invite", async ({ page }) => {
@@ -39,7 +91,7 @@ test("goes on to the profile by itself once Pubky Ring used the invite", async (
   // The test homeserver's record is served, so the lookups reach it.
   await reachDestinationChoiceOnTestHomeserver(page);
   await openRingSignup(page);
-  const scanScreen = page.getByRole("heading", { name: "Create your account in Pubky Ring." });
+  const scanScreen = ringSignupHeading(page);
   await expect(scanScreen).toBeVisible();
   const beforeScan = lookups.length;
   // Passport keeps looking the invite up read-only while the code is shown, and stays meanwhile.
@@ -49,23 +101,23 @@ test("goes on to the profile by itself once Pubky Ring used the invite", async (
   await expect(page.getByRole("button", { name: "Continue to profile" })).toHaveCount(0);
 
   used = true;
-  await expect(page.getByRole("heading", { name: "Connect Pubky Ring." })).toBeVisible({
+  await expect(page.getByRole("heading", { name: "Connect your keychain." })).toBeVisible({
     timeout: 10_000,
   });
-  await expect(page.getByText("Account created in Pubky Ring")).toBeVisible();
+  await expect(page.getByText("Account created in your keychain")).toBeVisible();
   expect(new Set(lookups)).toEqual(new Set(["GET /signup_tokens/SMS1-NV1T-C0DE"]));
 });
 
 test("keeps account-signup QR distinct and does not claim Ring success", async ({ page }) => {
   await reachDestinationChoice(page);
-  await page.getByRole("button", { name: "Keep key in Pubky Ring" }).click();
+  await openRingSignup(page);
 
   // A computer gets the signup's own QR code at once; a phone its link, and no code.
   const phone = await page.evaluate(() => matchMedia("(pointer: coarse)").matches);
   if (phone) {
     await expect(page.locator('main a[href^="pubkyauth://direct_signup"]')).toBeVisible();
     await expect(page.getByRole("img", { name: /QR code/u })).toHaveCount(0);
-  } else await expect(page.getByRole("img", { name: "Pubky Ring signup QR code" })).toBeVisible();
+  } else await expect(page.getByRole("img", { name: "Keychain signup QR code" })).toBeVisible();
   await expect(page.getByRole("img", { name: "Pubky authorization QR code" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Continue to sign in" })).toHaveCount(0);
   await expect(page.getByText(/Authentication succeeded/u)).toHaveCount(0);
@@ -77,22 +129,19 @@ test("keeps request context and requires a separate profile approval after Ring 
   // Only a phone gets the connection's link, which the spec reads the request from.
   await emulateCoarsePointer(page);
   // An invite for the test homeserver, whose record is served, so Passport sees Ring use it.
-  await reachDestinationChoiceOnTestHomeserver(
-    page,
-    `/authorize#d=${encodeURIComponent(AUTHORIZATION_REQUEST)}`,
-  );
+  await reachDestinationChoiceOnTestHomeserver(page, REQUEST_ENTRY);
   await expect(page.getByRole("complementary", UNVERIFIED_BAND)).toBeVisible();
-  await page.getByRole("button", { name: "Keep key in Pubky Ring" }).click();
+  await openRingSignup(page);
   await ringUsesInvite(page);
 
   await expect(page.getByRole("complementary", UNVERIFIED_BAND)).toBeVisible();
   // Passport's own profile request is apart from the app's sign-in request: its own region, its
   // own link, and the app's request is not offered here.
-  const profileRequestLink = page
-    .getByRole("region", { name: "Pubky Ring profile connection" })
-    .getByRole("link", { name: "Open Pubky Ring" });
+  const profileRequestLink = profileConnection(page).getByRole("link", {
+    name: "Open keychain app",
+  });
   await expect(profileRequestLink).toHaveAttribute("href", /^pubkyauth:\/\//);
-  await expect(page.getByRole("region", { name: "Sign in with Pubky Ring" })).toHaveCount(0);
+  await expect(page.getByRole("region", { name: /^Sign in with/u })).toHaveCount(0);
   await expect(page.locator(`a[href="${AUTHORIZATION_REQUEST}"]`)).toHaveCount(0);
   const profileRequest = new URL((await profileRequestLink.getAttribute("href"))!);
   expect(profileRequest.href).not.toBe(AUTHORIZATION_REQUEST);
@@ -129,13 +178,11 @@ test("the profile grant after a Ring signup on the home page polls only the conf
   });
   await emulateCoarsePointer(page);
   await reachDestinationChoiceOnTestHomeserver(page);
-  await page.getByRole("button", { name: "Keep key in Pubky Ring" }).click();
+  await openRingSignup(page);
   await ringUsesInvite(page);
   await expect(page).toHaveURL(/\/$/u);
 
-  const profileRequestLink = page
-    .getByRole("region", { name: "Pubky Ring profile connection" })
-    .locator('a[href^="pubkyauth:"]');
+  const profileRequestLink = profileConnection(page).locator('a[href^="pubkyauth:"]');
   await expect(profileRequestLink).toHaveAttribute("href", /^pubkyauth:\/\//u);
   const profileRequest = new URL((await profileRequestLink.getAttribute("href"))!);
   expect(profileRequest.searchParams.get("relay")).toBe(E2E_HTTP_RELAY_URL);
@@ -157,9 +204,7 @@ test("an existing account approving the profile grant after a Ring signup keeps 
   await reachDestinationChoiceOnTestHomeserver(page);
   await openRingSignup(page);
   await ringUsesInvite(page);
-  const link = page
-    .getByRole("region", { name: "Pubky Ring profile connection" })
-    .locator('a[href^="pubkyauth:"]');
+  const link = profileConnection(page).locator('a[href^="pubkyauth:"]');
   await expect(link).toHaveAttribute("href", /^pubkyauth:\/\//u);
   await ringApproves(net, (await link.getAttribute("href"))!);
 
@@ -173,9 +218,9 @@ test("an existing account approving the profile grant after a Ring signup keeps 
 
   await expect(page.getByRole("heading", { name: "Your pubky." })).toBeVisible();
   await expect(page.getByText("Carol", { exact: true })).toBeVisible();
-  // The pubky just created in Ring was not added, and Passport says so.
+  // The pubky just created in the keychain was not added, and Passport says so.
   await expect(
-    page.getByText(/^The pubky you just created in Pubky Ring is not in Passport yet/u),
+    page.getByText(/^The pubky you just created in your keychain is not in Passport yet/u),
   ).toBeVisible();
   await expect(page.getByRole("heading", { name: /^Create your/u })).toHaveCount(0);
   expect(net.writes).toEqual([]);
@@ -190,7 +235,7 @@ test("an existing account approving the profile grant after a Ring signup keeps 
 
 test("local setup starts with a password-protected backup", async ({ page }) => {
   await reachDestinationChoice(page);
-  await page.getByRole("button", { name: /Keep key in this browser/u }).click();
+  await keepKeyInBrowser(page);
 
   await expect(page.getByRole("heading", { name: /Protect your key/u })).toBeVisible();
   await expect(page.getByRole("button", { name: "Download recovery file" })).toBeVisible();
@@ -213,12 +258,13 @@ test("local setup starts with a password-protected backup", async ({ page }) => 
 test("Back and reload keep local setup resumable without forcing it", async ({
   page,
 }, testInfo) => {
-  await page.goto(`/authorize#d=${encodeURIComponent(AUTHORIZATION_REQUEST)}`);
-  await page.getByRole("button", { name: "Enter invite manually" }).click();
+  await openVerification(page, REQUEST_ENTRY);
+  await page.getByRole("button", { name: "Invite code", exact: true }).click();
   await page.getByLabel("Enter invite code").fill(MANUAL_INVITE);
   await page.getByRole("button", { name: "Continue" }).click();
+  await expect(page.getByRole("heading", { name: "Pick your keychain." })).toBeVisible();
   await inspect("signer-choice");
-  await page.getByRole("button", { name: "Keep key in this browser" }).click();
+  await keepKeyInBrowser(page);
   await expect(page.getByRole("heading", { name: "Protect your key." })).toBeVisible();
   const firstKey = await page.evaluate(
     () =>
@@ -233,13 +279,13 @@ test("Back and reload keep local setup resumable without forcing it", async ({
   await expect(page.getByRole("complementary", UNVERIFIED_BAND)).toBeVisible();
   await inspect("protect-key");
   await page.getByRole("button", { name: "Back", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Where should your key live?" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Keep key in Pubky Ring" })).toBeEnabled();
+  await expect(page.getByRole("heading", { name: "Pick your keychain." })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Continue with keychain" })).toBeEnabled();
   // Leaving before the invite is submitted forgets the draft; a fresh key is prepared next.
   expect(
     await page.evaluate(() => localStorage.getItem("pubky-passport/local-account-draft/v1")),
   ).toBeNull();
-  await page.getByRole("button", { name: "Keep key in this browser" }).click();
+  await keepKeyInBrowser(page);
   await expect(page.getByRole("heading", { name: "Protect your key." })).toBeVisible();
   const key = await page.evaluate(
     () =>
@@ -247,7 +293,7 @@ test("Back and reload keep local setup resumable without forcing it", async ({
         .publicKeyZ32 as string,
   );
   expect(key).not.toBe(firstKey);
-  await expect(page.getByRole("button", { name: "Keep key in Pubky Ring" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Continue with keychain" })).toHaveCount(0);
   await page.getByLabel("Enter strong password").fill("correct horse");
   const downloadPromise = page.waitForEvent("download");
   await page.getByRole("button", { name: "Download recovery file" }).click();
@@ -315,7 +361,7 @@ test("Back and reload keep local setup resumable without forcing it", async ({
 
 test("decrypts the downloaded backup before starting local registration", async ({ page }) => {
   await reachDestinationChoiceOnTestHomeserver(page);
-  await page.getByRole("button", { name: /Keep key in this browser/u }).click();
+  await keepKeyInBrowser(page);
 
   await page.getByLabel("Enter strong password").fill("correct horse");
   const downloadPromise = page.waitForEvent("download");
@@ -352,10 +398,41 @@ test("decrypts the downloaded backup before starting local registration", async 
   await expect(page.getByText(TEST_HOMESERVER, { exact: true })).toHaveCount(0);
 });
 
+test("the profile step after a browser-key account starts from a random name and says Continue", async ({
+  page,
+}) => {
+  test.setTimeout(60_000);
+  await mockLocalSignup(page);
+  await openVerification(page);
+  await verifyBySms(page);
+  await keepKeyInBrowser(page);
+  await page.getByLabel("Enter strong password").fill("correct horse");
+  await page.getByRole("button", { name: "Download recovery file" }).click();
+  await page.getByRole("button", { name: "Skip this check (not recommended)" }).click();
+
+  // The account exists: a toast says so, and the profile follows at once.
+  await expect(page.getByRole("heading", { name: "Create your profile." })).toBeVisible({
+    timeout: 20_000,
+  });
+  await expect(page.getByText("Account created", { exact: true })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Account setup progress" })).toContainText(
+    "Step 3 of 3: Profile",
+  );
+  // Nothing is published for the new pubky, so a random name, pubky.app's kind, fills the field;
+  // the field says only its limits, no hint about where the name came from.
+  const name = page.getByLabel("Name", { exact: true });
+  await expect(name).toHaveValue(/^[A-Z][a-z]+-[A-Z][a-z]+-[A-Z][a-z]+$/u);
+  await expect(name).toHaveAccessibleDescription("3–50 characters. Shown publicly.");
+  await expect(page.getByText(/A random name/u)).toHaveCount(0);
+  // Setup goes on with Continue; Save is for editing a published profile.
+  await expect(page.getByRole("button", { name: "Continue", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: /^Save/u })).toHaveCount(0);
+});
+
 test("SMS validates codes and retains Homegate's homeserver for the destination choice", async ({
   page,
 }) => {
-  // The Ring signup link carries the invite; only a phone gets it.
+  // The keychain signup link carries the invite; only a phone gets it.
   await emulateCoarsePointer(page);
   await page.route("**/sms_verification/send_code", async (route) => {
     expect(route.request().postDataJSON()).toEqual({ phoneNumber: "+41791234567" });
@@ -375,18 +452,21 @@ test("SMS validates codes and retains Homegate's homeserver for the destination 
     });
   });
 
-  await openCreateAccount(page);
-  await page.getByRole("button", { name: "Continue with SMS" }).click();
+  await openVerification(page);
+  await page.getByRole("button", { name: "Phone number", exact: true }).click();
   await page.getByLabel("Phone number", { exact: true }).fill("+41 79 123 45 67");
-  await page.getByRole("button", { name: "Send code" }).click();
+  await page.getByRole("button", { name: "Send Code" }).click();
   await page.getByLabel("Verification code", { exact: true }).fill("000000");
-  await page.getByRole("button", { name: "Verify code" }).click();
+  await page.getByRole("button", { name: "Verify Code" }).click();
   await expect(page.getByRole("main").getByRole("alert")).toContainText("incorrect");
+  await expect(page.getByText("Verification Code Valid")).toHaveCount(0);
   await page.getByLabel("Verification code", { exact: true }).fill("123456");
-  await page.getByRole("button", { name: "Verify code" }).click();
+  await page.getByRole("button", { name: "Verify Code" }).click();
 
-  await expect(page.getByRole("button", { name: "Keep key in Pubky Ring" })).toBeVisible();
-  // The choice names no homeserver; the account-created screen does.
+  // The verification that worked says so in a toast, over the keychain choice.
+  await expect(page.getByText("Verification Code Valid")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Continue with keychain" })).toBeVisible();
+  // The choice names no homeserver.
   await expect(page.getByText(HOMEGATE_HOMESERVER, { exact: true })).toHaveCount(0);
   await openRingSignup(page);
   await expect(ringSignupLink(page)).toHaveAttribute(
@@ -404,17 +484,14 @@ test("SMS refuses a sign-up code that names no homeserver instead of guessing on
   await page.route("**/sms_verification/validate_code", (route) =>
     route.fulfill({ json: { valid: "true", signupCode: "sms-invite-token" } }),
   );
-  await openCreateAccount(page);
-  await page.getByRole("button", { name: "Continue with SMS" }).click();
-  await page.getByLabel("Phone number", { exact: true }).fill("+41791234567");
-  await page.getByRole("button", { name: "Send code" }).click();
-  await page.getByLabel("Verification code", { exact: true }).fill("123456");
-  await page.getByRole("button", { name: "Verify code" }).click();
+  await openVerification(page);
+  await verifyBySms(page);
 
   await expect(page.getByRole("main").getByRole("alert")).toContainText(
     "didn’t say which homeserver your account belongs on",
   );
-  await expect(page.getByRole("heading", { name: "Where should your key live?" })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Pick your keychain." })).toHaveCount(0);
+  await expect(page.getByText("Verification Code Valid")).toHaveCount(0);
   expect(
     await page.evaluate(() => Object.keys(localStorage).filter((key) => key.includes("homegate"))),
   ).toEqual([]);
@@ -424,24 +501,24 @@ test("SMS provider limits stay recoverable inside account creation", async ({ pa
   await page.route("**/sms_verification/send_code", (route) =>
     route.fulfill({ status: 429, body: "Phone number has exceeded weekly verification limit" }),
   );
-  await openCreateAccount(page);
-  await page.getByRole("button", { name: "Continue with SMS" }).click();
+  await openVerification(page);
+  await page.getByRole("button", { name: "Phone number", exact: true }).click();
   await page.getByLabel("Phone number", { exact: true }).fill("+41791234567");
-  await page.getByRole("button", { name: "Send code" }).click();
+  await page.getByRole("button", { name: "Send Code" }).click();
   await expect(page.getByRole("main").getByRole("alert")).toContainText("weekly sign-up limit");
   // The refused number is not sent again, and the other ways are offered right there.
-  await expect(page.getByRole("button", { name: "Send code" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Send Code" })).toBeDisabled();
   await expect(page.getByRole("button", { name: "Pay with Lightning instead" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Use an invite code" })).toBeVisible();
-  // Back from the method's first step is the start page, where the other ways are buttons too.
+  // Back from the method's first step is the method list, where the other ways are buttons too.
   await page.getByRole("button", { name: "Back", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Get your pubky." })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Continue with Lightning" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Enter invite manually" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Prove you’re not a robot." })).toBeVisible();
+  await expect(page.getByRole("button", { name: /^Bitcoin payment/u })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "Invite code", exact: true })).toBeEnabled();
 });
 
 test("SMS Back, Cancel, and reload preserve the verified invite", async ({ page }) => {
-  // The Ring signup link carries the invite; only a phone gets it.
+  // The keychain signup link carries the invite; only a phone gets it.
   await emulateCoarsePointer(page);
   let sends = 0;
   let verifications = 0;
@@ -459,16 +536,16 @@ test("SMS Back, Cancel, and reload preserve the verified invite", async ({ page 
       },
     });
   });
-  await page.goto(`/authorize#d=${encodeURIComponent(AUTHORIZATION_REQUEST)}`);
-  await page.getByRole("button", { name: "Continue with SMS" }).click();
+  await openVerification(page, REQUEST_ENTRY);
+  await page.getByRole("button", { name: "Phone number", exact: true }).click();
   await page.getByLabel("Phone number", { exact: true }).fill("+41791234567");
-  await page.getByRole("button", { name: "Send code" }).click();
+  await page.getByRole("button", { name: "Send Code" }).click();
   await page.getByRole("button", { name: "Back", exact: true }).click();
   await expect(page.getByLabel("Phone number", { exact: true })).toHaveValue("+41791234567");
   await page.getByRole("button", { name: "Continue", exact: true }).click();
   await page.getByLabel("Verification code", { exact: true }).fill("123456");
-  await page.getByRole("button", { name: "Verify code" }).click();
-  await page.getByRole("button", { name: "Keep key in this browser" }).click();
+  await page.getByRole("button", { name: "Verify Code" }).click();
+  await keepKeyInBrowser(page);
   await expect(page.getByRole("heading", { name: "Protect your key." })).toBeVisible();
   const draft = await page.evaluate(() =>
     JSON.parse(localStorage.getItem("pubky-passport/local-account-draft/v1")!),
@@ -476,13 +553,13 @@ test("SMS Back, Cancel, and reload preserve the verified invite", async ({ page 
   expect(draft.signupToken).toBe("verified-sms-invite");
   expect(draft.homeserverPubky).toBe(HOMEGATE_HOMESERVER);
   await page.getByRole("button", { name: "Back", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Where should your key live?" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Keep key in Pubky Ring" })).toBeEnabled();
+  await expect(page.getByRole("heading", { name: "Pick your keychain." })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Continue with keychain" })).toBeEnabled();
   // The verified invite survives Back inside the flow, but the unregistered key does not.
   expect(
     await page.evaluate(() => localStorage.getItem("pubky-passport/local-account-draft/v1")),
   ).toBeNull();
-  await page.getByRole("button", { name: "Keep key in this browser" }).click();
+  await keepKeyInBrowser(page);
   await expect(page.getByRole("heading", { name: "Protect your key." })).toBeVisible();
   await expect(page.getByText(`Pubky: ${draft.publicKeyZ32}`, { exact: true })).toHaveCount(0);
   await expect(page.getByRole("complementary", UNVERIFIED_BAND)).toHaveCount(1);
@@ -491,13 +568,15 @@ test("SMS Back, Cancel, and reload preserve the verified invite", async ({ page 
   await page.getByRole("button", { name: "Back", exact: true }).click();
   // Leaving account creation is Back: Cancel is kept for answering the app's request.
   await expect(page.getByText("Your verification stays saved in this browser.")).toBeVisible();
+  // It returns to the request's Join, where account creation was opened.
   await page.getByRole("button", { name: "Back", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Let’s join Pubky." })).toBeVisible();
   await expect(page.getByRole("button", { name: "Resume account setup" })).toHaveCount(0);
-  // Back drops the unsubmitted key, but the verified invite reopens without another SMS: picking
-  // a way to verify again picks up the saved verification instead.
-  await page.getByRole("button", { name: "Continue with SMS" }).click();
-  await expect(page.getByRole("heading", { name: "Where should your key live?" })).toBeVisible();
-  await page.getByRole("button", { name: "Keep key in Pubky Ring" }).click();
+  // Back drops the unsubmitted key, but the verified invite reopens without another SMS: account
+  // creation picks up the saved verification instead of asking for one.
+  await page.getByRole("button", { name: "Manage your own keys" }).click();
+  await expect(page.getByRole("heading", { name: "Pick your keychain." })).toBeVisible();
+  await openRingSignup(page);
   const ringLink = ringSignupLink(page);
   const ringRequest = new URL((await ringLink.getAttribute("href"))!);
   expect(ringRequest.searchParams.get("st")).toBe("verified-sms-invite");
@@ -508,10 +587,12 @@ test("SMS Back, Cancel, and reload preserve the verified invite", async ({ page 
   await expect(page.getByRole("complementary", UNVERIFIED_BAND)).toHaveCount(1);
   expect(await page.evaluate(() => JSON.stringify(localStorage))).not.toContain("+41791234567");
 
+  // A reload drops the request, which is never stored: Passport opens on its own Join.
   await page.reload();
-  await page.getByRole("button", { name: "Continue with SMS" }).click();
-  await expect(page.getByRole("heading", { name: "Where should your key live?" })).toBeVisible();
-  await page.getByRole("button", { name: "Keep key in Pubky Ring" }).click();
+  await expect(page.getByRole("heading", { name: "Let’s join Pubky." })).toBeVisible();
+  await page.getByRole("button", { name: "Manage your own keys" }).click();
+  await expect(page.getByRole("heading", { name: "Pick your keychain." })).toBeVisible();
+  await openRingSignup(page);
   await expect(ringLink).toHaveAttribute(
     "href",
     `pubkyauth://direct_signup?hs=${HOMEGATE_HOMESERVER}&st=verified-sms-invite`,
@@ -520,57 +601,59 @@ test("SMS Back, Cancel, and reload preserve the verified invite", async ({ page 
   expect(verifications).toBe(1);
 });
 
-test("manual invite Back returns to the completed form and then the start page", async ({
+test("manual invite Back returns to the completed form, the methods and then the start page", async ({
   page,
 }) => {
   await reachDestinationChoice(page);
   await page.getByRole("button", { name: "Back", exact: true }).click();
   await expect(page.getByLabel("Enter invite code")).toHaveValue(MANUAL_INVITE);
-  // Back from the invite entry leaves account creation: the start page, where it was picked.
+  // Back from the invite entry returns to the methods it was picked from, then to Join.
   await page.getByRole("button", { name: "Back", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Get your pubky." })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Create your account." })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Prove you’re not a robot." })).toBeVisible();
+  await page.getByRole("button", { name: "Back", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Let’s join Pubky." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Prove you’re not a robot." })).toHaveCount(0);
   // Leaving dropped the unsubmitted invite, as leaving account creation always did.
-  await page.getByRole("button", { name: "Enter invite manually" }).click();
+  await page.getByRole("button", { name: "Manage your own keys" }).click();
+  await page.getByRole("button", { name: "Invite code", exact: true }).click();
   await expect(page.getByLabel("Enter invite code")).toHaveValue("");
 });
 
-test("shared account creation offers Ring after verification and Back keeps its invite", async ({
+test("shared account creation offers the keychain after verification and Back keeps its invite", async ({
   page,
 }) => {
-  // The Ring signup link carries the invite; only a phone gets it.
+  // The keychain signup link carries the invite; only a phone gets it.
   await emulateCoarsePointer(page);
   await page.goto("/");
-  await expect(
-    page.getByRole("button", { name: "Continue with Pubky Ring", exact: true }),
-  ).toHaveCount(0);
-  await expect(
-    page.getByRole("button", { name: "Create account in Ring", exact: true }),
-  ).toHaveCount(0);
-  await page.getByRole("button", { name: "Enter invite manually" }).click();
+  // Join creates a pubky; signing in with a keychain is on Sign in.
+  await expect(page.getByRole("heading", { name: "Let’s join Pubky." })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Pubky Ring/u })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Continue with keychain" })).toHaveCount(0);
+  await page.getByRole("button", { name: "Manage your own keys" }).click();
+  await page.getByRole("button", { name: "Invite code", exact: true }).click();
   await page.getByLabel("Enter invite code").fill(RING_INVITE);
   await page.getByRole("button", { name: "Continue", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Where should your key live?" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Pick your keychain." })).toBeVisible();
   await expect(page.getByRole("button", { name: "Keep key in this browser" })).toBeEnabled();
-  await page.getByRole("button", { name: "Keep key in Pubky Ring", exact: true }).click();
-  const link = ringSignupLink(page);
-  const url = `pubkyauth://direct_signup?hs=${E2E_SIGNUP_HOMESERVER}&st=${RING_INVITE}`;
-  await expect(link).toHaveAttribute("href", url);
-  // Where to get Pubky Ring is on the hand-off itself, not a separate step.
+  // Where to get a keychain app is on the choice itself, not a separate step.
   await expect(
     page.getByRole("link", { name: "Download Pubky Ring on the App Store" }),
   ).toBeVisible();
+  await openRingSignup(page);
+  const link = ringSignupLink(page);
+  const url = `pubkyauth://direct_signup?hs=${E2E_SIGNUP_HOMESERVER}&st=${RING_INVITE}`;
+  await expect(link).toHaveAttribute("href", url);
   await page.getByRole("button", { name: "Back", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Where should your key live?" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Pick your keychain." })).toBeVisible();
   // Passport stays available; the invite is checked with the homeserver before reuse.
   await expect(page.getByRole("button", { name: "Keep key in this browser" })).toBeEnabled();
-  await page.getByRole("button", { name: "Keep key in Pubky Ring", exact: true }).click();
+  await openRingSignup(page);
   await expect(link).toHaveAttribute("href", url);
   await expect(page.getByRole("img", { name: "Pubky authorization QR code" })).toHaveCount(0);
 });
 
 test("Lightning payment uses the homeserver returned with its token", async ({ page }) => {
-  // The Ring signup link carries the invite; only a phone gets it.
+  // The keychain signup link carries the invite; only a phone gets it.
   await emulateCoarsePointer(page);
   let paid = false;
   let invoices = 0;
@@ -596,26 +679,28 @@ test("Lightning payment uses the homeserver returned with its token", async ({ p
     }),
   );
 
-  await openCreateAccount(page);
-  await page.getByRole("button", { name: "Continue with Lightning" }).click();
-  // The amount names its unit, so it never reads as bitcoin.
-  await expect(page.getByText("100 sats", { exact: true })).toBeVisible();
-  await expect(page.getByText("One-time payment to verify your new account.")).toBeVisible();
+  await openVerification(page);
+  await page.getByRole("button", { name: /^Bitcoin payment/u }).click();
+  // The amount is drawn as ₿ but named in sats, so it never reads as bitcoin.
+  await expect(page.getByLabel("100 sats", { exact: true })).toHaveText("₿ 100");
+  await expect(page.getByText("Please pay ₿100 to continue.")).toBeVisible();
   await expect(page.locator('a[href^="lightning:"]')).toHaveAttribute(
     "href",
     "lightning:lnbc100n1example",
   );
   paid = true;
-  await expect(page.getByRole("button", { name: "Keep key in Pubky Ring" })).toBeVisible({
+  await expect(page.getByRole("button", { name: "Continue with keychain" })).toBeVisible({
     timeout: 10_000,
   });
+  // The payment that verified the account is confirmed with the invoice's amount.
+  await expect(page.getByText("Received payment of ₿ 100")).toBeVisible();
   await openRingSignup(page);
   await expect(ringSignupLink(page)).toHaveAttribute(
     "href",
     `pubkyauth://direct_signup?hs=${HOMEGATE_HOMESERVER}&st=lightning-invite-token`,
   );
   await page.getByRole("button", { name: "Back", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Where should your key live?" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Pick your keychain." })).toBeVisible();
   await openRingSignup(page);
   await expect(ringSignupLink(page)).toHaveAttribute(
     "href",
@@ -631,18 +716,39 @@ test("the removed account route returns not found while the authorization entry 
   expect((await page.goto("/authorize"))?.status()).toBe(200);
   // Without a request the entry hands over to `/`.
   await expect(page).toHaveURL(/\/$/u);
-  await expect(page.getByRole("region", { name: "Create account" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Let’s join Pubky." })).toBeVisible();
 });
 
+/**
+ * Opens `entry` and goes to Verify, where the way to verify a new account is picked: from Join,
+ * where Passport opens without a request and an app's request with nothing saved opens too.
+ */
+async function openVerification(page: Page, entry = "/"): Promise<void> {
+  await page.goto(entry);
+  await expect(page.getByRole("heading", { name: "Let’s join Pubky." })).toBeVisible();
+  await page.getByRole("button", { name: "Manage your own keys" }).click();
+  await expect(page.getByRole("heading", { name: "Prove you’re not a robot." })).toBeVisible();
+}
+
+/** Verifies by SMS from the method list, with whatever invite the spec's Homegate issues. */
+async function verifyBySms(page: Page): Promise<void> {
+  await page.getByRole("button", { name: "Phone number", exact: true }).click();
+  await page.getByLabel("Phone number", { exact: true }).fill("+41791234567");
+  await page.getByRole("button", { name: "Send Code" }).click();
+  await page.getByLabel("Verification code", { exact: true }).fill("123456");
+  await page.getByRole("button", { name: "Verify Code" }).click();
+}
+
 async function reachDestinationChoice(page: Page): Promise<void> {
-  await openCreateAccount(page);
-  await page.getByRole("button", { name: "Enter invite manually" }).click();
+  await openVerification(page);
+  await page.getByRole("button", { name: "Invite code", exact: true }).click();
   await page.getByLabel("Enter invite code").fill(MANUAL_INVITE);
   await page.getByRole("button", { name: "Continue" }).click();
+  await expect(page.getByRole("heading", { name: "Pick your keychain." })).toBeVisible();
 }
 
 /**
- * Reaches the signer choice with an SMS invite for the test homeserver, whose signed record the
+ * Reaches the keychain choice with an SMS invite for the test homeserver, whose signed record the
  * relays serve, so registration contacts only hosts the spec controls.
  */
 async function reachDestinationChoiceOnTestHomeserver(page: Page, entry = "/"): Promise<void> {
@@ -655,46 +761,117 @@ async function reachDestinationChoiceOnTestHomeserver(page: Page, entry = "/"): 
       json: { valid: "true", signupCode: "SMS1-NV1T-C0DE", homeserverPubky: TEST_HOMESERVER },
     }),
   );
-  await page.goto(entry);
-  await expect(page.getByRole("region", { name: "Create account" })).toBeVisible();
-  await page.getByRole("button", { name: "Continue with SMS" }).click();
-  await page.getByLabel("Phone number", { exact: true }).fill("+41791234567");
-  await page.getByRole("button", { name: "Send code" }).click();
-  await page.getByLabel("Verification code", { exact: true }).fill("123456");
-  await page.getByRole("button", { name: "Verify code" }).click();
+  await openVerification(page, entry);
+  await verifyBySms(page);
+  await expect(page.getByRole("heading", { name: "Pick your keychain." })).toBeVisible();
 }
 
-/** The start page, where the way to verify a new account is picked. */
-async function openCreateAccount(page: Page): Promise<void> {
-  await page.goto("/");
-  await expect(page.getByRole("region", { name: "Create account" })).toBeVisible();
+/**
+ * Plays the network for an account created with an SMS invite: Homegate issues an invite for the
+ * test homeserver, which accepts the signup and signs the new key in; PKARR relays take the new
+ * record; the new pubky has no profile yet.
+ */
+async function mockLocalSignup(page: Page): Promise<void> {
+  // Records published for new keys, served back to later lookups.
+  const published = new Map<string, Buffer>();
+  await page.route(
+    (url) => PKARR_RELAY_HOSTS.has(url.hostname),
+    async (route) => {
+      const key = new URL(route.request().url()).pathname.slice(1);
+      if (route.request().method() !== "GET") {
+        const record = route.request().postDataBuffer();
+        if (record) published.set(key, record);
+        return route.fulfill({ status: 200, body: "" });
+      }
+      const body = published.get(key) ?? homeserverRecord(key);
+      return route.fulfill(
+        body ? { status: 200, body, contentType: "application/octet-stream" } : { status: 404 },
+      );
+    },
+  );
+  await page.route("**/sms_verification/send_code", (route) =>
+    route.fulfill({ status: 200, body: "" }),
+  );
+  await page.route("**/sms_verification/validate_code", (route) =>
+    route.fulfill({
+      json: { valid: "true", signupCode: "SMS1-NV1T-C0DE", homeserverPubky: TEST_HOMESERVER },
+    }),
+  );
+  await page.route("https://homeserver.example/**", async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    if (url.pathname.startsWith("/signup_tokens/"))
+      return route.fulfill({ json: { status: "valid" } });
+    if (url.pathname === "/auth/grant/signup") return route.fulfill({ status: 200, body: "" });
+    if (url.pathname === "/auth/grant/session" && request.method() === "POST") {
+      const { grant } = request.postDataJSON() as { grant: string };
+      const claims = JSON.parse(
+        Buffer.from(grant.split(".")[1]!, "base64url").toString("utf8"),
+      ) as { iss: string; client_id: string; caps: string[]; jti: string; exp: number };
+      const now = Math.floor(Date.now() / 1000);
+      return route.fulfill({
+        json: {
+          token: "e2e-bearer",
+          session: {
+            homeserver: TEST_HOMESERVER,
+            pubky: claims.iss,
+            client_id: claims.client_id,
+            capabilities: claims.caps,
+            grant_id: claims.jti,
+            token_expires_at: now + 3_600,
+            grant_expires_at: claims.exp,
+            created_at: now,
+          },
+        },
+      });
+    }
+    // The new pubky has published nothing yet.
+    return route.fulfill({ status: request.method() === "GET" ? 404 : 200, body: "" });
+  });
 }
 
 async function openRingSignup(page: Page): Promise<void> {
-  await page.getByRole("button", { name: "Keep key in Pubky Ring" }).click();
+  await page.getByRole("button", { name: "Continue with keychain" }).click();
+}
+
+/** Keeps the key in this browser: the keychain choice's quiet link, then past its tradeoffs. */
+async function keepKeyInBrowser(page: Page): Promise<void> {
+  await page.getByRole("button", { name: "Keep key in this browser" }).click();
+  await page
+    .getByRole("dialog", { name: "Be aware of these tradeoffs:" })
+    .getByRole("button", { name: "Create in browser anyway" })
+    .click();
+}
+
+/** The keychain signup's heading: a computer scans its code, a phone authorizes in the app. */
+function ringSignupHeading(page: Page) {
+  return page.getByRole("heading", { name: /^(Scan QR|Authorize) with keychain\.$/u });
 }
 
 /** Ring uses the invite: the next lookup says so, and Passport goes on to the profile by itself. */
 async function ringUsesInvite(page: Page): Promise<void> {
-  await expect(
-    page.getByRole("heading", { name: "Create your account in Pubky Ring." }),
-  ).toBeVisible();
+  await expect(ringSignupHeading(page)).toBeVisible();
   await page.route("**/signup_tokens/**", (route) => route.fulfill({ json: { status: "used" } }));
-  await expect(page.getByRole("heading", { name: "Connect Pubky Ring." })).toBeVisible({
+  await expect(page.getByRole("heading", { name: "Connect your keychain." })).toBeVisible({
     timeout: 15_000,
   });
 }
 
-/** The Ring signup's link, which carries the invite; only a phone (coarse pointer) gets it. */
+/** Passport's own profile connection, apart from any app's request. */
+function profileConnection(page: Page) {
+  return page.getByRole("region", { name: "Keychain connection" });
+}
+
+/** The keychain signup's link, which carries the invite; only a phone (coarse pointer) gets it. */
 function ringSignupLink(page: Page) {
-  return page.getByRole("link", { name: "Continue with Pubky Ring" });
+  return page.getByRole("link", { name: "Authorize & configure" });
 }
 
 test("can skip the backup check and keeps the attempted signup bound to its key", async ({
   page,
 }) => {
   await reachDestinationChoiceOnTestHomeserver(page);
-  await page.getByRole("button", { name: "Keep key in this browser" }).click();
+  await keepKeyInBrowser(page);
   // Pressed early, the download says what is missing instead of doing nothing.
   await page.getByRole("button", { name: "Download recovery file" }).click();
   await expect(page.getByRole("main").getByRole("alert")).toContainText(
@@ -724,35 +901,54 @@ test("can skip the backup check and keeps the attempted signup bound to its key"
     .toBe(true);
 });
 
-/** Picking a way to verify reopens a setup saved from an earlier visit instead. */
+/**
+ * After a reload, which drops the request (it is never stored), Passport opens on Join. Account
+ * creation opened from there reopens the setup saved earlier at the keychain choice, and keeping
+ * the key here resumes it.
+ */
 async function resumeSavedSetup(page: Page) {
-  await page.getByRole("button", { name: "Enter invite manually" }).click();
-  await expect(page.getByRole("heading", { name: "Where should your key live?" })).toBeVisible();
-  await page.getByRole("button", { name: "Keep key in this browser" }).click();
+  await expect(page.getByRole("heading", { name: "Let’s join Pubky." })).toBeVisible();
+  await page.getByRole("button", { name: "Manage your own keys" }).click();
+  await expect(page.getByRole("heading", { name: "Pick your keychain." })).toBeVisible();
+  await keepKeyInBrowser(page);
 }
 
 test.describe("in the app's 520x760 popup", () => {
   test.use({ viewport: { width: 520, height: 760 }, hasTouch: false });
 
-  test("Pubky Ring signup keeps its QR code, the store badges and Back in view", async ({
+  test("the keychain choice keeps its store badges, and the signup its QR code, in view, with Back right after", async ({
     page,
   }) => {
-    await page.goto(`/authorize#d=${encodeURIComponent(AUTHORIZATION_REQUEST)}`);
-    await page.getByRole("button", { name: "Enter invite manually" }).click();
+    await openVerification(page, REQUEST_ENTRY);
+    await page.getByRole("button", { name: "Invite code", exact: true }).click();
     await page.getByLabel("Enter invite code").fill(MANUAL_INVITE);
     await page.getByRole("button", { name: "Continue" }).click();
-    await page.getByRole("button", { name: "Keep key in Pubky Ring" }).click();
+    await expect(page.getByRole("heading", { name: "Pick your keychain." })).toBeVisible();
+    await expectInView([page.getByRole("link", { name: "Get Bitkit on Google Play" })]);
+    await expectBackInFlow();
+    await openRingSignup(page);
 
-    await expect(page.getByRole("img", { name: "Pubky Ring signup QR code" })).toBeVisible();
-    await expect(
-      page.getByRole("heading", { name: "Create your account in Pubky Ring." }),
-    ).toBeVisible();
-    for (const control of [
-      page.getByRole("link", { name: "Get Pubky Ring on Google Play" }),
-      page.getByRole("button", { name: "Back", exact: true }),
-    ]) {
-      const box = (await control.boundingBox())!;
-      expect(box.y + box.height).toBeLessThanOrEqual(760);
+    await expect(page.getByRole("img", { name: "Keychain signup QR code" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Scan QR with keychain." })).toBeVisible();
+    await expectInView([page.getByRole("img", { name: "Keychain signup QR code" })]);
+    await expectBackInFlow();
+
+    async function expectInView(controls: ReturnType<Page["getByRole"]>[]) {
+      for (const control of controls) {
+        const box = (await control.boundingBox())!;
+        expect(box.y + box.height).toBeLessThanOrEqual(760);
+      }
+    }
+
+    /** Back alone is no way on: it follows the content, unpinned, with the page footer last. */
+    async function expectBackInFlow() {
+      expect(await page.locator("[data-sticky-actions]").count()).toBe(0);
+      const back = page.getByRole("button", { name: "Back", exact: true });
+      await back.scrollIntoViewIfNeeded();
+      await expect(back).toBeInViewport();
+      const footer = (await page.locator("body > footer").boundingBox())!;
+      const box = (await back.boundingBox())!;
+      expect(footer.y).toBeGreaterThanOrEqual(box.y + box.height);
     }
   });
 });

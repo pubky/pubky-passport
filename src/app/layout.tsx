@@ -8,6 +8,7 @@ import { HomegateAvailabilityProvider } from "@/client/ui/homegateAvailability";
 import { PassportLogo } from "@/client/ui/shared/brand/passportLogo";
 import { PassportFooter } from "@/client/ui/shared/passportFooter";
 import { PassportHeaderActionSlot } from "@/client/ui/shared/passportHeaderAction";
+import { SetupProgressSlot } from "@/client/ui/shared/setupProgress";
 import { TestnetBadge } from "@/client/ui/shared/testnetBadge";
 import { PUBKY_NETWORK_META_NAME } from "@/libs/pubkyNetwork";
 import { Sonner } from "@/client/ui/shared/sonner";
@@ -46,8 +47,8 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
         <ParserTimeScripts />
       </head>
       <body>
-        <header className="flex h-[calc(var(--passport-header-height)+var(--passport-context-band-height))] min-h-[calc(var(--passport-header-height)+var(--passport-context-band-height))] w-full shrink-0 items-center justify-between gap-3 bg-[linear-gradient(180deg,rgba(5,5,10,0.96),rgba(5,5,10,0))] px-6 pt-[var(--passport-context-band-height)] md:px-10">
-          <div className="flex min-w-0 flex-col">
+        <header className="flex h-[calc(var(--passport-header-height)+var(--passport-context-band-height))] min-h-[calc(var(--passport-header-height)+var(--passport-context-band-height))] w-full shrink-0 items-center justify-between gap-3 bg-[linear-gradient(180deg,rgba(5,5,10,0.96),rgba(5,5,10,0))] px-6 pt-[var(--passport-context-band-height)] min-[64.0625rem]:px-10">
+          <div className="flex min-w-0 shrink-0 flex-col">
             {instance.network.network === "testnet" ? (
               <div className="flex items-center gap-3">
                 <PassportLogo />
@@ -57,6 +58,8 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
               <PassportLogo />
             )}
           </div>
+          {/* Account creation's steps, beside the logo as on pubky.app; empty on other screens. */}
+          <SetupProgressSlot />
           <PassportHeaderActionSlot />
         </header>
         <PassportProviderConfiguration value={instance}>

@@ -13,12 +13,12 @@ import {
 } from "@/client/ui/shared/icons";
 import { cn } from "@/client/ui/shared/mergeClassNames";
 import { OnboardingCard } from "@/client/ui/shared/onboardingCard";
+import { OnboardingScreen } from "@/client/ui/shared/onboardingScreen";
 import { PassportNavigation } from "@/client/ui/shared/passportNavigation";
 import { Button } from "@/client/ui/shared/primitives/button";
 import { FieldMessage } from "@/client/ui/shared/primitives/fieldMessage";
 import { Input } from "@/client/ui/shared/primitives/input";
 import { useFocusWhenSettled } from "@/client/ui/shared/useFocusWhenSettled";
-import { SignupStep } from "./signupStep";
 
 type SmsVerificationProps = {
   pending: boolean;
@@ -63,13 +63,40 @@ export function PhoneNumberStep({
   const showValid = valid && !serviceError;
   useFocusOnError(input, error);
   return (
-    <SignupStep
-      title="Enter your"
-      accent="phone number."
-      description="We will send you a verification code."
+    <OnboardingScreen
+      accent="phone."
+      // Its actions lead on: pinned to a phone's window.
+      stickyActions
+      actions={
+        <PassportNavigation
+          back={<BackButton className="max-[30rem]:w-full" onClick={onBack} />}
+          confirm={
+            // Enabled while the number is wrong, so pressing it says what to fix; a refused number
+            // cannot be sent again, and the message beside it says why.
+            <Button
+              className="w-full"
+              disabled={refused}
+              form="phone-form"
+              loading={pending}
+              size="lg"
+              type="submit"
+            >
+              <ArrowRightIcon />
+              {pending
+                ? "Sending code…"
+                : normalized === sentPhoneNumber
+                  ? "Continue"
+                  : "Send Code"}
+            </Button>
+          }
+        />
+      }
+      lead="We will send you a verification code."
+      title="Enter"
     >
       <form
-        className="flex flex-1 flex-col gap-6 md:gap-8"
+        className="flex flex-col"
+        id="phone-form"
         noValidate
         onSubmit={(event) => {
           event.preventDefault();
@@ -82,7 +109,7 @@ export function PhoneNumberStep({
           if (!refused) onSendCode(normalized);
         }}
       >
-        <OnboardingCard illustration="/illustrations/phone-number.png">
+        <OnboardingCard illustration="/illustrations/phone-number.png" size="wide">
           <div className="flex flex-col gap-3">
             <label className="text-xl font-bold leading-7" htmlFor="phone-number">
               Phone number
@@ -138,29 +165,11 @@ export function PhoneNumberStep({
           ) : null}
           {/* Homegate stores only a peppered one-way hash of the number, to cap sign-ups per number. */}
           <p className="text-sm leading-5 text-muted-foreground" id="phone-privacy">
-            We use your number only to send this code and to limit sign-ups per number. The sign-up
-            service keeps a one-way hash of it, never the number itself. It isn’t added to your
-            Pubky profile or shared with the apps you sign in to.
+            Only used to send this code; the sign-up service keeps a one-way hash, never the number.
           </p>
         </OnboardingCard>
-        <PassportNavigation
-          className="mt-auto md:mt-0"
-          back={<BackButton onClick={onBack} />}
-          confirm={
-            // Enabled while the number is wrong, so pressing it says what to fix; a refused number
-            // cannot be sent again, and the message beside it says why.
-            <Button className="w-full" type="submit" size="lg" disabled={refused} loading={pending}>
-              <ArrowRightIcon />
-              {pending
-                ? "Sending code…"
-                : normalized === sentPhoneNumber
-                  ? "Continue"
-                  : "Send code"}
-            </Button>
-          }
-        />
       </form>
-    </SignupStep>
+    </OnboardingScreen>
   );
 }
 
@@ -219,26 +228,64 @@ export function SmsCodeStep({
   // Once the code has expired, a new one is the way on, so Resend leads until new digits are in.
   const resendLeads = expired && !valid;
   return (
-    <SignupStep
-      title="Enter the"
+    <OnboardingScreen
       accent="code."
-      description={`We sent a 6-digit verification code to ${phoneNumber}.`}
+      // Its actions lead on: pinned to a phone's window.
+      stickyActions
+      actions={
+        <div className="flex flex-col gap-4 md:flex-row md:items-center">
+          <BackButton className="max-[30rem]:w-full" onClick={onBack} />
+          {/* Side by side from 360px; narrower (a zoomed popup) they stack instead of wrapping. */}
+          <div className="grid min-w-0 flex-1 grid-cols-1 gap-3 min-[360px]:grid-cols-2 md:ml-auto md:max-w-[480px]">
+            <Button
+              variant={resendLeads ? "default" : "secondary"}
+              className="w-full px-3"
+              size="lg"
+              disabled={pending || remaining > 0}
+              loading={resending}
+              onClick={() => {
+                setCode("");
+                setCursorPosition(0);
+                setResending(true);
+                onSendCode(phoneNumber);
+              }}
+            >
+              <RotateCcwIcon />
+              {resending ? "Sending…" : remaining > 0 ? `Resend (${remaining}s)` : "Resend code"}
+            </Button>
+            <Button
+              variant={resendLeads ? "secondary" : "default"}
+              className="w-full px-3"
+              disabled={pending || !valid}
+              form="sms-code-form"
+              loading={pending && !resending}
+              size="lg"
+              type="submit"
+            >
+              <CheckIcon />
+              {pending && !resending ? "Verifying…" : "Verify Code"}
+            </Button>
+          </div>
+        </div>
+      }
+      lead={`We sent a 6-digit verification code to ${phoneNumber}.`}
+      title="Enter"
     >
       <form
-        className="flex flex-1 flex-col gap-6 md:gap-8"
+        className="flex flex-col"
+        id="sms-code-form"
         onSubmit={(event) => {
           event.preventDefault();
           if (valid && !pending) onVerify(phoneNumber, code);
         }}
       >
-        <OnboardingCard illustration="/illustrations/sms-verification.png">
+        <OnboardingCard illustration="/illustrations/sms-verification.png" size="wide">
           <div className="flex flex-col gap-3">
             <label className="text-xl font-bold leading-7" htmlFor="sms-code">
               Verification code
             </label>
-            {/* The lead already names the number; saying it twice pushes the field down. */}
             <p className="text-base leading-6 text-secondary-foreground" id="sms-help">
-              Enter the 6-digit code from the SMS.
+              Enter the code you received on {phoneNumber}.
             </p>
           </div>
           <div className="group/sms-code relative">
@@ -313,41 +360,8 @@ export function SmsCodeStep({
             </button>
           ) : null}
         </OnboardingCard>
-        <div className="mt-auto flex flex-col gap-4 md:mt-0 md:flex-row md:items-center">
-          <BackButton onClick={onBack} />
-          {/* Side by side from 360px; narrower (a zoomed popup) they stack instead of wrapping. */}
-          <div className="grid min-w-0 flex-1 grid-cols-1 gap-3 min-[360px]:grid-cols-2 md:grid-cols-[minmax(0,1fr)_228px]">
-            <Button
-              variant={resendLeads ? "default" : "secondary"}
-              className="w-full px-3"
-              size="lg"
-              disabled={pending || remaining > 0}
-              loading={resending}
-              onClick={() => {
-                setCode("");
-                setCursorPosition(0);
-                setResending(true);
-                onSendCode(phoneNumber);
-              }}
-            >
-              <RotateCcwIcon />
-              {resending ? "Sending…" : remaining > 0 ? `Resend (${remaining}s)` : "Resend code"}
-            </Button>
-            <Button
-              variant={resendLeads ? "secondary" : "default"}
-              className="w-full px-3"
-              type="submit"
-              size="lg"
-              disabled={pending || !valid}
-              loading={pending && !resending}
-            >
-              <CheckIcon />
-              {pending && !resending ? "Verifying…" : "Verify code"}
-            </Button>
-          </div>
-        </div>
       </form>
-    </SignupStep>
+    </OnboardingScreen>
   );
 }
 

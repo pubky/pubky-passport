@@ -13,13 +13,13 @@ import { BackButton } from "@/client/ui/shared/backButton";
 import { ArrowRightIcon, CircleCheckIcon } from "@/client/ui/shared/icons";
 import { Notice } from "@/client/ui/shared/notice";
 import { OnboardingCard } from "@/client/ui/shared/onboardingCard";
+import { OnboardingScreen } from "@/client/ui/shared/onboardingScreen";
 import { PassportNavigation } from "@/client/ui/shared/passportNavigation";
 import { cn } from "@/client/ui/shared/mergeClassNames";
 import { Button } from "@/client/ui/shared/primitives/button";
 import { FieldMessage } from "@/client/ui/shared/primitives/fieldMessage";
 import { Input } from "@/client/ui/shared/primitives/input";
 import { Label } from "@/client/ui/shared/primitives/label";
-import { SignupStep } from "./signupStep";
 
 /** Waits for typing to settle; a paste settles immediately after this delay. */
 const INVITE_CHECK_DELAY_MS = 300;
@@ -155,23 +155,43 @@ export function InviteCodeStep({
   const canContinue = candidate !== null && (verified || check === "unknown");
 
   return (
-    <SignupStep
-      title="Use an"
+    <OnboardingScreen
       accent="invite."
-      description={
+      // Its actions lead on: pinned to a phone's window.
+      stickyActions
+      actions={
+        <PassportNavigation
+          back={<BackButton className="max-[30rem]:w-full" onClick={onBack} />}
+          confirm={
+            <Button
+              className="w-full"
+              disabled={!canContinue}
+              form="invite-form"
+              size="lg"
+              type="submit"
+            >
+              <ArrowRightIcon />
+              Continue
+            </Button>
+          }
+        />
+      }
+      lead={
         inviteOnly
           ? "Creating an account here needs an invite code. Enter the one you received."
           : "Enter the invite code you received to create your account."
       }
+      title="Use"
     >
       <form
-        className="flex flex-1 flex-col gap-6 md:gap-8"
+        className="flex flex-col gap-6 md:gap-8"
+        id="invite-form"
         onSubmit={(event) => {
           event.preventDefault();
           if (candidate && canContinue) onContinue(candidate);
         }}
       >
-        <OnboardingCard illustration="/illustrations/invite.png">
+        <OnboardingCard illustration="/illustrations/invite.png" size="wide">
           {/* The homeserver comes first: a well-formed code is looked up on it right away. */}
           {changingHomeserver ? (
             <div className="flex flex-col gap-2">
@@ -310,17 +330,7 @@ export function InviteCodeStep({
         {error ? <Notice tone="error">{error}</Notice> : null}
         {/* Without the method list, the provider's terms stay in view here. */}
         {inviteOnly ? <ProviderTerms /> : null}
-        <PassportNavigation
-          className="mt-auto md:mt-0"
-          back={<BackButton onClick={onBack} />}
-          confirm={
-            <Button className="w-full" type="submit" size="lg" disabled={!canContinue}>
-              <ArrowRightIcon />
-              Continue
-            </Button>
-          }
-        />
       </form>
-    </SignupStep>
+    </OnboardingScreen>
   );
 }

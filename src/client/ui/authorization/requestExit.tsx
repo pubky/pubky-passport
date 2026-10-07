@@ -59,6 +59,56 @@ export function closeRequestWindow(
   goToPassport(target);
 }
 
+/** How long going back may take before Passport takes it that the tab stayed on this page. */
+export const EDIT_LINK_BACK_TIMEOUT_MS = 1000;
+
+/**
+ * How long the page stays after telling the app its profile is updated: a window that closes at
+ * once can lose the message (WebKit did), or hand it over without its source, which the app must
+ * refuse.
+ */
+export const EDIT_LINK_MESSAGE_DELAY_MS = 1000;
+
+/**
+ * Leaves the page an app's edit link opened, once its profile is saved: the window closes where a
+ * script may close it (the app's pop-up, or a tab the link opened); otherwise the tab goes back to
+ * the page before it (the app, for a link followed in the same tab). Without one, or when going
+ * back stays on this page, it ends at Passport's home (`home`).
+ */
+export function leaveEditLink(
+  home: () => void,
+  target: Pick<Window, "addEventListener" | "close" | "closed" | "history" | "setTimeout"> = window,
+): void {
+  try {
+    target.close();
+    if (target.closed) return;
+  } catch {
+    // Some embedders throw instead of ignoring the call.
+  }
+  let back = false;
+  try {
+    back = target.history.length > 1;
+  } catch {
+    // Without a readable history there is no page to go back to.
+  }
+  if (!back) {
+    home();
+    return;
+  }
+  let left = false;
+  target.addEventListener(
+    "pagehide",
+    () => {
+      left = true;
+    },
+    { once: true },
+  );
+  target.history.back();
+  target.setTimeout(() => {
+    if (!left) home();
+  }, EDIT_LINK_BACK_TIMEOUT_MS);
+}
+
 /**
  * The way out of a request that has ended. In the app's popup the person closes the window and is
  * back in the app, which never happens by landing on Passport's start page (for a first-time user,

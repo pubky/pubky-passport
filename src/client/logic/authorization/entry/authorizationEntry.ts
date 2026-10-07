@@ -31,12 +31,22 @@ export type AuthorizationEntryCode =
   /** The app named another Pubky network than this instance's, next to `d=` or in its hello. */
   | "network_mismatch";
 
+/**
+ * The screen an app asks Passport to open on for a person without an identity to sign with, next
+ * to `d=`: its "Join now" (`join`), its "Continue with Google" (`google`, the Google sign-in without
+ * the start page) or its sign-in for returning people (`sign-in`). A hint for the first screen
+ * only: it grants nothing and changes nothing in the request.
+ */
+export type AuthorizationEntryScreen = "join" | "google" | "sign-in";
+
 export type AuthorizationEntry =
   | {
       status: "valid";
       request: ValidatedPubkyAuthRequest;
       /** The app asked, next to `d=`, for an identity with a pubky.app profile. */
       profile?: "required";
+      /** The screen the app asked, next to `d=`, to open on. */
+      entry?: AuthorizationEntryScreen;
     }
   | { status: "empty" }
   | { status: "expired" }
@@ -103,6 +113,7 @@ export function readAndScrubAuthorizationEntry(
     status: "valid",
     request: validated.value,
     ...(rawD.valid && rawD.profile === "required" ? { profile: "required" as const } : {}),
+    ...(rawD.valid && rawD.entry ? { entry: rawD.entry } : {}),
   };
 }
 
@@ -139,10 +150,20 @@ function takeEarlyAuthorizationLocation(appWindow: Window): EarlyAuthorizationLo
 }
 
 /**
- * The longest form of the parameters an app may add next to `d=`: its profile requirement and its
- * Pubky network.
+ * The longest form of the parameters an app may add next to `d=`: its profile requirement, its
+ * Pubky network and the screen to open on.
  */
-const LONGEST_EXTRA_PARAMETERS = "&profile=optional&network=testnet";
+const LONGEST_EXTRA_PARAMETERS = "&profile=optional&network=testnet&entry=sign-in";
+
+const ENTRY_SCREENS: ReadonlySet<string> = new Set<AuthorizationEntryScreen>([
+  "join",
+  "google",
+  "sign-in",
+]);
+
+function isEntryScreen(value: string): value is AuthorizationEntryScreen {
+  return ENTRY_SCREENS.has(value);
+}
 
 function extractAuthorizationFragmentValue(hash: string):
   | {
@@ -150,6 +171,7 @@ function extractAuthorizationFragmentValue(hash: string):
       value?: string;
       profile?: "required" | "optional";
       network?: PubkyNetworkName;
+      entry?: AuthorizationEntryScreen;
     }
   | { valid: false; code: "too_large" | "invalid_fragment_shape" } {
   if (
@@ -167,6 +189,7 @@ function extractAuthorizationFragmentValue(hash: string):
   let value: string | undefined;
   let profile: "required" | "optional" | undefined;
   let network: PubkyNetworkName | undefined;
+  let entry: AuthorizationEntryScreen | undefined;
   for (const parameter of fragment.split("&")) {
     if (parameter.length > PUBKY_AUTH_REQUEST_LIMITS.maximumEncodedDCodeUnits + "d=".length) {
       return { valid: false, code: "too_large" };
@@ -186,18 +209,29 @@ function extractAuthorizationFragmentValue(hash: string):
       network = parameterValue;
       continue;
     }
+    if (name === "entry" && entry === undefined && isEntryScreen(parameterValue)) {
+      entry = parameterValue;
+      continue;
+    }
     if (name !== "d" || separator === -1 || value !== undefined) {
       return { valid: false, code: "invalid_fragment_shape" };
     }
     value = parameterValue;
   }
 
-  // The requirement and the network only accompany a request; alone they are not an entry.
+  // The requirement, the network and the screen only accompany a request; alone they are not an
+  // entry.
   if (value === undefined)
-    return profile === undefined && network === undefined
+    return profile === undefined && network === undefined && entry === undefined
       ? { valid: true }
       : { valid: false, code: "invalid_fragment_shape" };
-  return { valid: true, value, ...(profile ? { profile } : {}), ...(network ? { network } : {}) };
+  return {
+    valid: true,
+    value,
+    ...(profile ? { profile } : {}),
+    ...(network ? { network } : {}),
+    ...(entry ? { entry } : {}),
+  };
 }
 
 /**

@@ -25,8 +25,16 @@ import { IdentitySummary } from "@/client/ui/shared/identitySummary";
 import { PassportNavigation } from "@/client/ui/shared/passportNavigation";
 import { Notice } from "@/client/ui/shared/notice";
 import { Button } from "@/client/ui/shared/primitives/button";
+import { ClassicQrSwitch, useKeychainAuthMethod } from "@/client/ui/shared/classicQrSwitch";
+import {
+  KEYCHAIN_QR_LEAD,
+  KEYCHAIN_QR_STEPS,
+  KEYCHAIN_QR_TITLE,
+  KeychainHandoffCard,
+} from "@/client/ui/shared/keychainHandoff";
+import { OnboardingScreen } from "@/client/ui/shared/onboardingScreen";
 import { RingHandoffScreen } from "@/client/ui/shared/ringHandoffScreen";
-import { useDeepLinkLauncher, useRingHandoffMode } from "@/client/ui/shared/useRingHandoff";
+import { useDeepLinkLauncher } from "@/client/ui/shared/useRingHandoff";
 import { ExternalSignerRequest } from "@/client/ui/universal-signer/externalSignerRequest";
 import { DiscardChangesDialog } from "./discardChangesDialog";
 
@@ -39,23 +47,23 @@ function connectionError(code: RingConnectionErrorCode, expected: string | undef
     case "cancelled":
       return "This connection request was closed. Start a new request.";
     case "connection_failed":
-      return "The connection failed, either at the relay while waiting for Pubky Ring or at your homeserver after Pubky Ring approved. Try again and approve the new request in Pubky Ring.";
+      return "The connection failed, either at the relay while waiting for your keychain or at your homeserver after it approved. Try again and approve the new request in your keychain app.";
     case "expired":
       return "This connection request expired. Start a new request.";
     case "grant_rejected":
-      return "Pubky Ring approved, but your homeserver did not accept the connection. Try again and approve the new request in Pubky Ring.";
+      return "Your keychain approved, but your homeserver did not accept the connection. Try again and approve the new request in your keychain app.";
     case "homeserver_unresolved":
-      return "Pubky Ring approved, but Passport could not find your pubky's homeserver. Try again later and approve the new request in Pubky Ring.";
+      return "Your keychain approved, but Passport could not find your pubky's homeserver. Try again later and approve the new request in your keychain app.";
     case "missing_capabilities":
-      return "Pubky Ring did not grant every permission Passport needs to edit your profile. Try again and approve the full request.";
+      return "Your keychain did not grant every permission Passport needs to edit your profile. Try again and approve the full request.";
     case "request_failed":
       return "Passport could not create a connection request. Please try again.";
     case "storage_failed":
       return "Passport could not save this identity in your browser. Free some storage and try again.";
     case "wrong_identity":
       return expected
-        ? `Pubky Ring approved a different identity. In Pubky Ring, choose ${expected}, then try again.`
-        : "Pubky Ring approved a different identity. Choose the one you want to connect, then try again.";
+        ? `Your keychain approved a different identity. In your keychain app, choose ${expected}, then try again.`
+        : "Your keychain approved a different identity. Choose the one you want to connect, then try again.";
   }
 }
 
@@ -70,6 +78,8 @@ function identityLabel(identity: LocalIdentityMetadata): string {
 const FAILURE_TOAST_MS = 10_000;
 
 type ConnectionState =
+  /** Looking for the profile grant this browser stored for the identity; nothing shows yet. */
+  | { status: "resuming" }
   | { status: "starting" | "waiting" }
   | { status: "confirming"; publicKeyZ32: string; hasProfile: PublishedProfile; saving: boolean }
   | { status: "failed"; failure: RingConnectionErrorCode };
@@ -78,8 +88,9 @@ type ConnectionState =
  * Connects Pubky Ring through Passport's own profile grant: to edit `identity`'s profile, to finish
  * a Ring signup (`confirmIdentity`: the approving pubky is shown for confirmation before anything
  * is saved), or, with neither, to add whichever pubky Ring approves without changing its profile.
- * `embedded` is that last case inside the start page's Pubky Ring card: the same connection
- * without a screen of its own, where `onBack` closes it (Cancel). `appSignIn` is the connection an
+ * `embedded` is that last case on the start page's Sign in, without a screen of its own: `"card"`
+ * is a computer's whole keychain card (the code with its switch, the heading and what to do);
+ * `true` sits inside a phone's card, where `onBack` closes it (Cancel). `appSignIn` is the connection an
  * app's sign-in leads to: the person just approved that app in Pubky Ring, so the screen says they
  * are signed in and why Ring asks once more.
  */
@@ -103,7 +114,7 @@ export function RingProfileConnection({
    */
   appSignIn?: { requester: string | undefined } | undefined;
   controller: RingProfileControllerPort;
-  embedded?: boolean;
+  embedded?: boolean | "card";
   /**
    * The person pressed to start this connection (a phone's start-page card): Pubky Ring opens as
    * soon as the request exists, from the button that stays in place.
@@ -125,20 +136,30 @@ export function RingProfileConnection({
   notice?: ReactNode;
 }) {
   const expectedKey = identity?.publicIdentity.publicKeyZ32;
-  // A computer scans the code; a phone opens Pubky Ring.
-  const mode = useRingHandoffMode();
   const [, launcher] = useDeepLinkLauncher();
-  // Only a computer shows a code; a phone opens Pubky Ring, whatever became of a launch.
-  const scanning = mode === "scan";
-  const phone = "your phone";
   // Leaving with edits waiting for this connection asks first, as the editor's own Back does.
   const [leaving, setLeaving] = useState<() => void>();
   const confirmLeaving = (leave: (() => void) | undefined) =>
     leave && unsavedEdits ? () => setLeaving(() => leave) : leave;
   const back = confirmLeaving(onBack);
   const defer = confirmLeaving(onDefer);
-  const [state, setState] = useState<ConnectionState>({ status: "starting" });
+  // A known identity whose profile grant this browser keeps connects without the keychain; the
+  // screen shows only if none is stored. The legacy cookie sign-in is never stored.
+  // Older Pubky Ring needs the legacy request: switching asks again, the other way.
+  const method = useKeychainAuthMethod();
+  const resumable =
+    expectedKey !== undefined && controller.resume !== undefined && method === "grant";
+  const [state, setState] = useState<ConnectionState>({
+    status: resumable ? "resuming" : "starting",
+  });
   const [attempt, setAttempt] = useState({ id: 0, resume: false });
+  const [requestedMethod, setRequestedMethod] = useState(method);
+  if (method !== requestedMethod) {
+    setRequestedMethod(method);
+    setState({ status: "starting" });
+    // A new request of the other kind: an approval being resumed belongs to the old one.
+    setAttempt(({ id }) => ({ id, resume: false }));
+  }
   /** Set while a retry reuses the grant Ring already approved, so cleanup must keep it. */
   const keepConnection = useRef(false);
   const complete = useEffectEvent(onComplete);
@@ -189,24 +210,39 @@ export function RingProfileConnection({
       }
       timer = setTimeout(() => void poll(), 1_500);
     }
-    if (attempt.resume) void poll();
-    else
-      void controller.start({ expectedKey, setupRequired, confirmIdentity }).then((result) => {
+    async function begin() {
+      if (resumable && attempt.id === 0) {
+        const resumed = await controller.resume?.({ expectedKey, setupRequired });
         if (!active) return;
-        if (Result.isError(result)) {
-          setState({ status: "failed", failure: result.error.code });
+        if (resumed && Result.isOk(resumed) && resumed.value) {
+          complete(resumed.value);
           return;
         }
-        setState({ status: "waiting" });
-        void poll();
+        setState({ status: "starting" });
+      }
+      const result = await controller.start({
+        expectedKey,
+        setupRequired,
+        confirmIdentity,
+        method,
       });
+      if (!active) return;
+      if (Result.isError(result)) {
+        setState({ status: "failed", failure: result.error.code });
+        return;
+      }
+      setState({ status: "waiting" });
+      void poll();
+    }
+    if (attempt.resume) void poll();
+    else void begin();
     return () => {
       active = false;
       clearTimeout(timer);
       // Saving the identity can switch views before the poll continuation runs.
       if (!keepConnection.current && !controller.isConnected(expectedKey)) controller.dispose();
     };
-  }, [controller, expectedKey, setupRequired, confirmIdentity, attempt]);
+  }, [controller, expectedKey, setupRequired, confirmIdentity, attempt, method, resumable]);
 
   /** Only a storage failure keeps the approved grant; anything else needs a new request. */
   function retry(resume: boolean) {
@@ -230,156 +266,193 @@ export function RingProfileConnection({
     if (existing)
       toast.info(`Added ${shortPublicKey(confirmed.value.publicIdentity.publicKeyZ32)}`, {
         description:
-          "The pubky you just created in Pubky Ring is not in Passport yet. Add it with Sign in with Pubky Ring.",
+          "The pubky you just created in your keychain is not in Passport yet. Add it from Sign in with your keychain.",
       });
     onComplete(confirmed.value);
   }
 
-  return (
-    <RingHandoffScreen
-      accent={appSignIn ? "profile." : undefined}
-      action={appSignIn ? "Set up your" : "Connect"}
-      // Inside the card its own line says what this is for; the button stays where it was pressed.
-      embedded={embedded ? "quiet" : false}
-      instruction={
-        appSignIn
-          ? `You’re signed in with Pubky Ring, but ${appSignIn.requester ?? "this app"} needs a public profile. ${
-              scanning
-                ? `Scan this code with Pubky Ring on ${phone} and approve, so Passport can create it for you.`
-                : "Approve in Pubky Ring so Passport can create it for you."
-            } Passport can only edit your profile and avatar; your private key stays in Pubky Ring.`
-          : identity
-            ? scanning
-              ? `Scan this code with Pubky Ring on ${phone}, then approve so Passport can edit your public profile and avatar. Your private key stays in Pubky Ring.`
-              : "Approve in Pubky Ring so Passport can edit your public profile and avatar. Your private key stays in Pubky Ring."
-            : confirmIdentity
-              ? scanning
-                ? `Scan this code with Pubky Ring on ${phone}, choose the pubky you just created and approve, so Passport can publish its profile. Your private key stays in Pubky Ring.`
-                : "In Pubky Ring, choose the pubky you just created and approve, so Passport can publish its profile. Your private key stays in Pubky Ring."
-              : scanning
-                ? `Scan this code with Pubky Ring on ${phone} and approve to add your pubky to Passport. Passport can then edit your public profile and avatar, and changes nothing until you do. Your private key stays in Pubky Ring.`
-                : "Approve in Pubky Ring to add your pubky to Passport. Passport can then edit your public profile and avatar, and changes nothing until you do. Your private key stays in Pubky Ring."
-      }
-      navigation={
-        embedded ? (
-          // Inside the card: Cancel on the card's edge under the hand-off.
-          back ? (
-            <CancelButton onClick={back} />
-          ) : null
+  // One short line: the card lists the steps, and the keychain app shows what it grants.
+  const instruction = appSignIn
+    ? `You’re signed in, but ${appSignIn.requester ?? "this app"} needs a public profile. Approve in your keychain so Passport can create it.`
+    : identity
+      ? "Approve in your keychain so Passport can edit your public profile."
+      : confirmIdentity
+        ? "Approve with the pubky you just created so Passport can publish its profile."
+        : "Approve in your keychain to add your pubky. Passport changes nothing until you do.";
+  const request = (
+    <div className="w-full min-w-0 outline-none" ref={handoff} tabIndex={-1}>
+      <ExternalSignerRequest
+        bare
+        buttonVariant="secondary"
+        getAuthorizationUrl={() => controller.authorizationUrl()}
+        launcher={launcher}
+        openOnReady={openOnReady}
+        // A computer sees the code's tile at once, at its final size, while the link is made;
+        // a phone its button, busy, in place.
+        preparing={state.status === "starting"}
+        purpose="profile-connection"
+        // Retried from the hand-off itself (the toast says why): a computer presses the spent
+        // code, a phone Try again. Only a storage failure keeps the approved grant.
+        spent={
+          state.status === "failed"
+            ? { onRetry: () => retry(state.failure === "storage_failed") }
+            : undefined
+        }
+      />
+    </div>
+  );
+  const confirmation =
+    state.status === "confirming" ? (
+      <section
+        aria-labelledby={`${id}-confirm`}
+        className="flex min-w-0 flex-col gap-4 rounded-md bg-card p-6 md:p-8"
+      >
+        <h2 className="text-2xl font-bold leading-8" id={`${id}-confirm`}>
+          {state.hasProfile === "published"
+            ? "This pubky already has a profile"
+            : "Is this your new pubky?"}
+        </h2>
+        <DetailField label="Pubky from your keychain" value={state.publicKeyZ32} />
+        {state.hasProfile === "published" ? (
+          // An existing account: its live profile is kept, never offered as a new one to fill.
+          <>
+            <p className="text-sm leading-5 text-muted-foreground">
+              Your keychain approved a pubky that already has a public profile, so it is not the one
+              you just created. Choose your new pubky in your keychain app, or add this one to
+              Passport. Its profile stays as it is.
+            </p>
+            <Button
+              className="w-full"
+              disabled={state.saving}
+              onClick={() => retry(false)}
+              size="lg"
+            >
+              Choose again in your keychain
+            </Button>
+            <Button
+              className="w-full"
+              loading={state.saving}
+              onClick={() => void confirm()}
+              size="lg"
+              variant="outline"
+            >
+              Add this pubky
+            </Button>
+          </>
         ) : (
-          <PassportNavigation
-            back={back ? <BackButton onClick={back} /> : undefined}
-            tertiary={
-              setupRequired && defer ? (
-                <Button onClick={defer} type="button" variant="link">
-                  Skip for now
-                </Button>
-              ) : undefined
-            }
+          <>
+            <p className="text-sm leading-5 text-muted-foreground">
+              Continue only if it is the pubky you just created in your keychain app. Passport saves
+              it and publishes your new profile to it.
+            </p>
+            <Button
+              className="w-full"
+              loading={state.saving}
+              onClick={() => void confirm()}
+              size="lg"
+            >
+              Yes, it is my new pubky
+            </Button>
+            <Button
+              className="w-full"
+              disabled={state.saving}
+              onClick={() => retry(false)}
+              size="lg"
+              variant="outline"
+            >
+              No, choose again in your keychain
+            </Button>
+          </>
+        )}
+      </section>
+    ) : null;
+  const discardDialog = unsavedEdits ? (
+    <DiscardChangesDialog
+      onDiscard={() => {
+        const leave = leaving;
+        setLeaving(undefined);
+        leave?.();
+      }}
+      onKeepEditing={() => setLeaving(undefined)}
+      open={leaving !== undefined}
+    />
+  ) : null;
+
+  // Until it is known whether a stored grant connects the identity, nothing asks for the keychain.
+  if (state.status === "resuming") return null;
+
+  if (embedded === "card")
+    return (
+      <>
+        {notice}
+        {confirmation ?? (
+          <KeychainHandoffCard
+            footer={<ClassicQrSwitch />}
+            handoff={request}
+            instructions={KEYCHAIN_QR_STEPS}
+            label={KEYCHAIN_QR_TITLE}
+            lead={KEYCHAIN_QR_LEAD}
+            title={KEYCHAIN_QR_TITLE}
           />
-        )
+        )}
+        {discardDialog}
+      </>
+    );
+
+  if (embedded)
+    return (
+      // Inside the start page's card its own line says what this is for; the button stays where
+      // it was pressed, and Cancel sits on the card's edge under the hand-off.
+      <RingHandoffScreen
+        action="Connect"
+        embedded="quiet"
+        instruction={instruction}
+        navigation={back ? <CancelButton onClick={back} /> : null}
+      >
+        {notice}
+        {confirmation ?? (
+          <>
+            {request}
+            <ClassicQrSwitch />
+          </>
+        )}
+        {discardDialog}
+      </RingHandoffScreen>
+    );
+
+  return (
+    <OnboardingScreen
+      accent={appSignIn ? "profile." : "keychain."}
+      actions={
+        <PassportNavigation
+          back={back ? <BackButton className="max-[30rem]:w-full" onClick={back} /> : undefined}
+          tertiary={
+            setupRequired && defer ? (
+              <Button onClick={defer} type="button" variant="link">
+                Skip for now
+              </Button>
+            ) : undefined
+          }
+        />
       }
+      lead={instruction}
+      title={appSignIn ? "Set up your" : "Connect your"}
     >
       {notice}
       {identity ? <IdentityToConnect identity={identity} /> : null}
       {unsavedEdits ? (
         <Notice tone="info">Your unsaved profile changes are kept until you leave.</Notice>
       ) : null}
-      {state.status === "confirming" ? (
-        <section
-          aria-labelledby={`${id}-confirm`}
-          className="flex min-w-0 flex-col gap-4 rounded-md bg-card p-6 md:p-8"
-        >
-          <h2 className="text-2xl font-bold leading-8" id={`${id}-confirm`}>
-            {state.hasProfile === "published"
-              ? "This pubky already has a profile"
-              : "Is this your new pubky?"}
-          </h2>
-          <DetailField label="Pubky from Pubky Ring" value={state.publicKeyZ32} />
-          {state.hasProfile === "published" ? (
-            // An existing account: its live profile is kept, never offered as a new one to fill.
-            <>
-              <p className="text-sm leading-5 text-muted-foreground">
-                Pubky Ring approved a pubky that already has a public profile, so it is not the one
-                you just created. Choose your new pubky in Pubky Ring, or add this one to Passport.
-                Its profile stays as it is.
-              </p>
-              <Button
-                className="w-full"
-                disabled={state.saving}
-                onClick={() => retry(false)}
-                size="lg"
-              >
-                Choose again in Pubky Ring
-              </Button>
-              <Button
-                className="w-full"
-                loading={state.saving}
-                onClick={() => void confirm()}
-                size="lg"
-                variant="outline"
-              >
-                Add this pubky
-              </Button>
-            </>
-          ) : (
-            <>
-              <p className="text-sm leading-5 text-muted-foreground">
-                Continue only if it is the pubky you just created in Pubky Ring. Passport saves it
-                and publishes your new profile to it.
-              </p>
-              <Button
-                className="w-full"
-                loading={state.saving}
-                onClick={() => void confirm()}
-                size="lg"
-              >
-                Yes, it is my new pubky
-              </Button>
-              <Button
-                className="w-full"
-                disabled={state.saving}
-                onClick={() => retry(false)}
-                size="lg"
-                variant="outline"
-              >
-                No, choose again in Pubky Ring
-              </Button>
-            </>
-          )}
-        </section>
-      ) : (
-        <div className="w-full min-w-0 outline-none" ref={handoff} tabIndex={-1}>
-          <ExternalSignerRequest
-            getAuthorizationUrl={() => controller.authorizationUrl()}
-            launcher={launcher}
-            openOnReady={openOnReady}
-            // A computer sees the code's tile at once, at its final size, while the link is made;
-            // a phone its button, busy, in place.
-            preparing={state.status === "starting"}
-            purpose="profile-connection"
-            // Retried from the hand-off itself (the toast says why): a computer presses the spent
-            // code, a phone Try again. Only a storage failure keeps the approved grant.
-            spent={
-              state.status === "failed"
-                ? { onRetry: () => retry(state.failure === "storage_failed") }
-                : undefined
-            }
-          />
-        </div>
-      )}
-      {unsavedEdits ? (
-        <DiscardChangesDialog
-          onDiscard={() => {
-            const leave = leaving;
-            setLeaving(undefined);
-            leave?.();
-          }}
-          onKeepEditing={() => setLeaving(undefined)}
-          open={leaving !== undefined}
+      {confirmation ?? (
+        <KeychainHandoffCard
+          footer={<ClassicQrSwitch />}
+          handoff={request}
+          instructions={KEYCHAIN_QR_STEPS}
+          label="Keychain connection"
         />
-      ) : null}
-    </RingHandoffScreen>
+      )}
+      {discardDialog}
+    </OnboardingScreen>
   );
 }
 

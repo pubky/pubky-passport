@@ -6,6 +6,9 @@ import { UNVERIFIED_BAND } from "./helpers/requester";
 
 const REQUEST =
   "pubkyauth://signin?caps=/pub/app/:rw&relay=https://relay.example/inbox&secret=kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8&x-source=Example%20App&x-success=https%3A%2F%2Fexample.app%2Fdone";
+/** Account creation's steps, as the header row names them. */
+const STEPS = ["Create account", "Identity keys", "Profile"] as const;
+
 for (const viewport of [
   { width: 1280, height: 800 },
   { width: 375, height: 812 },
@@ -17,41 +20,57 @@ for (const viewport of [
     test.setTimeout(60_000);
     await page.setViewportSize(viewport);
     await page.goto(`/authorize#d=${encodeURIComponent(REQUEST)}`);
-    await inspect("start-page");
-    await page.getByRole("button", { name: "Enter invite manually" }).click();
-    await inspect("invite-entry");
-    await expect(page.getByRole("navigation", { name: "Account setup progress" })).toBeVisible();
+    // The request opens on Join, account creation's first step; its new keys go on to Verify.
+    await expect(page.getByRole("heading", { name: "Let’s join Pubky." })).toBeVisible();
+    await inspect("start-page", 0);
+    await page.getByRole("button", { name: "Manage your own keys" }).click();
+    await expect(page.getByRole("heading", { name: "Prove you’re not a robot." })).toBeVisible();
+    await inspect("verification-methods", 0);
+    await page.getByRole("button", { name: "Invite code" }).click();
+    await expect(page.getByRole("heading", { name: "Use invite." })).toBeVisible();
+    await inspect("invite-entry", 0);
     await page.getByLabel("Enter invite code", { exact: true }).fill("AB12-CD34-EF56");
     await page.getByRole("button", { name: "Continue", exact: true }).click();
-    await inspect("signer-choice");
-    await page.getByRole("button", { name: "Keep key in this browser" }).click();
+    await expect(page.getByRole("heading", { name: "Pick your keychain." })).toBeVisible();
+    await inspect("signer-choice", 1);
+    await keepKeyInBrowser();
     await expect(page.getByRole("heading", { name: "Protect your key." })).toBeVisible();
-    await inspect("protect-key");
+    await inspect("protect-key", 1);
     await page.getByLabel("Enter strong password", { exact: true }).fill("correct horse battery");
     const download = page.waitForEvent("download");
     await page.getByRole("button", { name: "Download recovery file" }).click();
     expect((await download).suggestedFilename()).toMatch(/\.pkarr$/);
-    await inspect("verify-backup");
+    await inspect("verify-backup", 1);
     // Each recovery step moves focus to its heading.
     await expect(page.locator("main h1")).toBeFocused();
     await page.getByRole("button", { name: "Back", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Protect your key." })).toBeVisible();
     await page.getByRole("button", { name: "Back", exact: true }).click();
-    await expect(page.getByRole("heading", { name: "Where should your key live?" })).toBeVisible();
-    await page.getByRole("button", { name: "Keep key in this browser" }).click();
+    await expect(page.getByRole("heading", { name: "Pick your keychain." })).toBeVisible();
+    await keepKeyInBrowser();
     await expect(page.getByRole("heading", { name: "Protect your key." })).toBeVisible();
     await expect(page.getByRole("complementary", UNVERIFIED_BAND)).toHaveCount(1);
     const storage = await page.evaluate(() => JSON.stringify(localStorage));
     expect(storage).not.toContain("correct horse battery");
     expect(storage).not.toContain("kqnceEMgrNQM");
     await page.reload();
-    // Picking a way to verify reopens the setup saved before the reload.
-    await page.getByRole("button", { name: "Enter invite manually" }).click();
-    await page.getByRole("button", { name: "Keep key in this browser" }).click();
+    // Choosing to manage keys again reopens the setup saved before the reload, at the keychain.
+    await page.getByRole("button", { name: "Manage your own keys" }).click();
+    await expect(page.getByRole("heading", { name: "Pick your keychain." })).toBeVisible();
+    await keepKeyInBrowser();
     await expect(page.getByRole("heading", { name: "Protect your key." })).toBeVisible();
     await expect(page.getByLabel("Enter strong password", { exact: true })).toBeEmpty();
 
-    async function inspect(name: string) {
+    /** Keeps the key in this browser, past the tradeoffs that choice asks to weigh first. */
+    async function keepKeyInBrowser() {
+      await page.getByRole("button", { name: "Keep key in this browser" }).click();
+      const tradeoffs = page.getByRole("dialog", { name: "Be aware of these tradeoffs:" });
+      await expect(tradeoffs.getByRole("listitem")).toHaveCount(3);
+      await tradeoffs.getByRole("button", { name: "Create in browser anyway" }).click();
+    }
+
+    /** `step` indexes {@link STEPS}; `null` is a screen outside account creation. */
+    async function inspect(name: string, step: 0 | 1 | 2 | null) {
       await expect(page.locator("main h1")).toBeVisible();
       await expect(page.getByRole("complementary", UNVERIFIED_BAND)).toHaveCount(1);
       expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
@@ -59,14 +78,73 @@ for (const viewport of [
       );
       const layout = await page.evaluate(() => ({
         main: document.querySelector("main")!.getBoundingClientRect().bottom,
-        footer: document.querySelector("footer")!.getBoundingClientRect().top,
+        footer: document.querySelector("body > footer")!.getBoundingClientRect().top,
       }));
       expect(layout.footer).toBeGreaterThanOrEqual(layout.main - 1);
+      await expectProgress(step);
+      await expectPinnedActions();
       expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
       await page.screenshot({
         path: testInfo.outputPath(`${name}-${viewport.width}.png`),
         fullPage: true,
       });
+    }
+
+    /**
+     * The step is named in the header row, above the screen's heading: from md by its name and a
+     * circle per step (the finished ones ticked), below md by a bar the finished steps fill.
+     */
+    async function expectProgress(step: 0 | 1 | 2 | null) {
+      const name = "Account setup progress";
+      if (step === null) {
+        await expect(page.getByRole("navigation", { name })).toHaveCount(0);
+        return;
+      }
+      const progress = page.getByRole("banner").getByRole("navigation", { name });
+      await expect(progress).toContainText(`Step ${step + 1} of ${STEPS.length}: ${STEPS[step]}`);
+      const heading = (await page.locator("main h1").boundingBox())!;
+      const header = (await page.getByRole("banner").boundingBox())!;
+      expect(header.y + header.height).toBeLessThanOrEqual(heading.y);
+      const circles = progress.locator("[data-state]");
+      if (viewport.width >= 768) {
+        await expect(progress.getByText(STEPS[step], { exact: true })).toBeVisible();
+        await expect(circles).toHaveCount(STEPS.length);
+        await expect(circles.nth(step)).toHaveAttribute("data-state", "current");
+        for (let index = 0; index < step; index++)
+          await expect(circles.nth(index)).toHaveAttribute("data-state", "complete");
+        const box = (await progress.boundingBox())!;
+        expect(box.y + box.height).toBeLessThanOrEqual(header.y + header.height);
+      } else {
+        await expect(circles.first()).toBeHidden();
+        const fill = progress.locator("[aria-hidden=true] > div");
+        if (step === 0) await expect(fill).toHaveCount(0);
+        else {
+          await expect(fill).toBeVisible();
+          const filled = await fill.evaluate(
+            (element) =>
+              element.getBoundingClientRect().width /
+              element.parentElement!.getBoundingClientRect().width,
+          );
+          expect(filled).toBeCloseTo(step / STEPS.length, 2);
+        }
+      }
+    }
+
+    /**
+     * Below md a screen's actions sit at the window's bottom edge, whatever its length: a short
+     * screen fills the window and ends on them, above its own bottom padding; a long one keeps them
+     * pinned there while it scrolls under them.
+     */
+    async function expectPinnedActions() {
+      const actions = page.locator("[data-sticky-actions]");
+      if (viewport.width >= 768 || (await actions.count()) === 0) return;
+      await page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" }));
+      const padding = await page
+        .locator("main")
+        .evaluate((main) => parseFloat(getComputedStyle(main).paddingBottom));
+      const box = (await actions.boundingBox())!;
+      expect(box.y + box.height).toBeGreaterThanOrEqual(viewport.height - padding - 1);
+      expect(box.y + box.height).toBeLessThanOrEqual(viewport.height + 1);
     }
   });
 }
@@ -75,12 +153,14 @@ test("import uses a compact accessible form with a working Back action", async (
   page,
 }, testInfo) => {
   await page.goto("/");
+  // A recovery file is a way to sign in.
+  await page.getByRole("banner").getByRole("button", { name: "Sign in" }).click();
   await page.getByRole("button", { name: "Import it", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Import recovery file." })).toBeVisible();
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
   await page.screenshot({ path: testInfo.outputPath("import-backup.png"), fullPage: true });
   await page.getByRole("button", { name: "Back", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Get your pubky." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Sign in to Pubky" })).toBeVisible();
 });
 
 test("removing a browser-only key without a backup requires acknowledging one", async ({
@@ -138,7 +218,7 @@ test("removing a browser-only key without a backup requires acknowledging one", 
   await page.getByRole("checkbox", { name: /I have a backup of this key/ }).check();
   await remove.click();
 
-  await expect(page.getByRole("heading", { name: "Get your pubky." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Let’s join Pubky." })).toBeVisible();
   expect(
     await page.evaluate(() =>
       Object.keys(localStorage).filter((key) => key.includes("/local-identities/v1/identity/")),

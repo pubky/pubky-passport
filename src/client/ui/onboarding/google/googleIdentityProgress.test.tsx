@@ -4,6 +4,7 @@ import { cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
 import type { GoogleIdentityProgress as GoogleIdentityProgressState } from "@/client/logic/google-identity/GoogleIdentityController";
+import { SetupProgressSlot } from "@/client/ui/shared/setupProgress";
 import { GoogleIdentityProgress } from "./googleIdentityProgress";
 
 const HOMESERVER = "8pinxxgqs41n4aididenw5apqp1urfmzdztr8jt4abrkdn435ewo";
@@ -35,17 +36,25 @@ describe("GoogleIdentityProgress", () => {
   );
 
   it("heads account creation with the Google setup stepper, and a lookup or restore without it", () => {
-    render(<GoogleIdentityProgress progress={{ flow: "create", step: "signing_up" }} />);
-    const stepper = screen.getByRole("navigation", { name: "Account setup progress" });
-    expect(within(stepper).getByText("Google backup").closest("li")).toHaveAttribute(
-      "aria-current",
-      "step",
+    render(
+      <>
+        <SetupProgressSlot />
+        <GoogleIdentityProgress progress={{ flow: "create", step: "signing_up" }} />
+      </>,
     );
-    // The same space under the stepper as every other step.
+    // Google's backup holds the identity keys, the second of account creation's three steps.
+    const stepper = screen.getByRole("navigation", { name: "Account setup progress" });
+    expect(within(stepper).getByText("Step 2 of 3: Identity keys")).toBeInTheDocument();
+    // The same space under the heading as every other step.
     expect(screen.getByRole("main")).toHaveClass("gap-6", "md:gap-8");
     cleanup();
 
-    render(<GoogleIdentityProgress progress={{ flow: "restore", step: "restoring" }} />);
+    render(
+      <>
+        <SetupProgressSlot />
+        <GoogleIdentityProgress progress={{ flow: "restore", step: "restoring" }} />
+      </>,
+    );
     expect(screen.queryByRole("navigation", { name: "Account setup progress" })).toBeNull();
   });
 

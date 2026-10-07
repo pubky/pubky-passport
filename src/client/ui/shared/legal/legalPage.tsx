@@ -8,7 +8,7 @@ type LegalPageProps = {
 
 function LegalPage({ children, eyebrow, title }: LegalPageProps) {
   return (
-    <main className="mx-auto w-full max-w-5xl grow px-6 pb-24 pt-4 md:px-10 md:pb-32 md:pt-8">
+    <main className="mx-auto w-full max-w-5xl grow px-6 pb-24 pt-4 md:pb-32 md:pt-8 min-[64.0625rem]:px-10">
       <header className="mb-14 border-b border-border pb-12 md:mb-20 md:pb-16">
         <p className="mb-4 text-xs font-bold uppercase tracking-[0.18em] text-muted-foreground">
           {eyebrow}

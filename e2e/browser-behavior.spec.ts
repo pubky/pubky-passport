@@ -71,10 +71,11 @@ test("a pending sign-in survives the legal links, the logo and a reload the pers
   await expect(page.getByRole("img", { name: "Pubky", exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: "Pubky", exact: true })).toHaveCount(0);
   // Reading the terms opens a new tab and leaves the request where it was.
-  const terms = page.getByRole("link", { name: "Terms of Service (opens in a new tab)" });
+  const legalLinks = page.getByRole("navigation", { name: "Legal" });
+  const terms = legalLinks.getByRole("link", { name: "Terms of Service (opens in a new tab)" });
   await expect(terms).toHaveAttribute("target", "_blank");
   await expect(
-    page.getByRole("link", { name: "Privacy Policy (opens in a new tab)" }),
+    legalLinks.getByRole("link", { name: "Privacy Policy (opens in a new tab)" }),
   ).toHaveAttribute("rel", "noopener noreferrer");
   const [legal] = await Promise.all([context.waitForEvent("page"), terms.click()]);
   await expect(legal).toHaveURL(/\/terms-of-service$/u);
@@ -126,8 +127,8 @@ test("the app closes its own popup mid-request without a leave prompt", async ({
       // One saved identity: the request opens straight on its review.
       await expect(popup.getByRole("button", { name: "Authorize", exact: true })).toBeVisible();
     } else {
-      // The review's "or" offers Pubky Ring, as the list does.
-      await popup.getByRole("button", { name: "Continue with Pubky Ring", exact: true }).click();
+      // The review's "or" offers the keychain app, as the list does.
+      await popup.getByRole("button", { name: "Continue with keychain", exact: true }).click();
       // A computer shows the code; a phone its one button that opens Pubky Ring.
       await expect(
         popup
@@ -152,7 +153,9 @@ test("outside a request the logo leads home and the legal links stay in the tab"
 }) => {
   await page.goto("/privacy-policy");
   await expect(page.getByRole("link", { name: "Pubky", exact: true })).toHaveAttribute("href", "/");
-  const terms = page.getByRole("link", { name: "Terms of Service", exact: true });
+  const terms = page
+    .getByRole("navigation", { name: "Legal" })
+    .getByRole("link", { name: "Terms of Service", exact: true });
   await expect(terms).not.toHaveAttribute("target");
   await terms.click();
   await expect(page).toHaveURL(/\/terms-of-service$/u);
@@ -198,26 +201,33 @@ test("a phone's first screen loads no Pubky SDK and asks Pubky Ring nothing unti
   const largestScript = async () => Math.max(0, ...(await Promise.all(scripts)));
 
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "Get your pubky." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Let’s join Pubky." })).toBeVisible();
   await page.waitForLoadState("networkidle");
   expect(await largestScript()).toBeLessThan(SDK_SCRIPT_BYTES);
-  // The Pubky Ring card waits for its button: no request exists, so the relay hears nothing.
-  const ring = page.getByRole("region", { name: "Pubky Ring", exact: true });
-  await expect(ring.getByRole("button", { name: "Sign in with Pubky Ring" })).toBeVisible();
-  await expect(ring.locator("[data-state]")).toHaveCount(0);
+  // Sign in's keychain section waits for its button: no request exists, so the relay hears
+  // nothing.
+  await page.getByRole("banner").getByRole("button", { name: "Sign in" }).click();
+  const keychain = page.getByRole("region", { name: "Sovereign & Secure", exact: true });
+  await expect(
+    keychain.getByRole("button", { name: "Continue with Pubky Ring or Bitkit" }),
+  ).toBeVisible();
+  await expect(keychain.locator("[data-state]")).toHaveCount(0);
   expect(net.relayRequests).toEqual([]);
 
-  await page.getByRole("button", { name: "Enter invite manually" }).click();
+  // Back to Join, where Sign in was opened from, for new keys.
+  await page.getByRole("button", { name: "Back", exact: true }).click();
+  await page.getByRole("button", { name: "Manage your own keys" }).click();
+  await page.getByRole("button", { name: "Invite code" }).click();
   // Checking the invite with its homeserver is the first step that needs the SDK.
   await page.getByLabel("Enter invite code").fill("AB12-CD34-EF56");
   await expect.poll(largestScript, { timeout: 15_000 }).toBeGreaterThan(SDK_SCRIPT_BYTES);
 });
 
-test("a computer's first screen paints without the Pubky SDK: the Ring code waits in a placeholder of its size", async ({
+test("a computer's Sign in paints without the Pubky SDK: the keychain code waits in a placeholder of its size", async ({
   page,
   isMobile,
 }) => {
-  test.skip(isMobile, "A phone's Pubky Ring card starts from its button; see the test above.");
+  test.skip(isMobile, "A phone's keychain card starts from its button; see the test above.");
   await mockRingNetwork(page);
   // The SDK's script is held back on its way to the page, to see what the page is without it.
   let sdkRequested = false;
@@ -236,10 +246,13 @@ test("a computer's first screen paints without the Pubky SDK: the Ring code wait
   });
 
   await page.goto("/");
-  // The whole first screen is there and usable while the SDK has not arrived.
-  await expect(page.getByRole("heading", { name: "Get your pubky." })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Continue with SMS" })).toBeVisible();
-  const ring = page.getByRole("region", { name: "Pubky Ring", exact: true });
+  await page.getByRole("banner").getByRole("button", { name: "Sign in" }).click();
+  // The whole screen is there and usable while the SDK has not arrived.
+  await expect(page.getByRole("heading", { name: "Sign in to Pubky" })).toBeVisible();
+  const ring = page.getByRole("region", { name: "Scan QR with keychain.", exact: true });
+  await expect(ring.getByRole("heading", { name: "Scan QR with keychain." })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Import it" })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "Back", exact: true })).toBeEnabled();
   const tile = ring.locator("[data-state]");
   await expect(tile).toHaveAttribute("data-state", "generating");
   await expect(tile.getByRole("status")).toHaveText("Generating QR code…");
@@ -250,9 +263,7 @@ test("a computer's first screen paints without the Pubky SDK: the Ring code wait
 
   release();
   await expect(tile).toHaveAttribute("data-state", "ready", { timeout: 15_000 });
-  await expect(
-    ring.getByRole("img", { name: "Pubky Ring profile connection QR code" }),
-  ).toBeVisible();
+  await expect(ring.getByRole("img", { name: "Keychain connection QR code" })).toBeVisible();
   // The code takes the placeholder's place exactly: nothing on the page moved.
   expect(await tile.boundingBox()).toEqual(placeholder);
   expect(await page.evaluate(() => document.documentElement.scrollHeight)).toBe(pageHeight);
@@ -272,7 +283,7 @@ test("a stale link lands on Passport's own not-found page, with a way back", asy
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.getByRole("link", { name: "Go to Passport" }).click();
   await expect(page).toHaveURL(/\/$/u);
-  await expect(page.getByRole("heading", { level: 1, name: /Get your pubky/u })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Let’s join Pubky." })).toBeVisible();
 });
 
 test("the signer title keeps its accent color without horizontal overflow", async ({ page }) => {
@@ -283,7 +294,7 @@ test("the signer title keeps its accent color without horizontal overflow", asyn
     await page.setViewportSize(viewport);
     await page.goto("/");
 
-    const heading = page.getByRole("heading", { name: "Get your pubky." });
+    const heading = page.getByRole("heading", { name: "Let’s join Pubky." });
     await expect(heading).toBeVisible();
     const headingColor = await heading.evaluate((element) => getComputedStyle(element).color);
     const [titleBox, accentBox] = await heading.locator("span").evaluateAll((spans) =>
@@ -313,23 +324,38 @@ test("the passport chrome does not overlap content in a short viewport", async (
   await page.goto("/");
 
   const logo = page.getByRole("img", { name: "Pubky", exact: true });
-  const heading = page.getByRole("heading", { name: "Get your pubky." });
+  const heading = page.getByRole("heading", { name: "Let’s join Pubky." });
+  // Account creation's steps share the header row with the logo and its action.
+  const steps = page
+    .getByRole("banner")
+    .getByRole("navigation", { name: "Account setup progress" });
+  const action = page.getByRole("banner").getByRole("button", { name: "Sign in" });
   const footer = page.locator("body > footer");
   const main = page.locator("main");
   await expect(heading).toBeVisible();
+  await expect(steps).toBeVisible();
 
-  const [logoBox, headingBox, mainBox, footerBox] = await Promise.all([
+  const [logoBox, stepsBox, actionBox, headingBox, mainBox, footerBox] = await Promise.all([
     logo.boundingBox(),
+    steps.boundingBox(),
+    action.boundingBox(),
     heading.boundingBox(),
     main.boundingBox(),
     footer.boundingBox(),
   ]);
 
   expect(logoBox).not.toBeNull();
+  expect(stepsBox).not.toBeNull();
+  expect(actionBox).not.toBeNull();
   expect(headingBox).not.toBeNull();
   expect(mainBox).not.toBeNull();
   expect(footerBox).not.toBeNull();
   expect((logoBox?.y ?? 0) + (logoBox?.height ?? 0)).toBeLessThanOrEqual(headingBox?.y ?? 0);
+  // The row reads logo, steps, action, from left to right, and all of it stays above the heading.
+  expect((logoBox?.x ?? 0) + (logoBox?.width ?? 0)).toBeLessThanOrEqual(stepsBox?.x ?? 0);
+  expect((stepsBox?.x ?? 0) + (stepsBox?.width ?? 0)).toBeLessThanOrEqual(actionBox?.x ?? 0);
+  for (const box of [stepsBox, actionBox])
+    expect((box?.y ?? 0) + (box?.height ?? 0)).toBeLessThanOrEqual(headingBox?.y ?? 0);
   expect(await footer.evaluate((element) => getComputedStyle(element).position)).toBe("static");
   expect(footerBox?.y).toBeGreaterThanOrEqual((mainBox?.y ?? 0) + (mainBox?.height ?? 0) - 1);
 });
@@ -429,9 +455,9 @@ for (const viewport of [
     await mark.hover();
     const panel = page.getByRole("dialog", { name: GOOGLE_EXPLAINER });
     await expect(panel).toBeVisible();
-    // The pill sits in the first card now, so the panel opens to its right: the pointer still
-    // leaves the mark and crosses the rest of the pill and the gap to reach it.
-    await expect(panel.locator("..")).toHaveAttribute("data-placement", "right");
+    // The pill sits in Join's second card, so the panel opens to its left: the pointer leaves
+    // the mark and crosses the rest of the pill and the gap to reach it.
+    await expect(panel.locator("..")).toHaveAttribute("data-placement", "left");
     const learnMore = panel.getByRole("link", { name: "Learn more" });
     const from = centreOf((await mark.boundingBox())!);
     const to = centreOf((await learnMore.boundingBox())!);
@@ -647,7 +673,7 @@ test("overview keeps recovery and account actions in a separate management scree
   await expect(page.getByRole("heading", { name: "Your pubky." })).toBeFocused();
 });
 
-test("overview pubky is plain text; management copying shows the gray info toast", async ({
+test("overview pubky is plain text; management copying shows the success toast", async ({
   page,
 }) => {
   await seedLocalIdentity(page);
@@ -674,12 +700,18 @@ test("overview pubky is plain text; management copying shows the gray info toast
     .filter({ hasText: "Pubky copied to clipboard" });
   await expect(toast).toBeVisible();
   await expect(toast).toHaveAttribute("data-mounted", "true");
-  await expect(toast).toHaveAttribute("data-type", "info");
+  await expect(toast).toHaveAttribute("data-type", "success");
   await expect(toast.locator("[data-title]")).toHaveText("Pubky copied to clipboard");
-  await expect(toast.locator("[data-description]")).toHaveText(`${FIRST_KEY.slice(0, 32)}...`);
+  await expect(toast.locator("[data-description]")).toHaveText(`${FIRST_KEY.slice(0, 28)}…`);
+  // A brand-bordered toast whose icon is a tick in a filled brand circle.
+  await expect(toast).toHaveCSS("border-top-color", "rgb(200, 255, 0)");
   const icon = toast.locator("[data-icon] svg");
   await expect(icon).toHaveCount(1);
-  await expect(icon).toHaveAttribute("viewBox", "0 0 20 20");
+  await expect(icon).toHaveAttribute("viewBox", "0 0 11.9967 8.66333");
+  await expect(toast.locator("[data-icon] > span").first()).toHaveCSS(
+    "background-color",
+    "rgb(200, 255, 0)",
+  );
   // Passport's typeface, not the system font Sonner's own stylesheet sets.
   await expect(toast).toHaveCSS("font-family", /Inter Tight/u);
 

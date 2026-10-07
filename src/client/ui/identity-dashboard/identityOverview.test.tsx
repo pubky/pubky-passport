@@ -15,6 +15,10 @@ const BACKUP_AT = "2026-09-01T10:00:00.000Z";
 function renderOverview(
   identity: LocalIdentityMetadata,
   onRemoveIdentity: () => LocalIdentityResult<void> = () => Result.ok(),
+  keychain: Pick<
+    Parameters<typeof IdentityOverview>[0],
+    "keychainConnected" | "onDisconnectKeychain"
+  > = {},
 ) {
   const callbacks = {
     onBackup: vi.fn(),
@@ -25,7 +29,9 @@ function renderOverview(
     onSwitch: vi.fn(),
     onVerifyBackup: vi.fn(),
   };
-  render(<IdentityOverview identity={identity} onAuthorize={vi.fn()} {...callbacks} />);
+  render(
+    <IdentityOverview identity={identity} onAuthorize={vi.fn()} {...callbacks} {...keychain} />,
+  );
   return callbacks;
 }
 
@@ -201,6 +207,45 @@ describe("IdentityOverview", () => {
     expect(screen.getByRole("button", { name: "Authorize an app" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Set up profile" }));
     expect(onEditProfile).toHaveBeenCalledOnce();
+  });
+
+  it("offers to disconnect the keychain whose profile grant this browser keeps for a Ring identity", () => {
+    const onDisconnectKeychain = vi.fn();
+    const { onEditProfile, onRemoveIdentity } = renderOverview(
+      { publicIdentity: PUBLIC_IDENTITY, keySource: "ring" },
+      undefined,
+      { keychainConnected: true, onDisconnectKeychain },
+    );
+
+    // A link under the actions, after Switch: ending the connection is not one of the actions.
+    const disconnect = screen.getByRole("button", { name: "Disconnect keychain" });
+    expect(
+      screen.getByRole("button", { name: "Switch identity" }).compareDocumentPosition(disconnect) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    fireEvent.click(disconnect);
+    expect(onDisconnectKeychain).toHaveBeenCalledOnce();
+    // It neither removes the identity nor opens anything.
+    expect(onRemoveIdentity).not.toHaveBeenCalled();
+    expect(onEditProfile).not.toHaveBeenCalled();
+    expect(screen.getByRole("heading", { name: "Your pubky." })).toBeInTheDocument();
+  });
+
+  it.each([
+    [
+      "no grant is stored for a Ring identity",
+      { keySource: "ring" } as const,
+      { keychainConnected: false, onDisconnectKeychain: vi.fn() },
+    ],
+    [
+      "nothing can disconnect it",
+      { keySource: "ring" } as const,
+      { keychainConnected: true, onDisconnectKeychain: undefined },
+    ],
+    ["this browser holds the key", {}, { keychainConnected: true, onDisconnectKeychain: vi.fn() }],
+  ])("offers no keychain to disconnect when %s", (_case, source, keychain) => {
+    renderOverview({ publicIdentity: PUBLIC_IDENTITY, ...source }, undefined, keychain);
+    expect(screen.queryByRole("button", { name: "Disconnect keychain" })).toBeNull();
   });
 
   it("names an identity without a profile after its key, with pubky.app's face for the key", () => {

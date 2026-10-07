@@ -7,7 +7,7 @@ import {
   SETUP_STEP,
   type ChecklistStep,
 } from "@/client/ui/shared/identityProgress";
-import { GOOGLE_SETUP_STEPS, SetupProgressProvider } from "@/client/ui/shared/setupProgress";
+import { SetupProgressProvider } from "@/client/ui/shared/setupProgress";
 
 type ProgressPresentation =
   | { heading: "Loading" }
@@ -25,7 +25,7 @@ function GoogleIdentityProgress({ progress }: { progress: GoogleIdentityProgress
   if (presentation.heading === "Loading") return <IdentityLoading />;
   if (progress.flow !== "create") return <IdentityProgress {...presentation} />;
   return (
-    <SetupProgressProvider steps={GOOGLE_SETUP_STEPS} current={0}>
+    <SetupProgressProvider current={1}>
       <IdentityProgress {...presentation} />
     </SetupProgressProvider>
   );

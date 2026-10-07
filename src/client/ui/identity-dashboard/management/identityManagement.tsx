@@ -16,7 +16,6 @@ import { BackButton } from "@/client/ui/shared/backButton";
 import { GoogleLogo } from "@/client/ui/shared/brand/googleLogo";
 import { PUBKY_COPY_TOASTS } from "@/client/ui/shared/copyToClipboard";
 import { DetailField } from "@/client/ui/shared/detailField";
-import { shortCopiedValue } from "@/client/ui/shared/formatPublicKey";
 import { identityDisplayName, profileName } from "@/client/ui/shared/identityDisplay";
 import {
   CheckIcon,
@@ -152,11 +151,7 @@ function IdentityManagement({
           ) : null}
           <ProfileLinks links={identity.profile?.links} />
           <DetailField
-            copy={{
-              ...PUBKY_COPY_TOASTS,
-              value: publicKeyZ32,
-              copiedDescription: shortCopiedValue(publicKeyZ32),
-            }}
+            copy={{ ...PUBKY_COPY_TOASTS, value: publicKeyZ32 }}
             label="Pubky"
             value={publicKeyZ32}
           />

@@ -20,3 +20,16 @@ test("carries the request only in the fragment, with the profile and a testnet n
     `https://passport.example/authorize#d=${encoded}`,
   );
 });
+
+test("names the screen Passport opens on after the other parameters, never inside the request", () => {
+  const encoded = encodeURIComponent(REQUEST);
+  expect(authorizeUrl("https://passport.example", REQUEST, false, "mainnet", "join")).toBe(
+    `https://passport.example/authorize#d=${encoded}&entry=join`,
+  );
+  expect(authorizeUrl("https://passport.example", REQUEST, true, "testnet", "sign-in")).toBe(
+    `https://passport.example/authorize#d=${encoded}&profile=required&network=testnet&entry=sign-in`,
+  );
+  expect(authorizeUrl("https://passport.example", REQUEST, false, "mainnet", undefined)).toBe(
+    `https://passport.example/authorize#d=${encoded}`,
+  );
+});
