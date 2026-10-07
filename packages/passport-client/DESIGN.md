@@ -180,7 +180,9 @@ Entry sizes include static relative imports and the full closure of dynamically 
 peers (the SDK and `pubky-app-specs`) are not counted. Every import target is checked for existence
 and import policy. The planned ceilings were 12 KiB core and 22 KiB element; the build allows a
 provisional 32 KiB (`index.js`) and 42 KiB (`element.js`) gzip until the maintainer decides, and
-`scripts/checkDist.mjs` prints the measured sizes.
+`scripts/checkDist.mjs` prints the measured sizes. Measured for artifact app.8: `index.js` 28,949
+bytes and `element.js` 41,863 bytes gzip; collapsing the settings tray's empty hint cost the
+element 8 bytes (41,855 in app.7), 1,145 bytes under its budget.
 
 An app signs in through this package alone: its runtime dependencies for sign-in are this package
 and its two peers.

@@ -78,6 +78,8 @@ function identityLabel(identity: LocalIdentityMetadata): string {
 const FAILURE_TOAST_MS = 10_000;
 
 type ConnectionState =
+  /** Looking for the profile grant this browser stored for the identity; nothing shows yet. */
+  | { status: "resuming" }
   | { status: "starting" | "waiting" }
   | { status: "confirming"; publicKeyZ32: string; hasProfile: PublishedProfile; saving: boolean }
   | { status: "failed"; failure: RingConnectionErrorCode };
@@ -141,10 +143,16 @@ export function RingProfileConnection({
     leave && unsavedEdits ? () => setLeaving(() => leave) : leave;
   const back = confirmLeaving(onBack);
   const defer = confirmLeaving(onDefer);
-  const [state, setState] = useState<ConnectionState>({ status: "starting" });
-  const [attempt, setAttempt] = useState({ id: 0, resume: false });
+  // A known identity whose profile grant this browser keeps connects without the keychain; the
+  // screen shows only if none is stored. The legacy cookie sign-in is never stored.
   // Older Pubky Ring needs the legacy request: switching asks again, the other way.
   const method = useKeychainAuthMethod();
+  const resumable =
+    expectedKey !== undefined && controller.resume !== undefined && method === "grant";
+  const [state, setState] = useState<ConnectionState>({
+    status: resumable ? "resuming" : "starting",
+  });
+  const [attempt, setAttempt] = useState({ id: 0, resume: false });
   const [requestedMethod, setRequestedMethod] = useState(method);
   if (method !== requestedMethod) {
     setRequestedMethod(method);
@@ -202,26 +210,39 @@ export function RingProfileConnection({
       }
       timer = setTimeout(() => void poll(), 1_500);
     }
+    async function begin() {
+      if (resumable && attempt.id === 0) {
+        const resumed = await controller.resume?.({ expectedKey, setupRequired });
+        if (!active) return;
+        if (resumed && Result.isOk(resumed) && resumed.value) {
+          complete(resumed.value);
+          return;
+        }
+        setState({ status: "starting" });
+      }
+      const result = await controller.start({
+        expectedKey,
+        setupRequired,
+        confirmIdentity,
+        method,
+      });
+      if (!active) return;
+      if (Result.isError(result)) {
+        setState({ status: "failed", failure: result.error.code });
+        return;
+      }
+      setState({ status: "waiting" });
+      void poll();
+    }
     if (attempt.resume) void poll();
-    else
-      void controller
-        .start({ expectedKey, setupRequired, confirmIdentity, method })
-        .then((result) => {
-          if (!active) return;
-          if (Result.isError(result)) {
-            setState({ status: "failed", failure: result.error.code });
-            return;
-          }
-          setState({ status: "waiting" });
-          void poll();
-        });
+    else void begin();
     return () => {
       active = false;
       clearTimeout(timer);
       // Saving the identity can switch views before the poll continuation runs.
       if (!keepConnection.current && !controller.isConnected(expectedKey)) controller.dispose();
     };
-  }, [controller, expectedKey, setupRequired, confirmIdentity, attempt, method]);
+  }, [controller, expectedKey, setupRequired, confirmIdentity, attempt, method, resumable]);
 
   /** Only a storage failure keeps the approved grant; anything else needs a new request. */
   function retry(resume: boolean) {
@@ -356,6 +377,9 @@ export function RingProfileConnection({
       open={leaving !== undefined}
     />
   ) : null;
+
+  // Until it is known whether a stored grant connects the identity, nothing asks for the keychain.
+  if (state.status === "resuming") return null;
 
   if (embedded === "card")
     return (

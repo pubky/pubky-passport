@@ -1,6 +1,13 @@
 "use client";
 
-import { type ReactNode, useEffect, useEffectEvent, useRef, useState } from "react";
+import {
+  type ReactNode,
+  useEffect,
+  useEffectEvent,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { Result } from "better-result";
 import { toast } from "sonner";
 import { Button } from "@/client/ui/shared/primitives/button";
@@ -19,6 +26,7 @@ import {
   requiresProfileSetup,
   resolveSignerNavigation,
   signingIdentities,
+  soleSigningIdentityToSelect,
   type SignerNavigation,
   type StartScreen,
 } from "@/client/logic/universal-signer/signerNavigation";
@@ -63,6 +71,7 @@ export function UniversalSignerFlow() {
   const { controller, state: authorization, closed } = usePassportAuthorization();
   const identities = useIdentityCatalog();
   usePendingRequestGuard(controller);
+  const [opened, setOpened] = useState(false);
 
   if (closed) return <RequestClosed />;
   if (!controller || !authorization) {
@@ -101,6 +110,15 @@ export function UniversalSignerFlow() {
       </>
     );
   }
+  if (!opened)
+    return (
+      <OpenPassport
+        actions={identities.actions}
+        catalog={identities.catalog}
+        requestPending={authorization.status === "review"}
+        onOpened={() => setOpened(true)}
+      />
+    );
   return (
     <ReadyPassport
       actions={identities.actions}
@@ -109,6 +127,38 @@ export function UniversalSignerFlow() {
       controller={controller}
     />
   );
+}
+
+/**
+ * Before Passport's first screen: an app's request that only one saved identity can sign opens on
+ * that identity's review even while another (a key in Pubky Ring) is the active one, so that one is
+ * chosen first, as a press on the identity list would. Once per page and before anything shows;
+ * nothing is approved, Authorize stays the person's to press. The page Google returned to only
+ * finishes that sign-in, and chooses nothing.
+ */
+function OpenPassport({
+  actions,
+  catalog,
+  requestPending,
+  onOpened,
+}: {
+  actions: IdentityCatalogActions;
+  catalog: LocalIdentityCatalog;
+  requestPending: boolean;
+  onOpened: () => void;
+}) {
+  const { googleRedirect } = usePassportCollaborators();
+  const opened = useEffectEvent(onOpened);
+  useLayoutEffect(() => {
+    const sole =
+      requestPending && !googleRedirect.isReturn()
+        ? soleSigningIdentityToSelect(catalog)
+        : undefined;
+    // Should the choice not save, the request opens on the identity list instead.
+    if (sole !== undefined) actions.selectIdentity(sole);
+    opened();
+  }, [actions, catalog, googleRedirect, requestPending]);
+  return <LoadingScreen label="Loading Passport" />;
 }
 
 /**
@@ -180,8 +230,8 @@ function ReadyPassport({
   const { homeserver: providerHomeserver, httpRelay } = usePassportProvider();
   const [ringProfile] = useState(() => createRingProfileController(httpRelay));
   useEffect(() => {
-    // Best effort on page leave: the revocation this starts is dropped when the page unloads, so
-    // the grant stays valid on the homeserver (by design: the grant lasts for the page session).
+    // On page leave the connection is freed. A profile grant stored for its identity stays valid
+    // for the next edit; any other session's revocation is best effort, dropped on unload.
     const dispose = () => ringProfile.dispose();
     window.addEventListener("pagehide", dispose);
     return () => {
@@ -202,6 +252,32 @@ function ReadyPassport({
   const activeIdentity = catalog.activePublicKeyZ32
     ? findIdentity(catalog, catalog.activePublicKeyZ32)
     : undefined;
+  // Whether the active Ring identity's profile grant is stored here (its overview can end it).
+  // Checked again on every view: a profile edit may just have stored one.
+  const activeRingKey =
+    activeIdentity?.keySource === "ring" ? activeIdentity.publicIdentity.publicKeyZ32 : undefined;
+  const [storedConnection, setStoredConnection] = useState<{ key: string; stored: boolean }>();
+  useEffect(() => {
+    if (!activeRingKey || !ringProfile.hasStoredConnection) return;
+    let active = true;
+    void ringProfile.hasStoredConnection(activeRingKey).then((stored) => {
+      if (active) setStoredConnection({ key: activeRingKey, stored });
+    });
+    return () => {
+      active = false;
+    };
+  }, [activeRingKey, ringProfile, navigation.view]);
+  const keychainConnected =
+    storedConnection?.key === activeRingKey && storedConnection?.stored === true;
+  const disconnectKeychain = async (publicKeyZ32: string) => {
+    const disconnected = await ringProfile.disconnect?.(publicKeyZ32);
+    if (disconnected && Result.isError(disconnected)) {
+      toast.error("Could not disconnect the keychain. Try again.");
+      return;
+    }
+    setStoredConnection({ key: publicKeyZ32, stored: false });
+    toast.success("Keychain disconnected");
+  };
   const cancelRequest = hasRequest
     ? () => {
         void controller.cancel();
@@ -312,7 +388,11 @@ function ReadyPassport({
   };
   const removeIdentity = (publicKeyZ32: string) => {
     const removed = actions.removeIdentity(publicKeyZ32);
-    if (Result.isOk(removed) && ringProfile.isConnected(publicKeyZ32)) ringProfile.dispose();
+    if (Result.isOk(removed)) {
+      if (ringProfile.isConnected(publicKeyZ32)) ringProfile.dispose();
+      // An identity leaving this browser leaves no profile grant behind: it is revoked.
+      void ringProfile.disconnect?.(publicKeyZ32);
+    }
     return removed;
   };
   const identitySelection = (
@@ -773,6 +853,8 @@ function ReadyPassport({
             onManage={() => navigate({ view: "manage", publicKeyZ32 })}
             onRemoveIdentity={() => removeIdentity(publicKeyZ32)}
             onRemoved={goHome}
+            keychainConnected={keychainConnected}
+            onDisconnectKeychain={() => void disconnectKeychain(publicKeyZ32)}
           />
         );
       }

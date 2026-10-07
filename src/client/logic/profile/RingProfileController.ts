@@ -87,7 +87,8 @@ export class RingProfileController {
   constructor(
     private readonly relay: string,
     private readonly repository = new LocalStorageIdentityRepository(),
-    private readonly transport?: Pick<PubkyRingProfileTransport, "start">,
+    private readonly transport?: Pick<PubkyRingProfileTransport, "start"> &
+      Partial<Pick<PubkyRingProfileTransport, "resume" | "stored" | "disconnect">>,
     private readonly now: () => number = Date.now,
     private readonly profiles: Pick<ProfileController, "hasProfile"> = new ProfileController(),
   ) {}
@@ -108,9 +109,7 @@ export class RingProfileController {
     this.confirmationRequired = confirmIdentity && expectedKey === undefined;
     let transport: Pick<PubkyRingProfileTransport, "start">;
     try {
-      transport =
-        this.transport ??
-        new (await import("../pubky/PubkySdkAdapter")).PubkyRingProfileTransport();
+      transport = await this.loadTransport();
     } catch (e) {
       return Result.err({ code: "request_failed", cause: e });
     }
@@ -125,6 +124,87 @@ export class RingProfileController {
     this.connection = connection.value;
     this.deadline = this.now() + CONNECTION_LIFETIME_MS;
     return Result.ok();
+  }
+
+  /**
+   * Connects `expectedKey` again from the profile grant this browser stored for it, without asking
+   * the keychain: `connected` with the saved identity, or `undefined` when no valid grant is stored
+   * (then {@link start} asks for one). Setup and a published profile are handled as after an
+   * approval.
+   */
+  async resume({
+    expectedKey,
+    setupRequired = false,
+  }: RingConnectionRequest): Promise<ConnectionResult<LocalIdentityMetadata | undefined>> {
+    this.dispose();
+    const generation = this.generation;
+    if (expectedKey === undefined || !isPubkyPublicKey(expectedKey)) return Result.ok(undefined);
+    let transport: Awaited<ReturnType<RingProfileController["loadTransport"]>>;
+    try {
+      transport = await this.loadTransport();
+    } catch {
+      return Result.ok(undefined);
+    }
+    if (!transport.resume) return Result.ok(undefined);
+    const resumed = await transport.resume(expectedKey);
+    if (generation !== this.generation) {
+      if (Result.isOk(resumed)) await resumed.value?.dispose();
+      return Result.err({ code: "cancelled" });
+    }
+    if (Result.isError(resumed) || !resumed.value) return Result.ok(undefined);
+    this.connection = resumed.value;
+    this.expectedKey = expectedKey;
+    this.setupRequired = setupRequired;
+    this.receivedKey = expectedKey;
+    this.deadline = Number.POSITIVE_INFINITY;
+    if (setupRequired) {
+      this.publishedProfile = await this.readPublishedProfile(expectedKey);
+      if (generation !== this.generation) return Result.err({ code: "cancelled" });
+    }
+    const saved = this.remember(expectedKey);
+    if (Result.isError(saved)) {
+      this.dispose();
+      return Result.err(saved.error);
+    }
+    return Result.ok(saved.value);
+  }
+
+  /** Whether this browser stores a profile grant for `publicKey` (Manage's Disconnect keychain). */
+  async hasStoredConnection(publicKey: string): Promise<boolean> {
+    try {
+      const transport = await this.loadTransport();
+      return (await transport.stored?.(publicKey)) ?? false;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Revokes the profile grant stored for `publicKey` on its homeserver and forgets it, so the next
+   * profile edit asks the keychain again. A connection open for that key ends first.
+   */
+  async disconnect(publicKey: string): Promise<ConnectionResult<void>> {
+    if (this.connectedKey === publicKey || this.expectedKey === publicKey) this.dispose();
+    let transport: Awaited<ReturnType<RingProfileController["loadTransport"]>>;
+    try {
+      transport = await this.loadTransport();
+    } catch (e) {
+      return Result.err({ code: "connection_failed", cause: e });
+    }
+    if (!transport.disconnect) return Result.ok();
+    const disconnected = await transport.disconnect(publicKey);
+    return Result.isError(disconnected)
+      ? Result.err({ code: "connection_failed", cause: disconnected.error })
+      : Result.ok();
+  }
+
+  private async loadTransport(): Promise<
+    Pick<PubkyRingProfileTransport, "start"> &
+      Partial<Pick<PubkyRingProfileTransport, "resume" | "stored" | "disconnect">>
+  > {
+    return (
+      this.transport ?? new (await import("../pubky/PubkySdkAdapter")).PubkyRingProfileTransport()
+    );
   }
 
   authorizationUrl(): string | undefined {
@@ -151,7 +231,7 @@ export class RingProfileController {
     const connection = this.connection;
     const generation = this.generation;
     if (!connection) return Result.err({ code: "cancelled" });
-    if (this.receivedKey) return this.approved(this.receivedKey);
+    if (this.receivedKey) return this.kept(connection, this.approved(this.receivedKey));
     if (this.now() >= this.deadline) {
       this.dispose();
       return Result.err({ code: "expired" });
@@ -179,7 +259,7 @@ export class RingProfileController {
         this.publishedProfile = await this.readPublishedProfile(key);
         if (generation !== this.generation) return Result.err({ code: "cancelled" });
       }
-      return this.approved(key);
+      return await this.kept(connection, this.approved(key));
     } finally {
       if (generation === this.generation) this.busy = false;
     }
@@ -203,7 +283,22 @@ export class RingProfileController {
       if (generation !== this.generation) return Result.err({ code: "cancelled" });
     }
     this.confirmationRequired = false;
-    return this.remember(key);
+    const remembered = this.remember(key);
+    // Confirmed as the new pubky: only now is its grant kept for later edits.
+    if (Result.isOk(remembered)) await this.connection?.keep();
+    return remembered;
+  }
+
+  /**
+   * Keeps the grant for later edits once its identity is accepted (connected, saved), never for a
+   * key Passport refused or that still awaits confirmation.
+   */
+  private async kept(
+    connection: RingProfileGrant,
+    result: ConnectionResult<RingConnectionProgress>,
+  ): Promise<ConnectionResult<RingConnectionProgress>> {
+    if (Result.isOk(result) && result.value.status === "connected") await connection.keep();
+    return result;
   }
 
   /**

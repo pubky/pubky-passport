@@ -8,6 +8,7 @@ import {
   initialSignerNavigation,
   requiresProfileSetup,
   resolveSignerNavigation,
+  soleSigningIdentityToSelect,
   type SignerNavigation,
 } from "./signerNavigation";
 
@@ -31,6 +32,22 @@ function context(
   const catalog: LocalIdentityCatalog = { activePublicKeyZ32: active, identities };
   return { catalog, requestPending };
 }
+
+describe("soleSigningIdentityToSelect", () => {
+  it("names the only identity that can sign while a key in Pubky Ring is active", () => {
+    const catalog = (identities: LocalIdentityMetadata[], active: string | null) => ({
+      activePublicKeyZ32: active,
+      identities,
+    });
+    expect(soleSigningIdentityToSelect(catalog([READY, RING], "ring"))).toBe("ready");
+    expect(soleSigningIdentityToSelect(catalog([READY], null))).toBe("ready");
+    // Already active, more than one to choose from, or none: nothing to choose for the person.
+    expect(soleSigningIdentityToSelect(catalog([READY, RING], "ready"))).toBeUndefined();
+    expect(soleSigningIdentityToSelect(catalog([READY, UNFINISHED, RING], "ring"))).toBeUndefined();
+    expect(soleSigningIdentityToSelect(catalog([RING], "ring"))).toBeUndefined();
+    expect(soleSigningIdentityToSelect(catalog([], null))).toBeUndefined();
+  });
+});
 
 describe("an app's request", () => {
   it("opens on the review for one identity, the list for more, or the start page for none", () => {
@@ -172,28 +189,35 @@ describe("initialSignerNavigation", () => {
     });
   });
 
-  it("opens an app's request on the screen it asked for", () => {
-    const none = context([], null, true);
-    const saved = context([READY], "ready", true);
-    expect(initialSignerNavigation(none, null, undefined, "join")).toEqual({
-      view: "add",
-      back: null,
-      screen: "join",
-    });
-    // Join and Google open even where identities are saved; Back leads to their list.
-    expect(initialSignerNavigation(saved, null, undefined, "google")).toEqual({
-      view: "add",
-      back: "choose",
-      screen: "google",
-    });
-    // Sign in is what a request opens on anyway: a saved identity goes straight to its review.
-    expect(initialSignerNavigation(saved, null, undefined, "sign-in")).toEqual({ view: "home" });
-    expect(initialSignerNavigation(none, null, undefined, "sign-in")).toEqual({
-      view: "add",
-      back: null,
-      screen: "sign-in",
-    });
-  });
+  it.each(["join", "google", "sign-in", undefined] as const)(
+    "opens an app's request with entry %s on its identities first, its screen only without",
+    (entry) => {
+      const none = context([], null, true);
+      // The screen the app asked for never skips an identity that can sign: one goes to its
+      // review, several to their list.
+      expect(
+        initialSignerNavigation(context([READY], "ready", true), null, undefined, entry),
+      ).toEqual({ view: "home" });
+      expect(
+        initialSignerNavigation(
+          context([READY, UNFINISHED], "ready", true),
+          null,
+          undefined,
+          entry,
+        ),
+      ).toEqual({ view: "choose" });
+      // Only with none to sign with does it pick the start page's screen (Sign in by default).
+      expect(initialSignerNavigation(none, null, undefined, entry)).toEqual({
+        view: "add",
+        back: null,
+        screen: entry ?? "sign-in",
+      });
+      // A key in Pubky Ring cannot sign the request, so it does not count.
+      expect(
+        initialSignerNavigation(context([RING], "ring", true), null, undefined, entry),
+      ).toEqual({ view: "add", back: null, screen: entry ?? "sign-in" });
+    },
+  );
 
   it("starts home when identities exist", () => {
     expect(initialSignerNavigation(context([READY]), null)).toEqual({ view: "home" });

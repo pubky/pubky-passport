@@ -218,6 +218,48 @@ test("the messages attribute replaces texts; the property takes its place", asyn
   expect(button(element)).toHaveTextContent("Anmelden");
 });
 
+/** The declarations of the element's own style rule for exactly `selector` (one of its list). */
+function styleRule(root: ShadowRoot, selector: string): CSSStyleDeclaration | undefined {
+  const rules = [...(root.adoptedStyleSheets[0]?.cssRules ?? [])].filter(
+    (rule): rule is CSSStyleRule => rule instanceof CSSStyleRule,
+  );
+  return rules.find((rule) => rule.selectorText.split(",").some((part) => part.trim() === selector))
+    ?.style;
+}
+
+test("the picker's hint takes no room while empty and shows its line once it has text", async () => {
+  fakes();
+  const element = await mount("<pubky-passport></pubky-passport>");
+  const root = element.shadowRoot!;
+  root.querySelector<HTMLButtonElement>('[part="settings"]')!.click();
+  const input = root.querySelector<HTMLInputElement>('[data-slot="picker-input"]')!;
+  const hint = root.querySelector('[data-slot="picker-hint"]')!;
+  // Empty, the hint collapses to height 0 out of the form's flow (app.7 kept an 18px line and the
+  // form's 10px gap for it), yet stays a live region, never display:none, so what it says next is
+  // announced. jsdom lays nothing out: the declared height is checked here, e2e measures 0px.
+  expect(hint).toBeEmptyDOMElement();
+  expect(hint.matches(".picker .hint:empty")).toBe(true);
+  expect(hint).toHaveAttribute("aria-live", "polite");
+  const collapsed = styleRule(root, ".picker .hint:empty");
+  expect(collapsed).toMatchObject({ position: "absolute", overflow: "hidden" });
+  expect(parseFloat(collapsed!.height)).toBe(0);
+  expect(collapsed!.display).toBe("");
+  // Nothing reserves a line for it any more; the tray's padding is 12px.
+  expect(styleRule(root, ".picker .hint")?.minHeight).toBe("");
+  expect(styleRule(root, ".tray")?.padding).toBe("12px");
+  // With text (the validation of a typed address), the empty rule no longer applies: the line
+  // takes its own height in the flow, as any text does.
+  input.value = "http://insecure.example";
+  input.dispatchEvent(new Event("input"));
+  expect(hint.textContent).not.toBe("");
+  expect(hint.matches(".picker .hint:empty")).toBe(false);
+  expect(hint).toHaveClass("error");
+  // Cleared again, it takes no room again.
+  input.value = "";
+  input.dispatchEvent(new Event("input"));
+  expect(hint.matches(".picker .hint:empty")).toBe(true);
+});
+
 test("one field checks the address as it is typed and uses it with the check mark", async () => {
   const { current } = fakes();
   const element = await mount("<pubky-passport></pubky-passport>");

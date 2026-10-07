@@ -74,15 +74,25 @@ class IdentityCatalogStore {
         this.controller.createPubkyRingMigration(publicKeyZ32),
       createRecoveryFile: async (publicKeyZ32, password) =>
         this.controller.createRecoveryFile(publicKeyZ32, password),
-      removeIdentity: (publicKeyZ32) => this.controller.removeIdentity(publicKeyZ32),
-      rememberProfileNeeded: (publicKeyZ32) => this.controller.rememberProfileNeeded(publicKeyZ32),
+      removeIdentity: (publicKeyZ32) => this.changed(this.controller.removeIdentity(publicKeyZ32)),
+      rememberProfileNeeded: (publicKeyZ32) =>
+        this.changed(this.controller.rememberProfileNeeded(publicKeyZ32)),
       republishHomeserver: async (publicKeyZ32, homeserverPubky) =>
         this.controller.republishHomeserver(publicKeyZ32, homeserverPubky),
       resolveHomeserver: async (publicKeyZ32) => this.controller.resolveHomeserver(publicKeyZ32),
-      selectIdentity: (publicKeyZ32) => this.controller.selectIdentity(publicKeyZ32),
+      selectIdentity: (publicKeyZ32) => this.changed(this.controller.selectIdentity(publicKeyZ32)),
       verifyRecoveryFile: async (publicKeyZ32, recoveryFile, password) =>
         this.controller.verifyRecoveryFile(publicKeyZ32, recoveryFile, password),
     };
+  }
+
+  /**
+   * The catalog is read again after a change made here, even one made before React subscribed
+   * (the request's only identity is chosen before Passport's first screen).
+   */
+  private changed<T>(result: T): T {
+    this.dirty = true;
+    return result;
   }
 
   getSnapshot = (): IdentityCatalogState => {

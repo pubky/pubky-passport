@@ -7,12 +7,15 @@ Account creation and identity management are in
 
 ## Opening a request
 
-Passport opens a request in two steps. Only identities whose key the browser holds count here: an
+Passport opens a request in two steps, on the identities that can sign it first, whatever screen
+the app asked for with `entry=`. Only identities whose key the browser holds count here: an
 identity whose key stays in Pubky Ring is saved in Passport for its profile only, is never listed
-for a request, and signs through **Continue with keychain** alone. With exactly one such identity
-(and active) the request opens straight on that identity's permission review; so does a request a
-user enters by hand from an identity's overview (**Authorize**), which opens on that identity's
-review. Otherwise it first lists those identities. The list and the review both end with the same
+for a request, and signs through **Continue with keychain** alone (Passport's stored profile grant
+for it is a Session, which cannot approve another app's request). With exactly one such identity
+the request opens straight on that identity's permission review, choosing it first when another
+(a Ring identity) was the active one, as a press on the list would; so does a request a user enters
+by hand from an identity's overview (**Authorize**), which opens on that identity's review. With
+several it first lists them. Neither approves anything: **Authorize** stays the person's to press. The list and the review both end with the same
 "or": **Use another identity** and **Continue with keychain** (Pubky Ring or Bitkit).
 **Use another identity** opens the start page on **Sign in**, keeping the request; **Back** returns
 to where it was opened.
@@ -26,8 +29,8 @@ with its code and steps) and **Have a recovery file? Import it** only, and Back 
 which has the rest. The **Google** screen is the Google sign-in alone, with what it
 means and one button (Google's window needs a press in Passport's own). Without an identity
 Passport can sign with (nothing saved, or only Ring identities) a request opens on **Sign in**, or
-on the screen the app asked for with `entry=join|google|sign-in` next to `d=` (Join and Google even
-when identities are saved, with **Back** to their list); its band reads **Signing in to {app}**,
+on the screen the app asked for with `entry=join|google|sign-in` next to `d=` (only then: an entry
+never skips an identity that can sign); its band reads **Signing in to {app}**,
 and **Back** on that first screen answers the app with a cancellation. During a request with
 nothing saved, Join and Sign in are one screen, Join itself (the "Create account" step, its two
 cards) without **Sign in** in the header: under the cards **Have a recovery file? Import it** and,
@@ -258,8 +261,21 @@ profile and avatar only. Then comes the profile editor, saying the app needs a p
 no **Skip for now** and no **Back**. Saved, Passport shows **Profile published.** with a **Close
 window** action. A key Passport does not know yet is kept as a Ring identity with its profile still
 to do, so Passport's home offers **Set up profile** for it later; an identity Passport already has
-is left as it is. Passport's Ring grant lasts for its page session, so a window closed during the
-editor connects Ring again; entered form data is not kept across the closed window.
+is left as it is. The approved grant is stored for that key (see below), so a window closed during
+the editor reconnects without Ring next time; entered form data is not kept across the closed
+window.
+
+**Staying connected.** Passport keeps its profile grant for a Ring- or Bitkit-held identity like any
+client keeps its sign-in: once approved (as a grant), it is stored in the SDK's browser session
+store, its PoP key non-extractable in IndexedDB, bound to that identity and this origin. Editing the
+profile from the overview, `/#edit-profile` for that key and an app sign-in's profile step restore it
+silently; **Connect your keychain.** shows only when no valid grant is stored (none yet, about to
+expire, or refused by the homeserver, which removes the record). Another identity always asks for
+its own. **Disconnect keychain**, under the overview's actions while a grant is stored, revokes it
+on the homeserver (`DELETE /auth/grant/session`) and forgets it; removing the identity from this
+browser does the same; Pubky Ring 2.0's Authorized Apps revokes it from the keychain. The grant
+stays write-only (`profile.json`, `files/`, `blobs/`). The classic QR connection (legacy cookie
+sign-in) is not stored, because the SDK's store keeps grant sessions only: it lasts for the page.
 
 Ring profile editing never modifies the app's request or treats opening Ring as a successful
 sign-in. A saved Ring identity is never the request's identity, so Passport asks for its own profile

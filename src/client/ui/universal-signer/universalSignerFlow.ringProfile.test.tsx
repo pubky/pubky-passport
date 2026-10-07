@@ -2,6 +2,7 @@
 import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Result } from "better-result";
+import { toast } from "sonner";
 import { afterEach, expect, it, vi, beforeEach } from "vitest";
 import { UniversalSignerFlow } from "@/client/ui/universal-signer/universalSignerFlow";
 import { fakeLocalIdentityController } from "@test-utils/fakeLocalIdentityController";
@@ -12,7 +13,10 @@ import { LocalStorageIdentityRepository } from "@/client/logic/local-identity/Lo
 import { LocalIdentityController } from "@/client/logic/local-identity/LocalIdentityController";
 import { RingProfileController } from "@/client/logic/profile/RingProfileController";
 import type { PassportCollaborators } from "@/client/ui/passportCollaborators";
-import type { RingProfileGrant } from "@/client/logic/pubky/PubkySdkAdapter";
+import type {
+  PubkyRingProfileTransport,
+  RingProfileGrant,
+} from "@/client/logic/pubky/PubkySdkAdapter";
 import { expectResultOk } from "@test-utils/resultAssertions";
 import type {
   LocalIdentityCatalog,
@@ -37,6 +41,8 @@ afterEach(() => {
   cleanup();
   window.dispatchEvent(new PageTransitionEvent("pagehide"));
   localStorage.clear();
+  // A toast spied on in one test never counts the next test's toasts.
+  vi.restoreAllMocks();
 });
 
 /** Replaces the random name a new profile starts with. */
@@ -55,6 +61,7 @@ it("keeps the Ring grant when saving its identity opens the profile editor", asy
     poll: async () => Result.ok(KEY),
     publish: vi.fn(async () => Result.ok()),
     dispose: vi.fn(async () => undefined),
+    keep: vi.fn(async () => undefined),
   };
   const ring = new RingProfileController(
     RELAY,
@@ -86,6 +93,8 @@ it("keeps the Ring grant when saving its identity opens the profile editor", asy
   // The grant goes through the instance's configured relay.
   expect(createRingProfileController).toHaveBeenCalledWith(RELAY);
   expect(ring.isConnected(KEY)).toBe(true);
+  // The identity is saved, so its grant is kept for later edits.
+  expect(connection.keep).toHaveBeenCalled();
   expect(connection.dispose).not.toHaveBeenCalled();
   await user.click(screen.getByRole("button", { name: "Continue" }));
   await waitFor(() => expect(connection.publish).toHaveBeenCalledOnce());
@@ -103,6 +112,7 @@ it("returns to the Ring connection when the profile grant has been revoked, keep
     poll: vi.fn(async () => Result.ok(KEY)),
     publish: vi.fn(async () => Result.err({ code: "publish_unauthorized" as const })),
     dispose: vi.fn(async () => undefined),
+    keep: vi.fn(async () => undefined),
   };
   // Ring approves the new request when the test says so.
   let approveAgain!: () => void;
@@ -116,6 +126,7 @@ it("returns to the Ring connection when the profile grant has been revoked, keep
     ),
     publish: vi.fn(async () => Result.ok()),
     dispose: vi.fn(async () => undefined),
+    keep: vi.fn(async () => undefined),
   };
   const start = vi
     .fn()
@@ -176,6 +187,7 @@ it("asks before leaving the reconnect with kept edits, and drops them once disca
     poll: vi.fn(async () => Result.ok(KEY)),
     publish: vi.fn(async () => Result.err({ code: "publish_unauthorized" as const })),
     dispose: vi.fn(async () => undefined),
+    keep: vi.fn(async () => undefined),
   };
   // Ring approves every later request at once.
   const renewed = {
@@ -183,6 +195,7 @@ it("asks before leaving the reconnect with kept edits, and drops them once disca
     poll: vi.fn(async () => Result.ok(KEY)),
     publish: vi.fn(async () => Result.ok()),
     dispose: vi.fn(async () => undefined),
+    keep: vi.fn(async () => undefined),
   };
   // The reconnect waits until the test lets Ring approve it, so its screen can be left first.
   const pending = {
@@ -190,6 +203,7 @@ it("asks before leaving the reconnect with kept edits, and drops them once disca
     poll: vi.fn(() => new Promise(() => undefined)),
     publish: vi.fn(),
     dispose: vi.fn(async () => undefined),
+    keep: vi.fn(async () => undefined),
   };
   const start = vi
     .fn()
@@ -318,6 +332,7 @@ it("adds an existing Ring identity from the home page without an invite or a pro
     poll: vi.fn().mockResolvedValueOnce(Result.ok(undefined)).mockResolvedValue(Result.ok(KEY)),
     publish: vi.fn(async () => Result.ok()),
     dispose: vi.fn(async () => undefined),
+    keep: vi.fn(async () => undefined),
   };
   const ring = new RingProfileController(
     RELAY,
@@ -481,6 +496,7 @@ it("creates the profile an app waits for after its Ring sign-in: grant first, th
     poll: async () => Result.ok(approved ? KEY : undefined),
     publish: vi.fn(async () => Result.ok()),
     dispose: vi.fn(async () => undefined),
+    keep: vi.fn(async () => undefined),
   };
   const repository = new LocalStorageIdentityRepository();
   const ring = new RingProfileController(
@@ -596,4 +612,117 @@ it("a /#profile= page connects Ring for its key without saving anything first, a
   const user = userEvent.setup();
   await user.click(screen.getByRole("button", { name: "Back" }));
   expect(await screen.findByRole("heading", { name: "Let’s join Pubky." })).toBeInTheDocument();
+});
+
+/**
+ * A saved Ring identity whose profile grant this browser may keep: the transport says whether one
+ * is stored, connects it again (`resumed`), and revokes it on disconnect.
+ */
+function storedGrantFlow({
+  setupRequired = false,
+  storedGrant = true,
+}: { setupRequired?: boolean; storedGrant?: boolean } = {}) {
+  const repository = new LocalStorageIdentityRepository();
+  expectResultOk(repository.saveExternal(KEY, setupRequired));
+  const grant = { stored: storedGrant };
+  const resumed = {
+    authorizationUrl: () => undefined,
+    poll: vi.fn(async () => Result.ok(KEY)),
+    publish: vi.fn(async () => Result.ok()),
+    dispose: vi.fn(async () => undefined),
+    keep: vi.fn(async () => undefined),
+  };
+  const transport = {
+    start: vi.fn<PubkyRingProfileTransport["start"]>(async () =>
+      Result.err({ code: "grant_failed" }),
+    ),
+    stored: vi.fn<PubkyRingProfileTransport["stored"]>(async () => grant.stored),
+    resume: vi.fn<PubkyRingProfileTransport["resume"]>(async () =>
+      Result.ok(grant.stored ? (resumed as unknown as RingProfileGrant) : undefined),
+    ),
+    disconnect: vi.fn<PubkyRingProfileTransport["disconnect"]>(async () => {
+      grant.stored = false;
+      return Result.ok();
+    }),
+  };
+  const ring = new RingProfileController(
+    RELAY,
+    repository,
+    transport,
+    Date.now,
+    NO_PUBLISHED_PROFILE,
+  );
+  render(
+    withPassportTestProviders(<UniversalSignerFlow />, {
+      createLocalIdentityController: () => new LocalIdentityController(repository),
+      createRingProfileController: () => ring,
+      createAuthorizationController: () =>
+        fakePassportAuthorizationController({ current: { status: "manual-entry" } }),
+    }),
+  );
+  return { grant, repository, resumed, ring, transport };
+}
+
+it("offers to disconnect the keychain whose grant is stored, and revokes it", async () => {
+  const success = vi.spyOn(toast, "success");
+  const { repository, transport } = storedGrantFlow();
+  const disconnect = await screen.findByRole("button", { name: "Disconnect keychain" });
+  expect(transport.stored).toHaveBeenCalledWith(KEY);
+
+  await userEvent.setup().click(disconnect);
+  await waitFor(() => expect(success).toHaveBeenCalledWith("Keychain disconnected"));
+  expect(transport.disconnect).toHaveBeenCalledExactlyOnceWith(KEY);
+  expect(screen.queryByRole("button", { name: "Disconnect keychain" })).toBeNull();
+  // The identity stays, on its overview; only the stored connection ended.
+  expect(screen.getByRole("heading", { name: "Your pubky." })).toBeInTheDocument();
+  expect(expectResultOk(repository.list()).identities).toHaveLength(1);
+});
+
+it("says so and keeps the link when the keychain could not be disconnected", async () => {
+  const failed = vi.spyOn(toast, "error");
+  const success = vi.spyOn(toast, "success");
+  const { transport } = storedGrantFlow();
+  transport.disconnect.mockResolvedValueOnce(Result.err({ code: "grant_failed" }));
+
+  await userEvent.setup().click(await screen.findByRole("button", { name: "Disconnect keychain" }));
+  await waitFor(() =>
+    expect(failed).toHaveBeenCalledWith("Could not disconnect the keychain. Try again."),
+  );
+  expect(success).not.toHaveBeenCalledWith("Keychain disconnected");
+  expect(screen.getByRole("button", { name: "Disconnect keychain" })).toBeInTheDocument();
+});
+
+it("offers no keychain to disconnect when no grant is stored", async () => {
+  const { transport } = storedGrantFlow({ storedGrant: false });
+  expect(await screen.findByRole("heading", { name: "Your pubky." })).toBeInTheDocument();
+  await waitFor(() => expect(transport.stored).toHaveBeenCalledWith(KEY));
+  expect(screen.queryByRole("button", { name: "Disconnect keychain" })).toBeNull();
+});
+
+it("revokes the stored grant of a Ring identity removed from this browser", async () => {
+  const { repository, transport } = storedGrantFlow();
+  const user = userEvent.setup();
+  await user.click(await screen.findByRole("button", { name: "Log out" }));
+  await user.click(screen.getByRole("button", { name: "Remove from this browser" }));
+  expect(await screen.findByRole("heading", { name: "Let’s join Pubky." })).toBeInTheDocument();
+  expect(transport.disconnect).toHaveBeenCalledExactlyOnceWith(KEY);
+  expect(expectResultOk(repository.list()).identities).toEqual([]);
+});
+
+it("edits a Ring identity's profile with its stored grant, without asking the keychain", async () => {
+  const { repository, resumed, transport } = storedGrantFlow({ setupRequired: true });
+  const user = userEvent.setup();
+  await user.click(await screen.findByRole("button", { name: "Set up profile" }));
+  await renameTo(user, "Ring Satoshi");
+  expect(transport.resume).toHaveBeenCalledExactlyOnceWith(KEY);
+  expect(transport.start).not.toHaveBeenCalled();
+  expect(screen.queryByRole("heading", { name: "Connect your keychain." })).toBeNull();
+  expect(screen.queryByRole("img", { name: "Keychain connection QR code" })).toBeNull();
+
+  await user.click(screen.getByRole("button", { name: "Continue" }));
+  await waitFor(() => expect(resumed.publish).toHaveBeenCalledOnce());
+  await waitFor(() =>
+    expect(expectResultOk(repository.list()).identities[0]?.profileSetupRequired).toBeUndefined(),
+  );
+  expect(transport.start).not.toHaveBeenCalled();
 });

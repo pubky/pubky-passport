@@ -59,7 +59,9 @@ Identity keys → Profile**). The start page opens on **Join** ("Let’s join Pu
 own keys** goes on to verification, **Continue with Google** to the Google sign-in. **Sign in**
 (from the header, and the first screen of an app's request) holds the ways back to an identity the
 person already has: Pubky Ring or Bitkit, Google, or a recovery file. An app picks the first screen
-with `entry=join|google|sign-in` next to `d=` (see [Integration](docs/integration.md)).
+with `entry=join|google|sign-in` next to `d=` (see [Integration](docs/integration.md)); it never
+skips identities that can sign the request, which open on the review (one) or the identity list
+(several) first.
 
 **Prove you’re not a robot.** lists the ways to verify a new account as the instance's Homegate
 offers them: a small Lightning payment (at the probe's price), phone verification by SMS, or an
@@ -112,17 +114,20 @@ through Pubky Ring, the app can ask on the same channel (`profile-needed`), or r
 Ring-held identities are remembered by public key; their private keys stay in Ring. Profile editing
 requests a separate write-only grant for `profile.json` plus the `pubky.app` `files/` and `blobs/`
 directories (an avatar's blob and file IDs are not known before upload); profiles are read
-publicly. The grant is held in memory for the page session and never changes a client's
-authorization request. Passport revokes it when it closes the connection inside the page (another
-connection replaces it, the identity is removed, or a write is refused). Revoking on page leave is
-best effort and in practice does not happen: the revocation started on page hide is dropped when
-the page unloads, and closing the tab sends nothing. The grant then stays valid on the homeserver,
-and neither Passport nor Ring can list or revoke it. Whether Ring and the homeserver accept the write-only scopes still needs a device
-test. Closing a connection also deletes the SDK's delegated keys from the browser. Pubky Ring older
-than 2.0 cannot approve grants: a per-device **Older Pubky Ring? Classic QR** switch
-under Passport's own keychain requests (this connection, and the backup check) makes them the
-legacy cookie sign-in with the same capabilities. It is off by default (Pubky Ring 2.0 and Bitkit
-use grants, and Bitkit refuses the legacy kind) and never changes an app's own request. See
+publicly. Approved as a grant, it is kept in the SDK's browser session store (its PoP key
+non-extractable in IndexedDB, bound to the identity and this Passport origin) and reused without a
+new approval for that identity's profile edits, `/#edit-profile` and an app sign-in's profile step
+until it expires or is revoked; only when no valid grant is stored does Passport show **Connect your
+keychain.** It never changes a client's authorization request. **Disconnect keychain** on the
+identity's overview, and removing the identity, revoke it on the homeserver and forget it; the
+keychain's Authorized Apps (Pubky Ring 2.0) revokes it too, and a grant the homeserver refuses is
+forgotten. The classic QR (legacy cookie) connection is not stored: the SDK's store keeps grant
+sessions only, so it lasts for the page. Whether Ring and the homeserver accept the write-only
+scopes, and revocation from Ring's Authorized Apps, still need a device test. Pubky Ring older
+than 2.0 cannot approve grants: a per-device **Older Pubky Ring? Classic QR** switch under
+Passport's own keychain requests (this connection, and the backup check) makes them the legacy
+cookie sign-in with the same capabilities. It is off by default (Pubky Ring 2.0 and Bitkit use
+grants, and Bitkit refuses the legacy kind) and never changes an app's own request. See
 [Client contract](docs/signup-integration.md#client-contract).
 
 ## Add Passport sign-in to your app

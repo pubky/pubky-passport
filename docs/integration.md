@@ -71,8 +71,12 @@ for links such as "Edit profile". Changing `instance`, `app-name`, `client-id`, 
 **Entries.** Passport's onboarding has three first screens, and your buttons can open the one they
 stand for: `entry="join"` ("Join now": create an account, Passport's **Join** screen),
 `entry="google"` ("Continue with Google": the Google sign-in, without Join) and `entry="sign-in"`
-(returning people). For someone Passport cannot sign in yet, the request's start page (with
-`sign-in`, `join` or no entry) is Join with "Have a recovery file? Import it" and, unless your
+(returning people). The entry counts only for someone without an identity Passport can sign the
+request with: whatever the entry, a request opens on the identity Passport holds (its review, where
+**Authorize** stays the person's to press) or, with several, on their list, and both offer **Use
+another identity** (the start page) and the keychain below. A Pubky Ring or Bitkit identity saved
+in Passport does not count, since only the keychain signs for it. For someone Passport cannot sign
+in yet, the request's start page (with `sign-in`, `join` or no entry) is Join with "Have a recovery file? Import it" and, unless your
 hello carries `keychain` (your large element shows its code or "Open keychain app"), "Use Pubky
 Ring or Bitkit". An element with an entry is named after it while nothing runs ("Join Pubky",
 "Continue with Google", "Sign in with Pubky"; `label.join`, `label.google`, `label.sign-in` in
@@ -366,7 +370,7 @@ with it, and wait for the SDK to return a `Session`; Passport only posts the app
 Open `/authorize#d=${encodeURIComponent(flow.authorizationUrl)}` on the Passport origin, the only
 entry that accepts a request. Next to `d=` the fragment may carry `profile=required` (or
 `profile=optional`, the default), `network=testnet` (or `network=mainnet`) and
-`entry=join|google|sign-in` (the screen to open on), each once; anything else, and any query
+`entry=join|google|sign-in` (the screen to open on when no saved identity can sign), each once; anything else, and any query
 string, rejects the entry. A request naming another network than the
 instance's is refused as `network_mismatch`; one naming none is not checked.
 `/#d=…` is forwarded as a convenience, not a contract. Passport accepts only sign-in requests

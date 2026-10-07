@@ -693,19 +693,18 @@ describe("UniversalSignerFlow start page screens", () => {
     },
   );
 
-  it.each([
-    ["join", "Let’s join Pubky."],
-    ["google", "Continue with Google."],
-  ] as const)(
-    "opens on %s even with identities saved, with Back to their list",
-    async (entry, heading) => {
+  it.each(["join", "google"] as const)(
+    "lists the saved identities for a request whose app asked for %s",
+    async (entry) => {
       FLOW.catalog = TWO_SAVED;
       renderSigner({ status: "review", review: REVIEW, entry });
 
-      expect(await screen.findByRole("heading", { level: 1 })).toHaveAccessibleName(heading);
-      expect(screen.queryByText("Choose the identity to sign in with.")).not.toBeInTheDocument();
-      await userEvent.setup().click(screen.getByRole("button", { name: "Back" }));
-      expect(screen.getByText("Choose the identity to sign in with.")).toBeInTheDocument();
+      // The app's screen never skips identities that can sign: the person picks one first.
+      expect(await screen.findByText("Choose the identity to sign in with.")).toBeInTheDocument();
+      expect(screen.queryByRole("heading", { name: "Let’s join Pubky." })).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("heading", { name: "Continue with Google." }),
+      ).not.toBeInTheDocument();
       expect(cancel).not.toHaveBeenCalled();
     },
   );

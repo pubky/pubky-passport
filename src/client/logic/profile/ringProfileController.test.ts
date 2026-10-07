@@ -1,5 +1,5 @@
 /** @vitest-environment jsdom */
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Result } from "better-result";
 import { RingProfileController } from "./RingProfileController";
 import type { ProfileController } from "./ProfileController";
@@ -29,6 +29,7 @@ function setup() {
     ),
     publish: vi.fn(async (): Promise<PubkyProfileWriteResult> => Result.ok()),
     dispose: vi.fn(async () => undefined),
+    keep: vi.fn(async () => undefined),
   };
   let now = 0;
   const start = vi.fn<Pick<PubkyRingProfileTransport, "start">["start"]>(async () =>
@@ -37,15 +38,26 @@ function setup() {
   const hasProfile = vi.fn<RingProfileControllerProfiles["hasProfile"]>(async () =>
     Result.ok(false),
   );
-  const controller = new RingProfileController(RELAY, repository, { start }, () => now, {
-    hasProfile,
-  });
+  // No profile grant is stored in this browser unless a test says so.
+  const resume = vi.fn<PubkyRingProfileTransport["resume"]>(async () => Result.ok(undefined));
+  const stored = vi.fn<PubkyRingProfileTransport["stored"]>(async () => false);
+  const disconnect = vi.fn<PubkyRingProfileTransport["disconnect"]>(async () => Result.ok());
+  const controller = new RingProfileController(
+    RELAY,
+    repository,
+    { start, resume, stored, disconnect },
+    () => now,
+    { hasProfile },
+  );
   return {
     repository,
     hasProfile,
     connection,
     controller,
     start,
+    resume,
+    stored,
+    disconnect,
     expire: () => {
       now = 300_000;
     },
@@ -381,4 +393,302 @@ it("asks the legacy way for Pubky Ring older than 2.0 when the classic QR is on"
   expectResultOk(await controller.start({ method: "cookie" }));
   expect(start).toHaveBeenCalledExactlyOnceWith(RELAY, "cookie");
   controller.dispose();
+});
+
+describe("the profile grant stored in this browser", () => {
+  /** A stored grant that the transport connects again for `KEY`. */
+  function storedGrant() {
+    const context = setup();
+    context.resume.mockResolvedValue(Result.ok(context.connection as unknown as RingProfileGrant));
+    return context;
+  }
+
+  it("connects a saved Ring identity again without asking the keychain, and saves through it", async () => {
+    const { controller, connection, repository, resume, start, hasProfile, expire } = storedGrant();
+    const identity = expectResultOk(await controller.resume({ expectedKey: KEY }));
+    expect(identity).toEqual({ publicIdentity: { publicKeyZ32: KEY }, keySource: "ring" });
+    expect(resume).toHaveBeenCalledExactlyOnceWith(KEY);
+    expect(start).not.toHaveBeenCalled();
+    expect(connection.poll).not.toHaveBeenCalled();
+    expect(hasProfile).not.toHaveBeenCalled();
+    // Saved as after an approval, and connected for that identity only, with nothing to show.
+    expect(expectResultOk(repository.list())).toEqual({
+      activePublicKeyZ32: KEY,
+      identities: [identity],
+    });
+    expect(controller.isConnected(KEY)).toBe(true);
+    expect(controller.isConnected(OTHER)).toBe(false);
+    expect(controller.authorizationUrl()).toBeUndefined();
+    expect(expectResultOk(await controller.poll())).toMatchObject({ status: "connected" });
+    // A stored grant has no request deadline.
+    expire();
+    expect(expectResultOk(await controller.save(KEY, profile))).toEqual(profile);
+    expect(connection.publish).toHaveBeenCalledExactlyOnceWith(KEY, [
+      { kind: "json", path: PROFILE_PATH, json: profile },
+    ]);
+    expect(await controller.save(OTHER, profile)).toMatchObject({
+      error: { code: "disconnected" },
+    });
+    expect(connection.dispose).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["has no published profile", Result.ok(false), true],
+    ["has a published profile", Result.ok(true), false],
+    ["cannot be read", Result.err({ code: "load_failed" as const }), true],
+  ] as const)(
+    "reads the profile first when setup is asked for, and flags it unless the pubky %s",
+    async (_case, published, flagged) => {
+      const { controller, repository, hasProfile } = storedGrant();
+      hasProfile.mockResolvedValue(published);
+      const identity = expectResultOk(
+        await controller.resume({ expectedKey: KEY, setupRequired: true }),
+      );
+      expect(hasProfile).toHaveBeenCalledExactlyOnceWith(KEY);
+      expect(identity?.profileSetupRequired === true).toBe(flagged);
+      expect(expectResultOk(repository.list()).identities[0]?.profileSetupRequired === true).toBe(
+        flagged,
+      );
+    },
+  );
+
+  it("completes a stale setup flag once the resumed identity's profile is live", async () => {
+    const { controller, repository, hasProfile } = storedGrant();
+    expectResultOk(repository.saveExternal(KEY, true));
+    hasProfile.mockResolvedValue(Result.ok(true));
+    const identity = expectResultOk(
+      await controller.resume({ expectedKey: KEY, setupRequired: true }),
+    );
+    expect(identity).not.toHaveProperty("profileSetupRequired");
+    expect(expectResultOk(repository.list()).identities[0]).not.toHaveProperty(
+      "profileSetupRequired",
+    );
+  });
+
+  it("says when no grant is stored, so the keychain is asked, and saves nothing", async () => {
+    const { controller, repository, resume, start } = setup();
+    expect(expectResultOk(await controller.resume({ expectedKey: KEY }))).toBeUndefined();
+    expect(resume).toHaveBeenCalledExactlyOnceWith(KEY);
+    // A store that cannot be read counts as nothing stored.
+    resume.mockResolvedValueOnce(Result.err({ code: "grant_failed" }));
+    expect(expectResultOk(await controller.resume({ expectedKey: KEY }))).toBeUndefined();
+    expect(controller.isConnected(KEY)).toBe(false);
+    expect(start).not.toHaveBeenCalled();
+    expect(expectResultOk(repository.list()).identities).toEqual([]);
+  });
+
+  it.each([
+    ["no identity is known", undefined],
+    ["the key is not a pubky", "not-a-pubky"],
+  ])("looks for no stored grant when %s", async (_case, expectedKey) => {
+    const { controller, resume } = storedGrant();
+    expect(expectResultOk(await controller.resume({ expectedKey }))).toBeUndefined();
+    expect(resume).not.toHaveBeenCalled();
+    expect(controller.isConnected()).toBe(false);
+  });
+
+  it("resumes nothing with a transport that stores no grant", async () => {
+    const controller = new RingProfileController(RELAY, new LocalStorageIdentityRepository(), {
+      start: async () => Result.err({ code: "grant_failed" }),
+    });
+    expect(expectResultOk(await controller.resume({ expectedKey: KEY }))).toBeUndefined();
+    expect(await controller.hasStoredConnection(KEY)).toBe(false);
+    expectResultOk(await controller.disconnect(KEY));
+  });
+
+  it("closes a grant resumed after the connection was cancelled, without saving it", async () => {
+    const { controller, connection, repository, resume } = setup();
+    let restore!: () => void;
+    resume.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          restore = () => resolve(Result.ok(connection as unknown as RingProfileGrant));
+        }),
+    );
+    const resuming = controller.resume({ expectedKey: KEY });
+    await vi.waitFor(() => expect(resume).toHaveBeenCalledOnce());
+    controller.dispose();
+    restore();
+    expectResultError(await resuming, { code: "cancelled" });
+    expect(connection.dispose).toHaveBeenCalledOnce();
+    expect(controller.isConnected(KEY)).toBe(false);
+    expect(expectResultOk(repository.list()).identities).toEqual([]);
+  });
+
+  it("closes a resumed grant cancelled while its profile is read, without saving it", async () => {
+    const { controller, connection, repository, hasProfile } = storedGrant();
+    let read!: () => void;
+    hasProfile.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          read = () => resolve(Result.ok(false));
+        }),
+    );
+    const resuming = controller.resume({ expectedKey: KEY, setupRequired: true });
+    await vi.waitFor(() => expect(hasProfile).toHaveBeenCalledOnce());
+    controller.dispose();
+    read();
+    expectResultError(await resuming, { code: "cancelled" });
+    expect(connection.dispose).toHaveBeenCalledOnce();
+    expect(controller.isConnected(KEY)).toBe(false);
+    expect(expectResultOk(repository.list()).identities).toEqual([]);
+  });
+
+  it("closes a resumed grant whose identity could not be saved", async () => {
+    const { controller, connection, repository } = storedGrant();
+    vi.spyOn(repository, "saveExternal").mockReturnValueOnce(
+      Result.err({ code: "storage_unavailable" }),
+    );
+    expect(await controller.resume({ expectedKey: KEY })).toMatchObject({
+      error: { code: "storage_failed" },
+    });
+    expect(connection.dispose).toHaveBeenCalledOnce();
+    expect(controller.isConnected(KEY)).toBe(false);
+  });
+
+  it("closes the connection open before a resume", async () => {
+    const { controller, connection, resume } = await connected();
+    expect(expectResultOk(await controller.resume({ expectedKey: KEY }))).toBeUndefined();
+    expect(connection.dispose).toHaveBeenCalledOnce();
+    expect(resume).toHaveBeenCalledOnce();
+    expect(controller.isConnected(KEY)).toBe(false);
+  });
+
+  it("says whether a grant is stored for an identity", async () => {
+    const { controller, stored } = setup();
+    expect(await controller.hasStoredConnection(KEY)).toBe(false);
+    stored.mockResolvedValueOnce(true);
+    expect(await controller.hasStoredConnection(KEY)).toBe(true);
+    expect(stored).toHaveBeenLastCalledWith(KEY);
+    stored.mockRejectedValueOnce(new Error("IndexedDB unavailable"));
+    expect(await controller.hasStoredConnection(KEY)).toBe(false);
+  });
+
+  it("ends the identity's open connection before revoking its stored grant", async () => {
+    const { controller, connection, disconnect } = await connected();
+    expectResultOk(await controller.disconnect(KEY));
+    expect(connection.dispose).toHaveBeenCalledOnce();
+    expect(disconnect).toHaveBeenCalledExactlyOnceWith(KEY);
+    expect(connection.dispose.mock.invocationCallOrder[0]).toBeLessThan(
+      disconnect.mock.invocationCallOrder[0]!,
+    );
+    expect(controller.isConnected(KEY)).toBe(false);
+    expect(await controller.save(KEY, profile)).toMatchObject({ error: { code: "disconnected" } });
+  });
+
+  it("ends the pending request for the identity it disconnects", async () => {
+    const { controller, connection, disconnect } = setup();
+    await controller.start({ expectedKey: KEY });
+    expectResultOk(await controller.disconnect(KEY));
+    expect(connection.dispose).toHaveBeenCalledOnce();
+    expect(disconnect).toHaveBeenCalledExactlyOnceWith(KEY);
+  });
+
+  it("keeps another identity's connection when disconnecting one", async () => {
+    const { controller, connection, disconnect } = await connected();
+    expectResultOk(await controller.disconnect(OTHER));
+    expect(disconnect).toHaveBeenCalledExactlyOnceWith(OTHER);
+    expect(connection.dispose).not.toHaveBeenCalled();
+    expect(controller.isConnected(KEY)).toBe(true);
+  });
+
+  it("reports a disconnect that failed", async () => {
+    const { controller, disconnect } = setup();
+    disconnect.mockResolvedValueOnce(Result.err({ code: "grant_failed" }));
+    expect(await controller.disconnect(KEY)).toMatchObject({
+      error: { code: "connection_failed", cause: { code: "grant_failed" } },
+    });
+  });
+});
+
+describe("keeping an approved grant for later edits", () => {
+  it("keeps the grant once the expected identity is saved and connected", async () => {
+    const { controller, connection, repository } = setup();
+    const saveExternal = vi.spyOn(repository, "saveExternal");
+    await controller.start({ expectedKey: KEY });
+    expectResultOk(await controller.poll());
+    expect(connection.keep).not.toHaveBeenCalled();
+    connection.poll.mockResolvedValue(Result.ok(KEY));
+    expect(expectResultOk(await controller.poll())).toMatchObject({ status: "connected" });
+    expect(connection.keep).toHaveBeenCalledOnce();
+    expect(saveExternal.mock.invocationCallOrder[0]).toBeLessThan(
+      connection.keep.mock.invocationCallOrder[0]!,
+    );
+  });
+
+  it("keeps the grant of a pubky added from Sign in once it is saved", async () => {
+    const { connection } = await connected();
+    expect(connection.keep).toHaveBeenCalledOnce();
+  });
+
+  it("never keeps a grant another identity approved", async () => {
+    const { controller, connection } = setup();
+    await controller.start({ expectedKey: KEY });
+    connection.poll.mockResolvedValue(Result.ok(OTHER));
+    expectResultError(await controller.poll(), { code: "wrong_identity" });
+    expect(connection.keep).not.toHaveBeenCalled();
+    expect(connection.dispose).toHaveBeenCalledOnce();
+  });
+
+  it("keeps a Ring signup's grant only once the person confirms its pubky", async () => {
+    const { controller, connection, repository } = setup();
+    await controller.start({ setupRequired: true, confirmIdentity: true });
+    connection.poll.mockResolvedValue(Result.ok(OTHER));
+    expect(expectResultOk(await controller.poll())).toMatchObject({ status: "approved" });
+    expect(expectResultOk(await controller.poll())).toMatchObject({ status: "approved" });
+    expect(connection.keep).not.toHaveBeenCalled();
+    const saveExternal = vi.spyOn(repository, "saveExternal");
+    expectResultOk(await controller.confirm());
+    expect(connection.keep).toHaveBeenCalledOnce();
+    expect(saveExternal.mock.invocationCallOrder[0]).toBeLessThan(
+      connection.keep.mock.invocationCallOrder[0]!,
+    );
+  });
+
+  it("never keeps a Ring signup's grant the person did not confirm", async () => {
+    const { controller, connection } = setup();
+    await controller.start({ setupRequired: true, confirmIdentity: true });
+    connection.poll.mockResolvedValue(Result.ok(OTHER));
+    await controller.poll();
+    // No, choose again in the keychain: a new request replaces the approved one.
+    await controller.start({ setupRequired: true, confirmIdentity: true });
+    expect(connection.dispose).toHaveBeenCalledOnce();
+    expect(connection.keep).not.toHaveBeenCalled();
+  });
+
+  it("keeps a confirmed grant only once its identity is saved, retried without Ring", async () => {
+    const { controller, connection, repository } = setup();
+    await controller.start({ setupRequired: true, confirmIdentity: true });
+    connection.poll.mockResolvedValue(Result.ok(KEY));
+    await controller.poll();
+    vi.spyOn(repository, "saveExternal").mockReturnValueOnce(
+      Result.err({ code: "storage_unavailable" }),
+    );
+    expect(await controller.confirm()).toMatchObject({ error: { code: "storage_failed" } });
+    expect(connection.keep).not.toHaveBeenCalled();
+    expect(expectResultOk(await controller.poll())).toMatchObject({ status: "connected" });
+    expect(connection.keep).toHaveBeenCalledOnce();
+  });
+
+  it("keeps an approved grant only once saving its identity succeeds on a retry", async () => {
+    const { controller, connection, repository } = setup();
+    await controller.start({ expectedKey: KEY });
+    connection.poll.mockResolvedValue(Result.ok(KEY));
+    vi.spyOn(repository, "saveExternal").mockReturnValueOnce(
+      Result.err({ code: "storage_unavailable" }),
+    );
+    expect(await controller.poll()).toMatchObject({ error: { code: "storage_failed" } });
+    expect(connection.keep).not.toHaveBeenCalled();
+    expect(expectResultOk(await controller.poll())).toMatchObject({ status: "connected" });
+    expect(connection.keep).toHaveBeenCalledOnce();
+  });
+
+  it("keeps nothing while Ring has not approved", async () => {
+    const { controller, connection } = setup();
+    await controller.start({ expectedKey: KEY });
+    expect(expectResultOk(await controller.poll())).toEqual({ status: "waiting" });
+    connection.poll.mockResolvedValue(Result.err({ code: "grant_failed" }));
+    await controller.poll();
+    expect(connection.keep).not.toHaveBeenCalled();
+  });
 });

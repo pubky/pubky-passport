@@ -801,3 +801,116 @@ it("leaves at once when no profile edits wait for the connection", async () => {
   expect(onBack).toHaveBeenCalledOnce();
   expect(screen.queryByRole("dialog")).toBeNull();
 });
+
+describe("with a profile grant stored in this browser", () => {
+  type ResumeResult = Result<LocalIdentityMetadata | undefined, Failure>;
+  /** A controller that looks for the stored grant first; `resumed` is what that finds. */
+  function resumable(resumed: ResumeResult | Promise<ResumeResult>) {
+    return { ...controller(), resume: vi.fn(async () => resumed) };
+  }
+  const CONNECT = "Connect your keychain.";
+
+  it("connects the saved identity without showing the keychain", async () => {
+    const ring = resumable(Result.ok(IDENTITY));
+    const { container, onComplete } = mount(ring);
+    await waitFor(() => expect(onComplete).toHaveBeenCalledExactlyOnceWith(IDENTITY));
+    expect(ring.resume).toHaveBeenCalledExactlyOnceWith({ expectedKey: KEY, setupRequired: true });
+    expect(ring.start).not.toHaveBeenCalled();
+    expect(ring.poll).not.toHaveBeenCalled();
+    expect(screen.queryByRole("heading", { name: CONNECT })).toBeNull();
+    expect(screen.queryByRole("img", { name: QR_CODE })).toBeNull();
+    expect(container).toBeEmptyDOMElement();
+    expect(MOCKS.toastError).not.toHaveBeenCalled();
+  });
+
+  it("shows nothing that asks for the keychain while it looks for the stored grant", async () => {
+    let found!: (resumed: ResumeResult) => void;
+    const ring = resumable(new Promise<ResumeResult>((resolve) => (found = resolve)));
+    const { container, onComplete } = mount(ring);
+    await waitFor(() => expect(ring.resume).toHaveBeenCalledOnce());
+    expect(container).toBeEmptyDOMElement();
+    expect(ring.start).not.toHaveBeenCalled();
+    found(Result.ok(IDENTITY));
+    await waitFor(() => expect(onComplete).toHaveBeenCalledWith(IDENTITY));
+    expect(ring.start).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["none is stored", Result.ok(undefined)],
+    ["the stored one cannot connect", Result.err({ code: "cancelled" as const })],
+  ])("asks the keychain as usual when %s", async (_case, resumed) => {
+    const ring = resumable(resumed);
+    const { onComplete } = mount(ring);
+    expect(await screen.findByRole("heading", { level: 1, name: CONNECT })).toBeVisible();
+    expect(await screen.findByRole("img", { name: QR_CODE })).toBeVisible();
+    expect(ring.resume).toHaveBeenCalledOnce();
+    expect(ring.start).toHaveBeenCalledExactlyOnceWith({
+      expectedKey: KEY,
+      setupRequired: true,
+      confirmIdentity: false,
+      method: "grant",
+    });
+    expect(ring.resume.mock.invocationCallOrder[0]).toBeLessThan(
+      ring.start.mock.invocationCallOrder[0]!,
+    );
+    expect(onComplete).not.toHaveBeenCalled();
+    expect(MOCKS.toastError).not.toHaveBeenCalled();
+  });
+
+  it("looks for the stored grant once, not again on a retry", async () => {
+    const ring = resumable(Result.ok(undefined));
+    ring.poll.mockResolvedValueOnce(Result.err({ code: "expired" }));
+    mount(ring);
+    await userEvent
+      .setup()
+      .click(await screen.findByRole("button", { name: "Reload sign-in QR code" }));
+    await waitFor(() => expect(ring.start).toHaveBeenCalledTimes(2));
+    expect(ring.resume).toHaveBeenCalledOnce();
+  });
+
+  it("never resumes the classic way, which is never stored", async () => {
+    writeKeychainAuthMethod("cookie");
+    const ring = resumable(Result.ok(IDENTITY));
+    const { onComplete } = mount(ring);
+    expect(await screen.findByRole("img", { name: QR_CODE })).toBeVisible();
+    expect(ring.resume).not.toHaveBeenCalled();
+    expect(ring.start).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ expectedKey: KEY, method: "cookie" }),
+    );
+    expect(onComplete).not.toHaveBeenCalled();
+  });
+
+  it("shows the classic request being prepared at once, with nothing to resume", async () => {
+    writeKeychainAuthMethod("cookie");
+    const ring = resumable(Result.ok(IDENTITY));
+    let ready!: () => void;
+    ring.start.mockImplementationOnce(
+      () => new Promise((resolve) => (ready = () => resolve(Result.ok()))),
+    );
+    mount(ring);
+    // No blank screen while the request is made: the screen and the code's tile show at once.
+    expect(screen.getByRole("heading", { level: 1, name: CONNECT })).toBeVisible();
+    const section = screen.getByRole("region", { name: "Keychain connection" });
+    expect(within(section).getByText("Generating QR code…")).toBeVisible();
+    await waitFor(() =>
+      expect(ring.start).toHaveBeenCalledWith(expect.objectContaining({ method: "cookie" })),
+    );
+    ready();
+    expect(await screen.findByRole("img", { name: QR_CODE })).toBeVisible();
+    expect(ring.resume).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["adding a pubky on Sign in", { embedded: "card" as const, onBack: undefined }],
+    ["finishing a Ring signup", { confirmIdentity: true, setupRequired: true }],
+  ])("looks for no stored grant when %s, with no identity known", async (_case, props) => {
+    const ring = resumable(Result.ok(IDENTITY));
+    const { onComplete } = mount(ring, props);
+    expect(await screen.findByRole("img", { name: QR_CODE })).toBeVisible();
+    expect(ring.resume).not.toHaveBeenCalled();
+    expect(ring.start).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ expectedKey: undefined, method: "grant" }),
+    );
+    expect(onComplete).not.toHaveBeenCalled();
+  });
+});

@@ -14,6 +14,7 @@ import {
   RING_KEY,
   ringApproves,
   seedRingIdentity,
+  storedSessions,
 } from "./helpers/pubkyRing";
 import { UNVERIFIED_BAND, UNVERIFIED_WARNING } from "./helpers/requester";
 
@@ -367,6 +368,8 @@ test("keeps profile edits across a Ring reconnect and publishes them only on Sav
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await expect(page.locator("main").getByRole("alert")).toContainText("Your edits are kept.");
   await expect(page.getByRole("button", { name: "Save", exact: true })).toHaveCount(0);
+  // The stored grant is forgotten with it, so reconnecting asks the keychain instead of restoring.
+  await expect.poll(() => storedSessions(page)).toEqual([]);
   await page.getByRole("button", { name: "Reconnect your keychain" }).click();
   // The edits wait for this connection, so leaving it asks first.
   await expect(
@@ -388,6 +391,10 @@ test("keeps profile edits across a Ring reconnect and publishes them only on Sav
   // Saved, the editor returns to the overview it was opened from.
   await expect(page.getByRole("heading", { name: "Your pubky." })).toBeVisible();
   expect(net.writes.some((write) => write.endsWith("/pub/pubky.app/profile.json"))).toBe(true);
+  // The new approval's grant is the one stored now.
+  expect(await storedSessions(page)).toMatchObject([
+    { publicKey: RING_KEY, grantId: net.grantExchanges.at(-1)!.grantId },
+  ]);
 });
 
 test("an abandoned Ring connection leaves no delegated key in the browser", async ({ page }) => {
@@ -522,22 +529,21 @@ test("a saved Ring identity is not offered for an app's request: Ring signs thro
   expect(net.relayRequests).toEqual([]);
 });
 
-test("an app's request lists only identities whose key this browser holds", async ({ page }) => {
+test("an app's request counts only identities whose key this browser holds", async ({ page }) => {
   await mockRingNetwork(page, { profile: { name: "Carol" } });
   await seedRingIdentity(page);
   // A second identity, with its key in this browser; the Ring identity stays the active one.
   await storeLocalIdentities(page, [{ publicKeyZ32: BROWSER_KEY }], { replace: false });
   await page.goto(`/authorize#d=${encodeURIComponent(APP_REQUEST)}`);
 
-  const list = page.getByRole("list", { name: "Choose the identity to sign in with." });
-  await expect(list.getByRole("button")).toHaveCount(1);
+  // The browser-held identity is the only one that can sign: the request opens on its review,
+  // chosen as a press on the list would; Ring never stands in for it, and nothing is approved.
+  await expect(page.getByRole("button", { name: "Authorize", exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("list", { name: "Choose the identity to sign in with." }),
+  ).toHaveCount(0);
   await expect(page.getByText("Key in Pubky Ring", { exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Continue with keychain" })).toBeVisible();
-
-  // Choosing the browser-held identity opens its review; Ring never stands in for it.
-  await list.getByRole("button").click();
-  await expect(page.getByRole("button", { name: "Authorize", exact: true })).toBeVisible();
-  await expect(page.getByText("Key in Pubky Ring", { exact: true })).toHaveCount(0);
   expect(
     await page.evaluate(() => localStorage.getItem("pubky-passport/local-identities/v1/active")),
   ).toBe(BROWSER_KEY);

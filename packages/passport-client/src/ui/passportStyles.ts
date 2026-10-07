@@ -24,7 +24,7 @@ button,input{font:inherit}
 .settings[aria-expanded=true]{background:var(--p-fill-strong)}
 .main:focus-visible,.settings:focus-visible{outline:2px solid var(--p-brand);outline-offset:-5px}
 .settings:focus-visible{border-radius:999px}
-.tray{position:absolute;top:calc(100% + 8px);left:0;z-index:2147483000;display:flex;flex-direction:column;gap:10px;box-sizing:border-box;width:min(20rem,calc(100vw - 16px));margin:0;padding:14px;border:1px solid var(--p-line);border-radius:18px;background:var(--p-ink);color:#fff;font-family:inherit;font-size:13px;line-height:1.4;text-align:left;box-shadow:0 12px 32px rgb(0 0 0/.4)}
+.tray{position:absolute;top:calc(100% + 8px);left:0;z-index:2147483000;display:flex;flex-direction:column;gap:10px;box-sizing:border-box;width:min(20rem,calc(100vw - 16px));margin:0;padding:12px;border:1px solid var(--p-line);border-radius:18px;background:var(--p-ink);color:#fff;font-family:inherit;font-size:13px;line-height:1.4;text-align:left;box-shadow:0 12px 32px rgb(0 0 0/.4)}
 .tray[hidden],.tray[popover]:not(:popover-open){display:none}
 .tray[popover]{position:fixed;inset:auto;overflow:visible}
 .tray .status{margin:0;color:#d4d4db}
@@ -46,7 +46,8 @@ button,input{font:inherit}
 .accept:hover:not(:disabled){background:var(--p-fill-strong)}
 .accept:disabled{border-color:transparent;background:transparent;color:#76767e;cursor:default}
 .accept:focus-visible{outline:2px solid var(--p-brand);outline-offset:2px}
-.picker .hint{min-height:1.4em;color:#89898f}
+.picker .hint{color:#89898f}
+.picker .hint:empty{position:absolute;width:1px;height:0;overflow:hidden}
 .picker .hint.error{color:var(--p-danger)}
 .picker input::placeholder{color:#89898f}
 .picker [role=alert]{color:var(--p-danger)}

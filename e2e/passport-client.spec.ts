@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { E2E_HTTP_RELAY_URL } from "./helpers/e2eServer";
 import { PKARR_RELAY_HOSTS } from "./helpers/network";
 import { emulateCoarsePointerInContext } from "./helpers/pointer";
-import { ringApproves, type RingNetwork } from "./helpers/pubkyRing";
+import { newRingNetwork, ringApproves, type RingNetwork } from "./helpers/pubkyRing";
 import type { Route } from "@playwright/test";
 import { expect, test, type Page } from "./helpers/passportTest";
 import {
@@ -557,6 +557,42 @@ test("the large element's classic QR switch turns the next request into the lega
   expect(await starts()).toEqual(["cookie"]);
 });
 
+test("the settings tray's hint takes no room until it has something to say", async ({
+  page,
+  baseURL,
+}) => {
+  await openClient(page, baseURL!);
+  const element = page.locator("pubky-passport");
+  await element.locator('[part="settings"]').click();
+  const tray = element.locator('[part="tray"]');
+  const form = element.locator('[data-slot="picker"]');
+  const field = form.locator("label");
+  const hint = element.locator('[data-slot="picker-hint"]');
+  const input = element.locator('[data-slot="picker-input"]');
+  await expect(input).toBeFocused();
+  await expect(tray).toHaveCSS("padding-top", "12px");
+  // Empty: the form is just its field, with no line or gap kept for the hint.
+  await expect(hint).toBeEmpty();
+  const emptyForm = (await form.boundingBox())!;
+  const fieldBox = (await field.boundingBox())!;
+  expect(Math.abs(emptyForm.height - fieldBox.height)).toBeLessThanOrEqual(1);
+  expect(await hint.evaluate((node) => node.getBoundingClientRect().height)).toBe(0);
+  // A typed address that cannot be used: its validation line shows under the field.
+  await input.fill("http://insecure.example");
+  await expect(hint).not.toBeEmpty();
+  await expect(hint).toBeVisible();
+  const hintBox = (await hint.boundingBox())!;
+  expect(hintBox.height).toBeGreaterThan(10);
+  expect(hintBox.y).toBeGreaterThanOrEqual(fieldBox.y + fieldBox.height);
+  expect((await form.boundingBox())!.height).toBeGreaterThan(emptyForm.height + 10);
+  // Cleared, it takes no room again.
+  await input.fill("");
+  await expect(hint).toBeEmpty();
+  await expect
+    .poll(async () => (await form.boundingBox())!.height)
+    .toBeCloseTo(emptyForm.height, 0);
+});
+
 test("the headless client's setClassicQr shows the choice in its view", async ({
   page,
   baseURL,
@@ -716,13 +752,7 @@ test("Passport honours profile=required next to d=, the same-tab form of the req
 
 /** Passport's relay for its Ring profile grant, answered the way `mockRingNetwork` answers it. */
 function ringRelay(): { net: RingNetwork; relay: (route: Route) => Promise<void> } {
-  const net: RingNetwork = {
-    inbox: new Map(),
-    waiting: [],
-    exchangedGrants: [],
-    writes: [],
-    relayRequests: [],
-  };
+  const net = newRingNetwork();
   const relay = async (route: Route) => {
     const request = route.request();
     const url = new URL(request.url());
@@ -847,14 +877,16 @@ test("after a Pubky Ring sign-in, the missing profile is created inside Passport
 });
 
 for (const closedDuring of ["the Ring grant", "the editor"] as const) {
-  test(`Passport closed during ${closedDuring}: the button reopens the profile setup for that key`, async ({
+  // Approved before Passport closed, Passport's profile grant was stored for that key.
+  const approved = closedDuring === "the editor";
+  test(`Passport closed during ${closedDuring}: the button reopens the profile setup for that key, ${approved ? "connected by its stored grant" : "which asks the keychain"}`, async ({
     page,
     baseURL,
   }) => {
     test.setTimeout(120_000);
     const { popup, net, written } = await signInThroughRing(page, baseURL!);
     await expectAppProfileGrantScreen(popup, "client.example");
-    if (closedDuring === "the editor") {
+    if (approved) {
       await ringApprovesProfileGrant(popup, net);
       await expect(popup.getByRole("heading", { name: "Create your profile." })).toBeVisible({
         timeout: 20_000,
@@ -867,15 +899,26 @@ for (const closedDuring of ["the Ring grant", "the editor"] as const) {
       .toMatchObject({ status: "needs-profile" });
     const button = page.locator("pubky-passport").locator('[part="button"]');
     await expect(button).toHaveText("Finish your profile");
+    const polls = () => net.relayRequests.filter((request) => request.startsWith("GET ")).length;
+    const polled = polls();
     // Clicking reopens Passport straight on this key's profile setup, never the start page.
     const reopened = page.waitForEvent("popup");
     await button.click();
     const profilePage = await reopened;
     await expect(profilePage).toHaveURL(new URL("/", baseURL!).href);
-    // Reopened without the request, nothing names the app: the same screen says "this app".
-    await expectAppProfileGrantScreen(profilePage, "this app");
+    if (approved) {
+      // The grant Ring approved is restored for that key: the editor opens without the keychain.
+      await expect(profilePage.getByRole("heading", { name: "Create your profile." })).toBeVisible({
+        timeout: 20_000,
+      });
+      await expect(profilePage.getByRole("region", { name: "Keychain connection" })).toHaveCount(0);
+      expect(polls()).toBe(polled);
+    } else {
+      // Reopened without the request, nothing names the app: the same screen says "this app".
+      await expectAppProfileGrantScreen(profilePage, "this app");
+      await ringApprovesProfileGrant(profilePage, net);
+    }
     await expect(profilePage.getByRole("heading", { name: "Let’s join Pubky." })).toHaveCount(0);
-    await ringApprovesProfileGrant(profilePage, net);
     await publishProfile(profilePage, "Ring Person");
     await expectSignedInWithProfile(page, "Ring Person", written);
     await expect.poll(() => profilePage.isClosed()).toBe(true);

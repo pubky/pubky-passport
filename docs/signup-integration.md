@@ -34,8 +34,9 @@ numbered circles, a ✓ in a finished step; below md a progress bar beside the l
   Pubky Ring or Bitkit** (hands the request to the keychain app), then the consent line.
 - **Google** (an app's `entry=google`): the explanation and one **Continue with Google** button.
 
-During a request the start page opens on the request's Join, or on the Google screen when the app
-names `entry=google` next to `d=`; its first screen's **Back** cancels the request (the app
+During a request without a saved identity that can sign it (one or more open on the review or
+the identity list first, whatever the entry), the start page opens on the request's Join, or on
+the Google screen when the app names `entry=google` next to `d=`; its first screen's **Back** cancels the request (the app
 hears `cancel`), and Back from account creation returns to the screen it was opened from. **Manage
 your own keys** opens **Prove you’re not a robot.**: the ways to verify the instance's Homegate
 reports, as three cards from md (**Small payment**, its button **Bitcoin payment (₿1,000)** with

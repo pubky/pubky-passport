@@ -63,9 +63,11 @@ element still on the page, and `reset()` on any of them resets all. An element w
 differ from its group's shows "Passport button not configured" and changes nothing in the group.
 Groups exist within one page; without `sync-group` every element has its own sign-in.
 
-**Entries.** `entry="join"` opens Passport on its Join screen (create an account), `entry="google"`
-on the Google sign-in, `entry="sign-in"` on its start page for returning people; for someone
-Passport cannot sign in yet, a request's start page is Join with a recovery file and, unless the
+**Entries.** For someone without an identity Passport can sign the request with, `entry="join"`
+opens Passport on its Join screen (create an account), `entry="google"` on the Google sign-in,
+`entry="sign-in"` on its start page for returning people. An entry never skips identities Passport
+holds: one opens on its review, several on their list, each with the other ways in below. For
+someone Passport cannot sign in yet, a request's start page is Join with a recovery file and, unless the
 app shows its own keychain code, "Use Pubky Ring or Bitkit". While nothing runs the button is named
 after its entry: `label.<entry>` ("Join Pubky", "Continue with Google", "Sign in with Pubky");
 `label.idle` applies without an entry, and an app that sets `label.idle` but not `label.<entry>`

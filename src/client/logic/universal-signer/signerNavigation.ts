@@ -64,9 +64,9 @@ export type StartScreen = AuthorizationEntryScreen;
 
 /**
  * With an app's request, `choose` lists the identities to sign in with and `home` reviews the
- * request for the active one; with nothing saved, the request starts on `add`, the start page,
- * on `screen` (by default Sign in with a request, else Join). Without a request, `home` is the
- * active identity's overview and `switch` changes it.
+ * request for the active one; with none that can sign it, the request starts on `add`, the start
+ * page, on `screen` (by default Sign in with a request, else Join). Without a request, `home` is
+ * the active identity's overview and `switch` changes it.
  */
 export type SignerNavigation =
   | { view: "home" | "switch" | "manual" | "choose" }
@@ -114,8 +114,9 @@ export type SignerNavigationContext = {
 
 /**
  * The identities Passport can sign a request with: those whose key this browser holds. A key in
- * Pubky Ring signs only in Ring, so its identity is here for its profile alone; a request reaches
- * Ring through Continue with Pubky Ring, never through a saved Ring identity.
+ * Pubky Ring signs only in Ring, so its identity is here for its profile alone (its stored profile
+ * grant is a Session, which cannot approve another app's request); a request reaches Ring through
+ * Continue with Pubky Ring, never through a saved Ring identity.
  */
 export function signingIdentities(catalog: LocalIdentityCatalog): LocalIdentityMetadata[] {
   return catalog.identities.filter(({ keySource }) => keySource !== "ring");
@@ -129,6 +130,18 @@ function activeSigningIdentity(catalog: LocalIdentityCatalog): LocalIdentityMeta
   return active && active.keySource !== "ring" ? active : undefined;
 }
 
+/**
+ * The identity to choose for an app's request before its first screen: the only one Passport can
+ * sign it with, while another (a key in Pubky Ring) is the active one. `undefined` when the active
+ * identity signs already, or when there is none or more than one to choose from.
+ */
+export function soleSigningIdentityToSelect(catalog: LocalIdentityCatalog): string | undefined {
+  const signing = signingIdentities(catalog);
+  return signing.length === 1 && !activeSigningIdentity(catalog)
+    ? signing[0]?.publicIdentity.publicKeyZ32
+    : undefined;
+}
+
 export function findIdentity(
   catalog: LocalIdentityCatalog,
   publicKeyZ32: string,
@@ -139,15 +152,17 @@ export function findIdentity(
 }
 
 /**
- * The first screen. A request opens on the list of identities that can sign it, or straight on the
- * active one's review when it is the only one or the request was entered from its overview
- * (`authorizingPublicKeyZ32`); with none that can sign, it opens on the start page's Sign in. An
- * app's "Join now" or "Continue with Google" (`entry`) opens on Join or the Google sign-in even
- * where identities are saved, with Back to their list. Without a request, nothing saved opens on
- * Join. Only a submitted invite forces account setup to resume, because its key may already own an
- * account; unsubmitted setups wait until the person opens account creation again. A submitted
- * draft whose key is already saved finished registering. Profile setup is never forced here: it
- * follows account creation once, and is offered afterwards from the overview and Manage.
+ * The first screen. A request opens on the identities that can sign it, whatever screen the app
+ * asked for: straight on the active one's review when it is the only one (the shell chooses it
+ * first, see {@link soleSigningIdentityToSelect}) or the request was entered from its overview
+ * (`authorizingPublicKeyZ32`), else on their list; both offer the start page and Pubky Ring below.
+ * Only with none that can sign does it open on the start page, on the screen the app asked for
+ * (`entry`: Join, the Google sign-in, or Sign in, which a request shows as Join). Without a
+ * request, nothing saved opens on Join. Only a submitted invite forces account setup to resume,
+ * because its key may already own an account; unsubmitted setups wait until the person opens
+ * account creation again. A submitted draft whose key is already saved finished registering.
+ * Profile setup is never forced here: it follows account creation once, and is offered afterwards
+ * from the overview and Manage.
  */
 export function initialSignerNavigation(
   { catalog, requestPending = false }: SignerNavigationContext,
@@ -160,18 +175,18 @@ export function initialSignerNavigation(
   const saved = usable.length > 0;
   if (draft?.registrationStarted && !findIdentity(catalog, draft.publicIdentity.publicKeyZ32))
     return { view: "create-account", back: saved ? (requestPending ? "choose" : "home") : null };
-  if (requestPending && (entry === "join" || entry === "google"))
-    return { view: "add", back: saved ? "choose" : null, screen: entry };
   if (requestPending && saved) {
     // The only identity, or the one Authorize was pressed on, goes straight to the request's
-    // review (Switch still leads to the list); otherwise the person picks one first.
+    // review (Switch still leads to the list); otherwise the person picks one first. Neither
+    // approves anything: Authorize stays the person's to press.
     const active = activeSigningIdentity(catalog)?.publicIdentity.publicKeyZ32;
     return active !== undefined && (usable.length === 1 || active === authorizingPublicKeyZ32)
       ? { view: "home" }
       : { view: "choose" };
   }
   // Chosen explicitly, so first-identity setup stays open after its identity is saved.
-  if (!saved) return { view: "add", back: null, screen: requestPending ? "sign-in" : "join" };
+  if (!saved)
+    return { view: "add", back: null, screen: requestPending ? (entry ?? "sign-in") : "join" };
   return { view: "home" };
 }
 

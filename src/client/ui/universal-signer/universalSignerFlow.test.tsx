@@ -459,26 +459,69 @@ describe("shared addition navigation", () => {
     expect(approve).not.toHaveBeenCalled();
   });
 
-  it.each([
-    ["join", "Let’s join Pubky."],
-    ["google", "Continue with Google."],
-  ] as const)(
-    "opens on the app's %s entry although identities are saved, with Back to their list",
-    async (entry, heading) => {
-      state.catalog = TWO_SAVED();
+  it.each(["join", "google", "sign-in", undefined] as const)(
+    "opens on the saved identities whatever the app asked for (entry %s), never approving",
+    async (entry) => {
+      // One identity that can sign: its review, with the start page and the keychain below.
       const user = userEvent.setup();
-      const entered = { status: "review", review, entry } as const;
-      mount(true, {}, { getState: () => entered });
-
-      // The app's own "Join now" or "Continue with Google" asked for this screen.
-      expect(await screen.findByRole("heading", { name: heading })).toBeInTheDocument();
+      const entered = { status: "review", review, ...(entry ? { entry } : {}) } as const;
+      const one = mount(true, {}, { getState: () => entered });
+      expect(await screen.findByRole("button", { name: "Authorize" })).toBeInTheDocument();
       expect(screen.queryByRole("list", { name: CHOOSE_LIST })).not.toBeInTheDocument();
-      expect(screen.queryByRole("button", { name: "Authorize" })).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Continue with keychain" })).toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: "Use another identity" }));
+      expect(screen.getByRole("heading", { name: "Let’s join Pubky." })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Import it" })).toBeInTheDocument();
       await user.click(screen.getByRole("button", { name: "Back" }));
-      expect(screen.getByRole("list", { name: CHOOSE_LIST })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Authorize" })).toBeInTheDocument();
+      one.unmount();
+
+      // Several: their list first, with the same ways in below it.
+      state.catalog = TWO_SAVED();
+      mount(true, {}, { getState: () => entered });
+      expect(await screen.findByRole("list", { name: CHOOSE_LIST })).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Authorize" })).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Use another identity" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Continue with keychain" })).toBeInTheDocument();
+      expect(approve).not.toHaveBeenCalled();
       expect(cancel).not.toHaveBeenCalled();
     },
   );
+
+  it("opens on the review of the only identity that can sign while a Ring key is active", async () => {
+    state.catalog = {
+      activePublicKeyZ32: RING_HELD.publicIdentity.publicKeyZ32,
+      identities: [RING_HELD, EXISTING],
+    };
+    const entered = { status: "review", review, entry: "join" } as const;
+    mount(true, {}, { getState: () => entered });
+
+    // It is chosen for the person, as a press on the list would; Authorize is still theirs.
+    expect(await screen.findByRole("button", { name: "Authorize" })).toBeInTheDocument();
+    expect(state.catalog.activePublicKeyZ32).toBe(EXISTING.publicIdentity.publicKeyZ32);
+    expect(screen.queryByRole("list", { name: CHOOSE_LIST })).not.toBeInTheDocument();
+    expect(approve).not.toHaveBeenCalled();
+  });
+
+  it("lists the identities when the only one that can sign could not be chosen", async () => {
+    state.catalog = {
+      activePublicKeyZ32: RING_HELD.publicIdentity.publicKeyZ32,
+      identities: [RING_HELD, EXISTING],
+    };
+    render(
+      withPassportTestProviders(<UniversalSignerFlow />, {
+        createLocalIdentityController: () =>
+          fakeLocalIdentityController(state, {
+            selectIdentity: () => Result.err({ code: "storage_unavailable" as const }),
+          }),
+        createAuthorizationController: () =>
+          fakePassportAuthorizationController({ current: { status: "review", review } }, {}),
+      }),
+    );
+
+    expect(await screen.findByRole("list", { name: CHOOSE_LIST })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Authorize" })).not.toBeInTheDocument();
+  });
 
   it("answers the app with Back from its Google entry when nothing is saved", async () => {
     state.catalog = { activePublicKeyZ32: null, identities: [] };
@@ -494,8 +537,8 @@ describe("shared addition navigation", () => {
     expect(cancel).toHaveBeenCalledOnce();
   });
 
-  it("returns Back from the keychain hand-off to the Join the app opened, and only then to the list", async () => {
-    state.catalog = TWO_SAVED();
+  it("returns Back from the keychain hand-off to the Join the app opened, then answers the app", async () => {
+    state.catalog = { activePublicKeyZ32: null, identities: [] };
     const user = userEvent.setup();
     const entered = { status: "review", review, entry: "join" } as const;
     mount(true, {}, { getState: () => entered });
@@ -508,11 +551,10 @@ describe("shared addition navigation", () => {
     // Back retraces the start page's own steps first; the request is still waiting.
     await user.click(screen.getByRole("button", { name: "Back" }));
     expect(screen.getByRole("heading", { name: "Let’s join Pubky." })).toBeInTheDocument();
-    expect(screen.queryByRole("list", { name: CHOOSE_LIST })).not.toBeInTheDocument();
-    // On the request's first screen, Back leads where it was opened from: the saved identities.
-    await user.click(screen.getByRole("button", { name: "Back" }));
-    expect(screen.getByRole("list", { name: CHOOSE_LIST })).toBeInTheDocument();
     expect(cancel).not.toHaveBeenCalled();
+    // On the request's first screen, Back answers the app.
+    await user.click(screen.getByRole("button", { name: "Back" }));
+    expect(cancel).toHaveBeenCalledOnce();
     expect(approve).not.toHaveBeenCalled();
   });
 
