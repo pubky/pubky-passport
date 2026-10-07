@@ -51,7 +51,14 @@ function PassportScreen({
       tabIndex={-1}
       className={cn(
         "mx-auto flex grow outline-none w-full flex-col px-6 pb-6 pt-3 md:pb-10 md:pt-2",
-        width === "wide" ? "max-w-[1280px] md:px-10" : "max-w-[588px] md:px-0",
+        // Below a desktop window (phones, the app's popup, tablets up to 1024px) every screen runs
+        // the full width in one column, 24px from the window's sides as the header row; on a
+        // desktop (64.0625rem, 1025px at the default font size; in rem so it orders after md)
+        // Passport's own screens keep their 588px column, and only the wide ones (`wide`) the
+        // 1200px track, 40px in.
+        width === "wide"
+          ? "max-w-[1280px] min-[64.0625rem]:px-10"
+          : "max-w-[1280px] min-[64.0625rem]:max-w-[588px] min-[64.0625rem]:px-0",
         className,
       )}
       {...props}

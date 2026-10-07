@@ -38,6 +38,35 @@ function codeBoxes() {
 describe("SmsCodeStep", () => {
   afterEach(cleanup);
 
+  it("echoes the code in six boxes, with Back, Resend and Verify after them", async () => {
+    const onBack = vi.fn();
+    const onVerify = vi.fn();
+    render(
+      <SmsCodeStep
+        error={null}
+        onBack={onBack}
+        onSendCode={vi.fn()}
+        onVerify={onVerify}
+        pending={false}
+        phoneNumber={PHONE}
+        resendAt={0}
+      />,
+    );
+    expect(codeBoxes()).toHaveLength(6);
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText("Verification code"), "123456");
+    expect(codeBoxes().map((box) => box.textContent)).toEqual(["1", "2", "3", "4", "5", "6"]);
+    const back = screen.getByRole("button", { name: "Back" });
+    const resend = screen.getByRole("button", { name: "Resend code" });
+    const verify = screen.getByRole("button", { name: "Verify code" });
+    expect(back.compareDocumentPosition(resend)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(resend.compareDocumentPosition(verify)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    await user.click(verify);
+    expect(onVerify).toHaveBeenCalledExactlyOnceWith(PHONE, "123456");
+    await user.click(back);
+    expect(onBack).toHaveBeenCalledOnce();
+  });
+
   it("shows the resend as the work in progress, not a verification", async () => {
     // Like the signup controller, starting a send sets `pending` within the same press.
     function Harness() {

@@ -23,6 +23,7 @@ import { shortPublicKey } from "@/client/ui/shared/formatPublicKey";
 import { identityDisplayName, profileName } from "@/client/ui/shared/identityDisplay";
 import { IdentitySummary } from "@/client/ui/shared/identitySummary";
 import { PassportNavigation } from "@/client/ui/shared/passportNavigation";
+import { ClassicQrSwitch, useKeychainAuthMethod } from "@/client/ui/shared/classicQrSwitch";
 import { Notice } from "@/client/ui/shared/notice";
 import { Button } from "@/client/ui/shared/primitives/button";
 import { RingHandoffScreen } from "@/client/ui/shared/ringHandoffScreen";
@@ -71,6 +72,8 @@ const FAILURE_TOAST_MS = 10_000;
 
 type ConnectionState =
   | { status: "starting" | "waiting" }
+  /** A stored profile grant is being restored, before any request: nothing shows meanwhile. */
+  | { status: "resuming" }
   | { status: "confirming"; publicKeyZ32: string; hasProfile: PublishedProfile; saving: boolean }
   | { status: "failed"; failure: RingConnectionErrorCode };
 
@@ -137,8 +140,23 @@ export function RingProfileConnection({
     leave && unsavedEdits ? () => setLeaving(() => leave) : leave;
   const back = confirmLeaving(onBack);
   const defer = confirmLeaving(onDefer);
-  const [state, setState] = useState<ConnectionState>({ status: "starting" });
+  // A known identity whose profile grant this browser keeps connects without the keychain; the
+  // screen shows only if none is stored. The legacy cookie sign-in is never stored.
+  // Older Pubky Ring needs the legacy request: switching asks again, the other way.
+  const method = useKeychainAuthMethod();
+  const resumable =
+    expectedKey !== undefined && controller.resume !== undefined && method === "grant";
+  const [state, setState] = useState<ConnectionState>({
+    status: resumable ? "resuming" : "starting",
+  });
   const [attempt, setAttempt] = useState({ id: 0, resume: false });
+  const [requestedMethod, setRequestedMethod] = useState(method);
+  if (method !== requestedMethod) {
+    setRequestedMethod(method);
+    setState({ status: "starting" });
+    // A new request of the other kind: an approval being resumed belongs to the old one.
+    setAttempt(({ id }) => ({ id, resume: false }));
+  }
   /** Set while a retry reuses the grant Ring already approved, so cleanup must keep it. */
   const keepConnection = useRef(false);
   const complete = useEffectEvent(onComplete);
@@ -189,24 +207,39 @@ export function RingProfileConnection({
       }
       timer = setTimeout(() => void poll(), 1_500);
     }
-    if (attempt.resume) void poll();
-    else
-      void controller.start({ expectedKey, setupRequired, confirmIdentity }).then((result) => {
+    async function begin() {
+      if (resumable && attempt.id === 0) {
+        const resumed = await controller.resume?.({ expectedKey, setupRequired });
         if (!active) return;
-        if (Result.isError(result)) {
-          setState({ status: "failed", failure: result.error.code });
+        if (resumed && Result.isOk(resumed) && resumed.value) {
+          complete(resumed.value);
           return;
         }
-        setState({ status: "waiting" });
-        void poll();
+        setState({ status: "starting" });
+      }
+      const result = await controller.start({
+        expectedKey,
+        setupRequired,
+        confirmIdentity,
+        method,
       });
+      if (!active) return;
+      if (Result.isError(result)) {
+        setState({ status: "failed", failure: result.error.code });
+        return;
+      }
+      setState({ status: "waiting" });
+      void poll();
+    }
+    if (attempt.resume) void poll();
+    else void begin();
     return () => {
       active = false;
       clearTimeout(timer);
       // Saving the identity can switch views before the poll continuation runs.
       if (!keepConnection.current && !controller.isConnected(expectedKey)) controller.dispose();
     };
-  }, [controller, expectedKey, setupRequired, confirmIdentity, attempt]);
+  }, [controller, expectedKey, setupRequired, confirmIdentity, attempt, method, resumable]);
 
   /** Only a storage failure keeps the approved grant; anything else needs a new request. */
   function retry(resume: boolean) {
@@ -234,6 +267,9 @@ export function RingProfileConnection({
       });
     onComplete(confirmed.value);
   }
+
+  // Restoring a stored grant shows nothing; the screen appears only if the keychain must be asked.
+  if (state.status === "resuming") return null;
 
   return (
     <RingHandoffScreen
@@ -349,23 +385,27 @@ export function RingProfileConnection({
           )}
         </section>
       ) : (
-        <div className="w-full min-w-0 outline-none" ref={handoff} tabIndex={-1}>
-          <ExternalSignerRequest
-            getAuthorizationUrl={() => controller.authorizationUrl()}
-            launcher={launcher}
-            openOnReady={openOnReady}
-            // A computer sees the code's tile at once, at its final size, while the link is made;
-            // a phone its button, busy, in place.
-            preparing={state.status === "starting"}
-            purpose="profile-connection"
-            // Retried from the hand-off itself (the toast says why): a computer presses the spent
-            // code, a phone Try again. Only a storage failure keeps the approved grant.
-            spent={
-              state.status === "failed"
-                ? { onRetry: () => retry(state.failure === "storage_failed") }
-                : undefined
-            }
-          />
+        // Pubky Ring older than 2.0 approves only the legacy way: one quiet line under the code.
+        <div className="flex w-full min-w-0 flex-col gap-1">
+          <div className="w-full min-w-0 outline-none" ref={handoff} tabIndex={-1}>
+            <ExternalSignerRequest
+              getAuthorizationUrl={() => controller.authorizationUrl()}
+              launcher={launcher}
+              openOnReady={openOnReady}
+              // A computer sees the code's tile at once, at its final size, while the link is made;
+              // a phone its button, busy, in place.
+              preparing={state.status === "starting"}
+              purpose="profile-connection"
+              // Retried from the hand-off itself (the toast says why): a computer presses the spent
+              // code, a phone Try again. Only a storage failure keeps the approved grant.
+              spent={
+                state.status === "failed"
+                  ? { onRetry: () => retry(state.failure === "storage_failed") }
+                  : undefined
+              }
+            />
+          </div>
+          <ClassicQrSwitch />
         </div>
       )}
       {unsavedEdits ? (

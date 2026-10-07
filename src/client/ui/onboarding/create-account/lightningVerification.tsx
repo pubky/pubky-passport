@@ -7,7 +7,6 @@ import { BackButton } from "@/client/ui/shared/backButton";
 import { copyToClipboard } from "@/client/ui/shared/copyToClipboard";
 import { CopyIcon, RotateCcwIcon } from "@/client/ui/shared/icons";
 import { Button, ButtonLink } from "@/client/ui/shared/primitives/button";
-import { FieldMessage } from "@/client/ui/shared/primitives/fieldMessage";
 import { Notice } from "@/client/ui/shared/notice";
 import { OnboardingCard } from "@/client/ui/shared/onboardingCard";
 import { PassportNavigation } from "@/client/ui/shared/passportNavigation";
@@ -133,11 +132,9 @@ export function LightningVerification({
                 </p>
                 <p className="flex items-center gap-2 text-sm text-muted-foreground" role="status">
                   <Spinner className="size-4" decorative />
-                  Waiting for payment…
+                  Waiting for payment · expires{" "}
+                  {new Date(invoice.expiresAt).toLocaleTimeString([], { timeStyle: "short" })}
                 </p>
-                <FieldMessage>
-                  Expires at {new Date(invoice.expiresAt).toLocaleTimeString()}.
-                </FieldMessage>
                 <Button
                   className="mt-3 w-full md:w-fit"
                   onClick={() => void copyInvoice()}

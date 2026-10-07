@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { E2E_HTTP_RELAY_URL } from "./helpers/e2eServer";
 import { PKARR_RELAY_HOSTS } from "./helpers/network";
 import { emulateCoarsePointerInContext } from "./helpers/pointer";
-import { ringApproves, type RingNetwork } from "./helpers/pubkyRing";
+import { newRingNetwork, ringApproves, type RingNetwork } from "./helpers/pubkyRing";
 import type { Route } from "@playwright/test";
 import { expect, test, type Page } from "./helpers/passportTest";
 import {
@@ -12,6 +12,7 @@ import {
   PROFILE_KEY,
   seedProfileIdentity,
 } from "./helpers/pubkyProfile";
+import { clientAuthRequest } from "./helpers/pubkyAuthRequests";
 import { UNVERIFIED_HEADING, UNVERIFIED_WARNING } from "./helpers/requester";
 
 const CLIENT = "https://client.example";
@@ -19,8 +20,12 @@ const CLIENT = "https://client.example";
 const FORWARDED = "https://5173--main--workspace--developer.coder.example";
 const CAPABILITIES = "/pub/example.app/:rw";
 const SECRET = ["kqnceEMgrNQM_xi06oQXjA3c", "JHX_RQmw1BY6JE1bse8"].join("");
+/** The start page's account card, where a request opens when Passport has no identity to sign it. */
+const START_CARD = { name: "Create account" } as const;
 // The package's flows carry no callbacks; the fake SDK hands this URL to the popup.
 const REQUEST = `pubkyauth://signin?caps=${CAPABILITIES}&relay=https://relay.client.example/inbox&secret=${SECRET}&x-source=ClientFixture`;
+/** A grant request, the kind the package asks for by default, which either keychain app takes. */
+const GRANT_REQUEST = clientAuthRequest({ capabilities: CAPABILITIES });
 
 type Facade = {
   configure(options: object): void;
@@ -30,10 +35,13 @@ type Facade = {
   profiles: unknown[];
   diagnostics: { code: string }[];
   reset(): void;
+  headless(options: object): void;
+  headlessClient: { describe(): { classicQr: boolean }; setClassicQr(on: boolean): void };
+  headlessViews: boolean[];
 };
 type FakeSdk = {
   approve(): void;
-  starts: { callbacks: boolean }[];
+  starts: { kind: "grant" | "cookie"; capabilities: string; callbacks: boolean }[];
   profileReads: string[];
   signouts: number;
 };
@@ -42,8 +50,12 @@ type FixtureWindow = Window & { __facade: Facade; __fakeSdk: FakeSdk };
 type Homeserver = (route: Route) => Promise<void>;
 type ClientOptions = {
   client?: string;
+  /** The link the fake SDK hands the package for each flow; `REQUEST` by default. */
+  authorizationUrl?: string;
   profile?: "required" | "optional";
   variant?: "large";
+  /** The Passport screen the element's sign-in opens on. */
+  entry?: "join" | "google" | "sign-in";
   /** Internal client timeouts, to reach a timer's end in a test. */
   timeouts?: Record<string, number>;
   /** Gives each fake SDK flow its own link. */
@@ -61,8 +73,10 @@ async function openClient(
   baseURL: string,
   {
     client = CLIENT,
+    authorizationUrl = REQUEST,
     profile = "optional",
     variant,
+    entry,
     timeouts,
     numberLinks,
     homeserver,
@@ -115,23 +129,28 @@ async function openClient(
       body: await readFile(file, "utf8"),
     });
   });
-  await page.goto(`${client}/`);
-  await page.waitForFunction(() => "__facade" in window);
-  await page.evaluate(
-    (options) => (window as unknown as FixtureWindow).__facade.configure(options),
-    {
-      instance: passportOrigin,
-      authorizationUrl: REQUEST,
-      publicKey: PROFILE_KEY,
-      capabilities: CAPABILITIES,
-      profile,
-      variant,
-      timeouts,
-      numberLinks,
-      syncGroup,
-    },
-  );
-  return { relayPosts };
+  /** Loads the fixture page and mounts the app's markup, as the app's own page load would. */
+  const load = async (navigate: () => Promise<unknown>) => {
+    await navigate();
+    await page.waitForFunction(() => "__facade" in window);
+    await page.evaluate(
+      (options) => (window as unknown as FixtureWindow).__facade.configure(options),
+      {
+        instance: passportOrigin,
+        authorizationUrl,
+        publicKey: PROFILE_KEY,
+        capabilities: CAPABILITIES,
+        profile,
+        variant,
+        entry,
+        timeouts,
+        numberLinks,
+        syncGroup,
+      },
+    );
+  };
+  await load(() => page.goto(`${client}/`));
+  return { relayPosts, reload: () => load(() => page.reload()) };
 }
 
 /** `text` as a literal inside a regular expression. */
@@ -151,12 +170,31 @@ const facade = (page: Page) =>
     };
   });
 
-async function openPopup(page: Page) {
+async function openPopup(page: Page, label = "Continue with Pubky") {
   const button = page.locator("pubky-passport").locator('[part="button"]');
-  await expect(button).toHaveText("Continue with Pubky");
+  await expect(button).toHaveText(label);
   const popup = page.waitForEvent("popup");
   await button.click();
   return popup;
+}
+
+type Hello = { type: string; features: string[] };
+
+/**
+ * Records, in every Passport window the context opens from now on, each hello an app posts to it.
+ * Returns what a given window received so far.
+ */
+async function recordHellos(page: Page, baseURL: string) {
+  await page.context().addInitScript((origin) => {
+    if (location.origin !== origin) return;
+    const hellos: unknown[] = [];
+    Object.defineProperty(window, "__hellos", { value: hellos });
+    addEventListener("message", (event: MessageEvent<{ type?: unknown } | null>) => {
+      if (event.data?.type === "pubky-passport.hello") hellos.push(event.data);
+    });
+  }, new URL(baseURL).origin);
+  return (popup: Page) =>
+    popup.evaluate(() => (window as Window & { __hellos?: Hello[] }).__hellos ?? []);
 }
 
 for (const client of [CLIENT, FORWARDED]) {
@@ -198,6 +236,8 @@ for (const client of [CLIENT, FORWARDED]) {
       await page.evaluate(() => (window as unknown as FixtureWindow).__fakeSdk.starts),
     ).toEqual([
       {
+        // The classic QR is off by default: a grant request, which either keychain app approves.
+        kind: "grant",
         capabilities: CAPABILITIES,
         clientId: "client.example",
         xSource: "ClientFixture",
@@ -213,6 +253,124 @@ for (const client of [CLIENT, FORWARDED]) {
     );
   });
 }
+
+for (const [entry, label] of [
+  ["join", "Join Pubky"],
+  ["google", "Continue with Google"],
+  ["sign-in", "Sign in with Pubky"],
+] as const) {
+  // Nothing is saved in Passport: `join` opens account creation's ways to verify, `google` and
+  // `sign-in` the start page with that card's button focused.
+  const opensOn =
+    entry === "join"
+      ? "Create your account."
+      : `the start page with ${entry === "google" ? "Continue with Google" : "Continue with Pubky Ring"} focused`;
+  test(`an element with entry="${entry}" reads "${label}" and opens Passport on ${opensOn}`, async ({
+    page,
+    baseURL,
+  }) => {
+    const passport = new URL(baseURL!).origin;
+    // The address Passport's window was opened at, before Passport takes the request out of it.
+    await page.context().addInitScript((origin) => {
+      if (location.origin === origin)
+        Object.defineProperty(window, "__openedAt", { value: location.href });
+    }, passport);
+    await openClient(page, baseURL!, { entry });
+    const popup = await openPopup(page, label);
+    // The app's button picked the first screen, next to its request.
+    if (entry === "join") {
+      await expect(popup.getByRole("heading", { name: "Create your account." })).toBeVisible();
+      await expect(popup.getByRole("region", START_CARD)).toHaveCount(0);
+    } else {
+      await expect(popup.getByRole("region", START_CARD)).toBeVisible();
+      await expect(
+        popup.getByRole("button", {
+          name: entry === "google" ? "Continue with Google" : "Continue with Pubky Ring",
+          exact: true,
+        }),
+      ).toBeFocused();
+    }
+    expect(
+      await popup.evaluate(() => (window as Window & { __openedAt?: string }).__openedAt),
+    ).toMatch(new RegExp(`^${escape(passport)}/authorize#d=[^&]+&entry=${entry}$`, "u"));
+    expect(new URL(popup.url()).hash).toBe("");
+    // The screen changes nothing else: the request is bound to its opener, as any other.
+    await expect
+      .poll(async () => (await facade(page)).state)
+      .toMatchObject({ status: "waiting", handshake: "confirmed" });
+    await expect(
+      popup.getByRole("complementary", { name: "Signing in to client.example" }),
+    ).toBeVisible();
+  });
+}
+
+test("the large element's hello says it offers the keychain itself; classic's start page keeps its Pubky Ring card", async ({
+  page,
+  baseURL,
+}) => {
+  const hellos = await recordHellos(page, baseURL!);
+  await openClient(page, baseURL!, { variant: "large", authorizationUrl: GRANT_REQUEST });
+  // The element holds a prepared keychain request: its code, beside the button.
+  await expect(page.locator("pubky-passport").locator('[part="qr"]')).toHaveAttribute(
+    "data-state",
+    "ready",
+  );
+  const popup = await openPopup(page);
+  await expect
+    .poll(async () => (await facade(page)).state)
+    .toMatchObject({ status: "waiting", handshake: "confirmed" });
+  // Every hello says so while the element offers its code.
+  await expect.poll(async () => (await hellos(popup)).length).toBeGreaterThan(0);
+  for (const hello of await hellos(popup))
+    expect(hello.features).toEqual(["outcome-v2", "status", "keychain"]);
+
+  // Nothing saved in Passport: the start page, bound to the app, with its account card, the
+  // recovery file and, on the classic track, its own Pubky Ring card all the same (the maintainer
+  // kept it; the hint changes nothing here).
+  await expect(popup.getByRole("region", START_CARD)).toBeVisible();
+  await expect(
+    popup.getByRole("complementary", { name: "Signing in to client.example" }),
+  ).toBeVisible();
+  await expect(popup.getByRole("button", { name: "Import it", exact: true })).toBeVisible();
+  await expect(
+    popup
+      .getByRole("region", { name: "Pubky Ring", exact: true })
+      .getByRole("button", { name: "Continue with Pubky Ring or Bitkit", exact: true }),
+  ).toBeVisible();
+});
+
+test("the small element's hello offers no keychain of its own, so Passport's start page hands the request to Pubky Ring", async ({
+  page,
+  baseURL,
+}) => {
+  const hellos = await recordHellos(page, baseURL!);
+  await openClient(page, baseURL!, { authorizationUrl: GRANT_REQUEST });
+  // The small element prepares no keychain request: no code, nothing to open the app with.
+  await expect(page.locator("pubky-passport").locator('[part="qr"]')).toHaveCount(0);
+  const popup = await openPopup(page);
+  await expect
+    .poll(async () => (await facade(page)).state)
+    .toMatchObject({ status: "waiting", handshake: "confirmed" });
+  await expect.poll(async () => (await hellos(popup)).length).toBeGreaterThan(0);
+  for (const hello of await hellos(popup)) expect(hello.features).toEqual(["outcome-v2", "status"]);
+
+  // The start page, bound to the app: its account card and its Pubky Ring card.
+  await expect(popup.getByRole("region", START_CARD)).toBeVisible();
+  await expect(
+    popup.getByRole("complementary", { name: "Signing in to client.example" }),
+  ).toBeVisible();
+  const ring = popup
+    .getByRole("region", { name: "Pubky Ring", exact: true })
+    .getByRole("button", { name: "Continue with Pubky Ring or Bitkit", exact: true });
+  await expect(ring).toBeVisible();
+
+  // It hands the app's request over as it is, and the app hears the approval moved there.
+  await ring.click();
+  await expect(popup.getByRole("heading", { name: "Sign in with Pubky Ring." })).toBeVisible();
+  await expect
+    .poll(async () => (await facade(page)).state)
+    .toMatchObject({ status: "waiting", phase: "ring" });
+});
 
 test("the app's popup stays bound to its request when a blocked Google window sends the sign-in through the same window", async ({
   page,
@@ -304,6 +462,29 @@ test("cancelling in Passport ends the attempt as cancelled and closes the popup"
   expect((await facade(page)).publicKeys).toEqual([]);
 });
 
+test("Cancel on the start page, the request's first screen, answers the app and closes the popup at once", async ({
+  page,
+  baseURL,
+}) => {
+  // Nothing saved in Passport: the popup opens on the old start page, whose header Cancel answers.
+  await openClient(page, baseURL!);
+  const popup = await openPopup(page);
+  await expect
+    .poll(async () => (await facade(page)).state)
+    .toMatchObject({ status: "waiting", handshake: "confirmed" });
+  await expect(popup.getByRole("region", START_CARD)).toBeVisible();
+  const closed = popup.waitForEvent("close", { timeout: 5_000 });
+  await popup.getByRole("button", { name: "Cancel", exact: true }).click();
+  await expect
+    .poll(async () => (await facade(page)).state)
+    .toMatchObject({ status: "failed", error: { code: "cancelled" } });
+  await closed;
+  await expect(page.locator("pubky-passport").getByRole("status")).toHaveText(
+    "Sign-in was cancelled.",
+  );
+  expect((await facade(page)).publicKeys).toEqual([]);
+});
+
 test("the large element's Ring code copies its link, expires blurred and reloads a fresh request", async ({
   page,
   baseURL,
@@ -368,6 +549,122 @@ test("the large element's Ring code copies its link, expires blurred and reloads
   await expect.poll(async () => (await copied()).length).toBe(2);
   const [, fresh] = await copied();
   expect(fresh).toMatch(new RegExp(`^${escape(REQUEST)}&flow=[1-9]\\d*$`, "u"));
+});
+
+test("the large element's classic QR switch turns the next request into the legacy kind, kept for this device", async ({
+  page,
+  baseURL,
+}) => {
+  const { reload } = await openClient(page, baseURL!, { variant: "large" });
+  const element = page.locator("pubky-passport");
+  const qr = element.locator('[part="qr"]');
+  const classic = element.getByRole("switch", {
+    name: "Older Pubky Ring? Classic QR",
+  });
+  const divider = element.locator('[data-slot="divider"]');
+  const starts = () =>
+    page.evaluate(() => (window as unknown as FixtureWindow).__fakeSdk.starts.map((s) => s.kind));
+  const stored = () =>
+    page.evaluate(() => localStorage.getItem("pubky-passport-client/keychain-auth/v1"));
+
+  // Off by default: the code is a grant request, which Pubky Ring 2.0 and Bitkit both approve.
+  await expect(qr).toHaveAttribute("data-state", "ready");
+  await expect(classic).not.toBeChecked();
+  await expect(divider).toHaveText("or scan with Pubky Ring or Bitkit");
+  expect(await starts()).toEqual(["grant"]);
+  expect(await stored()).toBeNull();
+
+  // On: the prepared code is replaced by a legacy cookie request, for Pubky Ring older than 2.0.
+  await classic.click();
+  await expect(classic).toBeChecked();
+  await expect.poll(starts).toEqual(["grant", "cookie"]);
+  expect(
+    (await page.evaluate(() => (window as unknown as FixtureWindow).__fakeSdk.starts)).at(-1),
+  ).toMatchObject({ kind: "cookie", capabilities: CAPABILITIES, callbacks: false });
+  await expect(qr).toHaveAttribute("data-state", "ready");
+  await expect(divider).toHaveText("or scan with Pubky Ring");
+  expect(await stored()).toBe("cookie");
+
+  // The choice belongs to this device: the app's page loads again with it.
+  await reload();
+  await expect(classic).toBeChecked();
+  await expect(divider).toHaveText("or scan with Pubky Ring");
+  await expect(qr).toHaveAttribute("data-state", "ready");
+  expect(await starts()).toEqual(["cookie"]);
+});
+
+test("the settings tray's hint takes no room until it has something to say", async ({
+  page,
+  baseURL,
+}) => {
+  await openClient(page, baseURL!);
+  const element = page.locator("pubky-passport");
+  await element.locator('[part="settings"]').click();
+  const tray = element.locator('[part="tray"]');
+  const form = element.locator('[data-slot="picker"]');
+  const field = form.locator("label");
+  const hint = element.locator('[data-slot="picker-hint"]');
+  const input = element.locator('[data-slot="picker-input"]');
+  await expect(input).toBeFocused();
+  await expect(tray).toHaveCSS("padding-top", "12px");
+  // Empty: the form is just its field, with no line or gap kept for the hint.
+  await expect(hint).toBeEmpty();
+  const emptyForm = (await form.boundingBox())!;
+  const fieldBox = (await field.boundingBox())!;
+  expect(Math.abs(emptyForm.height - fieldBox.height)).toBeLessThanOrEqual(1);
+  expect(await hint.evaluate((node) => node.getBoundingClientRect().height)).toBe(0);
+  // A typed address that cannot be used: its validation line shows under the field.
+  await input.fill("http://insecure.example");
+  await expect(hint).not.toBeEmpty();
+  await expect(hint).toBeVisible();
+  const hintBox = (await hint.boundingBox())!;
+  expect(hintBox.height).toBeGreaterThan(10);
+  expect(hintBox.y).toBeGreaterThanOrEqual(fieldBox.y + fieldBox.height);
+  expect((await form.boundingBox())!.height).toBeGreaterThan(emptyForm.height + 10);
+  // Cleared, it takes no room again.
+  await input.fill("");
+  await expect(hint).toBeEmpty();
+  await expect
+    .poll(async () => (await form.boundingBox())!.height)
+    .toBeCloseTo(emptyForm.height, 0);
+});
+
+test("the headless client's setClassicQr shows the choice in its view", async ({
+  page,
+  baseURL,
+}) => {
+  await openClient(page, baseURL!);
+  await page.evaluate(() =>
+    (window as unknown as FixtureWindow).__facade.headless({
+      appName: "ClientFixture",
+      capabilities: "/pub/example.app/:rw",
+    }),
+  );
+  const classicQr = () =>
+    page.evaluate(
+      () => (window as unknown as FixtureWindow).__facade.headlessClient.describe().classicQr,
+    );
+  const told = () =>
+    page.evaluate(() => (window as unknown as FixtureWindow).__facade.headlessViews);
+  expect(await classicQr()).toBe(false);
+
+  await page.evaluate(() =>
+    (window as unknown as FixtureWindow).__facade.headlessClient.setClassicQr(true),
+  );
+  expect(await classicQr()).toBe(true);
+  await expect.poll(told).toContain(true);
+  expect(
+    await page.evaluate(() => localStorage.getItem("pubky-passport-client/keychain-auth/v1")),
+  ).toBe("cookie");
+
+  await page.evaluate(() =>
+    (window as unknown as FixtureWindow).__facade.headlessClient.setClassicQr(false),
+  );
+  expect(await classicQr()).toBe(false);
+  await expect.poll(async () => (await told()).at(-1)).toBe(false);
+  expect(
+    await page.evaluate(() => localStorage.getItem("pubky-passport-client/keychain-auth/v1")),
+  ).toBeNull();
 });
 
 /**
@@ -436,7 +733,7 @@ test("an app that requires a profile gets one created in Passport before the rev
   await expect(popup.getByRole("button", { name: "Skip for now" })).toHaveCount(0);
   await expect(popup.getByRole("button", { name: "Authorize", exact: true })).toHaveCount(0);
   await popup.getByLabel("Name", { exact: true }).fill("Fixture Person");
-  await popup.getByRole("button", { name: "Save profile", exact: true }).click();
+  await popup.getByRole("button", { name: "Continue", exact: true }).click();
 
   // Published, the sign-in goes on to the app's review in the same window.
   await expect(popup.getByRole("heading", { name: "Signing in to ClientFixture" })).toBeVisible({
@@ -476,7 +773,7 @@ test("Passport honours profile=required next to d=, the same-tab form of the req
   });
   await expect(page.getByRole("button", { name: "Skip for now" })).toHaveCount(0);
   await page.getByLabel("Name", { exact: true }).fill("Same Tab");
-  await page.getByRole("button", { name: "Save profile", exact: true }).click();
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
   // The same tab has no opener to bind: the request names nobody (M3).
   await expect(page.getByRole("heading", UNVERIFIED_HEADING)).toBeVisible({ timeout: 20_000 });
   await expect(page.getByRole("button", { name: "Authorize", exact: true })).toBeEnabled();
@@ -486,13 +783,7 @@ test("Passport honours profile=required next to d=, the same-tab form of the req
 
 /** Passport's relay for its Ring profile grant, answered the way `mockRingNetwork` answers it. */
 function ringRelay(): { net: RingNetwork; relay: (route: Route) => Promise<void> } {
-  const net: RingNetwork = {
-    inbox: new Map(),
-    waiting: [],
-    exchangedGrants: [],
-    writes: [],
-    relayRequests: [],
-  };
+  const net = newRingNetwork();
   const relay = async (route: Route) => {
     const request = route.request();
     const url = new URL(request.url());
@@ -571,7 +862,7 @@ async function publishProfile(popup: Page, name: string): Promise<void> {
   await expect(popup.getByText(/needs a public profile/u)).toBeVisible();
   await expect(popup.getByRole("button", { name: "Skip for now" })).toHaveCount(0);
   await popup.getByLabel("Name", { exact: true }).fill(name);
-  await popup.getByRole("button", { name: "Save profile", exact: true }).click();
+  await popup.getByRole("button", { name: "Continue", exact: true }).click();
 }
 
 async function expectSignedInWithProfile(page: Page, name: string, written: Map<string, string>) {
@@ -609,14 +900,16 @@ test("after a Pubky Ring sign-in, the missing profile is created inside Passport
 });
 
 for (const closedDuring of ["the Ring grant", "the editor"] as const) {
-  test(`Passport closed during ${closedDuring}: the button reopens the profile setup for that key`, async ({
+  // Approved before Passport closed, Passport's profile grant was stored for that key.
+  const approved = closedDuring === "the editor";
+  test(`Passport closed during ${closedDuring}: the button reopens the profile setup for that key, ${approved ? "connected by its stored grant" : "which asks Pubky Ring"}`, async ({
     page,
     baseURL,
   }) => {
     test.setTimeout(120_000);
     const { popup, net, written } = await signInThroughRing(page, baseURL!);
     await expectAppProfileGrantScreen(popup, "client.example");
-    if (closedDuring === "the editor") {
+    if (approved) {
       await ringApprovesProfileGrant(popup, net);
       await expect(popup.getByRole("heading", { name: "Create your profile." })).toBeVisible({
         timeout: 20_000,
@@ -629,15 +922,28 @@ for (const closedDuring of ["the Ring grant", "the editor"] as const) {
       .toMatchObject({ status: "needs-profile" });
     const button = page.locator("pubky-passport").locator('[part="button"]');
     await expect(button).toHaveText("Finish your profile");
+    const polls = () => net.relayRequests.filter((request) => request.startsWith("GET ")).length;
+    const polled = polls();
     // Clicking reopens Passport straight on this key's profile setup, never the start page.
     const reopened = page.waitForEvent("popup");
     await button.click();
     const profilePage = await reopened;
     await expect(profilePage).toHaveURL(new URL("/", baseURL!).href);
-    // Reopened without the request, nothing names the app: the same screen says "this app".
-    await expectAppProfileGrantScreen(profilePage, "this app");
+    if (approved) {
+      // The grant Ring approved is restored for that key: the editor opens without Pubky Ring.
+      await expect(profilePage.getByRole("heading", { name: "Create your profile." })).toBeVisible({
+        timeout: 20_000,
+      });
+      await expect(
+        profilePage.getByRole("region", { name: "Pubky Ring profile connection" }),
+      ).toHaveCount(0);
+      expect(polls()).toBe(polled);
+    } else {
+      // Reopened without the request, nothing names the app: the same screen says "this app".
+      await expectAppProfileGrantScreen(profilePage, "this app");
+      await ringApprovesProfileGrant(profilePage, net);
+    }
     await expect(profilePage.getByRole("heading", { name: "Get your pubky." })).toHaveCount(0);
-    await ringApprovesProfileGrant(profilePage, net);
     await publishProfile(profilePage, "Ring Person");
     await expectSignedInWithProfile(page, "Ring Person", written);
     await expect.poll(() => profilePage.isClosed()).toBe(true);
@@ -673,7 +979,7 @@ test("the profile can also be finished from Passport's home; the app picks it up
     timeout: 20_000,
   });
   await home.getByLabel("Name", { exact: true }).fill("Ring Person");
-  await home.getByRole("button", { name: "Save profile", exact: true }).click();
+  await home.getByRole("button", { name: "Continue", exact: true }).click();
   await expect(home.getByRole("heading", { name: "Your pubky." })).toBeVisible({ timeout: 20_000 });
   // Back in the app: its window regaining focus rereads the profile and finishes the sign-in.
   await page.bringToFront();
@@ -735,7 +1041,7 @@ async function openEditLink(page: Page, baseURL: string, key: string) {
   return { popup: await popup, hello, messages };
 }
 
-test("an app's edit link opens that identity's editor and tells only that app it is updated", async ({
+test("an app's edit link opens that identity's editor, tells only that app it is updated and closes", async ({
   page,
   baseURL,
 }) => {
@@ -756,10 +1062,10 @@ test("an app's edit link opens that identity's editor and tells only that app it
   expect(new URL(edit.popup.url()).hash).toBe("");
   await expect(edit.popup.getByRole("button", { name: "Skip for now" })).toHaveCount(0);
   await name.fill("After");
+  const closed = edit.popup.waitForEvent("close", { timeout: 20_000 });
   await edit.popup.getByRole("button", { name: "Save", exact: true }).click();
-  await expect(edit.popup.getByRole("heading", { name: "Profile updated." })).toBeVisible({
-    timeout: 20_000,
-  });
+  // Saved: the app's pop-up closes at once, with no outcome screen of its own.
+  await closed;
   expect(JSON.parse(written.get("/pub/pubky.app/profile.json")!)).toMatchObject({ name: "After" });
   // Only profile.json and avatar media are written, and the app hears the key, nothing else.
   expect(
@@ -783,7 +1089,7 @@ test("an app's edit link opens that identity's editor and tells only that app it
   ]);
 });
 
-test("a plain edit link works without an opener; a key not here or a bad link edits nothing", async ({
+test("a plain edit link works without an opener and goes back, or home; a key not here or a bad link edits nothing", async ({
   page,
 }) => {
   test.setTimeout(60_000);
@@ -801,18 +1107,41 @@ test("a plain edit link works without an opener; a key not here or a bad link ed
     if (url.hostname === "homeserver.example") return homeserver(route);
     return route.abort();
   });
-  // A link loads the document: leave first, as a link from an app's page would arrive.
+  // A link loads the document: leave first, as a link from an app's page would arrive. Saved, the
+  // tab goes back to that page (it may not close: it has a page before this one).
   await page.goto("/privacy-policy");
   await page.goto(`/#edit-profile=${PROFILE_KEY}`);
   await expect(page.getByLabel("Name", { exact: true })).toHaveValue("Plain", { timeout: 20_000 });
   await page.getByLabel("Name", { exact: true }).fill("Plain Edited");
   await page.getByRole("button", { name: "Save", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Profile updated." })).toBeVisible({
+  await expect(page).toHaveURL(/\/privacy-policy$/u, { timeout: 20_000 });
+  expect(JSON.parse(written.get("/pub/pubky.app/profile.json")!)).toMatchObject({
+    name: "Plain Edited",
+  });
+
+  // A tab with no page before it (a link's new tab, `noopener`), in a browser that refuses to let
+  // it close: Passport's home.
+  await page.context().addInitScript(() => {
+    window.close = () => undefined;
+  });
+  const opened = page.context().waitForEvent("page");
+  await page.evaluate(
+    (link) => window.open(link, "_blank", "noopener"),
+    `/#edit-profile=${PROFILE_KEY}`,
+  );
+  const fresh = await opened;
+  await fresh.waitForLoadState();
+  expect(await fresh.evaluate(() => history.length)).toBe(1);
+  await expect(fresh.getByLabel("Name", { exact: true })).toHaveValue("Plain Edited", {
     timeout: 20_000,
   });
-  await expect(
-    page.getByText("Return to the app: it shows your new profile once it reads it again."),
-  ).toBeVisible();
+  await fresh.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(fresh.getByRole("heading", { name: "Your pubky." })).toBeVisible({
+    timeout: 20_000,
+  });
+  await expect(fresh.getByText("Profile published")).toBeVisible();
+  await expect(fresh.getByRole("heading", { name: "Profile updated." })).toHaveCount(0);
+  await fresh.close();
 
   // A key this Passport does not hold: only Pubky Ring, bound to that key, can connect it.
   const other = "8pinxxgqs41n4aididenw5apqp1urfmzdztr8jt4abrkdn435ewo";

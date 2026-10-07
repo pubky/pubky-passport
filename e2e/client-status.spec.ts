@@ -109,9 +109,11 @@ async function approve(page: Page) {
 }
 
 for (const identity of ["local", "ring", "none"] as const) {
-  const action = "Continue with Pubky Ring";
   // One saved identity Passport can sign with opens on its review, whose "or" offers Ring; with
-  // none saved, or only one whose key stays in Ring, the start page offers it.
+  // none saved, or only one whose key stays in Ring, the start page offers it, naming Bitkit too
+  // for this grant request.
+  const action =
+    identity === "local" ? "Continue with Pubky Ring" : "Continue with Pubky Ring or Bitkit";
   test(`${identity}: the explicit Ring action reports phase; the app closes Passport once it has the Session`, async ({
     page,
     baseURL,

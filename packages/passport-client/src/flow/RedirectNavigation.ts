@@ -1,5 +1,6 @@
 import type { AttemptController } from "../attempt/AttemptController.js";
 import { PassportError, type PassportErrorOptions } from "../errors/PassportError.js";
+import type { PassportEntry } from "../client/PassportClient.js";
 import type { PubkyNetwork } from "../config/networkOptions.js";
 import { authorizeUrl } from "../shared/authorizeUrl.js";
 import type { FlowRegistry } from "./FlowRegistry.js";
@@ -14,6 +15,8 @@ interface NavigationOptions {
   profile: "required" | "optional";
   /** A testnet request says so next to `d=`; mainnet adds nothing, as before. */
   network?: PubkyNetwork;
+  /** The screen the current sign-in asks Passport to open on. */
+  entry?: () => PassportEntry | undefined;
   errors?: Omit<PassportErrorOptions, "cause" | "detail" | "instance">;
 }
 
@@ -78,6 +81,7 @@ export class RedirectNavigation {
           authorizationUrl,
           this.options.profile === "required",
           this.options.network,
+          this.options.entry?.(),
         ),
       );
       this.committedThrough = flowId;

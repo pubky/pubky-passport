@@ -8,6 +8,10 @@ import type {
   RingConnectionErrorCode,
   RingConnectionProgress,
 } from "@/client/logic/profile/RingProfileController";
+import {
+  KEYCHAIN_AUTH_METHOD_KEY,
+  writeKeychainAuthMethod,
+} from "@/client/logic/pubky/keychainAuthMethod";
 import { RingProfileConnection } from "./ringProfileConnection";
 
 const MOCKS = vi.hoisted(() => ({ toastError: vi.fn(), toastInfo: vi.fn() }));
@@ -26,6 +30,8 @@ const PHONE = (query: string) => ({
   addEventListener: () => undefined,
   removeEventListener: () => undefined,
 });
+const QR_CODE = "Pubky Ring profile connection QR code";
+const CLASSIC = "Older Pubky Ring? Classic QR";
 
 /** A failure is said once, in an error toast that stays until read or closed. */
 async function expectFailureToast(message: string) {
@@ -70,6 +76,9 @@ afterEach(() => {
   vi.clearAllMocks();
   // A pointer one test stubs never leaks into the next, even when that test fails.
   vi.unstubAllGlobals();
+  // Nor does the classic QR choice, which is kept for the device.
+  writeKeychainAuthMethod("grant");
+  localStorage.clear();
 });
 
 describe("RingProfileConnection", () => {
@@ -101,6 +110,7 @@ describe("RingProfileConnection", () => {
       expectedKey: KEY,
       setupRequired: true,
       confirmIdentity: false,
+      method: "grant",
     });
   });
 
@@ -254,6 +264,118 @@ describe("RingProfileConnection", () => {
   });
 });
 
+describe("the classic QR switch, for Pubky Ring older than 2.0", () => {
+  const REQUEST = { expectedKey: KEY, setupRequired: true, confirmIdentity: false };
+
+  it("sits under the hand-off and asks again the classic way, then the new way, kept for the device", async () => {
+    const ring = controller();
+    mount(ring);
+    const code = await screen.findByRole("img", { name: QR_CODE });
+    expect(ring.start).toHaveBeenCalledExactlyOnceWith({ ...REQUEST, method: "grant" });
+    // Under the code, off unless this device chose it.
+    const classic = screen.getByRole("switch", { name: CLASSIC });
+    expect(classic).not.toBeChecked();
+    expect(code.compareDocumentPosition(classic) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(localStorage.getItem(KEYCHAIN_AUTH_METHOD_KEY)).toBeNull();
+
+    // On: the pending request is closed and the same one is asked again, the legacy way.
+    const user = userEvent.setup();
+    await user.click(classic);
+    await waitFor(() => expect(ring.start).toHaveBeenCalledTimes(2));
+    expect(ring.start).toHaveBeenLastCalledWith({ ...REQUEST, method: "cookie" });
+    expect(ring.dispose).toHaveBeenCalledOnce();
+    expect(classic).toBeChecked();
+    expect(localStorage.getItem(KEYCHAIN_AUTH_METHOD_KEY)).toBe("cookie");
+    expect(await screen.findByRole("img", { name: QR_CODE })).toBeVisible();
+
+    // Off: back to the request Pubky Ring 2.0 and Bitkit approve, and nothing stays stored.
+    await user.click(classic);
+    await waitFor(() => expect(ring.start).toHaveBeenCalledTimes(3));
+    expect(ring.start).toHaveBeenLastCalledWith({ ...REQUEST, method: "grant" });
+    expect(ring.dispose).toHaveBeenCalledTimes(2);
+    expect(classic).not.toBeChecked();
+    expect(localStorage.getItem(KEYCHAIN_AUTH_METHOD_KEY)).toBeNull();
+  });
+
+  it("asks again the classic way from the start page's card", async () => {
+    const ring = controller();
+    mount(ring, { embedded: true, onBack: vi.fn() });
+    const code = await screen.findByRole("img", { name: QR_CODE });
+    const classic = screen.getByRole("switch", { name: CLASSIC });
+    expect(code.compareDocumentPosition(classic) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    await userEvent.setup().click(classic);
+    await waitFor(() => expect(ring.start).toHaveBeenCalledTimes(2));
+    expect(ring.start).toHaveBeenLastCalledWith({
+      expectedKey: undefined,
+      setupRequired: false,
+      confirmIdentity: false,
+      method: "cookie",
+    });
+    expect(ring.dispose).toHaveBeenCalledOnce();
+    expect(localStorage.getItem(KEYCHAIN_AUTH_METHOD_KEY)).toBe("cookie");
+    expect(await screen.findByRole("img", { name: QR_CODE })).toBeVisible();
+  });
+
+  it("asks the classic way from the start on a device that chose it", async () => {
+    writeKeychainAuthMethod("cookie");
+    const ring = controller();
+    mount(ring);
+
+    await screen.findByRole("img", { name: QR_CODE });
+    expect(ring.start).toHaveBeenCalledExactlyOnceWith({ ...REQUEST, method: "cookie" });
+    expect(screen.getByRole("switch", { name: CLASSIC })).toBeChecked();
+    expect(ring.dispose).not.toHaveBeenCalled();
+  });
+
+  it("asks afresh the classic way while a storage retry resumes the approved grant", async () => {
+    const ring = controller();
+    ring.poll
+      .mockResolvedValueOnce(Result.err({ code: "storage_failed" }))
+      // The resumed poll of the grant Ring already approved, still pending at the switch.
+      .mockImplementationOnce(() => new Promise<PollResult>(() => undefined));
+    mount(ring);
+    await expectFailureToast("Free some storage");
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Reload sign-in QR code" }));
+    await waitFor(() => expect(ring.poll).toHaveBeenCalledTimes(2));
+    expect(ring.start).toHaveBeenCalledOnce();
+    expect(ring.dispose).not.toHaveBeenCalled();
+
+    // The approval being resumed belongs to the old request: it is closed and a new one is made,
+    // never the old connection polled again.
+    await user.click(screen.getByRole("switch", { name: CLASSIC }));
+    await waitFor(() => expect(ring.start).toHaveBeenCalledTimes(2));
+    expect(ring.start).toHaveBeenLastCalledWith({ ...REQUEST, method: "cookie" });
+    expect(ring.dispose).toHaveBeenCalledOnce();
+    expect(ring.dispose.mock.invocationCallOrder[0]).toBeLessThan(
+      ring.start.mock.invocationCallOrder[1]!,
+    );
+    expect(await screen.findByRole("img", { name: QR_CODE })).toBeVisible();
+    // The new request's own poll follows its start.
+    await waitFor(() => expect(ring.poll).toHaveBeenCalledTimes(3));
+    expect(ring.poll.mock.invocationCallOrder[2]).toBeGreaterThan(
+      ring.start.mock.invocationCallOrder[1]!,
+    );
+  });
+
+  it("is not offered once Ring approved and the new pubky waits for confirmation", async () => {
+    const ring = controller();
+    ring.poll.mockResolvedValueOnce(
+      Result.ok({
+        status: "approved",
+        publicKeyZ32: "5jsjx1o6fzu6aeeo697r3i5rx15zq41kikcye8wtwdqm4nb4tryo",
+        hasProfile: "none",
+      }),
+    );
+    mount(ring, { setupRequired: true, confirmIdentity: true });
+    expect(
+      await screen.findByRole("heading", { name: "Is this your new pubky?" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("switch", { name: CLASSIC })).toBeNull();
+  });
+});
+
 describe("RingProfileConnection after a Ring signup", () => {
   const OTHER = "5jsjx1o6fzu6aeeo697r3i5rx15zq41kikcye8wtwdqm4nb4tryo";
 
@@ -277,6 +399,7 @@ describe("RingProfileConnection after a Ring signup", () => {
       expectedKey: undefined,
       setupRequired: true,
       confirmIdentity: true,
+      method: "grant",
     });
     expect(screen.queryByRole("link", { name: "Connect in Pubky Ring" })).toBeNull();
     expect(ring.confirm).not.toHaveBeenCalled();
@@ -390,6 +513,7 @@ it("adds an existing Ring identity without asking for setup or a confirmation", 
     expectedKey: undefined,
     setupRequired: false,
     confirmIdentity: false,
+    method: "grant",
   });
   expect(screen.queryByRole("button", { name: "Skip for now" })).toBeNull();
 });
@@ -620,4 +744,117 @@ it("leaves at once when no profile edits wait for the connection", async () => {
   await userEvent.setup().click(screen.getByRole("button", { name: "Back" }));
   expect(onBack).toHaveBeenCalledOnce();
   expect(screen.queryByRole("dialog")).toBeNull();
+});
+
+describe("with a profile grant stored in this browser", () => {
+  type ResumeResult = Result<LocalIdentityMetadata | undefined, Failure>;
+  /** A controller that looks for the stored grant first; `resumed` is what that finds. */
+  function resumable(resumed: ResumeResult | Promise<ResumeResult>) {
+    return { ...controller(), resume: vi.fn(async () => resumed) };
+  }
+  const CONNECT = "Connect Pubky Ring.";
+
+  it("connects the saved identity without showing Pubky Ring", async () => {
+    const ring = resumable(Result.ok(IDENTITY));
+    const { container, onComplete } = mount(ring);
+    await waitFor(() => expect(onComplete).toHaveBeenCalledExactlyOnceWith(IDENTITY));
+    expect(ring.resume).toHaveBeenCalledExactlyOnceWith({ expectedKey: KEY, setupRequired: true });
+    expect(ring.start).not.toHaveBeenCalled();
+    expect(ring.poll).not.toHaveBeenCalled();
+    expect(screen.queryByRole("heading", { name: CONNECT })).toBeNull();
+    expect(screen.queryByRole("img", { name: QR_CODE })).toBeNull();
+    expect(container).toBeEmptyDOMElement();
+    expect(MOCKS.toastError).not.toHaveBeenCalled();
+  });
+
+  it("shows nothing that asks for Pubky Ring while it looks for the stored grant", async () => {
+    let found!: (resumed: ResumeResult) => void;
+    const ring = resumable(new Promise<ResumeResult>((resolve) => (found = resolve)));
+    const { container, onComplete } = mount(ring);
+    await waitFor(() => expect(ring.resume).toHaveBeenCalledOnce());
+    expect(container).toBeEmptyDOMElement();
+    expect(ring.start).not.toHaveBeenCalled();
+    found(Result.ok(IDENTITY));
+    await waitFor(() => expect(onComplete).toHaveBeenCalledWith(IDENTITY));
+    expect(ring.start).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["none is stored", Result.ok(undefined)],
+    ["the stored one cannot connect", Result.err({ code: "cancelled" as const })],
+  ])("asks Pubky Ring as usual when %s", async (_case, resumed) => {
+    const ring = resumable(resumed);
+    const { onComplete } = mount(ring);
+    expect(await screen.findByRole("heading", { level: 1, name: CONNECT })).toBeVisible();
+    expect(await screen.findByRole("img", { name: QR_CODE })).toBeVisible();
+    expect(ring.resume).toHaveBeenCalledOnce();
+    expect(ring.start).toHaveBeenCalledExactlyOnceWith({
+      expectedKey: KEY,
+      setupRequired: true,
+      confirmIdentity: false,
+      method: "grant",
+    });
+    expect(ring.resume.mock.invocationCallOrder[0]).toBeLessThan(
+      ring.start.mock.invocationCallOrder[0]!,
+    );
+    expect(onComplete).not.toHaveBeenCalled();
+    expect(MOCKS.toastError).not.toHaveBeenCalled();
+  });
+
+  it("looks for the stored grant once, not again on a retry", async () => {
+    const ring = resumable(Result.ok(undefined));
+    ring.poll.mockResolvedValueOnce(Result.err({ code: "expired" }));
+    mount(ring);
+    await userEvent
+      .setup()
+      .click(await screen.findByRole("button", { name: "Reload sign-in QR code" }));
+    await waitFor(() => expect(ring.start).toHaveBeenCalledTimes(2));
+    expect(ring.resume).toHaveBeenCalledOnce();
+  });
+
+  it("never resumes the classic way, which is never stored", async () => {
+    writeKeychainAuthMethod("cookie");
+    const ring = resumable(Result.ok(IDENTITY));
+    const { onComplete } = mount(ring);
+    expect(await screen.findByRole("img", { name: QR_CODE })).toBeVisible();
+    expect(ring.resume).not.toHaveBeenCalled();
+    expect(ring.start).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ expectedKey: KEY, method: "cookie" }),
+    );
+    expect(onComplete).not.toHaveBeenCalled();
+  });
+
+  it("shows the classic request being prepared at once, with nothing to resume", async () => {
+    writeKeychainAuthMethod("cookie");
+    const ring = resumable(Result.ok(IDENTITY));
+    let ready!: () => void;
+    ring.start.mockImplementationOnce(
+      () => new Promise((resolve) => (ready = () => resolve(Result.ok()))),
+    );
+    mount(ring);
+    // No blank screen while the request is made: the screen and the code's tile show at once.
+    expect(screen.getByRole("heading", { level: 1, name: CONNECT })).toBeVisible();
+    const section = screen.getByRole("region", { name: "Pubky Ring profile connection" });
+    expect(within(section).getByText("Generating QR code…")).toBeVisible();
+    await waitFor(() =>
+      expect(ring.start).toHaveBeenCalledWith(expect.objectContaining({ method: "cookie" })),
+    );
+    ready();
+    expect(await screen.findByRole("img", { name: QR_CODE })).toBeVisible();
+    expect(ring.resume).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["adding a pubky on the start page", { embedded: true, onBack: undefined }],
+    ["finishing a Ring signup", { confirmIdentity: true, setupRequired: true }],
+  ])("looks for no stored grant when %s, with no identity known", async (_case, props) => {
+    const ring = resumable(Result.ok(IDENTITY));
+    const { onComplete } = mount(ring, props);
+    expect(await screen.findByRole("img", { name: QR_CODE })).toBeVisible();
+    expect(ring.resume).not.toHaveBeenCalled();
+    expect(ring.start).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ expectedKey: undefined, method: "grant" }),
+    );
+    expect(onComplete).not.toHaveBeenCalled();
+  });
 });

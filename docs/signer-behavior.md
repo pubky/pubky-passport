@@ -7,12 +7,16 @@ Account creation and identity management are in
 
 ## Opening a request
 
-Passport opens a request in two steps. Only identities whose key the browser holds count here: an
+Passport opens a request in two steps, on the identities that can sign it first, whatever screen
+the app asked for with `entry=`. Only identities whose key the browser holds count here: an
 identity whose key stays in Pubky Ring is saved in Passport for its profile only, is never listed
-for a request, and signs through **Continue with Pubky Ring** alone. With exactly one such identity
-(and active) the request opens straight on that identity's permission review; so does a request a
-user enters by hand from an identity's overview (**Authorize**), which opens on that identity's
-review. Otherwise it first lists those identities. The list and the review both end with the same
+for a request, and signs through **Continue with Pubky Ring** alone (Passport's stored profile
+grant for it is a Session, which cannot approve another app's request). With exactly one such
+identity the request opens straight on that identity's permission review, choosing it first when
+another (a Ring identity) was the active one, as a press on the list would; so does a request a user
+enters by hand from an identity's overview (**Authorize**), which opens on that identity's review.
+With several it first lists them. Neither approves anything: **Authorize** stays the person's to
+press. The list and the review both end with the same
 "or": **Use another identity** and **Continue with Pubky Ring**. **Use another identity** opens
 the start page, keeping the request; **Back** returns to where it was opened.
 
@@ -21,9 +25,15 @@ instance's Homegate offers as buttons (**Continue with SMS**, **Continue with Li
 **Continue with Google**, and **Enter invite manually**), **Pubky Ring**, and **Have a recovery
 file? Import it**. Without an identity Passport can sign with (nothing saved, or only Ring
 identities) the request opens on that start page under the heading **Signing in to {app}**, and its
-Pubky Ring card holds **Continue with Pubky Ring**; opened through **Use another identity** the card
-is left out, since the screen before it already offers Ring. (Without a request the card holds
-**Sign in with Pubky Ring**, which adds an existing Ring identity inside the card.)
+Pubky Ring card ("Sign in with the key you keep in Pubky Ring or Bitkit.") holds **Continue with
+Pubky Ring or Bitkit** (**Continue with Pubky Ring** for a legacy cookie request, which Bitkit
+refuses); opened through **Use another identity** the card is left out, since the screen before it
+already offers Ring. The app's v2 hello may carry the `keychain` feature (its own keychain code or
+"Open keychain app"); on this track that changes nothing, and the card stays. An app's `entry=`
+counts only here, with no identity that can sign: `join` opens **Create your account.** (its ways to
+verify; **Back** returns to the start page), `sign-in` the start page with its Pubky Ring button
+focused, `google` with its Google button focused. (Without a request the card holds **Sign in with
+Pubky Ring or Bitkit**, which adds an existing Ring identity inside the card.)
 
 Every step names the app the way permission review does: with its callback host when its
 `x-source` label differs from it, or with a notice when the request has no callbacks. The list
@@ -43,7 +53,7 @@ trailing slash, which reach every app's folder) is flagged on the list, on the r
 and on the Pubky Ring screen as well as on the review, where its primary action names what it
 gives, such as **Allow changing all your data** or **Allow reading all public data**, and the
 sentence above it says the same. Each permission shows a plain title above its exact path, and
-tells the app's own folder (`/pub/<callback host>/`) from the folders of other apps. Namespaces
+tells the app's own folder (`/pub/<callback host>/`) from the folders of other apps. The list ranks what is at stake: rows are grouped under **Can read and change** (any write) above **Can only read**, each group most sensitive first (broad access, then private `/priv/` data, then public `/pub/` data, the app's own public folder last). A write row carries a strong badge, a read-only row a quiet outline; private rows carry a lock and full-strength text, public rows a globe and muted text, and where a request asks for both, a line under the list says why ("Anyone can already see public data; private data is only visible to you and the apps you allow."). Namespaces
 people know by their product get their names and a short line on what they hold: the Pubky App's
 known folders by what is in them (**Your posts**, **Your public profile**), `/pub/pubky.app/` and
 `/pub/social/` as **Your public Pubky social data**, `/priv/social/` as **Your private Pubky social
@@ -80,6 +90,9 @@ When the answer cannot reach the app through a callback or a message, Passport e
 screen: an approval, a cancellation, an approval that did not reach the relay (the user starts
 again in the app), or an identity whose key could not be unlocked in the browser. It names the app
 only when the request has callbacks, beside their host; the `x-source` label alone never names it.
+A cancellation in a pop-up whose app bound the request with a v2 hello closes the window
+instead, at the app's acknowledgement or a second after the answer without one; the cancelled
+screen shows there only when the window is still open a second after that close.
 A request that expired before Passport loaded is told apart from a link that cannot be used. Each
 of these offers **Close window** in a popup; in a tab of its own, the expired and invalid screens
 go **Back to the app** when the app's page sent the user there, and the others offer a way to
@@ -105,9 +118,14 @@ page renders.
   another key is refused ("Pubky Ring approved a different identity…") and nothing is written.
 
 Passport never edits another identity than the link's. Saving writes `profile.json` and the avatar
-files only, then shows **Profile updated.**; an app whose v2 hello named the key
-(`editProfileKey`) hears `profile-updated` with that key, sent to its own origin only. A plain link
-has nobody to tell, and the app reads the profile again itself.
+files only; an app whose v2 hello named the key (`editProfileKey`) hears `profile-updated` with that
+key, sent to its own origin only. A plain link has nobody to tell, and the app reads the profile
+again itself. Then the page leaves, with only the **Profile published** toast and no outcome
+screen (after about a second when it told an app, so the message arrives before its window goes;
+at once otherwise): the window closes where a script may close it (the app's pop-up, or a tab the
+link opened); a link followed in the same tab goes back to the page before (the app); with neither
+(no page before, and a window the browser will not close), it ends at Passport's home. A profile
+edited from Passport's own overview or Manage returns there as before.
 
 ## Testnet instances
 
@@ -219,8 +237,24 @@ profile and avatar only. Then comes the profile editor, saying the app needs a p
 no **Skip for now** and no **Back**. Saved, Passport shows **Profile published.** with a **Close
 window** action. A key Passport does not know yet is kept as a Ring identity with its profile still
 to do, so Passport's home offers **Set up profile** for it later; an identity Passport already has
-is left as it is. Passport's Ring grant lasts for its page session, so a window closed during the
-editor connects Ring again; entered form data is not kept across the closed window.
+is left as it is. With the grant stored (below), a window closed during the editor connects again
+without Ring; entered form data is not kept across the closed window.
+
+**Staying connected.** Passport keeps its profile grant for a Ring-held identity like any client
+keeps its sign-in: once approved (as a grant), it is stored in the SDK's browser session store, its
+PoP key non-extractable in IndexedDB, bound to that identity and this origin. Editing the profile
+from the overview, `/#edit-profile` for that key and an app sign-in's profile step restore it
+silently; **Connect Pubky Ring.** shows only when no valid grant is stored (none yet, about to
+expire, or refused by the homeserver, which removes the record). Another identity always asks for
+its own. **Disconnect keychain**, under the overview's actions while a grant is stored, revokes it
+on the homeserver (`DELETE /auth/grant/session`) and forgets it; removing the identity from this
+browser does the same; Pubky Ring 2.0's Authorized Apps revokes it from the keychain. The grant
+stays write-only (`profile.json`, `files/`, `blobs/`). Pubky Ring older than 2.0 cannot approve
+grants: a per-device **Older Pubky Ring? Classic QR** switch under the code of Passport's own Ring
+requests (this connection, the start page's Pubky Ring sign-in, and the backup check on **Verify
+your backup**) makes them the legacy cookie sign-in with the same capabilities; it is off by
+default and never changes an app's request. That classic connection is not stored, because the
+SDK's store keeps grant sessions only: it lasts for the page.
 
 Ring profile editing never modifies the app's request or treats opening Ring as a successful
 sign-in. A saved Ring identity is never the request's identity, so Passport asks for its own profile

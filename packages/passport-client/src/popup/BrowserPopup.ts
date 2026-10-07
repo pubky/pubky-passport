@@ -1,3 +1,4 @@
+import type { PassportEntry } from "../client/PassportClient.js";
 import type { PassportInstance } from "../instance/PassportInstance.js";
 import { authorizeUrl } from "../shared/authorizeUrl.js";
 import { systemClock, type Clock } from "../shared/Clock.js";
@@ -15,6 +16,8 @@ export class BrowserPopup implements PopupPort {
     private readonly appWindow: () => Window = () => window,
     private readonly openWindow?: OpenWindow,
     private readonly clock: Clock = systemClock,
+    /** The screen the current sign-in asks Passport to open on. */
+    private readonly entry: () => PassportEntry | undefined = () => undefined,
   ) {}
 
   open(request: PopupRequest, target: "named" | "blank" = "named"): Window | null | undefined {
@@ -29,7 +32,13 @@ export class BrowserPopup implements PopupPort {
           ? `${request.instance.origin}/#profile=${encodeURIComponent(request.profileKey)}`
           : request.authorizationUrl === undefined
             ? "about:blank"
-            : authorizeUrl(request.instance.origin, request.authorizationUrl));
+            : authorizeUrl(
+                request.instance.origin,
+                request.authorizationUrl,
+                false,
+                "mainnet",
+                this.entry(),
+              ));
       const features = retry?.features ?? popupFeatures(opener);
       const name =
         target === "blank"
@@ -60,7 +69,11 @@ export class BrowserPopup implements PopupPort {
   }
 
   navigate(popup: Window, instance: PassportInstance, authorizationUrl: string): boolean {
-    return attempt(() => popup.location.replace(authorizeUrl(instance.origin, authorizationUrl)));
+    return attempt(() =>
+      popup.location.replace(
+        authorizeUrl(instance.origin, authorizationUrl, false, "mainnet", this.entry()),
+      ),
+    );
   }
   focus(popup: Window): void {
     attempt(() => popup.focus());

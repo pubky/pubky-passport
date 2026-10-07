@@ -3,6 +3,7 @@ import { Result } from "better-result";
 import { readFileSync } from "node:fs";
 import { afterEach, describe, expect, expectTypeOf, it, vi } from "vitest";
 import {
+  OPENER_KEYCHAIN_FEATURE,
   OpenerChannel,
   installOpenerChannel,
   takeOpenerChannel,
@@ -88,6 +89,33 @@ it("binds once and replies synchronously before observers can inspect local stat
   f.send(hello(), "https://other.example");
   f.send(hello({ attemptId: "other-attempt-0123" }));
   expect(f.opener.postMessage).toHaveBeenCalledTimes(2);
+});
+
+it("keeps an app's keychain feature on its binding, a hint Passport never echoes", () => {
+  // The package's hello names the same token (`KEYCHAIN_FEATURE`) while it offers its own route.
+  expect(OPENER_KEYCHAIN_FEATURE).toBe("keychain");
+  const f = fixture();
+  f.send(hello({ features: ["outcome-v2", "status", OPENER_KEYCHAIN_FEATURE] }));
+  expect(f.channel.verifiedOpener()?.features).toEqual([
+    "outcome-v2",
+    "status",
+    OPENER_KEYCHAIN_FEATURE,
+  ]);
+  // Passport's own features are what it supports, whatever the app offers.
+  expect(f.opener.postMessage).toHaveBeenCalledExactlyOnceWith(
+    expect.objectContaining({
+      type: "pubky-passport.ready",
+      features: ["outcome-v2", "status", "profile-setup"],
+    }),
+    ORIGIN,
+  );
+  // A later hello cannot add it to a binding made without it, nor take it away.
+  const plain = fixture();
+  plain.send(hello());
+  plain.send(hello({ features: [OPENER_KEYCHAIN_FEATURE] }));
+  expect(plain.channel.verifiedOpener()?.features).toEqual(["outcome-v2", "status"]);
+  f.send(hello({ features: [] }));
+  expect(f.channel.verifiedOpener()?.features).toContain(OPENER_KEYCHAIN_FEATURE);
 });
 
 it.each([

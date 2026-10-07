@@ -1,7 +1,7 @@
 import type { PassportState } from "../attempt/attemptModel.js";
 import { createInternalClient } from "../client/createPassportClient.js";
 import type { InternalClient, PreparedLease } from "../client/InternalClient.js";
-import type { SignedIn } from "../client/PassportClient.js";
+import type { PassportEntry, SignedIn } from "../client/PassportClient.js";
 import type { InternalClientOptions } from "../config/PassportClientOptions.js";
 import { PassportConfigError } from "../config/PassportConfigError.js";
 import type { PassportAction } from "../errors/PassportError.js";
@@ -16,6 +16,7 @@ import {
   addRingLogo,
   createCheckIcon,
   createCrossIcon,
+  createGoogleMark,
   createPassportMark,
   createSettingsIcon,
 } from "./passportMark.js";
@@ -35,7 +36,7 @@ const CLIENT_ATTRIBUTES = [
   "http-relay",
 ] as const;
 /** The published style hooks; everything else is internal and found by `data-slot`. */
-const PARTS = new Set(["button", "settings", "cancel", "qr"]);
+const PARTS = new Set(["button", "settings", "cancel", "qr", "icon"]);
 /** A `sync-group` name: trimmed, at most this long; empty means no group. */
 const MAX_SYNC_GROUP = 128;
 const QR_STATES = new Set<PassportState["status"]>(["ready", "opening", "waiting"]);
@@ -63,7 +64,13 @@ export type PassportSessionEvent = CustomEvent<SignedIn>;
  * renders nothing once signed in; `reset()` brings it back after the app signed out.
  */
 export class PassportButtonElement extends HTMLElementBase {
-  static readonly observedAttributes = [...CLIENT_ATTRIBUTES, "sync-group", "messages", "variant"];
+  static readonly observedAttributes = [
+    ...CLIENT_ATTRIBUTES,
+    "sync-group",
+    "messages",
+    "variant",
+    "entry",
+  ];
   #messages: PassportMessageOverrides | undefined;
   /** The `messages` attribute, parsed when the element resolves its configuration. */
   #attributeMessages: PassportMessageOverrides | undefined;
@@ -145,7 +152,8 @@ export class PassportButtonElement extends HTMLElementBase {
 
   attributeChangedCallback(name: string, previous: string | null, next: string | null): void {
     if (previous === next) return;
-    if (name === "variant") this.#render();
+    // Neither the style nor the screen Passport opens on is part of the client's configuration.
+    if (name === "variant" || name === "entry") this.#render();
     else this.#refresh();
   }
 
@@ -355,6 +363,10 @@ export class PassportButtonElement extends HTMLElementBase {
     const hover = view.status ?? view.notice;
     if (hover) pill.title = hover;
     pill.append(this.#mainButton(client, view));
+    // The app's own help (a "?" beside the label, say), inside the pill and outside the button.
+    const help = this.ownerDocument.createElement("slot");
+    help.name = "help";
+    pill.append(help);
     if (!PICKER_STATES.has(state.status)) {
       this.#picker = "closed";
       // While a sign-in runs, the settings' place cancels it.
@@ -396,11 +408,19 @@ export class PassportButtonElement extends HTMLElementBase {
     button.setAttribute("aria-busy", String(view.busy));
     if (!view.primary) button.setAttribute("aria-disabled", "true");
     const row = this.#element("span", undefined, undefined, "row");
-    row.append(createPassportMark(this.ownerDocument), this.#element("span", view.label, "label"));
+    // The entry's mark: Google's for its Google sign-in, Passport's otherwise.
+    const mark =
+      this.#entry() === "google"
+        ? createGoogleMark(this.ownerDocument)
+        : createPassportMark(this.ownerDocument);
+    mark.setAttribute("part", "icon");
+    row.append(mark, this.#element("span", view.label, "label"));
     button.append(row);
     // POP-01/POP-13: act synchronously in the click; an unavailable action stays focusable.
     button.addEventListener("click", () => {
       const current = this.#view(client, client.getState());
+      // This button's screen, on the client it may share with its sync group.
+      client.setEntry(this.#entry());
       if (current.primary) client.perform(current.primary);
     });
     return button;
@@ -443,7 +463,26 @@ export class PassportButtonElement extends HTMLElementBase {
         nodes.push(this.#element("div", this.#text("ring.preparing"), "caption", "caption"));
     }
     if (!nodes.length) return [];
-    return [this.#element("div", this.#text("ring.divider"), "divider", "divider"), ...nodes];
+    // Pubky Ring older than 2.0 needs the legacy request: the switch replaces a code that is only
+    // prepared, never one a sign-in already uses.
+    if (PICKER_STATES.has(state.status)) nodes.push(this.#classicSwitch(client));
+    const divider = client.classicQr() ? "ring.divider.classic" : "ring.divider";
+    return [this.#element("div", this.#text(divider), "divider", "divider"), ...nodes];
+  }
+
+  /** The classic QR switch, kept for this device; off by default. */
+  #classicSwitch(client: InternalClient): HTMLElement {
+    const row = this.#element("label", undefined, "classic", "classic");
+    const input = this.#element("input", undefined, "classic-input");
+    input.type = "checkbox";
+    input.setAttribute("role", "switch");
+    input.checked = client.classicQr();
+    input.addEventListener("change", () => {
+      client.setClassicQr(input.checked);
+      this.#render();
+    });
+    row.append(input, this.#element("span", this.#text("ring.classic")));
+    return row;
   }
 
   /** The QR lives in a closed root; only this element and the deep-link button reveal the link. */
@@ -638,7 +677,21 @@ export class PassportButtonElement extends HTMLElementBase {
   }
 
   #view(client: InternalClient, state: PassportState): ButtonView {
-    return describePassportState(state, this.#currentMessages(), client.messageContext());
+    const view = describePassportState(state, this.#currentMessages(), client.messageContext());
+    // A button for one screen (Join, Google, Sign in) is named after it while nothing runs; an
+    // app that renamed only `label.idle` keeps its own words (the entry's label falls back to it).
+    const entry = this.#entry();
+    if (!entry || view.label !== this.#text("label.idle")) return view;
+    const messages = this.#currentMessages();
+    const own = (key: MessageKey) => messages !== undefined && messages[key] !== undefined;
+    const key = `label.${entry}` as const;
+    return own(key) || !own("label.idle") ? { ...view, label: this.#text(key) } : view;
+  }
+
+  /** The `entry` attribute: the Passport screen this button opens on. */
+  #entry(): PassportEntry | undefined {
+    const entry = this.getAttribute("entry");
+    return entry === "join" || entry === "google" || entry === "sign-in" ? entry : undefined;
   }
 
   #text(key: MessageKey, instanceHost?: string): string {

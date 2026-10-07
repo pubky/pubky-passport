@@ -215,21 +215,26 @@ test("lists requested permissions with spelled-out access and flags broad rows",
   await expect(page.locator("main").getByRole("alert")).toHaveText(
     "This app asks for all your public data, including the folders other apps keep for you.",
   );
-  const permissions = page.getByRole("list", { name: "Requested permissions" });
+  await expect(page.getByRole("heading", { name: "Requested permissions" })).toBeVisible();
+  const writes = page.getByRole("list", { name: "Can read and change" });
+  const reads = page.getByRole("list", { name: "Can only read" });
   // A plain title over the exact path, which stays visible; a plain link has no folder of its own,
-  // so every app folder is just an app's.
-  await expect(permissions.getByRole("listitem")).toHaveText([
-    "An app's data: “example.app”, /pub/example.app/, Read & write",
+  // so every app folder is just an app's. What can change data is listed apart from what only
+  // reads it.
+  await expect(writes.getByRole("listitem")).toHaveText([
+    "Public: An app's data: “example.app”, /pub/example.app/, Read & write",
+  ]);
+  await expect(reads.getByRole("listitem")).toHaveText([
     "Broad access: All your public data, /pub/, Read only",
   ]);
-  const [scoped, broad, text] = await permissions
-    .getByRole("listitem")
-    .evaluateAll((items) => [
-      ...items.map((item) => getComputedStyle(item.querySelector("span.flex-1 > span")!).color),
-      getComputedStyle(document.body).color,
-    ]);
-  expect(scoped).toBe(text);
+  const titleColor = (item: Element) =>
+    getComputedStyle(item.querySelector("span.flex-1 > span")!).color;
+  const scoped = await writes.getByRole("listitem").evaluate(titleColor);
+  const broad = await reads.getByRole("listitem").evaluate(titleColor);
+  const text = await page.evaluate(() => getComputedStyle(document.body).color);
+  // The broad row stands out from the body text and from the scoped row.
   expect(broad).not.toBe(text);
+  expect(broad).not.toBe(scoped);
   // A request past the app's own folder names what its primary action gives, and the sentence
   // above it says the same.
   await expect(page.getByRole("button", { name: "Allow reading all public data" })).toBeVisible();
@@ -430,7 +435,9 @@ test("keeps stacked combining marks from drawing over the warning or other rows"
   expect(nameBox!.y + nameBox!.height).toBeLessThanOrEqual(warningBox!.y);
   expect(await name.evaluate((element) => getComputedStyle(element).overflow)).toBe("hidden");
 
-  const rows = page.getByRole("list", { name: /^Requested permissions/u }).getByRole("listitem");
+  const rows = page
+    .getByRole("list", { name: /^Can (?:read and change|only read)$/u })
+    .getByRole("listitem");
   const evilPath = rows.locator("bdi.font-mono").filter({ hasText: "/pub/evil" });
   await expect(evilPath).toHaveText(`/pub/evil${"\u0332".repeat(3)}.example/`);
   expect(await evilPath.evaluate((element) => getComputedStyle(element).overflow)).toBe("hidden");

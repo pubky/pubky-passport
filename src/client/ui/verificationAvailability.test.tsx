@@ -22,6 +22,12 @@ describe("describeBlockedMethods", () => {
       ["an invite code"],
       "Lightning and SMS aren’t available in your country. You can use an invite code.",
     ],
+    // A sentence starts with a capital, whatever the first method's name is.
+    [
+      ["phone verification"],
+      ["an invite code"],
+      "Phone verification isn’t available in your country. You can use an invite code.",
+    ],
   ])("describes %o blocked with %o left", (blocked, usable, sentence) => {
     expect(describeBlockedMethods(blocked, usable)).toBe(sentence);
   });

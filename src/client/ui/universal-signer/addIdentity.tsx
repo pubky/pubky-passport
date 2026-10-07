@@ -1,9 +1,10 @@
 import Image from "next/image";
-import { type ReactNode, useId, useLayoutEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 
 import type { AuthorizationRequestReview } from "@/client/logic/authorization/request/ValidatedPubkyAuthRequest";
 import { invitesOnly, type SignupEntryMethod } from "@/client/logic/homegate/verificationMethods";
 import type { LocalIdentityMetadata } from "@/client/logic/local-identity/localIdentityModels";
+import type { StartFocus } from "@/client/logic/universal-signer/signerNavigation";
 import { IdentityEstablishmentFlow } from "@/client/ui/onboarding/identityEstablishmentFlow";
 import { ContinueWithGoogle } from "@/client/ui/onboarding/google/continueWithGoogle";
 import { BroadAccessWarning } from "@/client/ui/authorization/broadAccessWarning";
@@ -52,6 +53,7 @@ const HOMEGATE_METHODS = [
  * already offers Continue with Pubky Ring.
  */
 export function AddIdentity({
+  focus,
   googleReturn,
   request,
   onBack,
@@ -62,6 +64,8 @@ export function AddIdentity({
   onUseRing,
   ringConnection,
 }: {
+  /** The card the app's `entry` pointed at (its sign-in, or Google): its button takes focus. */
+  focus?: StartFocus | undefined;
   /**
    * Set on the page Google returned to for a request's sign-in: the Google sign-in goes on by
    * itself instead of showing this page, and `onLeave` returns to the request's own page.
@@ -111,6 +115,14 @@ export function AddIdentity({
       "an invite code",
     ],
   );
+  // Check again is for a check that failed; a method blocked in this country stays blocked. Once
+  // offered it stays through the re-check, so focus is not lost.
+  const [methodRetryOffered, setMethodRetryOffered] = useState(false);
+  if (
+    !methodRetryOffered &&
+    (methods.sms.status === "unknown" || methods.lightning.status === "unknown")
+  )
+    setMethodRetryOffered(true);
   // The Google note carries Check again while it has a check to repeat, and one press re-checks
   // every method, so the note above it leaves its own button out meanwhile.
   const googleNoteOffered = useRetryOffered([methods.google.status]);
@@ -118,10 +130,22 @@ export function AddIdentity({
     showGoogle &&
     googleNoteOffered &&
     ["blocked", "unknown", "checking"].includes(methods.google.status);
-  // Only when this page is the request's first step: Ring answers the waiting app itself.
+  // Only when this page is the request's first step: Ring answers the waiting app itself. (An app's
+  // hello that offers its own keychain route changes nothing here: the card stays.)
   const handsRequestToRing = onUseRing !== undefined && !onBack;
   const connectsRing = ringConnection !== undefined && !request;
   const twoCards = handsRequestToRing || connectsRing;
+  // The app's entry points at a card: its button takes the focus the heading took first (the screen
+  // focuses its heading before this runs), and comes into view, unless the person has already moved
+  // focus.
+  const focusTargetShown =
+    focus === "ring" ? handsRequestToRing : focus === "google" ? showGoogle : false;
+  useEffect(() => {
+    if (!focus || !focusTargetShown) return;
+    const current = document.activeElement;
+    if (current && current !== document.body && !current.matches("main, h1")) return;
+    document.querySelector<HTMLElement>(`[data-start-focus="${focus}"] button`)?.focus();
+  }, [focus, focusTargetShown]);
   return (
     <IdentityEstablishmentFlow
       forAuthorization={forAuthorization}
@@ -208,17 +232,19 @@ export function AddIdentity({
                 onRetry={retry}
                 // The buttons above show the check themselves.
                 quietCheck
-                retry={!googleNoteRetries}
+                retry={methodRetryOffered && !googleNoteRetries}
               />
               {showGoogle ? (
                 <>
                   {/* The check and its retry concern only new Google sign-ups. Restoring with
                       Google never depends on them, so the button stays either way. */}
                   <GoogleSignupAvailability availability={methods.google} onRetry={retry} />
-                  <ContinueWithGoogle
-                    label={googleSignupBlocked ? "Restore with Google" : "Continue with Google"}
-                    onContinue={startGoogle}
-                  />
+                  <div className="contents" data-start-focus="google">
+                    <ContinueWithGoogle
+                      label={googleSignupBlocked ? "Restore with Google" : "Continue with Google"}
+                      onContinue={startGoogle}
+                    />
+                  </div>
                 </>
               ) : null}
               {inviteOnly ? (
@@ -258,9 +284,15 @@ export function AddIdentity({
                 illustration={RING_ILLUSTRATION}
                 title="Pubky Ring"
               >
-                <Button className="w-full" onClick={onUseRing} size="lg" variant="secondary">
-                  <PubkyBrandIcon /> Continue with Pubky Ring
-                </Button>
+                <div className="contents" data-start-focus="ring">
+                  <Button className="w-full" onClick={onUseRing} size="lg" variant="secondary">
+                    {/* Bitkit refuses the legacy cookie sign-in, so such a request names Ring alone. */}
+                    <PubkyBrandIcon />{" "}
+                    {request?.authenticationMethod === "cookie"
+                      ? "Continue with Pubky Ring"
+                      : "Continue with Pubky Ring or Bitkit"}
+                  </Button>
+                </div>
               </ChoiceCard>
             ) : connectsRing ? (
               <RingCard connection={ringConnection} />
@@ -280,7 +312,7 @@ export function AddIdentity({
   );
 }
 
-const RING_DESCRIPTION = "Sign in with the key you keep in Pubky Ring.";
+const RING_DESCRIPTION = "Sign in with the key you keep in Pubky Ring or Bitkit.";
 
 /**
  * The Pubky Ring card without a request: the sign-in that adds an existing Ring identity, inside
@@ -325,7 +357,7 @@ function RingCard({ connection }: { connection: (close: (() => void) | undefined
           size="lg"
           variant="secondary"
         >
-          <PubkyBrandIcon /> Sign in with Pubky Ring
+          <PubkyBrandIcon /> Sign in with Pubky Ring or Bitkit
         </Button>
       )}
     </ChoiceCard>

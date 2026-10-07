@@ -205,6 +205,53 @@ test("a passing check goes back by itself, said with a toast; a failing one stay
   );
 });
 
+test("a computer's classic QR switch makes Pubky Ring's check the legacy sign-in, still asking for nothing", async ({
+  page,
+  isMobile,
+}) => {
+  test.skip(isMobile, "A phone shows no code: it opens Pubky Ring.");
+  const net = await mockRingNetwork(page, { profile: { name: "Carol" } });
+  const copied = await recordClipboard(page);
+  await seedBrowserKey(page);
+  await openVerifyBackup(page);
+  const code = ringCard(page).getByRole("img", { name: "Pubky Ring verification QR code" });
+  await expect(code).toBeVisible({ timeout: 15_000 });
+  /** The link the code encodes, as pressing it copies it. */
+  const copiedLink = async () => {
+    await ringCard(page).getByRole("button", { name: "Copy authentication link" }).click();
+    return (await copied()).at(-1) ?? "";
+  };
+  // Off by default, under the code: the grant request Pubky Ring 2.0 and Bitkit approve.
+  const classic = ringCard(page).getByRole("switch", { name: "Older Pubky Ring? Classic QR" });
+  await expect(classic).not.toBeChecked();
+  expect(await copiedLink()).toMatch(/^pubkyauth:\/\/signin_grant\?/u);
+  expect((await classic.boundingBox())!.y).toBeGreaterThan(
+    (await code.boundingBox())!.y + (await code.boundingBox())!.height,
+  );
+
+  // On: the same check made the legacy way, which asks for no capabilities either.
+  await classic.click();
+  await expect(classic).toBeChecked();
+  await expect.poll(copiedLink).toMatch(/^pubkyauth:\/\/signin\?/u);
+  const legacy = new URL(await copiedLink());
+  expect(legacy.searchParams.get("caps") ?? "").toBe("");
+  expect(await page.evaluate(() => localStorage.getItem("pubky-passport/keychain-auth/v1"))).toBe(
+    "cookie",
+  );
+
+  // Approved with this key, the check passes as a grant's would, and nothing was written.
+  await ringApproves(net, legacy.href);
+  await expect(page.getByRole("heading", { name: "Manage identity." })).toBeVisible();
+  await expect(
+    page.locator("[data-sonner-toast]").filter({ hasText: "Verified in Pubky Ring" }),
+  ).toBeVisible();
+  // The legacy cookie sign-in with this key, never a grant.
+  expect(net.cookieSignins).toEqual([PROFILE_KEY]);
+  expect(net.grantExchanges).toEqual([]);
+  expect(net.writes).toEqual([]);
+  expect(Object.keys((await storedBackup(page))!)).toEqual(["v", "ringVerifiedAt"]);
+});
+
 test("Pubky Ring's check records the date once Ring signs with this key, and the key counts as backed up", async ({
   page,
 }) => {

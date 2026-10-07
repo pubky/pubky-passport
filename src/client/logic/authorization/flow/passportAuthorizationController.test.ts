@@ -626,13 +626,54 @@ describe("PassportAuthorizationController", () => {
     vi.useFakeTimers();
     const warn = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
     const f = createOpenerController();
-    const pending = f.controller.cancel();
+    const pending = f.controller.approve(SELECTED_IDENTITY);
     await vi.advanceTimersByTimeAsync(3000);
-    await expect(pending).resolves.toMatchObject({ status: "cancelled" });
+    await expect(pending).resolves.toMatchObject({ status: "approved" });
     expect(warn).toHaveBeenCalledExactlyOnceWith("authorize.opener_handoff.failed", {
       operation: "acknowledge",
     });
     expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it.each([true, false])(
+    "a cancel closes the bound pop-up and leaves the page as it goes, acknowledged=%s",
+    async (acknowledged) => {
+      vi.useFakeTimers();
+      vi.spyOn(LOGGER, "info").mockImplementation(() => undefined);
+      const f = createOpenerController(true, true);
+      // The window goes: its page hides, which disposes the controller.
+      f.appWindow.close.mockImplementation(() => {
+        f.appWindow.closed = true;
+        f.controller.dispose();
+      });
+      const pending = f.controller.cancel();
+      expect(f.controller.getState()).toMatchObject({ status: "completing", outcome: "cancel" });
+      if (acknowledged) f.ack();
+      else await vi.advanceTimersByTimeAsync(1000);
+      await expect(pending).resolves.toMatchObject({ status: "completing" });
+      expect(f.appWindow.close).toHaveBeenCalledOnce();
+      expect(f.appWindow.location.replace).not.toHaveBeenCalled();
+      expect(vi.getTimerCount()).toBe(0);
+    },
+  );
+
+  it("a cancelled pop-up still open a second after its close shows the cancelled outcome", async () => {
+    vi.useFakeTimers();
+    vi.spyOn(LOGGER, "info").mockImplementation(() => undefined);
+    const warn = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+    const f = createOpenerController(true, true);
+    const pending = f.controller.cancel();
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(f.appWindow.close).toHaveBeenCalledOnce();
+    expect(f.controller.getState()).toMatchObject({ status: "completing" });
+    await vi.advanceTimersByTimeAsync(1000);
+    await expect(pending).resolves.toMatchObject({ status: "cancelled" });
+    // The app had its answer by message: no callback, and no callback warning.
+    expect(f.appWindow.location.replace).not.toHaveBeenCalled();
+    expect(warn).toHaveBeenCalledExactlyOnceWith("authorize.opener_handoff.failed", {
+      operation: "close",
+      path: "timer",
+    });
   });
 
   it.each([false, true])(

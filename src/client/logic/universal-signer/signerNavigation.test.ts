@@ -8,6 +8,7 @@ import {
   initialSignerNavigation,
   requiresProfileSetup,
   resolveSignerNavigation,
+  soleSigningIdentityToSelect,
   type SignerNavigation,
 } from "./signerNavigation";
 
@@ -31,6 +32,22 @@ function context(
   const catalog: LocalIdentityCatalog = { activePublicKeyZ32: active, identities };
   return { catalog, requestPending };
 }
+
+describe("soleSigningIdentityToSelect", () => {
+  it("names the only identity that can sign while a key in Pubky Ring is active", () => {
+    const catalog = (identities: LocalIdentityMetadata[], active: string | null) => ({
+      activePublicKeyZ32: active,
+      identities,
+    });
+    expect(soleSigningIdentityToSelect(catalog([READY, RING], "ring"))).toBe("ready");
+    expect(soleSigningIdentityToSelect(catalog([READY], null))).toBe("ready");
+    // Already active, more than one to choose from, or none: nothing to choose for the person.
+    expect(soleSigningIdentityToSelect(catalog([READY, RING], "ready"))).toBeUndefined();
+    expect(soleSigningIdentityToSelect(catalog([READY, UNFINISHED, RING], "ring"))).toBeUndefined();
+    expect(soleSigningIdentityToSelect(catalog([RING], "ring"))).toBeUndefined();
+    expect(soleSigningIdentityToSelect(catalog([], null))).toBeUndefined();
+  });
+});
 
 describe("an app's request", () => {
   it("opens on the review for one identity, the list for more, or the start page for none", () => {
@@ -166,6 +183,62 @@ describe("initialSignerNavigation", () => {
   it("opens addition explicitly when nothing is saved", () => {
     expect(initialSignerNavigation(context([]), null)).toEqual({ view: "add", back: null });
   });
+
+  it.each([
+    ["join", { view: "create-account", back: null }],
+    ["sign-in", { view: "add", back: null, focus: "ring" }],
+    ["google", { view: "add", back: null, focus: "google" }],
+    [undefined, { view: "add", back: null }],
+  ] as const)(
+    "opens an app's request with entry %s on its identities first, its screen only without",
+    (entry, start) => {
+      // The screen the app asked for never skips an identity that can sign: one goes to its
+      // review, several to their list.
+      expect(
+        initialSignerNavigation(context([READY], "ready", true), null, undefined, entry),
+      ).toEqual({ view: "home" });
+      expect(
+        initialSignerNavigation(
+          context([READY, UNFINISHED], "ready", true),
+          null,
+          undefined,
+          entry,
+        ),
+      ).toEqual({ view: "choose" });
+      // Only with none to sign with does it pick the start page's screen: Join opens account
+      // creation's ways to verify, Sign in and Google the start page with that card in focus.
+      const none = initialSignerNavigation(context([], null, true), null, undefined, entry);
+      expect(none).toEqual(start);
+      // The screen stays while the request waits, until the person leaves it.
+      expect(resolveSignerNavigation(none, context([], null, true))).toBe(none);
+      // A key in Pubky Ring cannot sign the request, so it does not count.
+      expect(
+        initialSignerNavigation(context([RING], "ring", true), null, undefined, entry),
+      ).toEqual(start);
+    },
+  );
+
+  it.each(["join", "google", "sign-in"] as const)(
+    "ignores entry %s without a request, and behind a submitted account setup",
+    (entry) => {
+      expect(initialSignerNavigation(context([]), null, undefined, entry)).toEqual({
+        view: "add",
+        back: null,
+      });
+      expect(initialSignerNavigation(context([READY]), null, undefined, entry)).toEqual({
+        view: "home",
+      });
+      // A submitted invite resumes its setup, whatever screen the app asked for.
+      expect(
+        initialSignerNavigation(
+          context([], null, true),
+          { ...DRAFT, registrationStarted: true },
+          undefined,
+          entry,
+        ),
+      ).toEqual({ view: "create-account", back: null });
+    },
+  );
 
   it("starts home when identities exist", () => {
     expect(initialSignerNavigation(context([READY]), null)).toEqual({ view: "home" });
@@ -311,11 +384,9 @@ describe("account creation", () => {
 });
 
 describe("an app's edit link", () => {
-  it("keeps the editor of a key not saved, whose Ring connection says so, and its end screens", () => {
+  it("keeps the editor of a key not saved, whose Ring connection says so, and an invalid link", () => {
     const unsaved = { view: "profile", publicKeyZ32: "y".repeat(52), from: "edit" } as const;
     expect(resolveSignerNavigation(unsaved, context([READY], "ready"))).toBe(unsaved);
-    const updated = { view: "profile-updated", told: false } as const;
-    expect(resolveSignerNavigation(updated, context([READY], "ready"))).toBe(updated);
     const invalid = { view: "edit-invalid" } as const;
     expect(resolveSignerNavigation(invalid, context([], null))).toBe(invalid);
     // Any other editor for a key that is not saved falls back home.

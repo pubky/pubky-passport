@@ -45,26 +45,56 @@ the [package README](../packages/passport-client/README.md) has a component.
 
 The element's attributes and the headless client's options are the same settings:
 
-| Attribute      | Option         | Default                      | Meaning                                                                     |
-| -------------- | -------------- | ---------------------------- | --------------------------------------------------------------------------- |
-| `instance`     | `instance`     | `https://passport.pubky.app` | The Passport to sign in with (an HTTPS origin)                              |
-| `app-name`     | `appName`      | the page's host name         | The name Passport shows                                                     |
-| `client-id`    | `clientId`     | the page's host name         | A stable ID for your app, part of the request                               |
-| `capabilities` | `capabilities` | `""` (identity only)         | What the Session may do, e.g. `/pub/example.app/:rw`                        |
-| `profile`      | `profile`      | `required`                   | `optional` also signs in people without a pubky.app profile                 |
-| `messages`     | `messages`     | English                      | Replacement texts by message key (JSON for the attribute)                   |
-| `network`      | `network`      | `mainnet`                    | `testnet` signs in on a Pubky testnet; needs both relays below              |
-| `pkarr-relays` | `pkarrRelays`  | the SDK's public relays      | PKARR relay URLs, comma-separated (the option also takes a list)            |
-| `http-relay`   | `httpRelay`    | the SDK's public relay       | The HTTP relay inbox of the sign-in request                                 |
-| `variant`      | (element only) | `small`                      | `large` adds a Pubky Ring QR code and an "Open in Pubky Ring" link          |
-| `sync-group`   | (element only) | none                         | Elements with the same name and settings share one sign-in (package README) |
+| Attribute      | Option              | Default                      | Meaning                                                                     |
+| -------------- | ------------------- | ---------------------------- | --------------------------------------------------------------------------- |
+| `instance`     | `instance`          | `https://passport.pubky.app` | The Passport to sign in with (an HTTPS origin)                              |
+| `app-name`     | `appName`           | the page's host name         | The name Passport shows                                                     |
+| `client-id`    | `clientId`          | the page's host name         | A stable ID for your app, part of the request                               |
+| `capabilities` | `capabilities`      | `""` (identity only)         | What the Session may do, e.g. `/pub/example.app/:rw`                        |
+| `profile`      | `profile`           | `required`                   | `optional` also signs in people without a pubky.app profile                 |
+| `messages`     | `messages`          | English                      | Replacement texts by message key (JSON for the attribute)                   |
+| `network`      | `network`           | `mainnet`                    | `testnet` signs in on a Pubky testnet; needs both relays below              |
+| `pkarr-relays` | `pkarrRelays`       | the SDK's public relays      | PKARR relay URLs, comma-separated (the option also takes a list)            |
+| `http-relay`   | `httpRelay`         | the SDK's public relay       | The HTTP relay inbox of the sign-in request                                 |
+| `variant`      | (element only)      | `small`                      | `large` adds a keychain QR code and an "Open keychain app" link             |
+| `sync-group`   | (element only)      | none                         | Elements with the same name and settings share one sign-in (package README) |
+| `entry`        | `signIn({ entry })` | none (Passport: start page)  | The Passport screen to open on: `join`, `google` or `sign-in`               |
 
 Ask only for the access you need. The roots `/`, `/pub`, `/pub/`, `/priv` and `/priv/` are
 refused; a folder below them, such as `/pub/example.app/` or `/priv/example.app/`, is allowed. People can pick another Passport in the element's settings; that choice is
 kept for your origin only; `getPassportInstance(defaultInstance?)` returns it (or your default)
 for links such as "Edit profile". Changing `instance`, `app-name`, `client-id`, `capabilities`,
 `profile`, `network`, `pkarr-relays` or `http-relay` starts over with the new settings; changing
-`messages` only changes the texts.
+`messages` only changes the texts. `entry` and `variant` are not settings: elements in one
+`sync-group` may differ in them.
+
+**Entries.** Your buttons can say which way in they stand for: `entry="join"` ("Join now": create
+an account), `entry="google"` ("Continue with Google") and `entry="sign-in"` (returning people).
+The entry counts only for someone without an identity Passport can sign the request with: whatever
+the entry, a request opens on the identity Passport holds (its review, where **Authorize** stays
+the person's to press) or, with several, on their list, and both offer **Use another identity**
+(the start page) and Pubky Ring below. A Pubky Ring identity saved in Passport does not count,
+since only the keychain signs for it. For someone Passport cannot sign in yet, `join` opens
+**Create your account.** (its ways to verify; Back returns to the start page), and `sign-in` and
+`google` open the start page with its Pubky Ring card's button or its Google button focused; no
+entry opens the start page as it is. The request's start page always offers its own **Continue
+with Pubky Ring or Bitkit**, whether or not your hello carries `keychain` (your large element shows
+its code or "Open keychain app"). An element with an entry is named after it while nothing runs ("Join Pubky",
+"Continue with Google", "Sign in with Pubky"; `label.join`, `label.google`, `label.sign-in` in
+`messages`; your own `label.idle` stays the label where you set no `label.<entry>`), and
+`entry="google"` shows Google's "G" (`::part(icon)`); a `slot="help"` child sits inside the pill
+for your "?". The entry is a hint for the first screen only: it grants nothing and is not part of
+the request.
+
+**Classic QR.** Pubky Ring older than 2.0 approves only the legacy cookie sign-in. The large style
+shows a switch **Older Pubky Ring? Classic QR** under its code; on, every request the
+client makes (its QR code and Passport's pop-up) is the legacy kind, and a prepared code is
+replaced at once. The choice is kept per device in your origin's storage; it is off by default
+(Pubky Ring 2.0 and Bitkit approve grants, and Bitkit refuses the legacy kind). Headless apps read
+`view.classicQr` and call `client.setClassicQr(on)`. A classic sign-in delivers a cookie `Session`
+instead of a grant-backed one; it authenticates the same way, but cannot be listed or revoked on
+its own, and a pop-up blocked in classic mode cannot continue in the same tab (the QR code still
+works).
 
 A testnet app sets `network="testnet"` with its PKARR relays (`https://…/pkarr`, no trailing slash
 needed) and its HTTP relay inbox (`https://…/relay/inbox`), and signs in with a Passport instance
@@ -91,6 +121,7 @@ client.subscribe((view) => {
   if (view.signedIn) keep(view.signedIn); // { session, publicKey, profile, instance }
 });
 button.onclick = () => client.signIn(); // call it from the click: it opens Passport
+joinButton.onclick = () => client.signIn({ entry: "join" }); // opens on account creation
 ```
 
 `signIn()` never rejects: it resolves `{ status: "signed-in", session, publicKey, profile, instance }`,
@@ -292,8 +323,11 @@ link.rel = "noopener noreferrer";
 The link carries only the public key, in the fragment. Passport opens that identity's editor only
 when it holds the key or Pubky Ring approves its profile grant for exactly that key; it never edits
 another identity, and it writes only `profile.json` and avatar media. Nothing comes back to your
-page: no Session, no token. After the person returns, read the profile again from the homeserver
-or Nexus. If you open the editor in a pop-up you keep a handle to (without `noopener`), say a v2
+page: no Session, no token. Once saved, Passport leaves without a screen of its own: a pop-up or a
+tab your link opened closes (about a second after `profile-updated`, so the message reaches you
+first), and a link followed in the same tab goes back to your page (with no
+page to go back to, Passport's home). After the person returns, read the profile again from the
+homeserver or Nexus. If you open the editor in a pop-up you keep a handle to (without `noopener`), say a v2
 hello with `editProfileKey: publicKey` (see [Opener protocol v2](#opener-protocol-v2)) and
 Passport posts `profile-updated` to your origin once it is saved. The package has no
 `editProfile()` method yet.
@@ -339,8 +373,9 @@ with it, and wait for the SDK to return a `Session`; Passport only posts the app
 
 Open `/authorize#d=${encodeURIComponent(flow.authorizationUrl)}` on the Passport origin, the only
 entry that accepts a request. Next to `d=` the fragment may carry `profile=required` (or
-`profile=optional`, the default) and `network=testnet` (or `network=mainnet`), each once; anything
-else, and any query string, rejects the entry. A request naming another network than the
+`profile=optional`, the default), `network=testnet` (or `network=mainnet`) and
+`entry=join|google|sign-in` (the screen to open on when no saved identity can sign), each once; anything else, and any query
+string, rejects the entry. A request naming another network than the
 instance's is refused as `network_mismatch`; one naming none is not checked.
 `/#d=…` is forwarded as a convenience, not a contract. Passport accepts only sign-in requests
 (`AuthFlowKind.signin()`, plus the legacy `pubkyauth://signin?…` and `pubkyauth:///?…` forms);
@@ -483,8 +518,12 @@ identities or local storage and carries no request URL, capabilities or relay se
   request to Pubky Ring) or `"granting"` (the person committed the approval). Ignore phases you do
   not know.
 - **Outcomes.** With a bound opener, terminal outcomes use version 2 and go to that origin even
-  without callbacks; Passport closes after a matching acknowledgement and otherwise falls back to
-  the callback or its own screen. A Pubky Ring hand-off sends no v2 outcome: the window stays on
+  without callbacks. After `success` or `error` Passport closes after a matching acknowledgement and
+  otherwise falls back to the callback or its own screen. After `cancel` it closes the pop-up at
+  your acknowledgement, or one second after posting without one, and never visits the cancel
+  callback; a window still open a second after that close shows Passport's cancelled screen with
+  **Close window**. Each close logs which path ran (`authorize.opener_handoff.closing`,
+  `path=acknowledged|timer`). A Pubky Ring hand-off sends no v2 outcome: the window stays on
   its Ring screen for you to close when your `Session` arrives, and once Passport sees Ring's
   answer taken on your relay channel it ends the request as `completed` and shows its own home.
 - **Completed.** `ready` with `request.status: "completed"` means only that the request ended in
@@ -520,6 +559,11 @@ type Hello = {
   type: "pubky-passport.hello";
   version: 2;
   attemptId: string;
+  /**
+   * The client's: "outcome-v2", "status", and "keychain" while the app offers its own keychain
+   * route (the large element's code or its "Open keychain app" button). A display hint; it grants
+   * nothing (this Passport keeps its own Pubky Ring card either way).
+   */
   features: string[];
   profile?: "required" | "optional";
   /** base64url SHA-256 of the request URL in `#d=`; required to bind a valid request. */

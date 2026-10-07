@@ -1,9 +1,13 @@
-import { holdHttpsRequests } from "./helpers/network";
+import { holdHttpsRequests, PKARR_RELAY_HOSTS } from "./helpers/network";
 import { expect, test, type Page } from "./helpers/passportTest";
 import { emulateCoarsePointer } from "./helpers/pointer";
 import AxeBuilder from "@axe-core/playwright";
 import { E2E_HTTP_RELAY_URL, E2E_SIGNUP_HOMESERVER } from "./helpers/e2eServer";
-import { HOMESERVER as TEST_HOMESERVER, mockHomeserverRecords } from "./helpers/pubkyProfile";
+import {
+  HOMESERVER as TEST_HOMESERVER,
+  homeserverRecord,
+  mockHomeserverRecords,
+} from "./helpers/pubkyProfile";
 import { mockRingNetwork, RING_KEY, ringApproves } from "./helpers/pubkyRing";
 import { UNVERIFIED_BAND } from "./helpers/requester";
 
@@ -352,6 +356,39 @@ test("decrypts the downloaded backup before starting local registration", async 
   await expect(page.getByText(TEST_HOMESERVER, { exact: true })).toHaveCount(0);
 });
 
+test("the profile step after a browser-key account starts from a random name and says Continue", async ({
+  page,
+}) => {
+  test.setTimeout(60_000);
+  await mockLocalSignup(page);
+  await page.goto("/");
+  await page.getByRole("button", { name: "Continue with SMS" }).click();
+  await page.getByLabel("Phone number", { exact: true }).fill("+41791234567");
+  await page.getByRole("button", { name: "Send code" }).click();
+  await page.getByLabel("Verification code", { exact: true }).fill("123456");
+  await page.getByRole("button", { name: "Verify code" }).click();
+  await page.getByRole("button", { name: /Keep key in this browser/u }).click();
+  await page.getByLabel("Enter strong password").fill("correct horse");
+  await page.getByRole("button", { name: "Download recovery file" }).click();
+  await page.getByRole("button", { name: "Skip this check (not recommended)" }).click();
+
+  // The account exists: its moment says so, and the profile is one press on.
+  await expect(page.getByRole("heading", { name: "Account created." })).toBeVisible({
+    timeout: 20_000,
+  });
+  await page.getByRole("button", { name: "Add a public profile" }).click();
+  await expect(page.getByRole("heading", { name: "Create your profile." })).toBeVisible();
+  // Nothing is published for the new pubky, so a random name, pubky.app's kind, fills the field;
+  // the field says only its limits, no hint about where the name came from.
+  const name = page.getByLabel("Name", { exact: true });
+  await expect(name).toHaveValue(/^[A-Z][a-z]+-[A-Z][a-z]+-[A-Z][a-z]+$/u);
+  await expect(name).toHaveAccessibleDescription("3–50 characters. Shown publicly.");
+  await expect(page.getByText(/A random name/u)).toHaveCount(0);
+  // Setup goes on with Continue; Save is for editing a published profile.
+  await expect(page.getByRole("button", { name: "Continue", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: /^Save/u })).toHaveCount(0);
+});
+
 test("SMS validates codes and retains Homegate's homeserver for the destination choice", async ({
   page,
 }) => {
@@ -601,6 +638,10 @@ test("Lightning payment uses the homeserver returned with its token", async ({ p
   // The amount names its unit, so it never reads as bitcoin.
   await expect(page.getByText("100 sats", { exact: true })).toBeVisible();
   await expect(page.getByText("One-time payment to verify your new account.")).toBeVisible();
+  // One line says it waits for the payment and when the invoice expires.
+  await expect(page.getByRole("status").filter({ hasText: "Waiting for payment" })).toHaveText(
+    /^Waiting for payment · expires \S/u,
+  );
   await expect(page.locator('a[href^="lightning:"]')).toHaveAttribute(
     "href",
     "lightning:lnbc100n1example",
@@ -662,6 +703,69 @@ async function reachDestinationChoiceOnTestHomeserver(page: Page, entry = "/"): 
   await page.getByRole("button", { name: "Send code" }).click();
   await page.getByLabel("Verification code", { exact: true }).fill("123456");
   await page.getByRole("button", { name: "Verify code" }).click();
+}
+
+/**
+ * A local signup that completes: Homegate's SMS invite names the test homeserver, the relays serve
+ * its record and keep the new key's, and the homeserver accepts the signup and its session.
+ */
+async function mockLocalSignup(page: Page): Promise<void> {
+  // Records published for new keys, served back to later lookups.
+  const published = new Map<string, Buffer>();
+  await page.route(
+    (url) => PKARR_RELAY_HOSTS.has(url.hostname),
+    async (route) => {
+      const key = new URL(route.request().url()).pathname.slice(1);
+      if (route.request().method() !== "GET") {
+        const record = route.request().postDataBuffer();
+        if (record) published.set(key, record);
+        return route.fulfill({ status: 200, body: "" });
+      }
+      const body = published.get(key) ?? homeserverRecord(key);
+      return route.fulfill(
+        body ? { status: 200, body, contentType: "application/octet-stream" } : { status: 404 },
+      );
+    },
+  );
+  await page.route("**/sms_verification/send_code", (route) =>
+    route.fulfill({ status: 200, body: "" }),
+  );
+  await page.route("**/sms_verification/validate_code", (route) =>
+    route.fulfill({
+      json: { valid: "true", signupCode: "SMS1-NV1T-C0DE", homeserverPubky: TEST_HOMESERVER },
+    }),
+  );
+  await page.route("https://homeserver.example/**", async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    if (url.pathname.startsWith("/signup_tokens/"))
+      return route.fulfill({ json: { status: "valid" } });
+    if (url.pathname === "/auth/grant/signup") return route.fulfill({ status: 200, body: "" });
+    if (url.pathname === "/auth/grant/session" && request.method() === "POST") {
+      const { grant } = request.postDataJSON() as { grant: string };
+      const claims = JSON.parse(
+        Buffer.from(grant.split(".")[1]!, "base64url").toString("utf8"),
+      ) as { iss: string; client_id: string; caps: string[]; jti: string; exp: number };
+      const now = Math.floor(Date.now() / 1000);
+      return route.fulfill({
+        json: {
+          token: "e2e-bearer",
+          session: {
+            homeserver: TEST_HOMESERVER,
+            pubky: claims.iss,
+            client_id: claims.client_id,
+            capabilities: claims.caps,
+            grant_id: claims.jti,
+            token_expires_at: now + 3_600,
+            grant_expires_at: claims.exp,
+            created_at: now,
+          },
+        },
+      });
+    }
+    // The new pubky has published nothing yet.
+    return route.fulfill({ status: request.method() === "GET" ? 404 : 200, body: "" });
+  });
 }
 
 /** The start page, where the way to verify a new account is picked. */

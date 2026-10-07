@@ -20,28 +20,34 @@ descriptions, as the instance's Homegate reports them: **Continue with SMS**, **
 Lightning**, **Continue with Google** (which also restores; where new Google sign-ups are blocked
 it reads **Restore with Google** and stays usable), and **Enter invite manually** (a quiet "Have an
 invite code?" link while other methods are offered, the card's button where an invite is the only
-method). A method Homegate blocks in the user's country is disabled with one line saying so; one
-whose check failed is left out, with **Check again**. Picking a method opens account creation on
+method). A method Homegate blocks in the user's country is disabled with one line saying so, and
+offers no **Check again** (a block is an answer, not a failed check); one whose check failed is
+left out, with **Check again**. Picking a method opens account creation on
 it (the phone number, the invoice, or the invite entry), and **Back** from that first step returns
 to the start page; a setup or a finished verification saved from an earlier visit opens instead.
 The method list (**Create your account.**, buttons too, with only Lightning's price or the
 provider's payment terms under its button) remains inside the
 flow for the cases that return to a choice: a verification the homeserver refused, or **Verify
-another way** after a rejected invite.
+another way** after a rejected invite. There a method blocked in the user's country stays visible,
+dimmed and disabled: from 1024px a red "Not available in your country" banner over its card, below
+1024px (one card of buttons, "Pick verification method") a red badge on its button whose popover
+says "Not available in your country" and "Try a different verification method". The invite is
+always offered, and **Check again** appears only after a check failed, never for a block.
 Both start-page cards are illustrated choice cards, laid out as pubky.app's sign-in cards (8px
 corners): from 1024px the illustration in a fixed left column, top-aligned with the content, and
 beside it one left-aligned stack of the title, a one-line description and the card's actions. In
 a card of 36rem or more (a 1280px window's half) the illustration takes about half the card: all
 of it the 18rem content column leaves (204px in a 588px card, at most 16rem), 48px from the
 content; in a 1024px window's half it is 96px. Both cards share their padding, column widths and
-the lines of their titles and descriptions, and stretch to one height. The **Pubky Ring** card holds **Continue with Pubky Ring**
-during a request, which hands the request to Ring. Without a request it adds an existing Ring
+the lines of their titles and descriptions, and stretch to one height. The **Pubky Ring** card ("Sign in with the key you keep in Pubky Ring or
+Bitkit.") holds **Continue with Pubky Ring or Bitkit** (**Continue with Pubky Ring** for a legacy
+cookie request, which Bitkit refuses) during a request, which hands the request to the keychain. Without a request it adds an existing Ring
 identity inside the card. With a mouse or trackpad (a fine pointer) the card shows its QR code as
 soon as the page is up, with the store badges under it and no waiting line, and nothing to press
 or cancel; leaving the page ends the request. The page paints without the
 Pubky SDK: a placeholder of the code's size ("Generating QR code…") holds its place until the SDK
 has loaded and the request is open on the relay, so the page does not move. On a phone or tablet
-(a coarse pointer) the card holds **Sign in with Pubky Ring** and prepares nothing until it is
+(a coarse pointer) the card holds **Sign in with Pubky Ring or Bitkit** and prepares nothing until it is
 pressed. One press makes the request and opens Pubky Ring with it as soon as it exists, from a
 button that takes the pressed one's place ("Opening Pubky Ring…", then **Open Pubky Ring** to
 open it again with the same request), with **Cancel** (which ends the request) and the store
@@ -344,7 +350,8 @@ requests, so they do not accumulate in IndexedDB. A Web Lock held by every open 
 one Passport tab from deleting a key that another still signs with. Whether Ring and the homeserver
 accept write-only scopes has not been verified on a device; test it before release.
 
-With an app request, **Continue with Pubky Ring**, on the identity list or the start page, opens a
+With an app request, **Continue with Pubky Ring** on the identity list (or **Continue with Pubky
+Ring or Bitkit** on the start page) opens a
 separate sign-in screen with the original validated `pubkyauth` URL unchanged.
 A Ring identity saved in Passport is there for its profile only: Passport cannot make Ring sign
 with it, so it is never listed for a request. Its overview shows its profile, its pubky, **Edit
@@ -383,11 +390,16 @@ the user's location. These checks never send SMS, create invoices, or request in
   Google `/info` endpoint. Google also requires a configured Passport client ID and enabled
   provider setting. Disabled methods are not probed.
 
-A 404 hides the method. A 403 displays the disabled regional-restriction card from the
-[Figma design](https://www.figma.com/design/01ZvjSPZnKTNmaEWz0yJsq/Pubky-SHADCN?node-id=41492-356648);
-below the `lg` breakpoint, where the cards collapse to their buttons, a row under the method names
-it (for example "Phone verification: not available in your country"). Screen readers hear one
-polite summary that names the blocked methods and what is left.
+A 404 hides the method. A 403 keeps the method visible but disabled. On the start page its button
+is disabled with one line naming what is left. In the method list it is the dimmed
+regional-restriction card from the
+[Figma design](https://www.figma.com/design/01ZvjSPZnKTNmaEWz0yJsq/Pubky-SHADCN?node-id=41492-356648)
+with its red "Not available in your country" banner from the `lg` breakpoint; below it, where the
+cards collapse to their buttons, a red badge on the method's button opens a popover with the same
+words and "Try a different verification method" (Escape, a second press or a press elsewhere closes
+it), and those words also describe the disabled button. Screen readers hear one polite summary
+that names the blocked methods and what is left. A block offers no **Check again**: it is an
+answer, and checking again would only repeat it.
 Google is the exception: its probe governs only creating new Google identities, because restoring
 an existing identity from Drive never calls Homegate. The Google sign-in stays available whenever
 the provider enables Google and a client ID is configured. A 403 adds a note inside the Google

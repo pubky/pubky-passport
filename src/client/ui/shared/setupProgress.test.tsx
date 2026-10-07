@@ -47,7 +47,7 @@ describe("SetupProgress position", () => {
     expect(screen.getByRole("navigation", { name: "Account setup progress" })).toHaveClass(
       "mx-auto",
       "w-full",
-      "max-w-[588px]",
+      "min-[64.0625rem]:max-w-[588px]",
     );
   });
 

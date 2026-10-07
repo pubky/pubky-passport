@@ -23,6 +23,10 @@ const GOOGLE_ACCOUNT = {
   googleSubject: "subject",
   pictureUrl: null,
 };
+/** pubky.app's random names: an adjective and two different nouns ("Blue-Rabbit-Hat"). */
+const RANDOM_NAME = /^[A-Z][a-z]+-[A-Z][a-z]+-[A-Z][a-z]+$/u;
+
+type User = ReturnType<typeof userEvent.setup>;
 
 /** Opened from Manage or the overview by default; `afterAddition` opens it as creation does. */
 function mount(
@@ -33,6 +37,7 @@ function mount(
     afterAddition?: boolean;
     created?: boolean;
     forRequest?: boolean;
+    requiredByRequest?: boolean;
   } = {},
 ) {
   const onBack = vi.fn();
@@ -57,9 +62,70 @@ function linkField(number: number, label: "Title" | "Address"): HTMLElement {
   return within(screen.getByRole("group", { name: `Link ${number}` })).getByLabelText(label);
 }
 
+/** Replaces the name Passport filled in with `name`, once the form is there. */
+async function typeName(user: User, name: string): Promise<HTMLElement> {
+  const field = await screen.findByLabelText("Name");
+  await user.clear(field);
+  await user.type(field, name);
+  return field;
+}
+
+/** Adds a link through the Add link dialog: its label, its address, then Save Link. */
+async function addLink(user: User, label: string, url: string) {
+  await user.click(screen.getByRole("button", { name: "Add link" }));
+  const dialog = screen.getByRole("dialog", { name: "Add link" });
+  await user.click(within(dialog).getByLabelText("Label"));
+  await user.paste(label);
+  await user.click(within(dialog).getByLabelText("URL"));
+  await user.paste(url);
+  await user.click(within(dialog).getByRole("button", { name: "Save Link" }));
+}
+
 function pick(picker: HTMLElement, file: File) {
   fireEvent.change(picker, { target: { files: [file] } });
 }
+
+/** Picks `file` and uses the crop the dialog opens with; the cropped PNG is what is checked. */
+async function pickAndCrop(user: User, file: File) {
+  pick(screen.getByLabelText("Choose avatar file"), file);
+  const dialog = await screen.findByRole("dialog", { name: "Crop your avatar" });
+  const use = within(dialog).getByRole("button", { name: "Use photo" });
+  await waitFor(() => expect(use).toBeEnabled());
+  await user.click(use);
+}
+
+/** The cropped file the `index`th avatar check was handed. */
+function checked(index = 0): File {
+  return checkAvatar.mock.calls[index]![0];
+}
+
+const drawImage = vi.fn();
+
+/**
+ * jsdom decodes no pictures and draws no canvas: the crop's picture loads as an 800×600 image,
+ * and its canvas draws nothing and encodes a PNG.
+ */
+function stubPictureCropping() {
+  vi.stubGlobal(
+    "Image",
+    class {
+      naturalWidth = 800;
+      naturalHeight = 600;
+      onload: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      set src(_: string) {
+        queueMicrotask(() => this.onload?.());
+      }
+    },
+  );
+  vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({
+    drawImage,
+  } as unknown as CanvasRenderingContext2D);
+  vi.spyOn(HTMLCanvasElement.prototype, "toBlob").mockImplementation((done) =>
+    done(new Blob(["cropped"], { type: "image/png" })),
+  );
+}
+
 beforeEach(() => {
   load.mockResolvedValue(Result.ok(null));
   save.mockResolvedValue(Result.ok({ name: "Satoshi" }));
@@ -67,10 +133,13 @@ beforeEach(() => {
   URL.createObjectURL = vi.fn(() => "blob:avatar");
   URL.revokeObjectURL = vi.fn();
   Element.prototype.scrollIntoView = vi.fn();
+  stubPictureCropping();
 });
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
 describe("ProfileSetupFlow", () => {
@@ -78,6 +147,14 @@ describe("ProfileSetupFlow", () => {
   // save's check as quick as a click, as it is once the app has loaded it.
   beforeAll(async () => {
     await checkLinkUrls(["https://example.com"]);
+  });
+
+  it("starts no random name over an unreadable published profile, which saving would replace", async () => {
+    load.mockResolvedValue(Result.err({ code: "invalid_profile" }));
+    mount();
+
+    expect(await screen.findByLabelText("Name")).toHaveValue("");
+    expect(screen.getByRole("button", { name: "Replace profile" })).toBeInTheDocument();
   });
 
   it("opens an empty form over an unreadable published profile and says saving replaces it", async () => {
@@ -122,8 +199,8 @@ describe("ProfileSetupFlow", () => {
     ]);
     await userEvent.setup().click(screen.getByRole("button", { name: "Try again" }));
     // The form replaces the focused retry, so focus moves into it rather than to the page.
-    const name = await screen.findByLabelText("Name");
-    expect(name).toHaveValue("");
+    const name = await screen.findByLabelText<HTMLInputElement>("Name");
+    expect(name.value).toMatch(RANDOM_NAME);
     expect(name).toHaveFocus();
     expect(load).toHaveBeenCalledTimes(2);
   });
@@ -183,14 +260,50 @@ describe("ProfileSetupFlow", () => {
   it("shows the key's face without an avatar, its mouth following the name as typed", async () => {
     load.mockResolvedValue(Result.ok(null));
     mount();
-    const name = await screen.findByLabelText("Name", { exact: true });
+    const name = await screen.findByLabelText<HTMLInputElement>("Name", { exact: true });
     const face = () =>
       screen.getByRole("region", { name: "Avatar" }).querySelector("[data-facehash]");
 
     expect(screen.queryByRole("img", { name: "Your avatar" })).not.toBeInTheDocument();
+    // The name filled in gives the mouth; without one, the key does.
+    expect(face()).toHaveTextContent(new RegExp(`^${name.value[0]!.toUpperCase()}$`, "u"));
+    fireEvent.change(name, { target: { value: "" } });
     expect(face()).toHaveTextContent(new RegExp(`^${KEY[0]!.toUpperCase()}$`, "u"));
     fireEvent.change(name, { target: { value: "hal" } });
     expect(face()).toHaveTextContent(/^H$/u);
+  });
+
+  it("starts a profile nothing was published for with a random name, with no hint about it", async () => {
+    mount({ profileSetupRequired: true });
+    const user = userEvent.setup();
+    const name = await screen.findByLabelText<HTMLInputElement>("Name");
+    const random = name.value;
+    expect(random).toMatch(RANDOM_NAME);
+    // Only the field's own limits are said: nothing points out the random name.
+    expect(name).toHaveAccessibleDescription("3–50 characters. Shown publicly.");
+    expect(screen.queryByText(/random name/iu)).not.toBeInTheDocument();
+    // Kept as it is, the random name is what is published.
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+    expect(save).toHaveBeenCalledWith(KEY, expect.objectContaining({ name: random }), undefined);
+    cleanup();
+
+    // Once changed, it is the person's own name, under the same limits.
+    mount({ profileSetupRequired: true });
+    await user.type(await screen.findByLabelText("Name"), "!");
+    expect(screen.getByLabelText("Name")).toHaveAccessibleDescription(
+      "3–50 characters. Shown publicly.",
+    );
+  });
+
+  it("fills in no random name over a published one, nor over the Google account's", async () => {
+    load.mockResolvedValue(Result.ok({ profile: { name: "Satoshi" } }));
+    mount();
+    expect(await screen.findByLabelText("Name")).toHaveValue("Satoshi");
+    cleanup();
+
+    load.mockResolvedValue(Result.ok(null));
+    mount({ profileSetupRequired: true, googleAccount: GOOGLE_ACCOUNT });
+    expect(await screen.findByLabelText("Name")).toHaveValue("Alice Example");
   });
 
   it.each<[ProfileErrorCode, string]>([
@@ -206,7 +319,7 @@ describe("ProfileSetupFlow", () => {
     save.mockResolvedValueOnce(Result.err({ code }));
     const { onComplete } = mount();
     const user = userEvent.setup();
-    await user.type(await screen.findByLabelText("Name"), "Satoshi");
+    await typeName(user, "Satoshi");
     await user.click(screen.getByRole("button", { name: "Save" }));
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent(message);
@@ -214,6 +327,23 @@ describe("ProfileSetupFlow", () => {
     expect(alert).toHaveFocus();
     expect(onComplete).not.toHaveBeenCalled();
     expect(screen.queryByRole("button", { name: "Reconnect Pubky Ring" })).not.toBeInTheDocument();
+  });
+
+  it("asks for Continue again when the profile was published but setup could not finish", async () => {
+    save.mockResolvedValueOnce(Result.err({ code: "storage_failed" }));
+    const { onComplete } = mount({ profileSetupRequired: true });
+    const user = userEvent.setup();
+    await typeName(user, "Satoshi");
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Your profile was published, but Passport could not finish setup in this browser. Save again to finish.",
+    );
+    expect(onComplete).not.toHaveBeenCalled();
+    // The way on is the same button, and pressing it saves again.
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+    expect(save).toHaveBeenCalledTimes(2);
+    expect(onComplete).toHaveBeenCalledWith({ name: "Satoshi" }, undefined);
   });
 
   it("shows an unsupported avatar's error by the picker and leaves focus there", async () => {
@@ -234,6 +364,8 @@ describe("ProfileSetupFlow", () => {
     // A field error is not a failed save: focus stays on the picker for another choice.
     expect(picker).toHaveFocus();
     expect(message.closest("section")).toBe(screen.getByRole("region", { name: "Avatar" }));
+    // A refused type is never offered for cropping.
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 
     fireEvent.change(picker, {
       target: { files: [new File(["png"], "avatar.png", { type: "image/png" })] },
@@ -241,21 +373,70 @@ describe("ProfileSetupFlow", () => {
     await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
   });
 
+  it("crops a chosen picture first and checks only the PNG Use photo makes of it", async () => {
+    mount();
+    const user = userEvent.setup();
+    const original = new File(["jpeg"], "holiday.jpg", { type: "image/jpeg" });
+    pick(await screen.findByLabelText("Choose avatar file"), original);
+
+    const dialog = await screen.findByRole("dialog", { name: "Crop your avatar" });
+    expect(within(dialog).getByRole("slider", { name: "Zoom" })).toBeInTheDocument();
+    expect(checkAvatar).not.toHaveBeenCalled();
+    const use = within(dialog).getByRole("button", { name: "Use photo" });
+    await waitFor(() => expect(use).toBeEnabled());
+    await user.click(use);
+
+    // The centred square of the 800×600 picture, drawn at 512px and encoded as a PNG.
+    expect(drawImage).toHaveBeenCalledWith(
+      expect.objectContaining({ naturalWidth: 800 }),
+      expect.closeTo(100),
+      expect.closeTo(0),
+      expect.closeTo(600),
+      expect.closeTo(600),
+      0,
+      0,
+      512,
+      512,
+    );
+    expect(checkAvatar).toHaveBeenCalledOnce();
+    expect(checked()).not.toBe(original);
+    expect(checked()).toMatchObject({ name: "avatar.png", type: "image/png" });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Delete" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    expect(save).toHaveBeenCalledWith(KEY, expect.anything(), checked());
+  });
+
+  it("keeps the avatar as it was when the crop is cancelled", async () => {
+    mount();
+    const user = userEvent.setup();
+    pick(
+      await screen.findByLabelText("Choose avatar file"),
+      new File(["png"], "a.png", { type: "image/png" }),
+    );
+    const dialog = await screen.findByRole("dialog", { name: "Crop your avatar" });
+    await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(checkAvatar).not.toHaveBeenCalled();
+    expect(screen.getByLabelText("Choose avatar file")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Delete" })).not.toBeInTheDocument();
+  });
+
   it("names the formats under the picker and refuses a damaged image when it is picked", async () => {
     checkAvatar.mockResolvedValueOnce(Result.err({ code: "invalid_avatar" }));
     const { onComplete } = mount();
     const user = userEvent.setup();
-    await user.type(await screen.findByLabelText("Name"), "Satoshi");
+    await typeName(user, "Satoshi");
     const picker = screen.getByLabelText("Choose avatar file");
     expect(picker).toHaveAccessibleDescription("PNG, JPEG, WebP, or GIF, up to 5 MB.");
-    const damaged = new File(["not an image"], "holiday.png", { type: "image/png" });
-    pick(picker, damaged);
+    await pickAndCrop(user, new File(["not an image"], "holiday.png", { type: "image/png" }));
 
     const message = await screen.findByRole("alert");
     expect(message).toHaveTextContent(
       "This image can’t be opened. Choose a PNG, JPEG, WebP, or GIF image up to 5 MB.",
     );
-    expect(checkAvatar).toHaveBeenCalledWith(damaged);
+    expect(checkAvatar).toHaveBeenCalledOnce();
     expect(message.closest("section")).toBe(screen.getByRole("region", { name: "Avatar" }));
     // The avatar stays as it was: no broken preview, nothing to delete, nothing saved with it.
     expect(picker).toHaveAttribute("aria-invalid", "true");
@@ -277,28 +458,22 @@ describe("ProfileSetupFlow", () => {
       .mockResolvedValueOnce(Result.ok(undefined));
     mount();
     const user = userEvent.setup();
-    await user.type(await screen.findByLabelText("Name"), "Satoshi");
-    const picker = screen.getByLabelText("Choose avatar file");
-    const first = new File(["first"], "first.png", { type: "image/png" });
-    const second = new File(["second"], "second.png", { type: "image/png" });
-    pick(picker, first);
-    pick(picker, second);
+    await typeName(user, "Satoshi");
+    await pickAndCrop(user, new File(["first"], "first.png", { type: "image/png" }));
+    await pickAndCrop(user, new File(["second"], "second.png", { type: "image/png" }));
     expect(await screen.findByRole("button", { name: "Delete" })).toBeInTheDocument();
     await act(async () => settleFirst(Result.err({ code: "invalid_avatar" })));
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Save" }));
-    expect(save).toHaveBeenCalledWith(KEY, expect.anything(), second);
+    expect(save).toHaveBeenCalledWith(KEY, expect.anything(), checked(1));
   });
 
   it("says at the picker when a save refuses the chosen image", async () => {
     save.mockResolvedValueOnce(Result.err({ code: "invalid_avatar" }));
     mount();
     const user = userEvent.setup();
-    await user.type(await screen.findByLabelText("Name"), "Satoshi");
-    pick(
-      screen.getByLabelText("Choose avatar file"),
-      new File(["png"], "a.png", { type: "image/png" }),
-    );
+    await typeName(user, "Satoshi");
+    await pickAndCrop(user, new File(["png"], "a.png", { type: "image/png" }));
     await screen.findByRole("button", { name: "Delete" });
     await user.click(screen.getByRole("button", { name: "Save" }));
 
@@ -313,9 +488,8 @@ describe("ProfileSetupFlow", () => {
     const onReconnect = vi.fn();
     mount({ keySource: "ring" }, { onReconnect });
     const user = userEvent.setup();
-    await user.type(await screen.findByLabelText("Name"), "Carol");
-    const avatar = new File(["png"], "carol.png", { type: "image/png" });
-    pick(screen.getByLabelText("Choose avatar file"), avatar);
+    await typeName(user, "Carol");
+    await pickAndCrop(user, new File(["png"], "carol.png", { type: "image/png" }));
     await screen.findByRole("button", { name: "Delete" });
     await user.click(screen.getByRole("button", { name: "Save" }));
 
@@ -327,7 +501,7 @@ describe("ProfileSetupFlow", () => {
     await user.click(screen.getByRole("button", { name: "Reconnect Pubky Ring" }));
     expect(onReconnect).toHaveBeenCalledWith({
       draft: expect.objectContaining({ name: "Carol" }),
-      avatar,
+      avatar: checked(),
     });
   });
 
@@ -336,12 +510,11 @@ describe("ProfileSetupFlow", () => {
     const onReconnect = vi.fn();
     mount({ keySource: "ring" }, { onReconnect });
     const user = userEvent.setup();
-    await user.type(await screen.findByLabelText("Name"), "Carol");
+    await typeName(user, "Carol");
     await user.click(screen.getByRole("button", { name: "Save" }));
     await screen.findByRole("alert");
 
-    const avatar = new File(["png"], "carol.png", { type: "image/png" });
-    pick(screen.getByLabelText("Choose avatar file"), avatar);
+    await pickAndCrop(user, new File(["png"], "carol.png", { type: "image/png" }));
     await screen.findByRole("button", { name: "Delete" });
     // A new avatar does not bring Pubky Ring back: saving would only fail again.
     expect(screen.getByRole("alert")).toHaveTextContent(
@@ -351,7 +524,7 @@ describe("ProfileSetupFlow", () => {
     await user.click(screen.getByRole("button", { name: "Reconnect Pubky Ring" }));
     expect(onReconnect).toHaveBeenCalledWith({
       draft: expect.objectContaining({ name: "Carol" }),
-      avatar,
+      avatar: checked(),
     });
   });
 
@@ -359,13 +532,10 @@ describe("ProfileSetupFlow", () => {
     save.mockResolvedValueOnce(Result.err({ code: "save_failed" }));
     mount();
     const user = userEvent.setup();
-    await user.type(await screen.findByLabelText("Name"), "Satoshi");
+    await typeName(user, "Satoshi");
     await user.click(screen.getByRole("button", { name: "Save" }));
     await screen.findByRole("alert");
-    pick(
-      screen.getByLabelText("Choose avatar file"),
-      new File(["png"], "a.png", { type: "image/png" }),
-    );
+    await pickAndCrop(user, new File(["png"], "a.png", { type: "image/png" }));
     await screen.findByRole("button", { name: "Delete" });
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
@@ -379,9 +549,8 @@ describe("ProfileSetupFlow", () => {
     );
     const { onComplete } = mount();
     const user = userEvent.setup();
-    await user.type(await screen.findByLabelText("Name"), "Satoshi");
-    const avatar = new File(["png"], "satoshi.png", { type: "image/png" });
-    pick(screen.getByLabelText("Choose avatar file"), avatar);
+    await typeName(user, "Satoshi");
+    await pickAndCrop(user, new File(["png"], "satoshi.png", { type: "image/png" }));
     await user.click(screen.getByRole("button", { name: "Save" }));
     // The press is taken: the save waits for the check, busy, instead of doing nothing.
     const busy = screen.getByRole("button", { name: /Publishing/u });
@@ -390,8 +559,8 @@ describe("ProfileSetupFlow", () => {
     expect(save).not.toHaveBeenCalled();
 
     await act(async () => settle(Result.ok(undefined)));
-    expect(save).toHaveBeenCalledWith(KEY, expect.objectContaining({ name: "Satoshi" }), avatar);
-    expect(onComplete).toHaveBeenCalledWith({ name: "Satoshi" }, avatar);
+    expect(save).toHaveBeenCalledWith(KEY, expect.objectContaining({ name: "Satoshi" }), checked());
+    expect(onComplete).toHaveBeenCalledWith({ name: "Satoshi" }, checked());
   });
 
   it("stops a save pressed while the chosen image is checked when the check refuses it", async () => {
@@ -403,11 +572,8 @@ describe("ProfileSetupFlow", () => {
     );
     mount();
     const user = userEvent.setup();
-    await user.type(await screen.findByLabelText("Name"), "Satoshi");
-    pick(
-      screen.getByLabelText("Choose avatar file"),
-      new File(["broken"], "broken.png", { type: "image/png" }),
-    );
+    await typeName(user, "Satoshi");
+    await pickAndCrop(user, new File(["broken"], "broken.png", { type: "image/png" }));
     await user.click(screen.getByRole("button", { name: "Save" }));
     await act(async () => settle(Result.err({ code: "invalid_avatar" })));
 
@@ -461,7 +627,8 @@ describe("ProfileSetupFlow", () => {
     ).toBeInTheDocument();
     // Nothing is published until the person saves; a new link does not reuse a kept id.
     expect(save).not.toHaveBeenCalled();
-    await user.click(screen.getByRole("button", { name: "Add link" }));
+    await addLink(user, "GitHub", "https://github.com/carol");
+    expect(linkField(3, "Title")).toHaveValue("GitHub");
     expect(linkField(3, "Title")).toHaveAttribute("id", "profile-link-6-title");
     await user.click(screen.getByRole("button", { name: "Save" }));
     expect(save).toHaveBeenCalledWith(
@@ -479,7 +646,7 @@ describe("ProfileSetupFlow", () => {
     save.mockResolvedValueOnce(Result.err({ code: "cancelled" }));
     const { onComplete } = mount();
     const user = userEvent.setup();
-    await user.type(await screen.findByLabelText("Name"), "Satoshi");
+    await typeName(user, "Satoshi");
     await user.click(screen.getByRole("button", { name: "Save" }));
     expect(await screen.findByRole("button", { name: "Save" })).toBeEnabled();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
@@ -512,7 +679,7 @@ describe("ProfileSetupFlow", () => {
     await screen.findByLabelText("Name");
     expect(screen.queryByRole("button", { name: "Back" })).not.toBeInTheDocument();
     // A full button in Back's empty place: first in the row, with the save last.
-    const finish = screen.getByRole("button", { name: "Save profile" });
+    const finish = screen.getByRole("button", { name: "Continue" });
     const finishLater = screen.getByRole("button", { name: "Skip for now" });
     expect(finishLater).toHaveClass("border-border", "min-h-15");
     expect(
@@ -529,7 +696,7 @@ describe("ProfileSetupFlow", () => {
     expect(onDefer).toHaveBeenCalledOnce();
   });
 
-  it("says setup is optional and editing publishes, with Back before the primary", async () => {
+  it("says setup is optional and editing publishes, with Back before Continue or Save", async () => {
     mount({ profileSetupRequired: true });
     await screen.findByLabelText("Name");
     // Said before anything is filled in, not in small print under the form.
@@ -540,7 +707,8 @@ describe("ProfileSetupFlow", () => {
     ).toBeInTheDocument();
     expect(screen.queryByText("Your profile is public.")).not.toBeInTheDocument();
     const back = screen.getByRole("button", { name: "Back" });
-    const finish = screen.getByRole("button", { name: "Save profile" });
+    // Setup goes on to the next step; editing saves a profile that is already public.
+    const finish = screen.getByRole("button", { name: "Continue" });
     expect(back.compareDocumentPosition(finish) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     // Back has the one size it has on every screen.
     expect(back).toHaveClass("w-[120px]");
@@ -551,14 +719,24 @@ describe("ProfileSetupFlow", () => {
     expect(
       screen.getByText("Changes are published to your public profile when you save."),
     ).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Save profile" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Continue" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Save" })).toBeInTheDocument();
+  });
+
+  it("continues to the waiting app that requires a profile", async () => {
+    mount({}, { requiredByRequest: true });
+    const user = userEvent.setup();
+    await typeName(user, "Satoshi");
+    expect(screen.getByRole("heading", { level: 1, name: "Create your profile." })).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Save" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+    expect(save).toHaveBeenCalledWith(KEY, expect.objectContaining({ name: "Satoshi" }), undefined);
   });
 
   it("asks before Back throws unpublished changes away", async () => {
     const { onBack } = mount();
     const user = userEvent.setup();
-    await user.type(await screen.findByLabelText("Name"), "Satoshi");
+    await typeName(user, "Satoshi");
     await user.click(screen.getByRole("button", { name: "Back" }));
 
     const dialog = screen.getByRole("dialog", { name: "Discard your changes?" });
@@ -696,7 +874,7 @@ describe("ProfileSetupFlow", () => {
     );
     mount();
     const user = userEvent.setup();
-    await user.type(await screen.findByLabelText("Name"), "Satoshi");
+    await typeName(user, "Satoshi");
     const bio = screen.getByLabelText("Bio");
     // The shared multi-line field, described by its counter.
     expect(bio.tagName).toBe("TEXTAREA");
@@ -707,25 +885,64 @@ describe("ProfileSetupFlow", () => {
     await act(async () => finishSave());
   });
 
-  it("labels both fields of an added link and names the link its remove button removes", async () => {
+  it("adds a link through its dialog, both its fields labelled, its remove button naming it", async () => {
     mount();
     const user = userEvent.setup();
-    await screen.findByLabelText("Name");
-    await user.click(screen.getByRole("button", { name: "Add link" }));
+    await typeName(user, "Satoshi");
+    await addLink(user, "GitHub", "https://github.com/satoshi");
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     const link = screen.getByRole("group", { name: "Link 3" });
     const title = within(link).getByLabelText("Title");
     const address = within(link).getByLabelText("Address");
+    // The dialog's label and address fill the added link's fields, which stay editable.
+    expect(title).toHaveValue("GitHub");
+    expect(address).toHaveValue("https://github.com/satoshi");
     // Visible labels name the fields, so none is left to a placeholder or a hidden label.
     expect(title).not.toHaveAttribute("aria-label");
     expect(address).not.toHaveAttribute("aria-label");
     expect(within(link).getByText("Title", { selector: "label" })).toBeVisible();
-    expect(within(link).getByRole("button", { name: "Remove link 3" })).toBeInTheDocument();
-    await user.type(title, "GitHub");
     expect(
       within(link).getByRole("button", { name: "Remove link 3 (GitHub)" }),
     ).toBeInTheDocument();
     // The standard links keep their own label and remove button.
     expect(screen.getByRole("button", { name: "Remove Website" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    expect(save).toHaveBeenCalledWith(
+      KEY,
+      expect.objectContaining({
+        links: [{ title: "GitHub", url: "https://github.com/satoshi" }],
+      }),
+      undefined,
+    );
+  });
+
+  it("adds no link the dialog refused or was cancelled", async () => {
+    mount();
+    const user = userEvent.setup();
+    await screen.findByLabelText("Name");
+    await user.click(screen.getByRole("button", { name: "Add link" }));
+    const dialog = screen.getByRole("dialog", { name: "Add link" });
+    // The label is asked for first.
+    expect(within(dialog).getByLabelText("Label")).toHaveFocus();
+    await user.click(within(dialog).getByRole("button", { name: "Save Link" }));
+
+    expect(within(dialog).getByLabelText("Label")).toHaveAccessibleDescription(
+      "Give this link a label.",
+    );
+    expect(within(dialog).getByLabelText("URL")).toHaveAccessibleDescription(
+      "Enter a full address with its scheme, like https://example.com or mailto:you@example.com.",
+    );
+    expect(screen.getByRole("dialog", { name: "Add link" })).toBeInTheDocument();
+    // Its own form: refusing it submits nothing of the profile's.
+    expect(save).not.toHaveBeenCalled();
+
+    await user.type(within(dialog).getByLabelText("Label"), "Blog");
+    await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: "Link 3" })).not.toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: /^Remove / })).toHaveLength(2);
   });
 
   it("offers only Back, no Skip for now, when required setup was opened later", async () => {
@@ -784,14 +1001,14 @@ describe("ProfileSetupFlow", () => {
   it("marks each invalid field where it is, focuses the first and saves nothing", async () => {
     mount();
     const user = userEvent.setup();
-    const name = await screen.findByLabelText("Name");
-    await user.type(name, "Al");
+    const name = await typeName(user, "Al");
     await user.click(screen.getByLabelText("Bio"));
     await user.paste("b".repeat(161));
     await user.type(screen.getByLabelText("Website"), "my website");
     await user.type(screen.getByLabelText("X (Twitter)"), "@satoshi nakamoto");
-    await user.click(screen.getByRole("button", { name: "Add link" }));
-    await user.type(linkField(3, "Address"), "https://github.com/satoshi");
+    await addLink(user, "GitHub", "https://github.com/satoshi");
+    // The dialog wants a label, but the added link's title can be emptied afterwards.
+    await user.clear(linkField(3, "Title"));
     await user.click(screen.getByRole("button", { name: "Save" }));
 
     expect(save).not.toHaveBeenCalled();
@@ -854,9 +1071,8 @@ describe("ProfileSetupFlow", () => {
   it("says why Finish was refused when Enter submits from the field already focused", async () => {
     mount();
     const user = userEvent.setup();
-    const name = await screen.findByLabelText("Name");
     // Focus cannot move to the field it is on, so the reason is spoken instead.
-    await user.type(name, "Al{Enter}");
+    const name = await typeName(user, "Al{Enter}");
     expect(save).not.toHaveBeenCalled();
     expect(name).toHaveFocus();
     const status = screen.getByRole("status");
@@ -886,9 +1102,9 @@ describe("ProfileSetupFlow", () => {
     save.mockResolvedValueOnce(Result.err({ code: "save_failed" }));
     mount();
     const user = userEvent.setup();
-    await user.type(await screen.findByLabelText("Name"), "Satoshi");
-    await user.click(screen.getByRole("button", { name: "Add link" }));
-    await user.type(linkField(3, "Address"), "https://github.com/satoshi");
+    await typeName(user, "Satoshi");
+    await addLink(user, "GitHub", "https://github.com/satoshi");
+    await user.clear(linkField(3, "Title"));
     await user.click(screen.getByRole("button", { name: "Save" }));
     const title = linkField(3, "Title");
     expect(title).toHaveFocus();
@@ -906,10 +1122,8 @@ describe("ProfileSetupFlow", () => {
   it("clears a handle's message when its link takes the X title", async () => {
     mount();
     const user = userEvent.setup();
-    await user.type(await screen.findByLabelText("Name"), "Satoshi");
-    await user.click(screen.getByRole("button", { name: "Add link" }));
-    await user.type(linkField(3, "Title"), "Twitter");
-    await user.type(linkField(3, "Address"), "@satoshi");
+    await typeName(user, "Satoshi");
+    await addLink(user, "Twitter", "@satoshi");
     await user.click(screen.getByRole("button", { name: "Save" }));
     const url = linkField(3, "Address");
     expect(url).toHaveAccessibleDescription(
@@ -932,13 +1146,23 @@ describe("ProfileSetupFlow", () => {
   it("gives the length of an overlong link title and address, as the specs count it", async () => {
     mount();
     const user = userEvent.setup();
-    await user.type(await screen.findByLabelText("Name"), "Satoshi");
+    await typeName(user, "Satoshi");
+    // An overlong label is refused in the dialog, where it is typed.
     await user.click(screen.getByRole("button", { name: "Add link" }));
-    await user.click(linkField(3, "Title"));
+    const dialog = screen.getByRole("dialog", { name: "Add link" });
+    await user.click(within(dialog).getByLabelText("Label"));
     await user.paste("t".repeat(101));
-    await user.click(linkField(3, "Address"));
+    await user.click(within(dialog).getByLabelText("URL"));
     // 300 characters as typed; the space is stored as %20.
     await user.paste(`https://example.com/${"a".repeat(278)} b`);
+    await user.click(within(dialog).getByRole("button", { name: "Save Link" }));
+    expect(within(dialog).getByLabelText("Label")).toHaveAccessibleDescription(
+      "Keep the label to 100 characters or fewer (you have 101).",
+    );
+    await user.type(within(dialog).getByLabelText("Label"), "{Backspace}");
+    await user.click(within(dialog).getByRole("button", { name: "Save Link" }));
+    // The added link's title can still grow past the limit, and the save says so.
+    await user.type(linkField(3, "Title"), "t");
     await user.click(screen.getByLabelText("Website"));
     await user.paste(`https://example.com/${"p".repeat(281)}`);
     await user.click(screen.getByRole("button", { name: "Save" }));
@@ -959,8 +1183,7 @@ describe("ProfileSetupFlow", () => {
     save.mockResolvedValueOnce(Result.err({ code: "save_failed" }));
     mount();
     const user = userEvent.setup();
-    const name = await screen.findByLabelText("Name");
-    await user.type(name, "Satoshi");
+    const name = await typeName(user, "Satoshi");
     await user.click(screen.getByRole("button", { name: "Save" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Could not save your profile.");
     await user.clear(name);
@@ -975,8 +1198,10 @@ describe("ProfileSetupFlow", () => {
     mount();
     const user = userEvent.setup();
     await screen.findByLabelText("Name");
-    for (let added = 0; added < 3; added++)
-      await user.click(screen.getByRole("button", { name: "Add link" }));
+    // Website and X (Twitter) are two of the five.
+    for (const label of ["One", "Two", "Three"])
+      await addLink(user, label, `https://${label.toLowerCase()}.example`);
+    expect(screen.getAllByRole("button", { name: /^Remove / })).toHaveLength(5);
     expect(screen.queryByRole("button", { name: "Add link" })).not.toBeInTheDocument();
   });
 });

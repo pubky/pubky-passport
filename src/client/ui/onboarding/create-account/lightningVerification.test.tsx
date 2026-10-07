@@ -75,6 +75,17 @@ describe("LightningVerification", () => {
     expect(screen.queryByRole("link", { name: /Pay now/u })).toBeNull();
   });
 
+  it("says it waits for the payment and when the invoice expires, as a short local time", () => {
+    renderInvoice();
+
+    const expires = new Date(invoice.expiresAt).toLocaleTimeString([], { timeStyle: "short" });
+    // One line, announced politely: the old separate "Expires at …" line is gone.
+    expect(screen.getByRole("status")).toHaveTextContent(
+      `Waiting for payment · expires ${expires}`,
+    );
+    expect(screen.queryByText(/^Expires at/u)).toBeNull();
+  });
+
   it("names the amount in sats, grouped the same way in every locale", () => {
     render(
       <LightningVerification

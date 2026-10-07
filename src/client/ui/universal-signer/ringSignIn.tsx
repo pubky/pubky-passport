@@ -49,6 +49,8 @@ export function RingSignIn({
   const [, handoffLauncher] = useDeepLinkLauncher(launcher);
   // Only a computer shows a code; a phone opens Pubky Ring, whatever became of a launch.
   const scanning = mode === "scan";
+  // Bitkit signs the same links, except the legacy cookie sign-in, which only Pubky Ring approves.
+  const keychain = review.authenticationMethod === "cookie" ? "Pubky Ring" : "Pubky Ring or Bitkit";
   const watching = watchApproval !== undefined;
   const startWatching = useEffectEvent(() => watchApproval?.());
   // Watches only while this screen is shown: Back or any other way out stops it.
@@ -59,8 +61,8 @@ export function RingSignIn({
       instruction={
         <>
           {scanning
-            ? "Scan this code with Pubky Ring on your phone, then choose an identity and approve the sign-in"
-            : "Choose an identity in Pubky Ring and approve the sign-in"}
+            ? `Scan this code with ${keychain} on your phone, then choose an identity and approve the sign-in`
+            : `Choose an identity in ${keychain} and approve the sign-in`}
           {requester ? <> to {requester}</> : null}.
         </>
       }

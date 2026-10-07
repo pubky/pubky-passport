@@ -5,6 +5,11 @@ import userEvent from "@testing-library/user-event";
 import { Result } from "better-result";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PassportAuthorizationViewState } from "@/client/logic/authorization/flow/PassportAuthorizationController";
+import {
+  installOpenerChannel,
+  OPENER_KEYCHAIN_FEATURE,
+} from "@/client/logic/authorization/opener/OpenerChannel";
+import { ValidatedPubkyAuthRequest } from "@/client/logic/authorization/request/ValidatedPubkyAuthRequest";
 import type {
   LocalIdentityCatalog,
   LocalIdentityMetadata,
@@ -23,6 +28,7 @@ import type {
   PassportCollaborators,
 } from "@/client/ui/passportCollaborators";
 import type { PassportProvider } from "@/libs/passportProvider";
+import { requestDigest } from "@/libs/requestDigest";
 import { UniversalSignerFlow } from "./universalSignerFlow";
 import { bindTestOpener, releaseTestOpener } from "@test-utils/boundOpener";
 
@@ -261,6 +267,53 @@ it("reviews with the one identity that can sign although a Ring identity is save
   expect(await screen.findByRole("button", { name: "Authorize" })).toBeInTheDocument();
 });
 
+it("opens on the review of the only identity that can sign while a Ring key is active", async () => {
+  state.catalog = {
+    activePublicKeyZ32: RING_HELD.publicIdentity.publicKeyZ32,
+    identities: [RING_HELD, EXISTING],
+  };
+  mount(true);
+
+  // It is chosen for the person, as a press on the list would; Authorize is still theirs.
+  expect(await screen.findByRole("button", { name: "Authorize" })).toBeInTheDocument();
+  expect(state.catalog.activePublicKeyZ32).toBe(EXISTING.publicIdentity.publicKeyZ32);
+  expect(screen.queryByRole("list", { name: CHOOSE_LIST })).not.toBeInTheDocument();
+  expect(approve).not.toHaveBeenCalled();
+  expect(cancel).not.toHaveBeenCalled();
+});
+
+it("lists the identities when the only one that can sign could not be chosen", async () => {
+  state.catalog = {
+    activePublicKeyZ32: RING_HELD.publicIdentity.publicKeyZ32,
+    identities: [RING_HELD, EXISTING],
+  };
+  const selectIdentity = vi.fn(() => Result.err({ code: "storage_unavailable" as const }));
+  render(
+    withPassportTestProviders(<UniversalSignerFlow />, {
+      createLocalIdentityController: () => fakeLocalIdentityController(state, { selectIdentity }),
+      createAuthorizationController: () =>
+        fakePassportAuthorizationController({ current: { status: "review", review } }, {}),
+    }),
+  );
+
+  expect(await screen.findByRole("list", { name: CHOOSE_LIST })).toBeInTheDocument();
+  expect(selectIdentity).toHaveBeenCalledExactlyOnceWith(EXISTING.publicIdentity.publicKeyZ32);
+  expect(screen.queryByRole("button", { name: "Authorize" })).not.toBeInTheDocument();
+  expect(state.catalog.activePublicKeyZ32).toBe(RING_HELD.publicIdentity.publicKeyZ32);
+});
+
+it("chooses nothing for the person without a request: the Ring identity's overview stays", async () => {
+  state.catalog = {
+    activePublicKeyZ32: RING_HELD.publicIdentity.publicKeyZ32,
+    identities: [RING_HELD, EXISTING],
+  };
+  mount(false);
+
+  expect(await screen.findByRole("heading", { name: "Your pubky." })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Log out" })).toBeInTheDocument();
+  expect(state.catalog.activePublicKeyZ32).toBe(RING_HELD.publicIdentity.publicKeyZ32);
+});
+
 it("gives a Ring identity's overview its profile, and nothing that signs or handles a key", async () => {
   state.catalog = {
     activePublicKeyZ32: RING_HELD.publicIdentity.publicKeyZ32,
@@ -376,7 +429,7 @@ describe("shared addition navigation", () => {
         name: "Continue with Pubky Ring",
       }),
     ).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Sign in with Pubky Ring" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Sign in with Pubky Ring or Bitkit" })).toBeNull();
     // The request's first step: Cancel answers the app, and there is nowhere to go back to.
     expect(screen.getByRole("button", { name: "Cancel" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Back" })).not.toBeInTheDocument();
@@ -617,7 +670,7 @@ describe("shared addition navigation", () => {
     expect(screen.getByRole("region", { name: "Create account" })).toBeInTheDocument();
     // The review already offers Pubky Ring, so the start page opened from it does not repeat it.
     expect(screen.queryByRole("button", { name: "Continue with Pubky Ring" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Sign in with Pubky Ring" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Sign in with Pubky Ring or Bitkit" })).toBeNull();
     await user.click(screen.getByRole("button", { name: "Back" }));
     expect(screen.getByRole("heading", { name: "Signing in to Original app" })).toHaveFocus();
     expect(screen.getByRole("button", { name: "Authorize" })).toBeInTheDocument();
@@ -660,6 +713,166 @@ describe("shared addition navigation", () => {
     expect(screen.queryByRole("button", { name: "Switch identity" })).not.toBeInTheDocument();
     // Use another identity covers adding one.
     expect(screen.getByRole("button", { name: "Use another identity" })).toBeEnabled();
+  });
+});
+
+describe("the screen an app's entry asks for", () => {
+  it.each(["join", "google", "sign-in", undefined] as const)(
+    "opens on the saved identities whatever the app asked for (entry %s), never approving",
+    async (entry) => {
+      const entered = { status: "review", review, ...(entry ? { entry } : {}) } as const;
+      // One identity that can sign: its review.
+      const one = mount(true, {}, { getState: () => entered });
+      expect(await screen.findByRole("button", { name: "Authorize" })).toBeInTheDocument();
+      expect(screen.queryByRole("list", { name: CHOOSE_LIST })).not.toBeInTheDocument();
+      expect(screen.queryByRole("heading", { name: "Create your account." })).toBeNull();
+      one.unmount();
+
+      // Several: their list first.
+      state.catalog = TWO_SAVED();
+      mount(true, {}, { getState: () => entered });
+      expect(await screen.findByRole("list", { name: CHOOSE_LIST })).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Authorize" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("heading", { name: "Create your account." })).toBeNull();
+      expect(approve).not.toHaveBeenCalled();
+      expect(cancel).not.toHaveBeenCalled();
+    },
+  );
+
+  it("opens Join on the ways to verify with nothing saved, and Back returns to the start page", async () => {
+    state.catalog = { activePublicKeyZ32: null, identities: [] };
+    const user = userEvent.setup();
+    const entered = { status: "review", review, entry: "join" } as const;
+    mount(true, {}, { getState: () => entered });
+
+    expect(
+      await screen.findByRole("heading", { name: "Create your account." }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Verification methods" })).toBeInTheDocument();
+    // Back leaves account creation for the request's start page, which still waits for the app.
+    await user.click(screen.getByRole("button", { name: "Back" }));
+    expect(screen.getByRole("heading", { name: "Signing in to Original app" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Create account" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Continue with Pubky Ring" })).toBeInTheDocument();
+    expect(cancel).not.toHaveBeenCalled();
+    // The start page is the request's first step: Cancel answers the app.
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(cancel).toHaveBeenCalledOnce();
+    expect(approve).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["sign-in", "Continue with Pubky Ring"],
+    ["google", "Continue with Google"],
+  ] as const)(
+    "opens the start page with nothing saved on entry %s, its card's button in focus",
+    async (entry, name) => {
+      state.catalog = { activePublicKeyZ32: null, identities: [] };
+      const entered = { status: "review", review, entry } as const;
+      mount(true, {}, { getState: () => entered });
+
+      expect(
+        await screen.findByRole("heading", { name: "Signing in to Original app" }),
+      ).toBeInTheDocument();
+      expect(screen.getByRole("region", { name: "Create account" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name })).toHaveFocus();
+      expect(screen.queryByRole("heading", { name: "Create your account." })).toBeNull();
+      expect(approve).not.toHaveBeenCalled();
+    },
+  );
+
+  it("keeps the start page's heading in focus without an entry", async () => {
+    state.catalog = { activePublicKeyZ32: null, identities: [] };
+    mount(true);
+
+    expect(
+      await screen.findByRole("heading", { name: "Signing in to Original app" }),
+    ).toHaveFocus();
+  });
+
+  it("counts no key in Pubky Ring: with only one saved, Sign in still focuses the Ring card", async () => {
+    state.catalog = {
+      activePublicKeyZ32: RING_HELD.publicIdentity.publicKeyZ32,
+      identities: [RING_HELD],
+    };
+    const entered = { status: "review", review, entry: "sign-in" } as const;
+    mount(true, {}, { getState: () => entered });
+
+    expect(await screen.findByRole("button", { name: "Continue with Pubky Ring" })).toHaveFocus();
+    expect(screen.queryByRole("button", { name: "Authorize" })).not.toBeInTheDocument();
+  });
+});
+
+describe("the request start page's Pubky Ring card and the app's hello", () => {
+  const APP_REQUEST =
+    "pubkyauth://signin?caps=/pub/example.app/:rw&relay=https://relay.example/inbox&secret=kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8";
+  /**
+   * Makes this page the app's popup again, its hello not bound yet (the hello grace), as the page
+   * entry leaves it; the returned function delivers that hello with the app's features.
+   */
+  function appPopup() {
+    releaseTestOpener();
+    const opener = { postMessage: vi.fn() };
+    vi.stubGlobal("opener", opener);
+    const validated = ValidatedPubkyAuthRequest.fromEncoded(encodeURIComponent(APP_REQUEST));
+    if (Result.isError(validated)) throw new Error(validated.error.code);
+    installOpenerChannel(window, { status: "valid", request: validated.value });
+    return (features: readonly string[]) =>
+      act(() => {
+        window.dispatchEvent(
+          Object.assign(new Event("message"), {
+            source: opener,
+            origin: "https://original.app",
+            data: {
+              type: "pubky-passport.hello",
+              version: 2,
+              attemptId: "0123456789abcdef",
+              features,
+              request: requestDigest(APP_REQUEST),
+            },
+          }),
+        );
+      });
+  }
+
+  beforeEach(() => {
+    // The hello's grace runs on the clock alone: a slow render never ends it here.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    state.catalog = { activePublicKeyZ32: null, identities: [] };
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("offers the card at once and keeps it whatever the app's hello says", async () => {
+    const hello = appPopup();
+    mount(true);
+
+    // Classic keeps its own Pubky Ring card even for an app that offers its own keychain route.
+    expect(await screen.findByRole("region", { name: "Create account" })).toBeInTheDocument();
+    const ring = () =>
+      within(screen.getByRole("region", { name: "Pubky Ring" })).getByRole("button", {
+        name: "Continue with Pubky Ring",
+      });
+    expect(ring()).toBeEnabled();
+
+    hello(["outcome-v2", "status", OPENER_KEYCHAIN_FEATURE]);
+    // The app is named now; the card stays, with account creation, import and Cancel.
+    expect(
+      screen.getByRole("complementary", { name: "Signing in to original.app" }),
+    ).toBeInTheDocument();
+    expect(ring()).toBeEnabled();
+    expect(screen.getByRole("region", { name: "Create account" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Import it" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeInTheDocument();
+  });
+
+  it("focuses the Ring card the app's sign-in entry points at, before any hello", async () => {
+    appPopup();
+    const entered = { status: "review", review, entry: "sign-in" } as const;
+    mount(true, {}, { getState: () => entered });
+
+    expect(await screen.findByRole("button", { name: "Continue with Pubky Ring" })).toHaveFocus();
   });
 });
 
