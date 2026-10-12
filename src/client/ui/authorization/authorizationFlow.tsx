@@ -148,6 +148,8 @@ function ReadyAuthorizationWithIdentity({
   const [view, setView] = useState<AuthorizationIdentityView>(() =>
     catalog.identities.length === 0 || isGoogleRedirectReturn() ? "first-identity-setup" : "review",
   );
+  // Consent belongs to the pending request, including while switching identities.
+  const [declinedEncryptionPaths, setDeclinedEncryptionPaths] = useState<readonly string[]>([]);
   const resolvedView: AuthorizationIdentityView =
     catalog.identities.length === 0 ? "first-identity-setup" : view;
 
@@ -184,6 +186,10 @@ function ReadyAuthorizationWithIdentity({
   );
   return (
     <AuthorizationReview
+      encryptionConsent={{
+        declinedPaths: declinedEncryptionPaths,
+        onChange: setDeclinedEncryptionPaths,
+      }}
       identity={activeIdentity}
       onAuthorize={(declinedEncryptionPaths) => {
         if (activeIdentity) {

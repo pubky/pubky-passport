@@ -135,6 +135,15 @@ const SECOND = {
   },
 };
 
+const ENCRYPTED_REVIEW = {
+  ...REVIEW,
+  authenticationMethod: "grant",
+  capabilities: [
+    { path: "/priv/chat/", read: true, write: true, encrypt: true, scope: "specific" },
+    { path: "/priv/notes/", read: true, write: true, encrypt: true, scope: "specific" },
+  ],
+} as const;
+
 describe("AuthorizationFlow", () => {
   beforeEach(() => {
     MOCKS.authorizationState = { status: "review", review: REVIEW };
@@ -162,6 +171,28 @@ describe("AuthorizationFlow", () => {
   });
 
   const renderFlow = () => render(wrapFlow(<AuthorizationFlow />));
+
+  it("preserves encryption choices when switching identities", async () => {
+    const user = userEvent.setup();
+    MOCKS.authorizationState = { status: "review", review: ENCRYPTED_REVIEW };
+    renderFlow();
+    await user.click(
+      await screen.findByRole("checkbox", { name: "Encrypt and decrypt content /priv/chat/" }),
+    );
+    await user.click(screen.getByRole("button", { name: "Switch" }));
+    await user.click(screen.getByRole("button", { name: /Second User/u }));
+
+    expect(
+      screen.getByRole("checkbox", { name: "Encrypt and decrypt content /priv/chat/" }),
+    ).not.toBeChecked();
+    expect(
+      screen.getByRole("checkbox", { name: "Encrypt and decrypt content /priv/notes/" }),
+    ).toBeChecked();
+    await user.click(screen.getByRole("button", { name: "Authorize" }));
+    expect(MOCKS.approve).toHaveBeenCalledExactlyOnceWith(SECOND.publicIdentity.publicKeyZ32, [
+      "/priv/chat/",
+    ]);
+  });
 
   it("shows the requested permissions and active identity", async () => {
     renderFlow();
