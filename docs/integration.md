@@ -82,12 +82,17 @@ Malformed requests, `e` without `af=v1`, missing or invalid `epk`, and mixed `se
 transports fail closed. Google identity setup restores or creates the signing identity first;
 the same scope review and signed approval then run on `/authorize`.
 
-The implementation is pinned to upstream commit
-[`fec912b`](https://github.com/pubky/pubky-homeserver/tree/fec912b399b75fbb5c81a43a73a8b40e136df99b),
-because the published SDK does not yet include this protocol. See [the vendored SDK provenance
-and rebuild instructions](../vendor/README.md). Upgrade homeservers before signers, then apps;
-older homeservers reject grants containing `e`. The upstream
-[scoped encryption documentation](https://github.com/pubky/pubky-homeserver/blob/fec912b399b75fbb5c81a43a73a8b40e136df99b/docs/scoped-encryption-keys.md)
+Passport pins the official [`@synonymdev/pubky` `0.16.0` release](https://www.npmjs.com/package/@synonymdev/pubky/v/0.16.0),
+which includes scoped keys, signed approvals, and HPKE transport. Its signer API is
+`approveAuthRequest(url)`, without a separate approved-capabilities argument. Passport implements
+selective consent by narrowing the validated URL before this call: `/priv/chat/v1/:rwe` becomes
+`/priv/chat/v1/:rw` when encryption is declined. The SDK
+[derives keys only for the remaining `e` scopes](https://github.com/pubky/pubky-homeserver/blob/af53da6c9fe5f295a0672103c6e1dc440c1f28e8/pubky-sdk/src/actors/auth/grant/approval_envelope.rs#L31-L45),
+and its recipient [accepts narrower capabilities while rejecting an expansion](https://github.com/pubky/pubky-homeserver/blob/af53da6c9fe5f295a0672103c6e1dc440c1f28e8/pubky-sdk/src/actors/auth/grant/flow.rs#L490-L505).
+Passport keeps the request's original transport and app identity when narrowing.
+
+Upgrade homeservers before signers, then apps; older homeservers reject grants containing `e`.
+The release's [scoped encryption documentation](https://github.com/pubky/pubky-homeserver/blob/af53da6c9fe5f295a0672103c6e1dc440c1f28e8/docs/scoped-encryption-keys.md)
 defines the protocol and key derivation.
 
 ## Popup sign-in

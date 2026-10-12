@@ -24,8 +24,8 @@ importers:
         specifier: ^5.3.0
         version: 5.3.0
       '@synonymdev/pubky':
-        specifier: file:vendor/synonymdev-pubky-0.15.0-passport.fec912b.tgz
-        version: file:vendor/synonymdev-pubky-0.15.0-passport.fec912b.tgz
+        specifier: 0.16.0
+        version: 0.16.0
       '@tailwindcss/postcss':
         specifier: ^4.3.3
         version: 4.3.3
@@ -764,9 +764,8 @@ packages:
   '@swc/helpers@0.5.23':
     resolution: {integrity: sha512-5lSsMOTXURePglDfvuAQUqkGek9Hg2kksOYay2m0+XR++b2NWYL/4sWyuvVBIs8oKnJaxkdi9whaL/sqN13afw==}
 
-  '@synonymdev/pubky@file:vendor/synonymdev-pubky-0.15.0-passport.fec912b.tgz':
-    resolution: {integrity: sha512-5ehnDGpqOWLC/ei0IkYUqs7xZ9BzYAeN3IuctTSaFgdPAhkbaXTINdAMiFjpjS1MAoeA5Yh6ph0uT4+DU/kP9w==, tarball: file:vendor/synonymdev-pubky-0.15.0-passport.fec912b.tgz}
-    version: 0.15.0-passport.fec912b
+  '@synonymdev/pubky@0.16.0':
+    resolution: {integrity: sha512-RbqIH8lTn2byMTmy7Zwk7YSdlLxkD6w6UpcRs4MYJ+ih2PLmkc1ovbFw1i1UfGWK9zuWztO2IXYZLsUWOHeudQ==}
 
   '@tailwindcss/node@4.3.3':
     resolution: {integrity: sha512-/T8IKEsf9VTU6tLjgC7+sv2mOPtQxzE2jMw7u4Tt40Tx+QSZxpzh95/H6cMKoja9XuW7iMdLJYBB0o9G1CaAgg==}
@@ -3590,7 +3589,7 @@ snapshots:
     dependencies:
       tslib: 2.8.1
 
-  '@synonymdev/pubky@file:vendor/synonymdev-pubky-0.15.0-passport.fec912b.tgz':
+  '@synonymdev/pubky@0.16.0':
     dependencies:
       fetch-cookie: 3.2.0
 

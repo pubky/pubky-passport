@@ -21,10 +21,10 @@ after verification. They do not establish a live homeserver session.
 Selective approval uses the SDK's single `approveAuthRequest(url)` entry point.
 Passport removes declined `e` actions from the validated URL before that call,
 preserving `r`/`w`, the requesting app identity, and the signed-approval transport.
-The pinned upstream SDK derives keys only for the remaining `e` scopes, and its
-recipient checks the result against the original request. This relies on the
-vendored upstream version described in [vendor/README.md](../vendor/README.md);
-it is not evidence that an older published SDK supports the new protocol.
+The official `@synonymdev/pubky` `0.16.0` SDK derives keys only for the remaining
+`e` scopes, and its recipient checks the result against the original request.
+See [the SDK contract and upstream source references](integration.md#scoped-encryption-consent).
+These checks exercise that released SDK; older versions do not support this protocol.
 
 The browser suite tests review, Google redirect continuation, and SDK relay delivery
 in Chromium, Firefox, WebKit, and mobile Chromium. Google, Drive, Homegate, and relay responses
@@ -96,10 +96,10 @@ two frontends does not establish that purchases work.
 ## Check actual key delivery and encryption
 
 A complete check needs a signing identity registered on a homeserver containing
-[pubky-homeserver #668](https://github.com/pubky/pubky-homeserver/pull/668). Released `0.15.0`
-predates that change. Confirm the deployed homeserver commit; upgrading Passport alone cannot
-make an older homeserver accept `e`. The app must also use this checkout's pinned SDK, rather
-than the older SDK currently used by Shop.
+[pubky-homeserver #668](https://github.com/pubky/pubky-homeserver/pull/668), included in the `0.16.0`
+release. Confirm the deployed homeserver version or commit; upgrading Passport alone cannot
+make an older homeserver accept `e`. The app must also use `@synonymdev/pubky` `0.16.0`, pinned
+by this checkout, rather than the older SDK currently used by Shop.
 
 The [manual harness](manual-scoped-key-test.js) generates its own `af=v1` / `epk` request and
 waits for an actual SDK `Session`. It checks approved capabilities and key scopes, derives
