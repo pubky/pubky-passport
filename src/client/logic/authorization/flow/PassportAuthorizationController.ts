@@ -108,7 +108,10 @@ export class PassportAuthorizationController {
     if (browserController === this) browserController = undefined;
   }
 
-  async approve(publicKeyZ32: string): Promise<PassportAuthorizationViewState> {
+  async approve(
+    publicKeyZ32: string,
+    declinedEncryptionPaths: readonly string[] = [],
+  ): Promise<PassportAuthorizationViewState> {
     const action = this.beginAction();
     if (!action) return this.state;
 
@@ -121,6 +124,7 @@ export class PassportAuthorizationController {
       () => {
         if (!this.disposed) this.update({ status: "granting", review });
       },
+      [...declinedEncryptionPaths],
     );
     return this.completeRequestOutcome(
       action.request,

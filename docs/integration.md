@@ -33,8 +33,62 @@ sequenceDiagram
    the relay before it reports the outcome to your app.
 4. The SDK receives the approval, exchanges it with the homeserver, and returns a `Session`.
 
-The authorization URL contains the relay secret. Keep it in the browser, encode it exactly once,
-and never log it or send it to analytics.
+Legacy authorization URLs contain a relay secret. Signed-approval URLs carry an HPKE recipient
+public key instead. Keep authorization URLs in the browser, encode them exactly once, and never
+log them or send them to analytics.
+
+## Scoped encryption consent
+
+Storage access and encryption keys are separate permissions:
+
+| Action | What the app receives                                  |
+| ------ | ------------------------------------------------------ |
+| `r`    | Permission to read stored content; no encryption key.  |
+| `w`    | Permission to write stored content; no encryption key. |
+| `e`    | The scope's encryption key; no storage access.         |
+
+For example, `/priv/chat/v1/:rwe` requests storage access and keys, while `/pub/chat/:e` requests
+only keys. Passport shows **Encrypt and decrypt content** separately for each requested scope.
+Users can uncheck it while keeping that scope's read/write access. A directory key also derives
+keys below that directory, so declining a nested scope also declines any requested covering
+directory keys. Sharing a key cannot be undone by revoking storage access; it also permits
+decrypting future content encrypted with the same key.
+
+Apps requesting keys must use an SDK with signed approval and HPKE support:
+
+```ts
+const flow = await pubky.startGrantAuthFlow("/priv/chat/v1/:rwe", AuthFlowKind.signin(), {
+  clientId: CLIENT_ID,
+  approvalFormat: "signedApprovalV1",
+});
+```
+
+The SDK generates an `af=v1` request with an ephemeral recipient public key (`epk`), retaining the
+private key inside the pending flow. Passport uses the SDK to sign the approved capabilities and
+key bundle, then HPKE-encrypt that approval to the requesting app. Only `caps` changes when the
+user declines keys: Passport preserves `af=v1`, `epk`, and the request's remaining parameters.
+Even if every key is declined, the response remains a signed approval with an empty key bundle;
+there is no fallback to a bare grant. Declining an `e`-only request can therefore approve an empty
+capability set.
+
+The requesting SDK decrypts and verifies the approval, checks that its capabilities are within
+the original request, and exchanges its signed grant with the homeserver. Apps must inspect the
+returned session's approved capabilities and `session.grant?.encryptionKeys.scopes` before
+assuming storage or keys were granted. Handle missing keys as a user choice, rather than
+silently requesting them again. Free any SDK handles obtained while inspecting the session.
+
+Passport currently supports `signin` and `signin_grant`; `signup_grant` remains unsupported.
+Malformed requests, `e` without `af=v1`, missing or invalid `epk`, and mixed `secret`/`epk`
+transports fail closed. Google identity setup restores or creates the signing identity first;
+the same scope review and signed approval then run on `/authorize`.
+
+The implementation is pinned to upstream commit
+[`fec912b`](https://github.com/pubky/pubky-homeserver/tree/fec912b399b75fbb5c81a43a73a8b40e136df99b),
+because the published SDK does not yet include this protocol. See [the vendored SDK provenance
+and rebuild instructions](../vendor/README.md). Upgrade homeservers before signers, then apps;
+older homeservers reject grants containing `e`. The upstream
+[scoped encryption documentation](https://github.com/pubky/pubky-homeserver/blob/fec912b399b75fbb5c81a43a73a8b40e136df99b/docs/scoped-encryption-keys.md)
+defines the protocol and key derivation.
 
 ## Popup sign-in
 
@@ -294,7 +348,7 @@ pending flow with `flow.saveLocal()` in `sessionStorage`. Passport returns by na
 callback because there is no opener. On the callback page, resume with
 `pubky.resumeGrantAuthFlow(savedState)` when the outcome hint is `success`, wait for the
 `Session` with the same polling loop, and delete the saved state as soon as the flow completes or
-is abandoned. Never use `localStorage`: the saved state contains the relay secret and
+is abandoned. Never use `localStorage`: the saved state contains either the relay secret or HPKE recipient private key, plus
 Proof-of-Possession key material.
 
 ## Integration checklist

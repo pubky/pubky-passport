@@ -16,6 +16,7 @@ type AuthorizationCapability = Readonly<{
   path: string;
   read: boolean;
   write: boolean;
+  encrypt: boolean;
   scope: "specific" | "broad";
 }>;
 
@@ -69,9 +70,36 @@ export class ValidatedPubkyAuthRequest {
     return Result.ok(request);
   }
 
-  /** Returns the validated URL while this request remains live. */
-  validatedUrlForApproval(): string | undefined {
-    return this.#metadata?.sensitivePubkyAuthUrl;
+  /**
+   * Returns the reviewed URL with only the declined encryption permissions removed.
+   * Storage actions and the requested approval format/recipient remain unchanged.
+   */
+  validatedUrlForApproval(declinedEncryptionPaths: readonly string[] = []): string | undefined {
+    const originalUrl = this.#metadata?.sensitivePubkyAuthUrl;
+    if (!originalUrl) return undefined;
+    if (declinedEncryptionPaths.length === 0) return originalUrl;
+
+    const encryptionPaths = new Set(
+      this.review.capabilities.filter((capability) => capability.encrypt).map(({ path }) => path),
+    );
+    if (declinedEncryptionPaths.some((path) => !encryptionPaths.has(path))) return undefined;
+
+    const capabilities = this.review.capabilities.flatMap((capability) => {
+      // A directory key can derive all descendant keys. Removing a child permission must
+      // therefore remove a covering directory key as well, while retaining its storage access.
+      const encrypt =
+        capability.encrypt &&
+        !declinedEncryptionPaths.some(
+          (path) =>
+            capability.path === path ||
+            (capability.path.endsWith("/") && path.startsWith(capability.path)),
+        );
+      const actions = `${capability.read ? "r" : ""}${capability.write ? "w" : ""}${encrypt ? "e" : ""}`;
+      return actions ? [`${capability.path}:${actions}`] : [];
+    });
+    const narrowedUrl = new URL(originalUrl);
+    narrowedUrl.searchParams.set("caps", capabilities.join(","));
+    return narrowedUrl.toString();
   }
 
   isLive(): boolean {

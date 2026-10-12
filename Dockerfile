@@ -17,6 +17,8 @@ WORKDIR /app
 # pnpm overrides in pnpm-workspace.yaml.
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY patches ./patches
+# The SDK is pinned to an upstream build until scoped approvals are released on npm.
+COPY vendor/synonymdev-pubky-0.15.0-passport.fec912b.tgz ./vendor/
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
     pnpm install --frozen-lockfile
 

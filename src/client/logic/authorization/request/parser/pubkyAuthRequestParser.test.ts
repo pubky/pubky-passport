@@ -10,6 +10,8 @@ import {
 
 const VALID_REQUEST =
   "pubkyauth://signin?caps=/pub/pubky.app/:rw&relay=https://httprelay.pubky.app/inbox&secret=kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8&x-success=https://pubky.app/passport-success&x-error=https://pubky.app/passport-error&x-cancel=https://pubky.app/passport-cancel";
+const ENCRYPTION_PUBLIC_KEY = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+const SIGNED_APPROVAL_REQUEST = `pubkyauth://signin_grant?caps=/priv/chat/v1/:rwe&relay=https://relay.example/inbox&cid=chat.example&cpk=5jsjx1o6fzu6aeeo697r3i5rx15zq41kikcye8wtwdqm4nb4tryo&af=v1&epk=${ENCRYPTION_PUBLIC_KEY}`;
 const PUBKY_SDK_V0_10_COMPATIBILITY_FIXTURES = [
   {
     authenticationMethod: "cookie",
@@ -62,6 +64,7 @@ describe("parseEncodedPubkyAuthRequest", () => {
           path: "/pub/pubky.app/",
           read: true,
           write: true,
+          encrypt: false,
         },
       ],
       callbacks: {
@@ -122,6 +125,137 @@ describe("parseEncodedPubkyAuthRequest", () => {
     if (Result.isError(result)) throw new Error(result.error.code);
     expect(result.value.authenticationMethod).toBe("grant");
     expect(result.value).not.toHaveProperty("clientId");
+  });
+
+  it("parses HPKE signed approvals without requiring a shared secret", () => {
+    const result = parseEncodedPubkyAuthRequest(encodeRequest(SIGNED_APPROVAL_REQUEST));
+
+    if (Result.isError(result)) throw new Error(result.error.code);
+    expect(result.value.authenticationMethod).toBe("grant");
+    expect(result.value.capabilities).toEqual([
+      { path: "/priv/chat/v1/", read: true, write: true, encrypt: true },
+    ]);
+    expect(result.value.sensitivePubkyAuthUrl).toBe(SIGNED_APPROVAL_REQUEST);
+  });
+
+  it.each(["/priv/chat/:rw", "/pub/chat/:e", ""])(
+    "accepts signed approval format with capabilities %s",
+    (capabilities) => {
+      const request = SIGNED_APPROVAL_REQUEST.replace("/priv/chat/v1/:rwe", capabilities);
+      expect(Result.isOk(parseEncodedPubkyAuthRequest(encodeRequest(request)))).toBe(true);
+    },
+  );
+
+  it("preserves the exact decoded capability bytes and original URL", () => {
+    const capabilities = "/priv/cafe\u0301/:rwe,/priv/café/:e";
+    const request = SIGNED_APPROVAL_REQUEST.replace(
+      "/priv/chat/v1/:rwe",
+      encodeURIComponent(capabilities),
+    );
+    const result = parseEncodedPubkyAuthRequest(encodeRequest(request));
+
+    if (Result.isError(result)) throw new Error(result.error.code);
+    expect(result.value.capabilities.map(({ path }) => path)).toEqual([
+      "/priv/cafe\u0301/",
+      "/priv/café/",
+    ]);
+    expect(result.value.sensitivePubkyAuthUrl).toBe(request);
+  });
+
+  it.each(["v2", "", "V1", "v1%20"])("rejects unsupported approval format %s", (format) => {
+    expectError(
+      encodeRequest(SIGNED_APPROVAL_REQUEST.replace("af=v1", `af=${format}`)),
+      "unsupported_approval_format",
+    );
+  });
+
+  it("requires an HPKE recipient key for signed approvals", () => {
+    expectError(
+      encodeRequest(SIGNED_APPROVAL_REQUEST.replace(`&epk=${ENCRYPTION_PUBLIC_KEY}`, "")),
+      "missing_encryption_public_key",
+    );
+  });
+
+  it.each([
+    "",
+    "short",
+    `${ENCRYPTION_PUBLIC_KEY}=`,
+    "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB",
+    "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA+",
+    "A".repeat(44),
+  ])("rejects noncanonical HPKE recipient keys: %s", (epk) => {
+    expectError(
+      encodeRequest(SIGNED_APPROVAL_REQUEST.replace(ENCRYPTION_PUBLIC_KEY, epk)),
+      "invalid_encryption_public_key",
+    );
+  });
+
+  it.each(["", "kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8"])(
+    "rejects shared secrets on signed approval requests: %s",
+    (secret) => {
+      expectError(
+        encodeRequest(`${SIGNED_APPROVAL_REQUEST}&secret=${secret}`),
+        "invalid_approval_transport",
+      );
+    },
+  );
+
+  it("rejects an HPKE key alongside a legacy shared secret", () => {
+    expectError(
+      encodeRequest(`${grantRequest("chat.example")}&epk=${ENCRYPTION_PUBLIC_KEY}`),
+      "invalid_approval_transport",
+    );
+  });
+
+  it("accepts HPKE bare grants without permitting encryption-key delivery", () => {
+    const request = SIGNED_APPROVAL_REQUEST.replace("&af=v1", "").replace(":rwe", ":rw");
+    const result = parseEncodedPubkyAuthRequest(encodeRequest(request));
+
+    if (Result.isError(result)) throw new Error(result.error.code);
+    expect(result.value.capabilities).toEqual([
+      { path: "/priv/chat/v1/", read: true, write: true, encrypt: false },
+    ]);
+    expect(result.value.sensitivePubkyAuthUrl).toBe(request);
+    expectError(
+      encodeRequest(SIGNED_APPROVAL_REQUEST.replace("&af=v1", "")),
+      "encryption_requires_signed_approval",
+    );
+  });
+
+  it.each([VALID_REQUEST, grantRequest("chat.example")])(
+    "rejects encryption keys on legacy requests without signed approval format",
+    (request) => {
+      expectError(
+        encodeRequest(request.replace("/pub/pubky.app/:rw", "/pub/pubky.app/:rwe")),
+        "encryption_requires_signed_approval",
+      );
+    },
+  );
+
+  it.each(["af=v1", `epk=${ENCRYPTION_PUBLIC_KEY}`, `af=v1&epk=${ENCRYPTION_PUBLIC_KEY}`])(
+    "rejects grant approval parameters on cookie requests: %s",
+    (parameters) => {
+      expectError(encodeRequest(`${VALID_REQUEST}&${parameters}`), "unsupported_parameter");
+    },
+  );
+
+  it.each([
+    "&af=v1",
+    "&af=v2",
+    `&epk=${ENCRYPTION_PUBLIC_KEY}`,
+    "&cid=other.example",
+    "&cpk=5jsjx1o6fzu6aeeo697r3i5rx15zq41kikcye8wtwdqm4nb4tryo",
+    "&%61f=v1",
+    `&e%70k=${ENCRYPTION_PUBLIC_KEY}`,
+  ])("rejects duplicate grant and signed-approval parameters: %s", (duplicate) => {
+    expectError(encodeRequest(`${SIGNED_APPROVAL_REQUEST}${duplicate}`), "duplicate_parameter");
+  });
+
+  it("keeps signup-grant requests unsupported", () => {
+    expectError(
+      encodeRequest(SIGNED_APPROVAL_REQUEST.replace("signin_grant", "signup_grant")),
+      "invalid_auth_request_path",
+    );
   });
 
   it.each([

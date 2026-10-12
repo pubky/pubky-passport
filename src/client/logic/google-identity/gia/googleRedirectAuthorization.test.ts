@@ -13,6 +13,7 @@ import { AUTHORIZATION_TIMEOUT_MS } from "@/libs/passportPolicy";
 import { GoogleRedirectAuthorization } from "./GoogleRedirectAuthorization";
 import {
   resumeGoogleRedirect,
+  returnToAuthorization,
   setGoogleRedirectRequest,
   type GoogleRedirectAttempt,
 } from "./googleRedirectBootstrap";
@@ -107,6 +108,66 @@ describe("same-tab Google authorization", () => {
     expect(JSON.stringify(sessionStorage)).not.toContain("access-token-canary");
     started.authorization.dispose();
     resumed.dispose();
+  });
+
+  it("preserves signed approval and byte-sensitive key scopes through Google login and return", async () => {
+    const decomposedPath = "/priv/cafe\u0301/v1/";
+    const composedPath = "/priv/café/v1/";
+    const recipientKey = "kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8";
+    const signedRequest =
+      `pubkyauth://signin_grant?caps=${encodeURIComponent(`${decomposedPath}:rwe,${composedPath}:e`)}` +
+      "&relay=https://relay.example/inbox&cid=chat.example" +
+      "&cpk=5jsjx1o6fzu6aeeo697r3i5rx15zq41kikcye8wtwdqm4nb4tryo" +
+      `&af=v1&epk=${recipientKey}&x-success=https%3A%2F%2Fclient.example%2Fdone`;
+    const parsed = ValidatedPubkyAuthRequest.fromEncoded(encodeURIComponent(signedRequest));
+    if (Result.isError(parsed)) throw new Error(parsed.error.code);
+    setGoogleRedirectRequest({ status: "valid", request: parsed.value }, window);
+    const fetch = vi
+      .fn()
+      .mockResolvedValue(
+        new Response(
+          JSON.stringify({ sub: "google-subject", email: "test@example.com", name: "Test" }),
+        ),
+      );
+    vi.stubGlobal("fetch", fetch);
+    const started = start();
+
+    expect(started.attempt.requestUrl).toBe(signedRequest);
+    expect(JSON.parse(sessionStorage.getItem(GOOGLE_REDIRECT_STORAGE_KEY)!)).toMatchObject({
+      requestUrl: signedRequest,
+    });
+    const googleUrl = new URL(started.replace.mock.calls[0]?.[0] as string);
+    expect(googleUrl.href).not.toContain(recipientKey);
+    expect(googleUrl.href).not.toContain("pubkyauth");
+    const entry = returnFromGoogle(started.attempt);
+    if (entry?.status !== "valid") throw new Error("Signed request did not survive Google return");
+    expect(entry.request.validatedUrlForApproval()).toBe(signedRequest);
+    expect(entry.request.review.capabilities.map(({ path }) => path)).toEqual([
+      decomposedPath,
+      composedPath,
+    ]);
+    expect(sessionStorage.getItem(GOOGLE_REDIRECT_STORAGE_KEY)).toBeNull();
+    const resumed = new GoogleRedirectAuthorization("client-id");
+    expect(Result.isOk(await resumed.request(OPERATION))).toBe(true);
+
+    const replace = vi.fn();
+    vi.stubGlobal("window", { location: { replace } });
+    try {
+      returnToAuthorization();
+      const target = new URL(replace.mock.calls[0]?.[0] as string, "https://passport.example");
+      expect(target.pathname).toBe("/authorize");
+      const returnedRequest = new URLSearchParams(target.hash.slice(1)).get("d");
+      expect(returnedRequest).toBe(signedRequest);
+      const returnedUrl = new URL(returnedRequest!);
+      expect(returnedUrl.searchParams.get("af")).toBe("v1");
+      expect(returnedUrl.searchParams.get("epk")).toBe(recipientKey);
+      expect(returnedUrl.searchParams.has("secret")).toBe(false);
+      expect(returnedUrl.searchParams.get("caps")).toBe(`${decomposedPath}:rwe,${composedPath}:e`);
+    } finally {
+      vi.unstubAllGlobals();
+      started.authorization.dispose();
+      resumed.dispose();
+    }
   });
 
   it.each([
