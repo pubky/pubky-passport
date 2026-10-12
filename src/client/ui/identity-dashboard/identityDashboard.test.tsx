@@ -280,7 +280,7 @@ describe("IdentityDashboard", () => {
 
     await userEvent.setup().click(await screen.findByRole("button", { name: "Manage" }));
     expect(screen.queryByRole("button", { name: "Detach from Google" })).not.toBeInTheDocument();
-    await userEvent.setup().click(screen.getByRole("button", { name: "Download backup" }));
+    await userEvent.setup().click(screen.getByRole("button", { name: "Backup" }));
 
     expect(screen.getByRole("heading", { name: "Encrypted backup." })).toBeInTheDocument();
     await userEvent.setup().click(screen.getByRole("button", { name: "Back" }));
@@ -298,7 +298,7 @@ describe("IdentityDashboard", () => {
     renderDashboard();
 
     await userEvent.setup().click(await screen.findByRole("button", { name: "Manage" }));
-    await userEvent.setup().click(screen.getByRole("button", { name: "Migrate to keychain" }));
+    await userEvent.setup().click(screen.getByRole("button", { name: "Keychain" }));
 
     expect(screen.getByRole("heading", { name: "Migrate to keychain." })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Back" })).toBeInTheDocument();

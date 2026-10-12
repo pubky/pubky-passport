@@ -1,11 +1,19 @@
 "use client";
 
 import Image from "next/image";
+import { Result } from "better-result";
 import { useState } from "react";
 import { preload } from "react-dom";
 
 import type { PassportAuthorizationViewState } from "@/client/logic/authorization/flow/PassportAuthorizationController";
-import type { LocalIdentityCatalog } from "@/client/logic/local-identity/localIdentityModels";
+import type {
+  LocalIdentityCatalog,
+  LocalIdentityMetadata,
+} from "@/client/logic/local-identity/localIdentityModels";
+import { IdentityManagement } from "@/client/ui/identity-dashboard/management/identityManagement";
+import { DetachFromGoogleFlow } from "@/client/ui/identity-dashboard/management/detach-from-google/detachFromGoogleFlow";
+import { RecoveryFileDownload } from "@/client/ui/identity-dashboard/management/recovery-file/recoveryFileDownload";
+import { MigrateToPubkyRing } from "@/client/ui/identity-dashboard/management/migrate-to-pubky-ring/migrateToPubkyRing";
 import { IdentitySelectionFlow } from "@/client/ui/identity-catalog/selection/identitySelectionFlow";
 import {
   useIdentityCatalog,
@@ -88,7 +96,10 @@ type ActiveAuthorization = Extract<
 >;
 
 /** `first-identity-setup` stays until the setup screen reports completion, not when the catalog fills. */
-type AuthorizationIdentityView = "first-identity-setup" | "review" | "identity-selection";
+type AuthorizationIdentityView =
+  | { view: "first-identity-setup" | "review" | "identity-selection" }
+  | { view: "manage-identity" | "recovery-file" | "migrate-to-pubky-ring"; publicKeyZ32: string }
+  | { view: "detach-from-google"; googleSubject: string; identity: LocalIdentityMetadata };
 
 function AuthorizationWithIdentity({
   authorization,
@@ -145,15 +156,17 @@ function ReadyAuthorizationWithIdentity({
 }) {
   const { IdentitySetup } = usePassportCollaborators();
   const Setup = IdentitySetup ?? IdentityEstablishmentFlow;
-  const [view, setView] = useState<AuthorizationIdentityView>(() =>
-    catalog.identities.length === 0 || isGoogleRedirectReturn() ? "first-identity-setup" : "review",
-  );
-  // Consent belongs to the pending request, including while switching identities.
+  const [navigation, setNavigation] = useState<AuthorizationIdentityView>(() => ({
+    view:
+      catalog.identities.length === 0 || isGoogleRedirectReturn()
+        ? "first-identity-setup"
+        : "review",
+  }));
+  // Consent belongs to the pending request, including while switching or managing identities.
   const [declinedEncryptionPaths, setDeclinedEncryptionPaths] = useState<readonly string[]>([]);
-  const resolvedView: AuthorizationIdentityView =
-    catalog.identities.length === 0 ? "first-identity-setup" : view;
+  const state = resolveAuthorizationIdentityView(navigation, catalog);
 
-  if (resolvedView === "first-identity-setup") {
+  if (state.view === "first-identity-setup") {
     return (
       <Setup
         forAuthorization
@@ -163,20 +176,94 @@ function ReadyAuthorizationWithIdentity({
         onComplete={() => {
           // The root callback has a narrower CSP; grant approval belongs on /authorize.
           if (isGoogleRedirectReturn()) returnToAuthorization();
-          else setView("review");
+          else setNavigation({ view: "review" });
         }}
       />
     );
   }
 
-  if (resolvedView === "identity-selection") {
+  if (state.view === "identity-selection") {
     return (
       <IdentitySelectionFlow
         catalog={catalog}
         forAuthorization
-        onBack={() => setView("review")}
-        onIdentitySelected={() => setView("review")}
+        onBack={() => setNavigation({ view: "review" })}
+        onIdentitySelected={() => setNavigation({ view: "review" })}
         selectIdentity={actions.selectIdentity}
+      />
+    );
+  }
+
+  if (state.view === "manage-identity") {
+    const identity = catalog.identities.find(
+      (candidate) => candidate.publicIdentity.publicKeyZ32 === state.publicKeyZ32,
+    );
+    if (!identity) return null;
+    const publicKeyZ32 = identity.publicIdentity.publicKeyZ32;
+    return (
+      <IdentityManagement
+        identity={identity}
+        onBack={() =>
+          setNavigation((current) =>
+            current.view === "identity-selection" ? current : { view: "review" },
+          )
+        }
+        onDetachFromGoogle={() => {
+          if (identity.googleAccount) {
+            setNavigation({
+              view: "detach-from-google",
+              googleSubject: identity.googleAccount.googleSubject,
+              identity,
+            });
+          }
+        }}
+        onDownloadRecoveryFile={() => setNavigation({ view: "recovery-file", publicKeyZ32 })}
+        onRemoveLocalIdentity={() => {
+          const removed = actions.removeIdentity(publicKeyZ32);
+          if (Result.isOk(removed)) setNavigation({ view: "identity-selection" });
+          return removed;
+        }}
+        onMigrateToKeychain={() => setNavigation({ view: "migrate-to-pubky-ring", publicKeyZ32 })}
+        republishHomeserver={() => actions.republishHomeserver(publicKeyZ32)}
+        resolveHomeserver={actions.resolveHomeserver}
+      />
+    );
+  }
+
+  if (state.view === "recovery-file") {
+    return (
+      <RecoveryFileDownload
+        createRecoveryFile={actions.createRecoveryFile}
+        publicKeyZ32={state.publicKeyZ32}
+        onBack={() => setNavigation({ view: "manage-identity", publicKeyZ32: state.publicKeyZ32 })}
+      />
+    );
+  }
+
+  if (state.view === "migrate-to-pubky-ring") {
+    return (
+      <MigrateToPubkyRing
+        createMigration={() => actions.createMigration(state.publicKeyZ32)}
+        navigationAction="back"
+        onBack={() => setNavigation({ view: "manage-identity", publicKeyZ32: state.publicKeyZ32 })}
+      />
+    );
+  }
+
+  if (state.view === "detach-from-google") {
+    return (
+      <DetachFromGoogleFlow
+        createRecoveryFile={actions.createRecoveryFile}
+        createMigration={() => actions.createMigration(state.identity.publicIdentity.publicKeyZ32)}
+        googleSubject={state.googleSubject}
+        identity={state.identity}
+        onBack={() =>
+          setNavigation({
+            view: "manage-identity",
+            publicKeyZ32: state.identity.publicIdentity.publicKeyZ32,
+          })
+        }
+        onDone={() => setNavigation({ view: "identity-selection" })}
       />
     );
   }
@@ -208,11 +295,37 @@ function ReadyAuthorizationWithIdentity({
       onCancel={() => {
         void passportAuthorizationController.cancel();
       }}
-      onSwitch={() => setView("identity-selection")}
+      onManage={() => {
+        if (activeIdentity) {
+          setNavigation({
+            view: "manage-identity",
+            publicKeyZ32: activeIdentity.publicIdentity.publicKeyZ32,
+          });
+        }
+      }}
+      onSwitch={() => setNavigation({ view: "identity-selection" })}
       phase={authorization.status}
       review={authorization.review}
     />
   );
+}
+
+function resolveAuthorizationIdentityView(
+  navigation: AuthorizationIdentityView,
+  catalog: LocalIdentityCatalog,
+): AuthorizationIdentityView {
+  // Detachment retains its pinned identity until its own completion screen is dismissed.
+  if (navigation.view === "detach-from-google") return navigation;
+  if (catalog.identities.length === 0) return { view: "first-identity-setup" };
+  if (
+    "publicKeyZ32" in navigation &&
+    !catalog.identities.some(
+      (identity) => identity.publicIdentity.publicKeyZ32 === navigation.publicKeyZ32,
+    )
+  ) {
+    return { view: "identity-selection" };
+  }
+  return navigation;
 }
 
 function AuthorizationTerminal({ outcome }: { outcome: "approved" | "cancelled" }) {

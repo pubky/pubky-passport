@@ -28,6 +28,7 @@ function props(capabilities: AuthorizationRequestReview["capabilities"]) {
     identity: IDENTITY,
     onAuthorize: vi.fn(),
     onCancel: vi.fn(),
+    onManage: vi.fn(),
     onSwitch: vi.fn(),
     phase: "review" as const,
     review: {
@@ -192,5 +193,60 @@ describe("AuthorizationReview encryption consent", () => {
 
     expect(screen.getByRole("checkbox", { name: /\/pub\/chat\/item$/u })).toBeChecked();
     expect(screen.queryByText(/A folder key also covers/u)).not.toBeInTheDocument();
+  });
+});
+
+function identityActionProps() {
+  return {
+    identity: { publicIdentity: { publicKeyZ32: "identity-public-key" } },
+    onAuthorize: vi.fn(),
+    onCancel: vi.fn(),
+    onManage: vi.fn(),
+    onSwitch: vi.fn(),
+    phase: "review" as const,
+    review: {
+      authenticationMethod: "cookie" as const,
+      capabilities: [
+        {
+          path: "/pub/client.app/",
+          read: true,
+          write: true,
+          encrypt: false,
+          scope: "specific" as const,
+        },
+      ],
+      callbackHost: "client.app",
+    },
+  };
+}
+
+describe("AuthorizationReview identity actions", () => {
+  it("offers Manage and Switch as separate identity actions", async () => {
+    const user = userEvent.setup();
+    const reviewProps = identityActionProps();
+    render(<AuthorizationReview {...reviewProps} />);
+    await user.click(screen.getByRole("button", { name: "Manage" }));
+    await user.click(screen.getByRole("button", { name: "Switch" }));
+
+    expect(reviewProps.onManage).toHaveBeenCalledOnce();
+    expect(reviewProps.onSwitch).toHaveBeenCalledOnce();
+    expect(reviewProps.onAuthorize).not.toHaveBeenCalled();
+    expect(reviewProps.onCancel).not.toHaveBeenCalled();
+  });
+
+  it.each(["preparing", "granting", "completing"] as const)(
+    "locks identity actions during %s",
+    (phase) => {
+      render(<AuthorizationReview {...identityActionProps()} phase={phase} />);
+      expect(screen.getByRole("button", { name: "Manage" })).toBeDisabled();
+      expect(screen.getByRole("button", { name: "Switch" })).toBeDisabled();
+    },
+  );
+
+  it("does not allow management without a local identity", () => {
+    render(<AuthorizationReview {...identityActionProps()} identity={undefined} />);
+    expect(screen.getByRole("button", { name: "Manage" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Authorize" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Switch" })).toBeEnabled();
   });
 });

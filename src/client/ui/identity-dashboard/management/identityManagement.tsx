@@ -136,19 +136,14 @@ function IdentityManagement({
   }, [identity.publicIdentity.publicKeyZ32, resolveHomeserver]);
 
   return (
-    <PassportScreen className="gap-6 md:gap-8">
-      <Button
-        className="absolute right-6 top-[26px] z-10 md:right-10 md:top-12 md:h-10 md:px-4 md:py-2 md:text-sm md:leading-5"
-        onClick={logout}
-        size="sm"
-        variant="secondary"
-      >
-        <LogOutIcon />
-        Log out
-      </Button>
-
-      <header className="flex items-start gap-6 md:items-center">
-        <DisplayHeading accent="identity." aria-label="Manage identity.">
+    <PassportScreen className="gap-6 md:max-w-[375px] md:px-6">
+      <header className="flex items-center gap-6">
+        <DisplayHeading
+          accent="identity."
+          aria-label="Manage identity."
+          className="md:text-5xl"
+          desktopAccentOnNewLine
+        >
           Manage
         </DisplayHeading>
         <Avatar
@@ -159,7 +154,7 @@ function IdentityManagement({
         />
       </header>
 
-      <section className="flex flex-col gap-6 md:grid md:grid-cols-2 md:gap-x-4 md:gap-y-6">
+      <section className="flex flex-col gap-6">
         <IdentityDetail label="User" value={name} />
         <IdentityDetail label="Google account" value={account?.email ?? "Not connected"} />
         <IdentityDetail
@@ -180,7 +175,7 @@ function IdentityManagement({
         />
       </section>
 
-      <div className="mt-auto flex flex-col gap-4 pt-6 md:mt-0 md:flex-row md:flex-wrap md:gap-3 md:pt-0">
+      <div className="flex flex-col gap-3">
         {logoutFailed ? (
           <FieldMessage error>Could not log out. Please try again.</FieldMessage>
         ) : null}
@@ -198,11 +193,16 @@ function IdentityManagement({
             Republish homeserver
           </ManagementButton>
         ) : null}
-        <ManagementButton icon={<KeyRoundIcon />} onClick={onMigrateToKeychain}>
-          Migrate to keychain
-        </ManagementButton>
-        <ManagementButton icon={<DownloadIcon />} onClick={onDownloadRecoveryFile}>
-          Download backup
+        <div className="grid grid-cols-2 gap-3">
+          <ManagementButton icon={<DownloadIcon />} onClick={onDownloadRecoveryFile}>
+            Backup
+          </ManagementButton>
+          <ManagementButton icon={<KeyRoundIcon />} onClick={onMigrateToKeychain}>
+            Keychain
+          </ManagementButton>
+        </div>
+        <ManagementButton icon={<LogOutIcon />} onClick={logout}>
+          Log out
         </ManagementButton>
         {account ? (
           <ManagementButton icon={<LinkOffIcon />} onClick={onDetachFromGoogle}>
@@ -210,7 +210,10 @@ function IdentityManagement({
           </ManagementButton>
         ) : null}
       </div>
-      <PassportNavigation back={<BackButton onClick={onBack} />} className="mt-0 pt-0 md:pt-1" />
+      <PassportNavigation
+        back={<BackButton className="md:w-full" onClick={onBack} />}
+        className="mt-auto pt-8 md:grid-cols-1"
+      />
     </PassportScreen>
   );
 }
@@ -278,10 +281,10 @@ function ManagementButton({
 }) {
   return (
     <Button
-      className="w-full md:h-10 md:min-w-0 md:flex-1 md:px-4 md:py-2"
+      className="w-full min-w-0 px-3"
       disabled={disabled}
       onClick={onClick}
-      size="lg"
+      size="default"
       variant="secondary"
     >
       {icon}
