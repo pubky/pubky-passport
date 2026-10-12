@@ -33,6 +33,7 @@ export async function approveAuthorization(
   publicKeyZ32: string,
   signal?: AbortSignal,
   onCommit?: () => void,
+  declinedEncryptionPaths: readonly string[] = [],
 ): Promise<ApproveAuthorizationResult> {
   if (signal?.aborted) return Result.err({ code: "cancelled" });
   let pubky: PubkySdkAdapter;
@@ -53,7 +54,7 @@ export async function approveAuthorization(
   let republish: Promise<void> | undefined;
   let stage: "identity_restore" | "sdk_approve" = "identity_restore";
   try {
-    const authRequestUrl = request.validatedUrlForApproval();
+    const authRequestUrl = request.validatedUrlForApproval(declinedEncryptionPaths);
     if (!authRequestUrl) {
       LOGGER.warn("authorize.approval.failed", {
         stage: "request_validation",

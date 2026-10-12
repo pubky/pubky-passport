@@ -185,9 +185,18 @@ function ReadyAuthorizationWithIdentity({
   return (
     <AuthorizationReview
       identity={activeIdentity}
-      onAuthorize={() => {
+      onAuthorize={(declinedEncryptionPaths) => {
         if (activeIdentity) {
-          void passportAuthorizationController.approve(activeIdentity.publicIdentity.publicKeyZ32);
+          if (declinedEncryptionPaths.length > 0) {
+            void passportAuthorizationController.approve(
+              activeIdentity.publicIdentity.publicKeyZ32,
+              declinedEncryptionPaths,
+            );
+          } else {
+            void passportAuthorizationController.approve(
+              activeIdentity.publicIdentity.publicKeyZ32,
+            );
+          }
         }
       }}
       onCancel={() => {

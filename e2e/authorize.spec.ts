@@ -224,6 +224,77 @@ test("reviews and scrubs a v0.10 grant authorization request", async ({ page }) 
   await expectNoSensitiveBrowserLeaks(page, leakMonitor, [persistence]);
 });
 
+for (const decline of ["none", "one", "all"] as const) {
+  test(`sends an HPKE signed approval when ${decline} encryption scopes are declined`, async ({
+    page,
+  }) => {
+    await installLocalIdentityFixture(page);
+    await page.route(`${RELAY_ORIGIN}/**`, (route) =>
+      route.fulfill({
+        status: 200,
+        body: "",
+        headers: {
+          "access-control-allow-origin": new URL(page.url()).origin,
+          "access-control-allow-credentials": "true",
+          "access-control-allow-methods": "POST, OPTIONS",
+          "access-control-allow-headers": "content-type",
+        },
+      }),
+    );
+    // Keep unrelated background homeserver discovery off the network.
+    await page.route("https://pkarr.*/**", (route) => route.fulfill({ status: 404 }));
+    const request = new URL(authorizationRequest(`${RELAY_ORIGIN}/inbox`, "grant"));
+    request.searchParams.delete("secret");
+    request.searchParams.set("af", "v1");
+    request.searchParams.set("epk", SENSITIVE_SECRET);
+    request.searchParams.set("caps", "/priv/chat/v1/:rwe,/priv/notes/v1/:e");
+    for (const parameter of ["x-success", "x-error", "x-cancel"]) {
+      request.searchParams.delete(parameter);
+    }
+    await page.goto(authorizationUrl(request.href));
+
+    const chat = page.getByRole("checkbox", {
+      name: "Encrypt and decrypt content /priv/chat/v1/",
+      exact: true,
+    });
+    const notes = page.getByRole("checkbox", {
+      name: "Encrypt and decrypt content /priv/notes/v1/",
+      exact: true,
+    });
+    await expect(chat).toBeChecked();
+    await expect(notes).toBeChecked();
+    await expect(page.getByText("Read,write", { exact: true })).toBeVisible();
+    await expect(page.getByText(/Once shared, the key cannot be revoked/)).toBeVisible();
+    if (decline !== "none") await chat.uncheck();
+    if (decline === "all") await notes.uncheck();
+
+    const approval = page.waitForRequest(
+      (outgoing) =>
+        outgoing.url().startsWith(`${RELAY_ORIGIN}/inbox/`) && outgoing.method() === "POST",
+    );
+    await page.getByRole("button", { name: "Authorize", exact: true }).click();
+    const payload = (await approval).postDataBuffer();
+    expect(payload?.subarray(0, 14).toString()).toBe("pubky-hpke-v1\0");
+    await expect(page.getByRole("heading", { name: "Authorization complete." })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+      await page.evaluate(() => innerWidth),
+    );
+  });
+}
+
+test("rejects encryption scopes without signed approval before Google sign-in", async ({
+  page,
+}) => {
+  const outgoing: string[] = [];
+  page.on("request", (request) => outgoing.push(request.url()));
+  const request = new URL(authorizationRequest(`${RELAY_ORIGIN}/inbox`, "grant"));
+  request.searchParams.set("caps", "/priv/chat/v1/:rwe");
+  await page.goto(authorizationUrl(request.href));
+
+  await expect(page.getByRole("heading", { name: "Invalid authorization request" })).toBeVisible();
+  expect(outgoing.some((url) => url.startsWith("https://accounts.google.com/"))).toBe(false);
+});
+
 test("manual entry reloads into fragment-backed capability review", async ({ page }) => {
   await installLocalIdentityFixture(page);
   await page.goto("/authorize");

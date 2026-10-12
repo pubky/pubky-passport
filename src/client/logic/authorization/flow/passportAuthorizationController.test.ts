@@ -99,6 +99,7 @@ describe("PassportAuthorizationController", () => {
       SELECTED_IDENTITY,
       expect.any(AbortSignal),
       expect.any(Function),
+      [],
     );
     completeApproval?.();
 
@@ -111,6 +112,23 @@ describe("PassportAuthorizationController", () => {
       expect.anything(),
     );
     expect(capturedRequest?.isLive()).toBe(false);
+  });
+
+  it("forwards a snapshot of the declined encryption scopes to approval", async () => {
+    const { controller } = createController({}, { callbacks: false });
+    const declined = ["/priv/chat/"];
+    const pending = controller.approve(SELECTED_IDENTITY, declined);
+    declined.push("/priv/other/");
+
+    await pending;
+
+    expect(MOCKS.approveAuthorization).toHaveBeenCalledWith(
+      expect.any(ValidatedPubkyAuthRequest),
+      SELECTED_IDENTITY,
+      expect.any(AbortSignal),
+      expect.any(Function),
+      ["/priv/chat/"],
+    );
   });
 
   it("routes approval errors and cancellation through exact validated callbacks", async () => {

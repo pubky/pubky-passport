@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef } from "react";
+import { Fragment, useLayoutEffect, useRef, useState } from "react";
 
 import type { AuthorizationRequestReview } from "@/client/logic/authorization/request/ValidatedPubkyAuthRequest";
 import type { LocalIdentityMetadata } from "@/client/logic/local-identity/localIdentityModels";
@@ -21,17 +21,42 @@ function AuthorizationReview({
   review,
 }: {
   identity?: LocalIdentityMetadata | undefined;
-  onAuthorize: () => void;
+  onAuthorize: (declinedEncryptionPaths: readonly string[]) => void;
   onCancel: () => void;
   onSwitch: () => void;
   phase: "review" | "preparing" | "granting" | "completing";
   review: AuthorizationRequestReview;
 }) {
-  const busy = phase !== "review";
+  const [declinedEncryptionPaths, setDeclinedEncryptionPaths] = useState<readonly string[]>([]);
+  const [submitted, setSubmitted] = useState(false);
+  const approvalStarted = useRef(false);
+  const busy = phase !== "review" || submitted;
+  const encryptionPaths = [
+    ...new Set(
+      review.capabilities.filter((capability) => capability.encrypt).map(({ path }) => path),
+    ),
+  ];
+  const hasSelectedEncryption = encryptionPaths.some(
+    (path) => !declinedEncryptionPaths.includes(path),
+  );
+  const hasOverlappingEncryption = encryptionPaths.some((path) =>
+    encryptionPaths.some((other) => other !== path && scopeCoversPath(path, other)),
+  );
   const hasBroadAccess = review.capabilities.some((capability) => capability.scope === "broad");
   const account = identity?.googleAccount;
   const identityName = account?.name ?? "Your Pubky";
   const requester = review.requesterName ?? review.callbackHost ?? "this service";
+
+  const setEncryptionAllowed = (path: string, allowed: boolean) => {
+    if (busy || approvalStarted.current) return;
+    setDeclinedEncryptionPaths((declined) =>
+      allowed
+        ? declined.filter((other) => !scopeCoversPath(path, other))
+        : encryptionPaths.filter(
+            (other) => declined.includes(other) || scopeCoversPath(other, path),
+          ),
+    );
+  };
 
   return (
     <PassportScreen>
@@ -57,13 +82,52 @@ function AuthorizationReview({
             </p>
           ) : (
             review.capabilities.map((capability, index) => (
-              <PermissionRow
-                access={formatAccess(capability)}
-                key={`${capability.path}:${capability.read}:${capability.write}:${index}`}
-                path={capability.path}
-              />
+              <Fragment key={`${capability.path}:${index}`}>
+                {capability.read || capability.write ? (
+                  <PermissionRow access={formatAccess(capability)} path={capability.path} />
+                ) : null}
+                {capability.encrypt &&
+                review.capabilities.findIndex(
+                  (other) => other.encrypt && other.path === capability.path,
+                ) === index ? (
+                  <label className="flex cursor-pointer items-start gap-2 rounded-lg border border-brand/20 bg-brand/5 p-3 has-disabled:cursor-default has-disabled:opacity-60">
+                    <input
+                      aria-describedby="authorization-encryption-warning"
+                      aria-label={`Encrypt and decrypt content ${capability.path}`}
+                      checked={!declinedEncryptionPaths.includes(capability.path)}
+                      className="mt-0.5 size-4 shrink-0 accent-brand"
+                      disabled={busy}
+                      onChange={(event) =>
+                        setEncryptionAllowed(capability.path, event.currentTarget.checked)
+                      }
+                      type="checkbox"
+                    />
+                    <span className="min-w-0 text-sm font-medium leading-5">
+                      <span className="block">Encrypt and decrypt content</span>
+                      <bdi className="block break-all text-xs text-muted-foreground" dir="ltr">
+                        {capability.path}
+                      </bdi>
+                    </span>
+                  </label>
+                ) : null}
+              </Fragment>
             ))
           )}
+          {encryptionPaths.length > 0 ? (
+            <p
+              className="text-sm leading-5 text-muted-foreground"
+              id="authorization-encryption-warning"
+            >
+              Sharing an encryption key lets this service encrypt and decrypt content in that scope,
+              including future content. Once shared, the key cannot be revoked.
+            </p>
+          ) : null}
+          {hasOverlappingEncryption ? (
+            <p className="text-sm leading-5 text-muted-foreground">
+              A folder key also covers its contents. Declining a nested scope also declines any
+              requested folder keys that cover it. Selecting a folder key selects its nested scopes.
+            </p>
+          ) : null}
         </PermissionList>
         <section className="flex flex-col gap-2" aria-labelledby="authorization-identity-heading">
           <h2 className="sr-only" id="authorization-identity-heading">
@@ -92,7 +156,12 @@ function AuthorizationReview({
         <p className="text-sm font-medium leading-5 text-muted-foreground opacity-80">
           Make sure you trust this service, browser, or device before authorizing with your pubky.{" "}
           <strong className="font-bold text-foreground">
-            {describeAuthorizationEffect(review.capabilities, requester)}
+            {describeAuthorizationEffect(
+              review.capabilities,
+              requester,
+              encryptionPaths.length > 0,
+              hasSelectedEncryption,
+            )}
           </strong>
         </p>
         {phase === "granting" ? (
@@ -119,7 +188,14 @@ function AuthorizationReview({
             <Button
               className="w-full"
               disabled={busy || !identity}
-              onClick={onAuthorize}
+              onClick={() => {
+                if (busy || approvalStarted.current || !identity) return;
+                approvalStarted.current = true;
+                setSubmitted(true);
+                onAuthorize(
+                  encryptionPaths.filter((path) => declinedEncryptionPaths.includes(path)),
+                );
+              }}
               size="lg"
               type="button"
             >
@@ -211,16 +287,33 @@ function authorizationButtonLabel(
 function describeAuthorizationEffect(
   capabilities: AuthorizationRequestReview["capabilities"],
   requester: string,
+  hasEncryptionRequest: boolean,
+  hasSelectedEncryption: boolean,
 ): string {
   const canRead = capabilities.some((capability) => capability.read);
   const canWrite = capabilities.some((capability) => capability.write);
 
-  if (canRead && canWrite) {
-    return `Authorizing will allow ${requester} to read and update your data.`;
+  const storageEffect =
+    canRead && canWrite
+      ? `Authorizing will allow ${requester} to read and update your data.`
+      : canRead
+        ? `Authorizing will allow ${requester} to read your data.`
+        : canWrite
+          ? `Authorizing will allow ${requester} to update your data.`
+          : hasEncryptionRequest
+            ? "This request does not ask for storage access."
+            : "This request does not ask for data access.";
+
+  if (hasSelectedEncryption) {
+    return `${storageEffect} Authorizing will share encryption keys with ${requester} for the selected scopes.`;
   }
-  if (canRead) return `Authorizing will allow ${requester} to read your data.`;
-  if (canWrite) return `Authorizing will allow ${requester} to update your data.`;
-  return "This request does not ask for data access.";
+  if (hasEncryptionRequest) return `${storageEffect} No encryption keys will be shared.`;
+  return storageEffect;
+}
+
+/** A directory key can derive every descendant's key; a file key covers only that file. */
+function scopeCoversPath(scope: string, path: string): boolean {
+  return scope === path || (scope.endsWith("/") && path.startsWith(scope));
 }
 
 function formatAccess(capability: AuthorizationRequestReview["capabilities"][number]): string {

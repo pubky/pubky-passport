@@ -16,6 +16,7 @@ export type PubkyAuthCapability = {
   path: string;
   read: boolean;
   write: boolean;
+  encrypt: boolean;
 };
 
 type PubkyAuthCapabilitiesParseErrorCode =
@@ -38,7 +39,8 @@ type PubkyAuthCapabilitiesParseResult = ResultType<
 export function parsePubkyAuthCapabilities(input: string): PubkyAuthCapabilitiesParseResult {
   if (input.length === 0) return Result.ok([]);
 
-  const rawCapabilities = input.split(",").map((capability) => capability.normalize("NFC"));
+  // Scope paths also determine encryption keys, so retain their exact UTF-8 bytes.
+  const rawCapabilities = input.split(",");
   if (rawCapabilities.length > PUBKY_AUTH_CAPABILITY_LIMITS.maximumCapabilityCount) {
     return Result.err<never, PubkyAuthCapabilitiesParseError>({ code: "too_many_capabilities" });
   }
@@ -96,9 +98,10 @@ function parseCapability(input: string): CapabilityParseResult {
     path,
     read: actions.includes("r"),
     write: actions.includes("w"),
+    encrypt: actions.includes("e"),
   });
 }
 
 function isValidCapabilityActions(actions: string): boolean {
-  return /^[rw]+$/.test(actions);
+  return /^[rwe]+$/.test(actions);
 }
