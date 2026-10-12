@@ -351,6 +351,9 @@ callback because there is no opener. On the callback page, resume with
 is abandoned. Never use `localStorage`: the saved state contains either the relay secret or HPKE recipient private key, plus
 Proof-of-Possession key material.
 
+For automated checks and a real-session browser harness, see
+[Testing scoped authorization](testing-scoped-authorization.md).
+
 ## Integration checklist
 
 Test at least these cases before shipping:

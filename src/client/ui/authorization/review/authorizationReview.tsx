@@ -13,6 +13,7 @@ import { DisplayHeading } from "@/client/ui/shared/primitives/typography";
 import { PermissionList, PermissionRow } from "./permissionList";
 
 function AuthorizationReview({
+  encryptionConsent,
   identity,
   onAuthorize,
   onCancel,
@@ -20,6 +21,10 @@ function AuthorizationReview({
   phase,
   review,
 }: {
+  encryptionConsent?: {
+    declinedPaths: readonly string[];
+    onChange: (declinedPaths: readonly string[]) => void;
+  };
   identity?: LocalIdentityMetadata | undefined;
   onAuthorize: (declinedEncryptionPaths: readonly string[]) => void;
   onCancel: () => void;
@@ -27,7 +32,8 @@ function AuthorizationReview({
   phase: "review" | "preparing" | "granting" | "completing";
   review: AuthorizationRequestReview;
 }) {
-  const [declinedEncryptionPaths, setDeclinedEncryptionPaths] = useState<readonly string[]>([]);
+  const [localDeclinedPaths, setLocalDeclinedPaths] = useState<readonly string[]>([]);
+  const declinedEncryptionPaths = encryptionConsent?.declinedPaths ?? localDeclinedPaths;
   const [submitted, setSubmitted] = useState(false);
   const approvalStarted = useRef(false);
   const busy = phase !== "review" || submitted;
@@ -49,13 +55,13 @@ function AuthorizationReview({
 
   const setEncryptionAllowed = (path: string, allowed: boolean) => {
     if (busy || approvalStarted.current) return;
-    setDeclinedEncryptionPaths((declined) =>
-      allowed
-        ? declined.filter((other) => !scopeCoversPath(path, other))
-        : encryptionPaths.filter(
-            (other) => declined.includes(other) || scopeCoversPath(other, path),
-          ),
-    );
+    const next = allowed
+      ? declinedEncryptionPaths.filter((other) => !scopeCoversPath(path, other))
+      : encryptionPaths.filter(
+          (other) => declinedEncryptionPaths.includes(other) || scopeCoversPath(other, path),
+        );
+    if (encryptionConsent) encryptionConsent.onChange(next);
+    else setLocalDeclinedPaths(next);
   };
 
   return (
