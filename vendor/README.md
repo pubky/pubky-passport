@@ -38,3 +38,25 @@ and Passport's approval tests pass. Retain fail-closed parsing for `e` without
 `af=v1`, and preserve `af` and `epk` when narrowing approved capabilities. Existing
 bare grant requests remain supported. Homeservers must support `e` before apps
 request it; the SDK's local signer sessions continue using `/:rw` without keys.
+
+## Selective consent with the single approval method
+
+The SDK has one `approveAuthRequest(url)` method (`approve_auth(url)` in Rust),
+without a separate argument for approved capabilities. Passport implements selective
+consent by narrowing the validated URL's `caps` before calling it. For example,
+declining encryption changes `/priv/chat/:rwe` to `/priv/chat/:rw`; it does not
+remove storage access. An `e`-only scope disappears when declined. No unreviewed
+capabilities can be added by this path.
+
+The pinned upstream signer signs the capabilities from that supplied URL and
+[derives keys only for its remaining `e` scopes](https://github.com/pubky/pubky-homeserver/blob/fec912b399b75fbb5c81a43a73a8b40e136df99b/pubky-sdk/src/actors/auth/grant/approval_envelope.rs#L31-L45).
+The requesting SDK retains the original request and
+[accepts narrower capabilities while rejecting an expansion](https://github.com/pubky/pubky-homeserver/blob/fec912b399b75fbb5c81a43a73a8b40e136df99b/pubky-sdk/src/actors/auth/grant/flow.rs#L501-L535).
+Passport preserves `af`, `epk`, `cid`, `cpk` and the relay when narrowing. Declining
+all keys still produces a signed approval with an empty key bundle, preserving
+`af=v1` rather than falling back to a bare grant.
+
+`src/client/logic/pubky/scopedEncryptionApproval.test.ts` exercises all, partial
+and no-key consent against the actual vendored SDK. Its intercepted network stops
+after approval validation at homeserver discovery; it does not prove that a live
+homeserver session or consumer application completed authentication.
