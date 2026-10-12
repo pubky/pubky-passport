@@ -18,6 +18,14 @@ The SDK tests use real signing, HPKE encryption/decryption, approval signatures,
 and tamper/downgrade rejection. Fetch is intercepted; a deliberate PKARR 404 stops the exchange
 after verification. They do not establish a live homeserver session.
 
+Selective approval uses the SDK's single `approveAuthRequest(url)` entry point.
+Passport removes declined `e` actions from the validated URL before that call,
+preserving `r`/`w`, the requesting app identity, and the signed-approval transport.
+The pinned upstream SDK derives keys only for the remaining `e` scopes, and its
+recipient checks the result against the original request. This relies on the
+vendored upstream version described in [vendor/README.md](../vendor/README.md);
+it is not evidence that an older published SDK supports the new protocol.
+
 The browser suite tests review, Google redirect continuation, and SDK relay delivery
 in Chromium, Firefox, WebKit, and mobile Chromium. Google, Drive, Homegate, and relay responses
 are fixtures. To rerun just the encryption approval cases after building:
