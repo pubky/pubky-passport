@@ -4,7 +4,7 @@ import type { AuthorizationRequestReview } from "@/client/logic/authorization/re
 import type { LocalIdentityMetadata } from "@/client/logic/local-identity/localIdentityModels";
 import { GoogleLogo } from "@/client/ui/shared/brand/googleLogo";
 import { shortPublicKey } from "@/client/ui/shared/formatPublicKey";
-import { CheckIcon, SquareUserRoundIcon, XIcon } from "@/client/ui/shared/icons";
+import { CheckIcon, SettingsIcon, SquareUserRoundIcon, XIcon } from "@/client/ui/shared/icons";
 import { IdentitySummary } from "@/client/ui/shared/identitySummary";
 import { PassportNavigation } from "@/client/ui/shared/passportNavigation";
 import { PassportScreen } from "@/client/ui/shared/passportScreen";
@@ -16,6 +16,7 @@ function AuthorizationReview({
   identity,
   onAuthorize,
   onCancel,
+  onManage,
   onSwitch,
   phase,
   review,
@@ -23,6 +24,7 @@ function AuthorizationReview({
   identity?: LocalIdentityMetadata | undefined;
   onAuthorize: () => void;
   onCancel: () => void;
+  onManage: () => void;
   onSwitch: () => void;
   phase: "review" | "preparing" | "granting" | "completing";
   review: AuthorizationRequestReview;
@@ -34,11 +36,12 @@ function AuthorizationReview({
   const requester = review.requesterName ?? review.callbackHost ?? "this service";
 
   return (
-    <PassportScreen>
+    <PassportScreen className="md:max-w-[375px] md:px-6 md:pb-10 md:pt-3">
       <div className="flex flex-1 flex-col gap-6">
         <DisplayHeading
           accent={<FittedRequester>{requester}</FittedRequester>}
           aria-label={`Sign in to ${requester}`}
+          className="md:text-5xl md:[&>span]:block"
         >
           Sign in to
         </DisplayHeading>
@@ -69,24 +72,46 @@ function AuthorizationReview({
           <h2 className="sr-only" id="authorization-identity-heading">
             Signing identity
           </h2>
-          <div className="flex h-18 items-center gap-2 rounded-2xl bg-card p-4">
-            {identity ? (
-              <IdentitySummary
-                avatarSrc={account?.pictureUrl ?? undefined}
-                badge={account ? <GoogleLogo /> : undefined}
-                detail={shortPublicKey(identity.publicIdentity.publicKeyZ32)}
-                detailClassName="uppercase"
-                name={identityName}
-              />
-            ) : (
-              <span className="min-w-0 flex-1 text-sm font-medium text-muted-foreground">
-                No local identity available
-              </span>
-            )}
-            <Button disabled={busy} onClick={onSwitch} size="sm" type="button" variant="secondary">
-              <SquareUserRoundIcon />
-              Switch
-            </Button>
+          <div className="flex flex-col gap-4 rounded-2xl bg-card p-4">
+            <div className="flex min-h-10 items-center gap-2">
+              {identity ? (
+                <IdentitySummary
+                  avatarSrc={account?.pictureUrl ?? undefined}
+                  badge={account ? <GoogleLogo /> : undefined}
+                  detail={shortPublicKey(identity.publicIdentity.publicKeyZ32)}
+                  detailClassName="uppercase"
+                  name={identityName}
+                />
+              ) : (
+                <span className="min-w-0 flex-1 text-sm font-medium text-muted-foreground">
+                  No local identity available
+                </span>
+              )}
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <Button
+                className="min-w-0"
+                disabled={busy || !identity}
+                onClick={onManage}
+                size="sm"
+                type="button"
+                variant="secondary"
+              >
+                <SettingsIcon />
+                Manage
+              </Button>
+              <Button
+                className="min-w-0"
+                disabled={busy}
+                onClick={onSwitch}
+                size="sm"
+                type="button"
+                variant="secondary"
+              >
+                <SquareUserRoundIcon />
+                Switch
+              </Button>
+            </div>
           </div>
         </section>
         <p className="text-sm font-medium leading-5 text-muted-foreground opacity-80">
@@ -114,7 +139,7 @@ function AuthorizationReview({
               Cancel
             </Button>
           }
-          className="mt-auto md:mt-0"
+          className="mt-auto md:mt-auto md:grid-cols-1 md:gap-4 [&>div]:md:col-start-1"
           confirm={
             <Button
               className="w-full"

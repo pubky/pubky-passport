@@ -237,7 +237,7 @@ test("backup password guidance enforces the six-character minimum responsively",
     await page.setViewportSize(viewport);
     await page.goto("/");
     await page.getByRole("button", { name: "Manage" }).click();
-    await page.getByRole("button", { name: "Download backup" }).click();
+    await page.getByRole("button", { name: "Backup", exact: true }).click();
 
     const password = page.getByLabel("Enter strong password");
     const requirement = page.getByText("Minimum 6 characters.");
@@ -271,29 +271,45 @@ test("backup password guidance enforces the six-character minimum responsively",
   }
 });
 
-test("identity management keeps Log out in the designed responsive header position", async ({
+test("identity management pairs Backup and Keychain above full-width Log out and Detach", async ({
   page,
 }) => {
   await seedLocalIdentity(page);
-  await page.setViewportSize({ width: 375, height: 812 });
-  await page.goto("/");
-  await page.getByRole("button", { name: "Manage" }).click();
-  await expect(page.getByRole("heading", { name: "Manage identity." })).toBeVisible();
-  await page.evaluate(async () => document.fonts.ready);
+  for (const viewport of [
+    { width: 375, height: 812 },
+    { width: 1280, height: 720 },
+  ]) {
+    await page.setViewportSize(viewport);
+    await page.goto("/");
+    await page.getByRole("button", { name: "Manage", exact: true }).click();
+    const heading = page.getByRole("heading", { name: "Manage identity." });
+    await expect(heading).toBeVisible();
+    await page.evaluate(async () => document.fonts.ready);
 
-  const logout = page.getByRole("button", { name: "Log out" });
-  const mobile = await logout.boundingBox();
-  expect(mobile).not.toBeNull();
-  expectWithinOnePixel(375 - ((mobile?.x ?? 0) + (mobile?.width ?? 0)), 24);
-  expectWithinOnePixel(mobile?.y ?? 0, 26);
-  expectWithinOnePixel(mobile?.height ?? 0, 32);
-
-  await page.setViewportSize({ width: 1280, height: 720 });
-  const desktop = await logout.boundingBox();
-  expect(desktop).not.toBeNull();
-  expectWithinOnePixel(1280 - ((desktop?.x ?? 0) + (desktop?.width ?? 0)), 40);
-  expectWithinOnePixel(desktop?.y ?? 0, 48);
-  expectWithinOnePixel(desktop?.height ?? 0, 40);
+    const boxes = await Promise.all(
+      ["Backup", "Keychain", "Log out", "Detach from Google", "Back"].map((name) =>
+        page.getByRole("button", { name, exact: true }).boundingBox(),
+      ),
+    );
+    const [backup, keychain, logout, detach, back] = boxes;
+    if (!backup || !keychain || !logout || !detach || !back) {
+      throw new Error("Identity management buttons must be visible");
+    }
+    expectWithinOnePixel(backup.y, keychain.y);
+    expectWithinOnePixel(backup.width, keychain.width);
+    expect(keychain.x).toBeGreaterThan(backup.x + backup.width);
+    expect(logout.y).toBeGreaterThanOrEqual(backup.y + backup.height);
+    expectWithinOnePixel(logout.x, backup.x);
+    expectWithinOnePixel(logout.width, keychain.x + keychain.width - backup.x);
+    expect(detach.y).toBeGreaterThanOrEqual(logout.y + logout.height);
+    expectWithinOnePixel(detach.width, logout.width);
+    expect(back.y).toBeGreaterThanOrEqual(detach.y + detach.height);
+    expectWithinOnePixel(back.width, logout.width);
+    expect(await page.locator("body > header").getByRole("button").count()).toBe(0);
+    expect(
+      await page.locator("main").evaluate((element) => element.scrollWidth),
+    ).toBeLessThanOrEqual(375);
+  }
 });
 
 test("copying the Pubky shows the gray info toast at the mobile inset", async ({ page }) => {

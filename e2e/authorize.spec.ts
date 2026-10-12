@@ -238,6 +238,87 @@ test("manual entry reloads into fragment-backed capability review", async ({ pag
   expect(await page.evaluate(() => window.location.hash)).toBe("");
 });
 
+test("authorization keeps its mobile card and stacked actions in wide tabs", async ({ page }) => {
+  await installLocalIdentityFixture(page);
+  for (const viewport of [
+    { width: 375, height: 812 },
+    { width: 1280, height: 800 },
+  ]) {
+    await page.setViewportSize(viewport);
+    await page.goto(authorizationUrl(authorizationRequest(`${RELAY_ORIGIN}/inbox`)));
+    await expect(page.getByRole("heading", { name: `Sign in to ${SOURCE_NAME}` })).toBeVisible();
+    const boxes = await Promise.all(
+      ["Manage", "Switch", "Cancel", "Authorize"].map((name) =>
+        page.getByRole("button", { name, exact: true }).boundingBox(),
+      ),
+    );
+    const [manage, switchIdentity, cancel, authorize] = boxes;
+    if (!manage || !switchIdentity || !cancel || !authorize) {
+      throw new Error("Authorization action buttons must be visible");
+    }
+    expectWithinOnePixel(manage.y, switchIdentity.y);
+    expectWithinOnePixel(manage.width, switchIdentity.width);
+    expect(switchIdentity.x).toBeGreaterThan(manage.x + manage.width);
+    expect(authorize.y).toBeGreaterThanOrEqual(cancel.y + cancel.height);
+    expectWithinOnePixel(authorize.x, cancel.x);
+    expectWithinOnePixel(authorize.width, cancel.width);
+    expect(
+      await page.locator("main").evaluate((element) => element.getBoundingClientRect().width),
+    ).toBeLessThanOrEqual(375);
+  }
+});
+
+test("only opener windows request portrait sizing and still work when resizing is refused", async ({
+  page,
+  context,
+}) => {
+  await context.addInitScript(() => {
+    const requests: number[][] = [];
+    Object.defineProperty(window, "__passportResizeRequests", { value: requests });
+    window.resizeTo = (width, height) => {
+      requests.push([width, height]);
+      throw new DOMException("Resizing is unavailable", "NotAllowedError");
+    };
+  });
+  await page.goto("/authorize");
+  await expect(page.getByRole("heading", { name: "Authorize a service." })).toBeVisible();
+  const resizeRequests = (target: Page) =>
+    target.evaluate(
+      () => (window as Window & { __passportResizeRequests?: number[][] }).__passportResizeRequests,
+    );
+  expect(await resizeRequests(page)).toEqual([]);
+  const popupPromise = page.waitForEvent("popup");
+  await page.evaluate(() =>
+    window.open("/authorize", "portrait-test", "popup,width=520,height=760"),
+  );
+  const popup = await popupPromise;
+  await expect(popup.getByRole("heading", { name: "Authorize a service." })).toBeVisible();
+  await expect
+    .poll(() => resizeRequests(popup))
+    .toEqual(
+      await popup.evaluate(() => [
+        [Math.min(390, screen.availWidth || 390), Math.min(800, screen.availHeight || 800)],
+      ]),
+    );
+  await popup.close();
+});
+
+test("Manage and Backup return to the original authorization request", async ({ page }) => {
+  await installLocalIdentityFixture(page);
+  await page.goto(authorizationUrl(authorizationRequest(`${RELAY_ORIGIN}/inbox`)));
+  await expect(page.getByRole("heading", { name: `Sign in to ${SOURCE_NAME}` })).toBeVisible();
+  await page.getByRole("button", { name: "Manage", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Manage identity." })).toBeVisible();
+  await page.getByRole("button", { name: "Backup", exact: true }).click();
+  await expect(page.getByLabel("Enter strong password")).toBeVisible();
+  await page.getByRole("button", { name: "Back", exact: true }).click();
+  await page.getByRole("button", { name: "Back", exact: true }).click();
+  await expect(page.getByRole("heading", { name: `Sign in to ${SOURCE_NAME}` })).toBeVisible();
+  await expect(page.getByText("/pub/example.app/", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Authorize", exact: true })).toBeEnabled();
+  await expect(page).toHaveURL(/\/authorize$/u);
+});
+
 test("falls back to the cancel callback when the opener does not acknowledge", async ({ page }) => {
   await page.context().route("https://client.example/**", (route) =>
     route.fulfill({
