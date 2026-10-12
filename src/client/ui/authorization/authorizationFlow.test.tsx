@@ -7,7 +7,9 @@ import { StrictMode, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { PassportAuthorizationViewState } from "@/client/logic/authorization/flow/PassportAuthorizationController";
+import type { PubkyPublicIdentity } from "@/client/logic/pubky/pubkyIdentityKey";
 import type { LocalIdentityCatalog } from "@/client/logic/local-identity/localIdentityModels";
+import { mockGoogleIdentityController } from "@test-utils/mockGoogleIdentityController";
 import { fakeLocalIdentityController } from "@test-utils/fakeLocalIdentityController";
 import { fakePassportAuthorizationController } from "@test-utils/fakePassportAuthorizationController";
 import { withPassportTestProviders } from "@test-utils/googleIdentityConfiguration";
@@ -21,6 +23,10 @@ const MOCKS = {
   catalog: undefined as LocalIdentityCatalog | undefined,
   catalogListener: undefined as (() => void) | undefined,
   dispose: vi.fn(),
+  remove: vi.fn(),
+  detach: vi.fn(),
+  createRecoveryFile: vi.fn(),
+  createMigration: vi.fn(),
   select: vi.fn(),
   createAuthorizationController: vi.fn(),
 };
@@ -95,7 +101,12 @@ function authorizationCollaborators() {
             MOCKS.catalogListener = listener;
           },
         },
-        { selectIdentity: MOCKS.select },
+        {
+          selectIdentity: MOCKS.select,
+          removeIdentity: MOCKS.remove,
+          createRecoveryFile: MOCKS.createRecoveryFile,
+          createPubkyRingMigration: MOCKS.createMigration,
+        },
       ),
   };
 }
@@ -103,6 +114,8 @@ function authorizationCollaborators() {
 function wrapFlow(children: ReactNode) {
   return withPassportTestProviders(children, {
     ...authorizationCollaborators(),
+    createGoogleIdentityController: () =>
+      mockGoogleIdentityController({ detachIdentity: MOCKS.detach }),
     IdentitySetup: IdentitySetupStub,
   });
 }
@@ -135,6 +148,19 @@ const SECOND = {
   },
 };
 
+function removeMockIdentity(publicKeyZ32: string) {
+  if (!MOCKS.catalog) return Result.err({ code: "storage_unavailable" as const });
+  const identities = MOCKS.catalog.identities.filter(
+    (identity) => identity.publicIdentity.publicKeyZ32 !== publicKeyZ32,
+  );
+  MOCKS.catalog = {
+    activePublicKeyZ32: identities[0]?.publicIdentity.publicKeyZ32 ?? null,
+    identities,
+  };
+  MOCKS.catalogListener?.();
+  return Result.ok();
+}
+
 describe("AuthorizationFlow", () => {
   beforeEach(() => {
     MOCKS.authorizationState = { status: "review", review: REVIEW };
@@ -144,6 +170,14 @@ describe("AuthorizationFlow", () => {
     };
     MOCKS.approve.mockResolvedValue({ status: "granting", review: REVIEW });
     MOCKS.cancel.mockResolvedValue({ status: "cancelled" });
+    MOCKS.remove.mockImplementation(removeMockIdentity);
+    MOCKS.detach.mockImplementation(async (identity: PubkyPublicIdentity) =>
+      removeMockIdentity(identity.publicKeyZ32),
+    );
+    MOCKS.createRecoveryFile.mockResolvedValue(
+      Result.err({ code: "recovery_file_failed" as const }),
+    );
+    MOCKS.createMigration.mockResolvedValue(Result.err({ code: "invalid_identity" as const }));
     MOCKS.select.mockImplementation((publicKeyZ32: string) => {
       if (!MOCKS.catalog) return Result.err({ code: "storage_unavailable" as const });
       MOCKS.catalog = { ...MOCKS.catalog, activePublicKeyZ32: publicKeyZ32 };
@@ -202,7 +236,7 @@ describe("AuthorizationFlow", () => {
     expect(MOCKS.createAuthorizationController).toHaveBeenCalledWith();
     expect(screen.getByRole("button", { name: "Cancel" }).closest(".grid")).toHaveClass(
       "mt-auto",
-      "md:mt-0",
+      "md:mt-auto",
     );
   });
 
@@ -382,7 +416,12 @@ describe("AuthorizationFlow", () => {
       review: {
         ...REVIEW,
         capabilities: [
-          { path: "/pub/ordinary.app/", read: true, write: false, scope: "specific" },
+          {
+            path: "/pub/ordinary.app/",
+            read: true,
+            write: false,
+            scope: "specific",
+          },
           { path: "/pub/", read: true, write: false, scope: "broad" },
           { path: "/priv/vault/", read: false, write: true, scope: "specific" },
           { path: "/", read: true, write: false, scope: "broad" },
@@ -519,6 +558,145 @@ describe("AuthorizationFlow", () => {
     expect(screen.getByRole("heading", { name: "Sign in to requesting.app" })).toBeInTheDocument();
     expect(screen.getByText("seco...-key")).toHaveClass("uppercase");
   });
+
+  it("preserves the pending request through management and backup", async () => {
+    const user = userEvent.setup();
+    renderFlow();
+    await user.click(screen.getByRole("button", { name: "Manage" }));
+
+    expect(screen.getByRole("heading", { name: "Manage identity." })).toBeInTheDocument();
+    expect(screen.getByLabelText("Signing in to requesting.app")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Authorize" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Backup" }));
+    expect(screen.getByRole("heading", { name: "Encrypted backup." })).toBeInTheDocument();
+    await user.type(screen.getByLabelText("Enter strong password"), "a strong backup password");
+    await user.click(screen.getByRole("button", { name: "Download backup" }));
+    expect(MOCKS.createRecoveryFile).toHaveBeenCalledWith(
+      FIRST.publicIdentity.publicKeyZ32,
+      "a strong backup password",
+    );
+    await user.click(screen.getByRole("button", { name: "Back" }));
+    await user.click(screen.getByRole("button", { name: "Back" }));
+
+    expect(screen.getByRole("heading", { name: "Sign in to requesting.app" })).toBeInTheDocument();
+    expect(MOCKS.authorizationState).toEqual({ status: "review", review: REVIEW });
+    expect(MOCKS.cancel).not.toHaveBeenCalled();
+    expect(MOCKS.approve).not.toHaveBeenCalled();
+    expect(MOCKS.dispose).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "Authorize" }));
+    expect(MOCKS.approve).toHaveBeenCalledExactlyOnceWith(FIRST.publicIdentity.publicKeyZ32);
+  });
+
+  it("pins keychain export to the managed identity and returns to the pending request", async () => {
+    const user = userEvent.setup();
+    renderFlow();
+    await user.click(await screen.findByRole("button", { name: "Manage" }));
+    await user.click(screen.getByRole("button", { name: "Keychain" }));
+    expect(screen.getByRole("heading", { name: "Migrate to keychain." })).toBeInTheDocument();
+    act(() => {
+      if (MOCKS.catalog)
+        MOCKS.catalog = {
+          ...MOCKS.catalog,
+          activePublicKeyZ32: SECOND.publicIdentity.publicKeyZ32,
+        };
+      MOCKS.catalogListener?.();
+    });
+    await user.click(screen.getByRole("button", { name: "Show QR" }));
+    expect(MOCKS.createMigration).toHaveBeenCalledExactlyOnceWith(
+      FIRST.publicIdentity.publicKeyZ32,
+    );
+    await user.click(screen.getByRole("button", { name: "Back" }));
+    expect(screen.getByText("first@example.com")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Back" }));
+    expect(screen.getByRole("heading", { name: "Sign in to requesting.app" })).toBeInTheDocument();
+    expect(screen.getByText("Second User")).toBeInTheDocument();
+    expect(MOCKS.approve).not.toHaveBeenCalled();
+    expect(MOCKS.cancel).not.toHaveBeenCalled();
+  });
+
+  it("returns to selection after logout and preserves the pending request", async () => {
+    const user = userEvent.setup();
+    renderFlow();
+    await user.click(screen.getByRole("button", { name: "Manage" }));
+    await user.click(screen.getByRole("button", { name: "Log out" }));
+
+    expect(MOCKS.remove).toHaveBeenCalledExactlyOnceWith(FIRST.publicIdentity.publicKeyZ32);
+    expect(screen.getByRole("heading", { name: "Switch identity." })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Authorize" })).not.toBeInTheDocument();
+    expect(MOCKS.cancel).not.toHaveBeenCalled();
+    expect(MOCKS.approve).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: /Second User/u }));
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(MOCKS.cancel).toHaveBeenCalledOnce();
+    expect(MOCKS.approve).not.toHaveBeenCalled();
+  });
+
+  it("returns to setup after logging out the last identity without cancelling the request", async () => {
+    const user = userEvent.setup();
+    MOCKS.catalog = { activePublicKeyZ32: FIRST.publicIdentity.publicKeyZ32, identities: [FIRST] };
+    renderFlow();
+    await user.click(await screen.findByRole("button", { name: "Manage" }));
+    await user.click(screen.getByRole("button", { name: "Log out" }));
+
+    expect(screen.getByRole("heading", { name: "Add identity" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Signing in to requesting.app")).toBeInTheDocument();
+    expect(MOCKS.approve).not.toHaveBeenCalled();
+    expect(MOCKS.cancel).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "Back" }));
+    expect(MOCKS.cancel).toHaveBeenCalledOnce();
+  });
+
+  it("keeps management open when logout fails", async () => {
+    const user = userEvent.setup();
+    MOCKS.remove.mockReturnValue(Result.err({ code: "storage_unavailable" as const }));
+    renderFlow();
+    await user.click(await screen.findByRole("button", { name: "Manage" }));
+    await user.click(screen.getByRole("button", { name: "Log out" }));
+
+    expect(screen.getByRole("heading", { name: "Manage identity." })).toBeInTheDocument();
+    expect(screen.getByText("Could not log out. Please try again.")).toBeInTheDocument();
+    expect(MOCKS.catalog?.identities).toContain(FIRST);
+    expect(MOCKS.cancel).not.toHaveBeenCalled();
+    expect(MOCKS.approve).not.toHaveBeenCalled();
+  });
+
+  it.each([false, true])(
+    "keeps detachment completion until Done, last identity: %s",
+    async (lastIdentity) => {
+      const user = userEvent.setup();
+      if (lastIdentity)
+        MOCKS.catalog = {
+          activePublicKeyZ32: FIRST.publicIdentity.publicKeyZ32,
+          identities: [FIRST],
+        };
+      renderFlow();
+      await user.click(await screen.findByRole("button", { name: "Manage" }));
+      await user.click(screen.getByRole("button", { name: "Detach from Google" }));
+      expect(screen.getByRole("heading", { name: "Backup your pubky first." })).toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: "I backed up my pubky" }));
+      await user.click(screen.getByRole("button", { name: "Remove Google Access" }));
+      await user.type(screen.getByRole("textbox"), "DETACH");
+      await user.click(screen.getByRole("button", { name: "Confirm detachment" }));
+
+      expect(
+        await screen.findByRole("heading", { name: "Detached from Google." }),
+      ).toBeInTheDocument();
+      expect(MOCKS.detach).toHaveBeenCalledExactlyOnceWith(
+        FIRST.publicIdentity,
+        FIRST.googleAccount.googleSubject,
+      );
+      expect(screen.queryByRole("heading", { name: "Add identity" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("heading", { name: "Switch identity." })).not.toBeInTheDocument();
+      expect(screen.getByLabelText("Signing in to requesting.app")).toBeInTheDocument();
+      expect(MOCKS.approve).not.toHaveBeenCalled();
+      expect(MOCKS.cancel).not.toHaveBeenCalled();
+      await user.click(screen.getByRole("button", { name: "Done" }));
+      expect(
+        screen.getByRole("heading", { name: lastIdentity ? "Add identity" : "Switch identity." }),
+      ).toBeInTheDocument();
+      expect(MOCKS.approve).not.toHaveBeenCalled();
+    },
+  );
 
   it("adds an identity through the normal sign-in flow without losing the review", async () => {
     const user = userEvent.setup();

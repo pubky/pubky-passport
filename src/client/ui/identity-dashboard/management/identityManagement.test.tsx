@@ -186,50 +186,94 @@ describe("IdentityManagement", () => {
     expect(onBack).not.toHaveBeenCalled();
   });
 
-  it("shows secondary logout in the header at the responsive design sizes", () => {
-    renderManagement({ resolveHomeserver: async () => Result.ok(null) });
+  it("groups backup and keychain before logout and Google detachment", async () => {
+    const onBack = vi.fn();
+    const onDownloadRecoveryFile = vi.fn();
+    const onMigrateToKeychain = vi.fn();
+    const onDetachFromGoogle = vi.fn();
+    const onRemoveLocalIdentity = vi.fn(() => Result.ok());
+    renderManagement({
+      onBack,
+      onDetachFromGoogle,
+      onDownloadRecoveryFile,
+      onMigrateToKeychain,
+      onRemoveLocalIdentity,
+    });
 
+    const backup = screen.getByRole("button", { name: "Backup" });
+    const keychain = screen.getByRole("button", { name: "Keychain" });
     const logout = screen.getByRole("button", { name: "Log out" });
+    const detach = screen.getByRole("button", { name: "Detach from Google" });
     const back = screen.getByRole("button", { name: "Back" });
 
-    expect(logout).toHaveClass(
-      "absolute",
-      "right-6",
-      "top-[26px]",
-      "md:right-10",
-      "md:top-12",
-      "bg-secondary",
-      "h-8",
-      "md:h-10",
-    );
-    expect(logout.querySelector("svg")).toBeInTheDocument();
-    expect(logout).not.toHaveClass("bg-destructive-surface", "h-15");
-    expect(back.parentElement?.parentElement).toHaveClass(
-      "grid",
-      "md:grid-cols-(--passport-navigation-columns)",
-    );
+    expect(backup.parentElement).toBe(keychain.parentElement);
+    expect(backup.parentElement).toHaveClass("grid", "grid-cols-2");
+    expect(backup.parentElement?.parentElement).toBe(logout.parentElement);
+    expect(logout.parentElement).toBe(detach.parentElement);
+    expect(logout).not.toHaveClass("absolute");
+    expect(
+      backup.compareDocumentPosition(keychain) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      keychain.compareDocumentPosition(logout) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(logout.compareDocumentPosition(detach) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(detach.compareDocumentPosition(back) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    fireEvent.click(backup);
+    fireEvent.click(keychain);
+    fireEvent.click(detach);
+    expect(onDownloadRecoveryFile).toHaveBeenCalledOnce();
+    expect(onMigrateToKeychain).toHaveBeenCalledOnce();
+    expect(onDetachFromGoogle).toHaveBeenCalledOnce();
+    expect(onRemoveLocalIdentity).not.toHaveBeenCalled();
+    expect(onBack).not.toHaveBeenCalled();
+
+    fireEvent.click(logout);
+    expect(onRemoveLocalIdentity).toHaveBeenCalledOnce();
+    expect(onBack).toHaveBeenCalledOnce();
+    await waitFor(() => expect(screen.getByText("homeserver-pubky")).toBeInTheDocument());
+  });
+
+  it("keeps backup, keychain and logout available for an identity detached from Google", async () => {
+    renderManagement({ identity: { publicIdentity: identity.publicIdentity } });
+
+    expect(screen.getByText("Not connected")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Backup" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Keychain" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Log out" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Detach from Google" })).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("homeserver-pubky")).toBeInTheDocument());
   });
 });
 
 function renderManagement({
+  identity: managedIdentity = identity,
   onBack = vi.fn(),
+  onDetachFromGoogle = vi.fn(),
+  onDownloadRecoveryFile = vi.fn(),
+  onMigrateToKeychain = vi.fn(),
   onRemoveLocalIdentity = () => Result.ok(),
   republishHomeserver = async () => Result.ok(),
   resolveHomeserver = async () => Result.ok("homeserver-pubky"),
 }: {
+  identity?: LocalIdentityMetadata;
   onBack?: () => void;
+  onDetachFromGoogle?: () => void;
+  onDownloadRecoveryFile?: () => void;
+  onMigrateToKeychain?: () => void;
   onRemoveLocalIdentity?: () => LocalIdentityResult<void>;
   republishHomeserver?: () => Promise<LocalIdentityHomeserverRepublishResult>;
   resolveHomeserver?: () => Promise<PubkyHomeserverResolutionResult>;
 } = {}) {
   return render(
     <IdentityManagement
-      identity={identity}
+      identity={managedIdentity}
       onBack={onBack}
-      onDetachFromGoogle={vi.fn()}
-      onDownloadRecoveryFile={vi.fn()}
+      onDetachFromGoogle={onDetachFromGoogle}
+      onDownloadRecoveryFile={onDownloadRecoveryFile}
       onRemoveLocalIdentity={onRemoveLocalIdentity}
-      onMigrateToKeychain={vi.fn()}
+      onMigrateToKeychain={onMigrateToKeychain}
       republishHomeserver={republishHomeserver}
       resolveHomeserver={resolveHomeserver}
     />,
