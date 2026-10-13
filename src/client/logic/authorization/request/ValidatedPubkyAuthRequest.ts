@@ -70,14 +70,16 @@ export class ValidatedPubkyAuthRequest {
     return Result.ok(request);
   }
 
-  /**
-   * Returns the reviewed URL with only the declined encryption permissions removed.
-   * Storage actions and the requested approval format/recipient remain unchanged.
-   */
-  validatedUrlForApproval(declinedEncryptionPaths: readonly string[] = []): string | undefined {
-    const originalUrl = this.#metadata?.sensitivePubkyAuthUrl;
-    if (!originalUrl) return undefined;
-    if (declinedEncryptionPaths.length === 0) return originalUrl;
+  /** Returns the exact validated request URL without changing its permissions or binding. */
+  validatedUrlForApproval(): string | undefined {
+    return this.#metadata?.sensitivePubkyAuthUrl;
+  }
+
+  /** Returns the approved capability subset separately from the original request URL. */
+  approvedCapabilitiesForApproval(
+    declinedEncryptionPaths: readonly string[] = [],
+  ): string | undefined {
+    if (!this.#metadata) return undefined;
 
     const encryptionPaths = new Set(
       this.review.capabilities.filter((capability) => capability.encrypt).map(({ path }) => path),
@@ -97,9 +99,7 @@ export class ValidatedPubkyAuthRequest {
       const actions = `${capability.read ? "r" : ""}${capability.write ? "w" : ""}${encrypt ? "e" : ""}`;
       return actions ? [`${capability.path}:${actions}`] : [];
     });
-    const narrowedUrl = new URL(originalUrl);
-    narrowedUrl.searchParams.set("caps", capabilities.join(","));
-    return narrowedUrl.toString();
+    return capabilities.join(",");
   }
 
   isLive(): boolean {

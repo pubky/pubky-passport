@@ -18,13 +18,15 @@ The SDK tests use real signing, HPKE encryption/decryption, approval signatures,
 and tamper/downgrade rejection. Fetch is intercepted; a deliberate PKARR 404 stops the exchange
 after verification. They do not establish a live homeserver session.
 
-Selective approval uses the SDK's single `approveAuthRequest(url)` entry point.
-Passport removes declined `e` actions from the validated URL before that call,
-preserving `r`/`w`, the requesting app identity, and the signed-approval transport.
-The official `@synonymdev/pubky` `0.16.0` SDK derives keys only for the remaining
-`e` scopes, and its recipient checks the result against the original request.
-See [the SDK contract and upstream source references](integration.md#scoped-encryption-consent).
-These checks exercise that released SDK; older versions do not support this protocol.
+Selective approval uses the official `@synonymdev/pubky` `0.16.1` method
+`approveAuthWithCapabilities(originalUrl, approvedCapabilities)`. Passport passes the original
+validated URL unchanged and separately removes declined `e` actions from the approved capabilities,
+preserving `r`/`w`. An empty string approves no capabilities. The SDK rejects capabilities outside
+the original request before posting, derives keys only for approved `e` scopes, and preserves
+the requesting app identity and signed-approval transport. Its recipient also checks the result
+against the original request. See
+[the SDK contract and upstream source references](integration.md#scoped-encryption-consent).
+These checks exercise the released SDK, including its public selective-approval API.
 
 The browser suite tests review, Google redirect continuation, and SDK relay delivery
 in Chromium, Firefox, WebKit, and mobile Chromium. Google, Drive, Homegate, and relay responses
@@ -98,7 +100,7 @@ two frontends does not establish that purchases work.
 A complete check needs a signing identity registered on a homeserver containing
 [pubky-homeserver #668](https://github.com/pubky/pubky-homeserver/pull/668), included in the `0.16.0`
 release. Confirm the deployed homeserver version or commit; upgrading Passport alone cannot
-make an older homeserver accept `e`. The app must also use `@synonymdev/pubky` `0.16.0`, pinned
+make an older homeserver accept `e`. The app must also use `@synonymdev/pubky` `0.16.1`, pinned
 by this checkout, rather than the older SDK currently used by Shop.
 
 The [manual harness](manual-scoped-key-test.js) generates its own `af=v1` / `epk` request and

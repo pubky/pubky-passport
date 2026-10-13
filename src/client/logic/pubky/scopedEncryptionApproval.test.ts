@@ -3,6 +3,7 @@ import {
   Client,
   Pubky,
   SigninGrantDeepLink,
+  type AuthFlow,
   type GrantAuthFlow,
   type Capabilities,
 } from "@synonymdev/pubky";
@@ -63,16 +64,21 @@ describe("real SDK scoped-encryption approvals", () => {
         const request = expectOk(
           ValidatedPubkyAuthRequest.fromEncoded(encodeURIComponent(flow.authorizationUrl)),
         );
-        const approvedUrl = request.validatedUrlForApproval(declined);
-        if (!approvedUrl) throw new Error("Reviewed request was unavailable");
+        const originalUrl = request.validatedUrlForApproval();
+        const approvedCapabilities = request.approvedCapabilitiesForApproval(declined);
+        if (!originalUrl || approvedCapabilities === undefined) {
+          throw new Error("Reviewed request was unavailable");
+        }
+        expect(originalUrl).toBe(flow.authorizationUrl);
+        expect(approvedCapabilities).toBe(approved);
 
-        const parsed = SigninGrantDeepLink.parse(approvedUrl);
+        const parsed = SigninGrantDeepLink.parse(originalUrl);
         try {
           expect(parsed.approvalFormat).toBe("signedApprovalV1");
-          expect(parsed.capabilities).toBe(approved);
+          expect(parsed.capabilities).toBe(requested);
           expect(parsed.secret).toBeUndefined();
           expect(parsed.ephemeralPublicKey).toHaveLength(32);
-          expect(new URL(approvedUrl).searchParams.get("epk")).toBe(
+          expect(new URL(originalUrl).searchParams.get("epk")).toBe(
             original.searchParams.get("epk"),
           );
         } finally {
@@ -80,7 +86,9 @@ describe("real SDK scoped-encryption approvals", () => {
         }
 
         const identity = expectOk(signer.createIdentityKey());
-        expectOk(await signer.approveAuthRequest(identity.keyHandle, approvedUrl));
+        expectOk(
+          await signer.approveAuthRequest(identity.keyHandle, originalUrl, approvedCapabilities),
+        );
         expect(relay.deliveries).toHaveLength(1);
         expect(new TextDecoder().decode(relay.deliveries[0]!.slice(0, 14))).toBe("pubky-hpke-v1\0");
         expect(relay.channelUrl).not.toContain(original.searchParams.get("epk")!);
@@ -88,6 +96,119 @@ describe("real SDK scoped-encryption approvals", () => {
         // Real SDK receiving code opens HPKE, verifies the envelope and key scopes, and checks
         // narrowed scopes before looking up the authenticated user's homeserver.
         // PKARR deliberately returns no record: no real homeserver is contacted.
+        await expect(flow.awaitApproval()).rejects.toMatchObject({
+          name: "RequestError",
+          message: expect.stringContaining("could not resolve homeserver"),
+        });
+        expect(relay.resolutions.map((url) => new URL(url).pathname)).toEqual([
+          `/${identity.publicIdentity.publicKeyZ32}`,
+        ]);
+      } finally {
+        flow?.free();
+        signer.dispose();
+        app.free();
+        relay.close();
+      }
+    },
+  );
+
+  it.each([
+    ["a broader directory", "/priv/chat/:re", "/priv/:e"],
+    ["an unrelated directory", "/priv/chat/:re", "/priv/photos/:e"],
+    ["an unrequested storage action", "/priv/chat/:re", "/priv/chat/:rw"],
+    ["an unrequested encryption action", "/priv/chat/:rw", "/priv/chat/:e"],
+    ["a directory that resembles a requested file", "/priv/chat:re", "/priv/chat/:e"],
+    ["different Unicode bytes", "/priv/cafe\u0301/:re", "/priv/café/:e"],
+    ["malformed actions", "/priv/chat/:re", "/priv/chat/:rx"],
+  ] as const)("rejects %s before posting any approval", async (_label, requested, approved) => {
+    const relay = interceptProtocolRequests();
+    const app = relyingParty();
+    const signer = new PubkySdkAdapter();
+    const warning = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    let flow: GrantAuthFlow | undefined;
+
+    try {
+      flow = await signedFlow(app, requested);
+      const identity = expectOk(signer.createIdentityKey());
+      const result = await signer.approveAuthRequest(
+        identity.keyHandle,
+        flow.authorizationUrl,
+        approved,
+      );
+      expect(Result.isError(result) && result.error.code).toBe("approval_failed");
+      expect(relay.deliveries).toEqual([]);
+      expect(relay.resolutions).toEqual([]);
+    } finally {
+      warning.mockRestore();
+      flow?.free();
+      signer.dispose();
+      app.free();
+      relay.close();
+    }
+  });
+
+  it.each(["/pub/shop/:rw", "/pub/shop/:r", ""] as const)(
+    "keeps legacy cookie approvals compatible with approved capabilities %j",
+    async (approved) => {
+      const relay = interceptProtocolRequests();
+      const app = relyingParty();
+      const signer = new PubkySdkAdapter();
+      let flow: AuthFlow | undefined;
+
+      try {
+        flow = app.startCookieAuthFlow(
+          "/pub/shop/:rw",
+          AuthFlowKind.signin(),
+          "https://relay.example/inbox",
+        );
+        const identity = expectOk(signer.createIdentityKey());
+        expectOk(
+          await signer.approveAuthRequest(identity.keyHandle, flow.authorizationUrl, approved),
+        );
+        const token = await flow.awaitToken();
+        try {
+          expect(token.capabilities).toEqual(approved ? [approved] : []);
+          const publicKey = token.publicKey;
+          try {
+            expect(publicKey.z32()).toBe(identity.publicIdentity.publicKeyZ32);
+          } finally {
+            publicKey.free();
+          }
+        } finally {
+          token.free();
+        }
+        expect(relay.deliveries).toHaveLength(1);
+        expect(relay.resolutions).toEqual([]);
+      } finally {
+        flow?.free();
+        signer.dispose();
+        app.free();
+        relay.close();
+      }
+    },
+  );
+
+  it.each(["/pub/shop/:rw", "/pub/shop/:r", ""] as const)(
+    "keeps bare-grant approvals compatible with approved capabilities %j",
+    async (approved) => {
+      const relay = interceptProtocolRequests();
+      const app = relyingParty();
+      const signer = new PubkySdkAdapter();
+      let flow: GrantAuthFlow | undefined;
+
+      try {
+        flow = await app.startGrantAuthFlow("/pub/shop/:rw", AuthFlowKind.signin(), {
+          clientId: "shop.pubky.app",
+          relay: "https://relay.example/inbox",
+        });
+        const identity = expectOk(signer.createIdentityKey());
+        expectOk(
+          await signer.approveAuthRequest(identity.keyHandle, flow.authorizationUrl, approved),
+        );
+        expect(relay.deliveries).toHaveLength(1);
+        expect(new TextDecoder().decode(relay.deliveries[0]!.slice(0, 14))).not.toBe(
+          "pubky-hpke-v1\0",
+        );
         await expect(flow.awaitApproval()).rejects.toMatchObject({
           name: "RequestError",
           message: expect.stringContaining("could not resolve homeserver"),
@@ -115,13 +236,21 @@ describe("real SDK scoped-encryption approvals", () => {
       const request = expectOk(
         ValidatedPubkyAuthRequest.fromEncoded(encodeURIComponent(flow.authorizationUrl)),
       );
-      const approvedUrl = request.validatedUrlForApproval(["/priv/chat/"]);
-      if (!approvedUrl) throw new Error("Reviewed request was unavailable");
-      const downgradedUrl = new URL(approvedUrl);
+      const approvedCapabilities = request.approvedCapabilitiesForApproval(["/priv/chat/"]);
+      if (approvedCapabilities === undefined) throw new Error("Reviewed request was unavailable");
+      // Simulate an obsolete signer attempting to send a bare grant to an af=v1 requester.
+      const downgradedUrl = new URL(flow.authorizationUrl);
+      downgradedUrl.searchParams.set("caps", approvedCapabilities);
       downgradedUrl.searchParams.delete("af");
       const identity = expectOk(signer.createIdentityKey());
 
-      expectOk(await signer.approveAuthRequest(identity.keyHandle, downgradedUrl.toString()));
+      expectOk(
+        await signer.approveAuthRequest(
+          identity.keyHandle,
+          downgradedUrl.toString(),
+          approvedCapabilities,
+        ),
+      );
       await expect(flow.awaitApproval()).rejects.toMatchObject({ name: "AuthenticationError" });
       expect(relay.resolutions).toEqual([]);
     } finally {
@@ -141,7 +270,13 @@ describe("real SDK scoped-encryption approvals", () => {
     try {
       flow = await signedFlow(app, "/priv/chat/:rwe");
       const identity = expectOk(signer.createIdentityKey());
-      expectOk(await signer.approveAuthRequest(identity.keyHandle, flow.authorizationUrl));
+      expectOk(
+        await signer.approveAuthRequest(
+          identity.keyHandle,
+          flow.authorizationUrl,
+          "/priv/chat/:rwe",
+        ),
+      );
 
       await expect(flow.awaitApproval()).rejects.toMatchObject({ name: "AuthenticationError" });
       expect(relay.resolutions).toEqual([]);

@@ -65,8 +65,9 @@ const flow = await pubky.startGrantAuthFlow("/priv/chat/v1/:rwe", AuthFlowKind.s
 
 The SDK generates an `af=v1` request with an ephemeral recipient public key (`epk`), retaining the
 private key inside the pending flow. Passport uses the SDK to sign the approved capabilities and
-key bundle, then HPKE-encrypt that approval to the requesting app. Only `caps` changes when the
-user declines keys: Passport preserves `af=v1`, `epk`, and the request's remaining parameters.
+key bundle, then HPKE-encrypt that approval to the requesting app. Passport passes the original
+validated URL and the approved capabilities separately; the URL, `af=v1`, `epk`, client identity,
+and relay channel remain unchanged.
 Even if every key is declined, the response remains a signed approval with an empty key bundle;
 there is no fallback to a bare grant. Declining an `e`-only request can therefore approve an empty
 capability set.
@@ -82,18 +83,23 @@ Malformed requests, `e` without `af=v1`, missing or invalid `epk`, and mixed `se
 transports fail closed. Google identity setup restores or creates the signing identity first;
 the same scope review and signed approval then run on `/authorize`.
 
-Passport pins the official [`@synonymdev/pubky` `0.16.0` release](https://www.npmjs.com/package/@synonymdev/pubky/v/0.16.0),
-which includes scoped keys, signed approvals, and HPKE transport. Its signer API is
-`approveAuthRequest(url)`, without a separate approved-capabilities argument. Passport implements
-selective consent by narrowing the validated URL before this call: `/priv/chat/v1/:rwe` becomes
-`/priv/chat/v1/:rw` when encryption is declined. The SDK
-[derives keys only for the remaining `e` scopes](https://github.com/pubky/pubky-homeserver/blob/af53da6c9fe5f295a0672103c6e1dc440c1f28e8/pubky-sdk/src/actors/auth/grant/approval_envelope.rs#L31-L45),
-and its recipient [accepts narrower capabilities while rejecting an expansion](https://github.com/pubky/pubky-homeserver/blob/af53da6c9fe5f295a0672103c6e1dc440c1f28e8/pubky-sdk/src/actors/auth/grant/flow.rs#L490-L505).
-Passport keeps the request's original transport and app identity when narrowing.
+Passport pins the official [`@synonymdev/pubky` `0.16.1` release](https://www.npmjs.com/package/@synonymdev/pubky/v/0.16.1),
+which adds a public selective-approval API alongside scoped keys, signed approvals, and HPKE.
+After review, Passport calls `signer.approveAuthWithCapabilities(originalUrl, approvedCapabilities)`.
+For example, declining encryption on `/priv/chat/v1/:rwe` passes `/priv/chat/v1/:rw` as the second
+argument while retaining the original request URL. An empty string explicitly approves no
+capabilities. Passport no longer rewrites the URL or calls the approve-all method for this flow.
+
+The SDK checks that every approved scope and action is covered by the original request before
+posting to the relay, and derives keys only for approved `e` scopes. The requesting SDK also
+verifies the approval against its original request. See the
+[released selective-approval contract](https://github.com/pubky/pubky-homeserver/blob/v0.16.1/docs/scoped-encryption-keys.md#select-capabilities-on-the-signing-device)
+and [JavaScript signer binding](https://github.com/pubky/pubky-homeserver/blob/v0.16.1/pubky-sdk/bindings/js/src/actors/signer.rs).
 
 Upgrade homeservers before signers, then apps; older homeservers reject grants containing `e`.
-The release's [scoped encryption documentation](https://github.com/pubky/pubky-homeserver/blob/af53da6c9fe5f295a0672103c6e1dc440c1f28e8/docs/scoped-encryption-keys.md)
-defines the protocol and key derivation.
+The release's [scoped encryption documentation](https://github.com/pubky/pubky-homeserver/blob/v0.16.1/docs/scoped-encryption-keys.md)
+defines the protocol and key derivation. The `0.16.1` SDK also bounds received relay bodies to
+1 MiB before decryption; this is separate from a relay's configured upload limit.
 
 ## Popup sign-in
 
