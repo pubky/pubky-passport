@@ -16,6 +16,7 @@ type AuthorizationCapability = Readonly<{
   path: string;
   read: boolean;
   write: boolean;
+  encrypt: boolean;
   scope: "specific" | "broad";
 }>;
 
@@ -69,9 +70,36 @@ export class ValidatedPubkyAuthRequest {
     return Result.ok(request);
   }
 
-  /** Returns the validated URL while this request remains live. */
+  /** Returns the exact validated request URL without changing its permissions or binding. */
   validatedUrlForApproval(): string | undefined {
     return this.#metadata?.sensitivePubkyAuthUrl;
+  }
+
+  /** Returns the approved capability subset separately from the original request URL. */
+  approvedCapabilitiesForApproval(
+    declinedEncryptionPaths: readonly string[] = [],
+  ): string | undefined {
+    if (!this.#metadata) return undefined;
+
+    const encryptionPaths = new Set(
+      this.review.capabilities.filter((capability) => capability.encrypt).map(({ path }) => path),
+    );
+    if (declinedEncryptionPaths.some((path) => !encryptionPaths.has(path))) return undefined;
+
+    const capabilities = this.review.capabilities.flatMap((capability) => {
+      // A directory key can derive all descendant keys. Removing a child permission must
+      // therefore remove a covering directory key as well, while retaining its storage access.
+      const encrypt =
+        capability.encrypt &&
+        !declinedEncryptionPaths.some(
+          (path) =>
+            capability.path === path ||
+            (capability.path.endsWith("/") && path.startsWith(capability.path)),
+        );
+      const actions = `${capability.read ? "r" : ""}${capability.write ? "w" : ""}${encrypt ? "e" : ""}`;
+      return actions ? [`${capability.path}:${actions}`] : [];
+    });
+    return capabilities.join(",");
   }
 
   isLive(): boolean {

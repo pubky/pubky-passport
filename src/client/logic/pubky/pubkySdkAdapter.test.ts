@@ -781,7 +781,11 @@ describe("PubkySdkAdapter", () => {
     try {
       const invalidRequests = ["not a URL", "https://example.com/signin"];
       for (const invalidRequest of invalidRequests) {
-        const result = await pubky.approveAuthRequest({} as PubkyIdentityKeyHandle, invalidRequest);
+        const result = await pubky.approveAuthRequest(
+          {} as PubkyIdentityKeyHandle,
+          invalidRequest,
+          "/pub/app/:r",
+        );
         expectErrorResult(result, "request_rejected");
       }
 
@@ -798,7 +802,7 @@ describe("PubkySdkAdapter", () => {
   it("returns the exact approval cause without logging the authorization URL", async () => {
     const warn = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
     const cause = new Error("SECRET-AUTHORIZATION-URL");
-    vi.spyOn(Signer.prototype, "approveAuthRequest").mockRejectedValue(cause);
+    vi.spyOn(Signer.prototype, "approveAuthWithCapabilities").mockRejectedValue(cause);
     const pubky = new PubkySdkAdapter();
 
     try {
@@ -810,7 +814,11 @@ describe("PubkySdkAdapter", () => {
       );
       const authorizationUrl = request.validatedUrlForApproval();
       if (!authorizationUrl) throw new Error("Issued request was unexpectedly unavailable");
-      const result = await pubky.approveAuthRequest(created.keyHandle, authorizationUrl);
+      const result = await pubky.approveAuthRequest(
+        created.keyHandle,
+        authorizationUrl,
+        request.approvedCapabilitiesForApproval()!,
+      );
 
       expectErrorCause(result, "approval_failed", cause);
       expect(warn).toHaveBeenCalledWith("identity.pubky.operation.failed", {

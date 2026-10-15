@@ -337,6 +337,7 @@ export class PubkySdkAdapter {
   async approveAuthRequest(
     keyHandle: PubkyIdentityKeyHandle,
     sensitivePubkyAuthUrl: string,
+    approvedCapabilities: string,
   ): Promise<PubkyAuthApprovalResult> {
     if (!isPubkyAuthRequestUrl(sensitivePubkyAuthUrl)) {
       return failure("approve_auth_request", "request_validation", "request_rejected");
@@ -349,7 +350,7 @@ export class PubkySdkAdapter {
 
     try {
       await this.withSigner("approve_auth_request", keypair, (signer) =>
-        signer.approveAuthRequest(sensitivePubkyAuthUrl),
+        signer.approveAuthWithCapabilities(sensitivePubkyAuthUrl, approvedCapabilities),
       );
 
       return Result.ok();

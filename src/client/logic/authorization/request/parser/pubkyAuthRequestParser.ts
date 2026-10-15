@@ -11,6 +11,7 @@ import {
 } from "./pubkyAuthUrls";
 import {
   isCanonicalPubkyAuthSecret,
+  isCanonicalPubkyAuthEncryptionPublicKey,
   isCanonicalPubkyPublicKey,
   utf8Length,
 } from "@/client/logic/pubky/pubkyProtocol";
@@ -37,6 +38,8 @@ const PUBKY_AUTH_REQUEST_PARAMETERS = {
   legacySuccess: "callback",
   clientId: "cid",
   clientPublicKey: "cpk",
+  approvalFormat: "af",
+  encryptionPublicKey: "epk",
 } as const;
 
 const COMMON_PARAMETERS = new Set<string>([
@@ -53,6 +56,8 @@ const GRANT_PARAMETERS = new Set<string>([
   ...COMMON_PARAMETERS,
   PUBKY_AUTH_REQUEST_PARAMETERS.clientId,
   PUBKY_AUTH_REQUEST_PARAMETERS.clientPublicKey,
+  PUBKY_AUTH_REQUEST_PARAMETERS.approvalFormat,
+  PUBKY_AUTH_REQUEST_PARAMETERS.encryptionPublicKey,
 ]);
 
 type PubkyAuthParseErrorCode =
@@ -69,6 +74,11 @@ type PubkyAuthParseErrorCode =
   | "invalid_client_id"
   | "missing_client_public_key"
   | "invalid_client_public_key"
+  | "unsupported_approval_format"
+  | "missing_encryption_public_key"
+  | "invalid_encryption_public_key"
+  | "invalid_approval_transport"
+  | "encryption_requires_signed_approval"
   | "missing_capabilities"
   | "invalid_capability"
   | "duplicate_parameter"
@@ -138,24 +148,17 @@ export function parseEncodedPubkyAuthRequest(encodedRequest: unknown): PubkyAuth
     return Result.err(authenticationMethod.error);
   }
 
-  const secret = authUrl.value.searchParams.get(PUBKY_AUTH_REQUEST_PARAMETERS.secret);
-  if (!secret) {
-    return Result.err<never, PubkyAuthParseError>({ code: "missing_secret" });
-  }
-
-  if (
-    secret.length > PUBKY_AUTH_REQUEST_LIMITS.maximumSecretCodeUnits ||
-    !isCanonicalPubkyAuthSecret(secret)
-  ) {
-    return Result.err<never, PubkyAuthParseError>({ code: "invalid_secret" });
-  }
-
   const parameters = validatePubkyAuthRequestParameters(
     authUrl.value.searchParams,
     authenticationMethod.value,
   );
   if (Result.isError(parameters)) {
     return Result.err(parameters.error);
+  }
+
+  const transport = validateApprovalTransport(authUrl.value, authenticationMethod.value);
+  if (Result.isError(transport)) {
+    return Result.err(transport.error);
   }
 
   const grantParameters = validateGrantParameters(authUrl.value, authenticationMethod.value);
@@ -185,18 +188,18 @@ export function parseEncodedPubkyAuthRequest(encodedRequest: unknown): PubkyAuth
     return Result.err<never, PubkyAuthParseError>({ code: "invalid_capability" });
   }
 
-  const normalizedCapabilities = requestedCapabilities.normalize("NFC");
-  const sensitivePubkyAuthUrl =
-    normalizedCapabilities === requestedCapabilities
-      ? decoded.value
-      : replaceCapabilities(authUrl.value, normalizedCapabilities);
+  if (capabilities.value.some((capability) => capability.encrypt) && !transport.value) {
+    return Result.err<never, PubkyAuthParseError>({
+      code: "encryption_requires_signed_approval",
+    });
+  }
 
   return Result.ok({
     authenticationMethod: authenticationMethod.value,
     capabilities: capabilities.value,
     callbacks: Object.freeze({ ...urls.value }),
     ...(source.value ? { source: source.value } : {}),
-    sensitivePubkyAuthUrl,
+    sensitivePubkyAuthUrl: decoded.value,
   });
 }
 
@@ -206,11 +209,6 @@ export function validateEncodedPubkyAuthRequest(
 ): ValidatePubkyAuthRequestResult {
   const parsed = parseEncodedPubkyAuthRequest(encodedRequest);
   return Result.isError(parsed) ? Result.err(parsed.error) : Result.ok();
-}
-
-function replaceCapabilities(authUrl: URL, capabilities: string): string {
-  authUrl.searchParams.set(PUBKY_AUTH_REQUEST_PARAMETERS.capabilities, capabilities);
-  return authUrl.toString();
 }
 
 function decodeDParam(d: string): ParseValueResult<string> {
@@ -315,4 +313,47 @@ function validateGrantParameters(
   }
 
   return Result.ok();
+}
+
+/** Validates relay encryption and returns whether signed approval V1 is requested. */
+function validateApprovalTransport(
+  url: URL,
+  authenticationMethod: PubkyAuthenticationMethod,
+): ParseValueResult<boolean> {
+  const approvalFormat = url.searchParams.get(PUBKY_AUTH_REQUEST_PARAMETERS.approvalFormat);
+  const encryptionPublicKey = url.searchParams.get(
+    PUBKY_AUTH_REQUEST_PARAMETERS.encryptionPublicKey,
+  );
+  const secret = url.searchParams.get(PUBKY_AUTH_REQUEST_PARAMETERS.secret);
+
+  if (approvalFormat !== null && approvalFormat !== "v1") {
+    return Result.err<never, PubkyAuthParseError>({ code: "unsupported_approval_format" });
+  }
+
+  if (authenticationMethod === "grant" && encryptionPublicKey !== null) {
+    // A secret alongside epk is ambiguous, even if the supplied secret is empty.
+    if (secret !== null) {
+      return Result.err<never, PubkyAuthParseError>({ code: "invalid_approval_transport" });
+    }
+    if (!isCanonicalPubkyAuthEncryptionPublicKey(encryptionPublicKey)) {
+      return Result.err<never, PubkyAuthParseError>({ code: "invalid_encryption_public_key" });
+    }
+
+    return Result.ok(approvalFormat === "v1");
+  }
+
+  if (approvalFormat === "v1") {
+    return Result.err<never, PubkyAuthParseError>({ code: "missing_encryption_public_key" });
+  }
+  if (!secret) {
+    return Result.err<never, PubkyAuthParseError>({ code: "missing_secret" });
+  }
+  if (
+    secret.length > PUBKY_AUTH_REQUEST_LIMITS.maximumSecretCodeUnits ||
+    !isCanonicalPubkyAuthSecret(secret)
+  ) {
+    return Result.err<never, PubkyAuthParseError>({ code: "invalid_secret" });
+  }
+
+  return Result.ok(false);
 }

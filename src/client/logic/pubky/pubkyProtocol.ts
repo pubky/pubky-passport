@@ -5,6 +5,15 @@ const Z_BASE_32_ALPHABET = "ybndrfg8ejkmcpqxot1uwisza345h769";
 
 /** Canonical 32-byte Pubky Auth secret encoded without base64 padding. */
 export function isCanonicalPubkyAuthSecret(value: string): boolean {
+  return isCanonicalBase64Url32Bytes(value);
+}
+
+/** Canonical 32-byte X25519 recipient key for encrypted signed approvals. */
+export function isCanonicalPubkyAuthEncryptionPublicKey(value: string): boolean {
+  return isCanonicalBase64Url32Bytes(value);
+}
+
+function isCanonicalBase64Url32Bytes(value: string): boolean {
   if (!/^[A-Za-z0-9_-]{43}$/u.test(value)) return false;
   const lastCharacter = value.at(-1);
   return lastCharacter !== undefined && BASE64_URL_ALPHABET.indexOf(lastCharacter) % 4 === 0;

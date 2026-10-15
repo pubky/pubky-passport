@@ -162,6 +162,8 @@ function ReadyAuthorizationWithIdentity({
         ? "first-identity-setup"
         : "review",
   }));
+  // Consent belongs to the pending request, including while switching or managing identities.
+  const [declinedEncryptionPaths, setDeclinedEncryptionPaths] = useState<readonly string[]>([]);
   const state = resolveAuthorizationIdentityView(navigation, catalog);
 
   if (state.view === "first-identity-setup") {
@@ -271,10 +273,23 @@ function ReadyAuthorizationWithIdentity({
   );
   return (
     <AuthorizationReview
+      encryptionConsent={{
+        declinedPaths: declinedEncryptionPaths,
+        onChange: setDeclinedEncryptionPaths,
+      }}
       identity={activeIdentity}
-      onAuthorize={() => {
+      onAuthorize={(declinedEncryptionPaths) => {
         if (activeIdentity) {
-          void passportAuthorizationController.approve(activeIdentity.publicIdentity.publicKeyZ32);
+          if (declinedEncryptionPaths.length > 0) {
+            void passportAuthorizationController.approve(
+              activeIdentity.publicIdentity.publicKeyZ32,
+              declinedEncryptionPaths,
+            );
+          } else {
+            void passportAuthorizationController.approve(
+              activeIdentity.publicIdentity.publicKeyZ32,
+            );
+          }
         }
       }}
       onCancel={() => {

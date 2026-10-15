@@ -90,7 +90,11 @@ describe("approveAuthorization", () => {
     expect(Result.isOk(result)).toBe(true);
     expect(MOCKS.readIdentity).toHaveBeenCalledWith(SELECTED_IDENTITY);
     expect(MOCKS.restoreIdentityKey).toHaveBeenCalledWith(secretKey);
-    expect(MOCKS.approveAuthRequest).toHaveBeenCalledWith(KEY_HANDLE, authorizationUrl);
+    expect(MOCKS.approveAuthRequest).toHaveBeenCalledWith(
+      KEY_HANDLE,
+      authorizationUrl,
+      request.approvedCapabilitiesForApproval(),
+    );
     expect(MOCKS.publishHomeserver).toHaveBeenCalledWith(KEY_HANDLE);
     expect(onCommit).toHaveBeenCalledOnce();
     expect(onCommit.mock.invocationCallOrder[0]).toBeLessThan(
@@ -101,6 +105,75 @@ describe("approveAuthorization", () => {
     );
     await expectCleanup();
     expect(secretKey.bytes).toEqual(new Uint8Array(32));
+  });
+
+  it("sends only the approved storage actions when encryption is declined", async () => {
+    const requestUrl = new URL(
+      `pubkyauth://signin_grant?relay=https://relay.example/inbox&epk=${SECRET}&af=v1&cid=pubky.app&cpk=${SELECTED_IDENTITY}`,
+    );
+    requestUrl.searchParams.set("caps", "/priv/chat/:rwe");
+    const parsed = ValidatedPubkyAuthRequest.fromEncoded(encodeURIComponent(requestUrl.toString()));
+    if (Result.isError(parsed)) throw new Error(parsed.error.code);
+    const committed = vi.fn();
+
+    const result = await approveAuthorization(
+      parsed.value,
+      SELECTED_IDENTITY,
+      undefined,
+      committed,
+      ["/priv/chat/"],
+    );
+
+    expect(Result.isOk(result)).toBe(true);
+    const approvedUrl = new URL(MOCKS.approveAuthRequest.mock.calls[0]![1]);
+    expect(MOCKS.approveAuthRequest).toHaveBeenCalledWith(
+      KEY_HANDLE,
+      requestUrl.toString(),
+      "/priv/chat/:rw",
+    );
+    expect(approvedUrl.searchParams.get("caps")).toBe("/priv/chat/:rwe");
+    expect(approvedUrl.searchParams.get("af")).toBe("v1");
+    expect(approvedUrl.searchParams.get("epk")).toBe(SECRET);
+    expect(committed).toHaveBeenCalledOnce();
+    await expectCleanup();
+  });
+
+  it("passes an empty approval explicitly when all keys-only scopes are declined", async () => {
+    const requestUrl = new URL(
+      `pubkyauth://signin_grant?relay=https://relay.example/inbox&epk=${SECRET}&af=v1&cid=pubky.app&cpk=${SELECTED_IDENTITY}`,
+    );
+    requestUrl.searchParams.set("caps", "/priv/chat/:e");
+    const parsed = ValidatedPubkyAuthRequest.fromEncoded(encodeURIComponent(requestUrl.toString()));
+    if (Result.isError(parsed)) throw new Error(parsed.error.code);
+
+    const result = await approveAuthorization(
+      parsed.value,
+      SELECTED_IDENTITY,
+      undefined,
+      undefined,
+      ["/priv/chat/"],
+    );
+
+    expect(Result.isOk(result)).toBe(true);
+    expect(MOCKS.approveAuthRequest).toHaveBeenCalledWith(KEY_HANDLE, requestUrl.toString(), "");
+    await expectCleanup();
+  });
+
+  it("rejects consent for unknown scopes before restoring or committing an identity", async () => {
+    vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+    const committed = vi.fn();
+    const result = await approveAuthorization(
+      validatedRequest(),
+      SELECTED_IDENTITY,
+      undefined,
+      committed,
+      ["/not-requested/"],
+    );
+
+    expect(Result.isError(result)).toBe(true);
+    expect(MOCKS.readIdentity).not.toHaveBeenCalled();
+    expect(MOCKS.approveAuthRequest).not.toHaveBeenCalled();
+    expect(committed).not.toHaveBeenCalled();
   });
 
   it("approves without waiting for a pending homeserver republish", async () => {
@@ -260,7 +333,11 @@ describe("approveAuthorization", () => {
     continueRestoration();
 
     expect(Result.isOk(await approval)).toBe(true);
-    expect(MOCKS.approveAuthRequest).toHaveBeenCalledWith(KEY_HANDLE, expect.anything());
+    expect(MOCKS.approveAuthRequest).toHaveBeenCalledWith(
+      KEY_HANDLE,
+      expect.anything(),
+      expect.any(String),
+    );
     await expectCleanup();
   });
 

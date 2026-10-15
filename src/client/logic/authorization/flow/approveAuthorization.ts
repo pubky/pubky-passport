@@ -33,6 +33,7 @@ export async function approveAuthorization(
   publicKeyZ32: string,
   signal?: AbortSignal,
   onCommit?: () => void,
+  declinedEncryptionPaths: readonly string[] = [],
 ): Promise<ApproveAuthorizationResult> {
   if (signal?.aborted) return Result.err({ code: "cancelled" });
   let pubky: PubkySdkAdapter;
@@ -54,7 +55,8 @@ export async function approveAuthorization(
   let stage: "identity_restore" | "sdk_approve" = "identity_restore";
   try {
     const authRequestUrl = request.validatedUrlForApproval();
-    if (!authRequestUrl) {
+    const approvedCapabilities = request.approvedCapabilitiesForApproval(declinedEncryptionPaths);
+    if (!authRequestUrl || approvedCapabilities === undefined) {
       LOGGER.warn("authorize.approval.failed", {
         stage: "request_validation",
         code: "request_unavailable",
@@ -77,7 +79,11 @@ export async function approveAuthorization(
     stage = "sdk_approve";
     if (signal?.aborted) return Result.err({ code: "cancelled" });
     onCommit?.();
-    const approved = await pubky.approveAuthRequest(restoredKey, authRequestUrl);
+    const approved = await pubky.approveAuthRequest(
+      restoredKey,
+      authRequestUrl,
+      approvedCapabilities,
+    );
     if (Result.isError(approved)) {
       LOGGER.warn("authorize.approval.failed", {
         stage: "sdk_approve",

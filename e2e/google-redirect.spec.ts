@@ -5,6 +5,16 @@ const SECRET = "kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8";
 const REQUEST = `pubkyauth://signin?caps=/pub/example.app/:rw&relay=https://relay.client.example/inbox&secret=${SECRET}&x-source=Client&x-cancel=https%3A%2F%2Fclient.example%2Fcancel`;
 const ENTRY = `/authorize#d=${encodeURIComponent(REQUEST)}`;
 
+const signedRequest = new URL(REQUEST);
+signedRequest.hostname = "signin_grant";
+signedRequest.searchParams.delete("secret");
+signedRequest.searchParams.set("cid", "example.app");
+signedRequest.searchParams.set("cpk", "5jsjx1o6fzu6aeeo697r3i5rx15zq41kikcye8wtwdqm4nb4tryo");
+signedRequest.searchParams.set("caps", "/priv/chat/v1/:rwe");
+signedRequest.searchParams.set("af", "v1");
+signedRequest.searchParams.set("epk", SECRET);
+const SIGNED_ENTRY = `/authorize#d=${encodeURIComponent(signedRequest.href)}`;
+
 async function google(
   context: BrowserContext,
   options: { denied?: boolean; wrongState?: boolean } = {},
@@ -47,33 +57,38 @@ async function google(
   return requests;
 }
 
-test("automatically signs in in the same tab and restores the requesting app", async ({
-  context,
-  page,
-}) => {
-  const requests = await google(context);
-  // Prove the flow works even when window.open is unavailable.
-  await page.addInitScript(() => {
-    window.open = () => {
-      throw new Error("No popups allowed");
-    };
+for (const [format, entry] of [
+  ["legacy", ENTRY],
+  ["signed encryption", SIGNED_ENTRY],
+] as const) {
+  test(`automatically signs in in the same tab and restores the ${format} request`, async ({
+    context,
+    page,
+  }) => {
+    const requests = await google(context);
+    // Prove the flow works even when window.open is unavailable.
+    await page.addInitScript(() => {
+      window.open = () => {
+        throw new Error("No popups allowed");
+      };
+    });
+    await page.goto(entry);
+    await expect(page.getByRole("heading", { name: "Drive access optional." })).toBeVisible();
+    await expect(page.getByLabel("Signing in to client.example")).toBeVisible();
+    expect(requests).toHaveLength(1);
+    expect(context.pages()).toHaveLength(1);
+    expect(requests[0]!.href).not.toContain(SECRET);
+    expect(new URL(page.url()).hash).toBe("");
+    expect(await page.evaluate((key) => sessionStorage.getItem(key), STORAGE_KEY)).toBeNull();
+    const storage = await page.evaluate(() =>
+      JSON.stringify([localStorage, sessionStorage, history.state]),
+    );
+    expect(storage).not.toContain("redirect-access-canary");
+    expect(storage).not.toContain(SECRET);
+    await page.getByRole("button", { name: "Back", exact: true }).click();
+    await expect(page).toHaveURL("https://client.example/cancel");
   });
-  await page.goto(ENTRY);
-  await expect(page.getByRole("heading", { name: "Drive access optional." })).toBeVisible();
-  await expect(page.getByLabel("Signing in to client.example")).toBeVisible();
-  expect(requests).toHaveLength(1);
-  expect(context.pages()).toHaveLength(1);
-  expect(requests[0]!.href).not.toContain(SECRET);
-  expect(new URL(page.url()).hash).toBe("");
-  expect(await page.evaluate((key) => sessionStorage.getItem(key), STORAGE_KEY)).toBeNull();
-  const storage = await page.evaluate(() =>
-    JSON.stringify([localStorage, sessionStorage, history.state]),
-  );
-  expect(storage).not.toContain("redirect-access-canary");
-  expect(storage).not.toContain(SECRET);
-  await page.getByRole("button", { name: "Back", exact: true }).click();
-  await expect(page).toHaveURL("https://client.example/cancel");
-});
+}
 
 test("Google cancellation stays retryable without an automatic redirect loop", async ({
   context,

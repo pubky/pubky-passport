@@ -32,33 +32,56 @@ function expectError(input: string, code: PubkyAuthCapabilitiesParseErrorCode): 
 describe("parsePubkyAuthCapabilities", () => {
   it("parses read-only capabilities", () => {
     expect(expectCapabilities("/pub/pubky.app/:r")).toEqual([
-      { path: "/pub/pubky.app/", read: true, write: false },
+      { path: "/pub/pubky.app/", read: true, write: false, encrypt: false },
     ]);
   });
 
   it("parses write-only capabilities", () => {
     expect(expectCapabilities("/pub/pubky.app/:w")).toEqual([
-      { path: "/pub/pubky.app/", read: false, write: true },
+      { path: "/pub/pubky.app/", read: false, write: true, encrypt: false },
     ]);
   });
 
   it("parses read-write capabilities", () => {
     expect(expectCapabilities("/pub/pubky.app/:rw")).toEqual([
-      { path: "/pub/pubky.app/", read: true, write: true },
+      { path: "/pub/pubky.app/", read: true, write: true, encrypt: false },
+    ]);
+  });
+
+  it("parses encryption without granting storage access", () => {
+    expect(expectCapabilities("/pub/chat/:e")).toEqual([
+      { path: "/pub/chat/", read: false, write: false, encrypt: true },
+    ]);
+  });
+
+  it.each(["rwe", "erw", "eerwwr"])(
+    "parses storage plus independent encryption permission: %s",
+    (actions) => {
+      expect(expectCapabilities(`/priv/chat/v1/:${actions}`)).toEqual([
+        { path: "/priv/chat/v1/", read: true, write: true, encrypt: true },
+      ]);
+    },
+  );
+
+  it("keeps encryption permission scoped to each requested path", () => {
+    expect(expectCapabilities("/priv/chat/:rwe,/pub/profile/:r,/pub/keys/:e")).toEqual([
+      { path: "/priv/chat/", read: true, write: true, encrypt: true },
+      { path: "/pub/profile/", read: true, write: false, encrypt: false },
+      { path: "/pub/keys/", read: false, write: false, encrypt: true },
     ]);
   });
 
   it("accepts repeated actions allowed by the Pubky auth ABNF", () => {
     expect(expectCapabilities("/pub/pubky.app/:rrw")).toEqual([
-      { path: "/pub/pubky.app/", read: true, write: true },
+      { path: "/pub/pubky.app/", read: true, write: true, encrypt: false },
     ]);
   });
 
   it("parses comma-separated capabilities", () => {
     expect(expectCapabilities("/pub/pubky.app/:rw,/pub/eventky/:r,/pub/mapky/:w")).toEqual([
-      { path: "/pub/pubky.app/", read: true, write: true },
-      { path: "/pub/eventky/", read: true, write: false },
-      { path: "/pub/mapky/", read: false, write: true },
+      { path: "/pub/pubky.app/", read: true, write: true, encrypt: false },
+      { path: "/pub/eventky/", read: true, write: false, encrypt: false },
+      { path: "/pub/mapky/", read: false, write: true, encrypt: false },
     ]);
   });
 
@@ -98,19 +121,26 @@ describe("parsePubkyAuthCapabilities", () => {
 
   it("preserves file-scope paths exactly", () => {
     expect(expectCapabilities("/pub/file.txt:r")).toEqual([
-      { path: "/pub/file.txt", read: true, write: false },
+      { path: "/pub/file.txt", read: true, write: false, encrypt: false },
     ]);
   });
 
   it("accepts canonical decoded Pubky storage paths", () => {
     expect(expectCapabilities("/pub/My File/über/%7Efile:r")).toEqual([
-      { path: "/pub/My File/über/%7Efile", read: true, write: false },
+      { path: "/pub/My File/über/%7Efile", read: true, write: false, encrypt: false },
     ]);
   });
 
-  it("normalizes capability paths to NFC before validation", () => {
+  it("preserves decomposed Unicode scope paths without changing encryption key input", () => {
     expect(expectCapabilities("/pub/cafe\u0301/:r")).toEqual([
-      { path: "/pub/café/", read: true, write: false },
+      { path: "/pub/cafe\u0301/", read: true, write: false, encrypt: false },
+    ]);
+  });
+
+  it("keeps composed and decomposed encryption scopes distinct", () => {
+    expect(expectCapabilities("/priv/café/:e,/priv/cafe\u0301/:e")).toEqual([
+      { path: "/priv/café/", read: false, write: false, encrypt: true },
+      { path: "/priv/cafe\u0301/", read: false, write: false, encrypt: true },
     ]);
   });
 

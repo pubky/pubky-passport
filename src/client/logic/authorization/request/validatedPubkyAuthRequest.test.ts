@@ -9,6 +9,73 @@ const REQUEST =
 const SECRET = "kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8";
 
 describe("ValidatedPubkyAuthRequest", () => {
+  it("declines encryption while retaining storage and the signed HPKE approval format", () => {
+    const request = signedRequest("/priv/chat/v1/:rwe,/pub/profile/:r");
+    const original = request.validatedUrlForApproval();
+    const approved = request.approvedCapabilitiesForApproval(["/priv/chat/v1/"]);
+    const originalUrl = new URL(original!);
+
+    expect(approved).toBe("/priv/chat/v1/:rw,/pub/profile/:r");
+    expect(originalUrl.searchParams.get("caps")).toBe("/priv/chat/v1/:rwe,/pub/profile/:r");
+    expect(originalUrl.searchParams.get("af")).toBe("v1");
+    expect(originalUrl.searchParams.get("epk")).toBe(SECRET);
+    expect(originalUrl.searchParams.has("secret")).toBe(false);
+    expect(originalUrl.searchParams.get("cid")).toBe("pubky.app");
+    expect(request.validatedUrlForApproval()).toBe(original);
+    expect(request.review.capabilities[0]?.encrypt).toBe(true);
+    expect(JSON.stringify(request.review)).not.toContain(SECRET);
+  });
+
+  it("declines an encryption-only scope without granting any storage action", () => {
+    const request = signedRequest("/pub/chat/:e");
+    const original = request.validatedUrlForApproval();
+    expect(request.approvedCapabilitiesForApproval(["/pub/chat/"])).toBe("");
+    expect(request.validatedUrlForApproval()).toBe(original);
+  });
+
+  it("keeps keys on independently approved scopes", () => {
+    const request = signedRequest("/priv/chat/:rwe,/priv/photos/:rwe");
+    const approved = request.approvedCapabilitiesForApproval(["/priv/chat/"]);
+
+    expect(approved).toBe("/priv/chat/:rw,/priv/photos/:rwe");
+  });
+
+  it("removes covering directory keys so a declined scope cannot still be derived", () => {
+    const request = signedRequest("/priv/:re,/priv/chat/:rwe,/priv/photos/:e");
+    const approved = request.approvedCapabilitiesForApproval(["/priv/chat/"]);
+
+    expect(approved).toBe("/priv/:r,/priv/chat/:rw,/priv/photos/:e");
+  });
+
+  it("keeps unrelated file and sibling keys when a directory is declined", () => {
+    const request = signedRequest("/priv/chat:e,/priv/chat/:rwe,/priv/chat-other/:e");
+    const approved = request.approvedCapabilitiesForApproval(["/priv/chat/"]);
+
+    expect(approved).toBe("/priv/chat:e,/priv/chat/:rw,/priv/chat-other/:e");
+  });
+
+  it("removes duplicate encryption permissions for the same scope", () => {
+    const request = signedRequest("/priv/chat/:rwe,/priv/chat/:e");
+    const approved = request.approvedCapabilitiesForApproval(["/priv/chat/"]);
+
+    expect(approved).toBe("/priv/chat/:rw");
+  });
+
+  it("preserves distinct Unicode key scopes when narrowing consent", () => {
+    const request = signedRequest("/priv/cafe\u0301/:rwe,/priv/café/:e");
+    const approved = request.approvedCapabilitiesForApproval(["/priv/cafe\u0301/"]);
+
+    expect(approved).toBe("/priv/cafe\u0301/:rw,/priv/café/:e");
+  });
+
+  it("rejects unknown declined scopes and cannot produce an approval after release", () => {
+    const request = signedRequest("/priv/chat/:rwe");
+
+    expect(request.approvedCapabilitiesForApproval(["/priv/other/"])).toBeUndefined();
+    request.release();
+    expect(request.approvedCapabilitiesForApproval(["/priv/chat/"])).toBeUndefined();
+  });
+
   afterEach(() => vi.restoreAllMocks());
 
   it("creates an immutable safe review and exact approval authority", () => {
@@ -18,8 +85,8 @@ describe("ValidatedPubkyAuthRequest", () => {
     expect(validated.value.review).toEqual({
       authenticationMethod: "cookie",
       capabilities: [
-        { path: "/pub/pubky.app/", read: true, write: true, scope: "specific" },
-        { path: "/", read: true, write: false, scope: "broad" },
+        { path: "/pub/pubky.app/", read: true, write: true, encrypt: false, scope: "specific" },
+        { path: "/", read: true, write: false, encrypt: false, scope: "broad" },
       ],
       requesterName: "Pubky App",
       callbackHost: "pubky.app",
@@ -50,15 +117,15 @@ describe("ValidatedPubkyAuthRequest", () => {
     );
   });
 
-  it("grants the same NFC capability path shown in the review", () => {
+  it("preserves the exact capability path bytes shown in the review", () => {
     const request = REQUEST.replace("/pub/pubky.app/", "/pub/cafe\u0301/");
     const validated = ValidatedPubkyAuthRequest.fromEncoded(encodeURIComponent(request));
     if (Result.isError(validated)) throw new Error(validated.error.code);
 
     const approvalUrl = validated.value.validatedUrlForApproval();
     if (approvalUrl === undefined) throw new Error("Missing approval URL");
-    expect(validated.value.review.capabilities[0]?.path).toBe("/pub/café/");
-    expect(new URL(approvalUrl).searchParams.get("caps")).toContain("/pub/café/:rw");
+    expect(validated.value.review.capabilities[0]?.path).toBe("/pub/cafe\u0301/");
+    expect(new URL(approvalUrl).searchParams.get("caps")).toContain("/pub/cafe\u0301/:rw");
   });
 
   it.each([
@@ -74,6 +141,7 @@ describe("ValidatedPubkyAuthRequest", () => {
       expect(validated.value.takeOutcomeCallback(outcome)).toBe(callback);
       expect(validated.value.isLive()).toBe(false);
       expect(validated.value.validatedUrlForApproval()).toBeUndefined();
+      expect(validated.value.approvedCapabilitiesForApproval()).toBeUndefined();
     },
   );
 
@@ -85,6 +153,7 @@ describe("ValidatedPubkyAuthRequest", () => {
     ) as ValidatedPubkyAuthRequest;
 
     expect(() => forged.validatedUrlForApproval()).toThrow(TypeError);
+    expect(() => forged.approvedCapabilitiesForApproval()).toThrow(TypeError);
 
     validated.value.release();
     expect(validated.value.isLive()).toBe(false);
@@ -172,3 +241,13 @@ describe("ValidatedPubkyAuthRequest", () => {
     expect(validated.value.review.callbackHost).toBeUndefined();
   });
 });
+
+function signedRequest(capabilities: string): ValidatedPubkyAuthRequest {
+  const request = new URL(
+    `pubkyauth://signin_grant?relay=https://relay.example/inbox&epk=${SECRET}&af=v1&cid=pubky.app&cpk=5jsjx1o6fzu6aeeo697r3i5rx15zq41kikcye8wtwdqm4nb4tryo`,
+  );
+  request.searchParams.set("caps", capabilities);
+  const validated = ValidatedPubkyAuthRequest.fromEncoded(encodeURIComponent(request.toString()));
+  if (Result.isError(validated)) throw new Error(validated.error.code);
+  return validated.value;
+}
