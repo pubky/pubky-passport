@@ -24,8 +24,8 @@ importers:
         specifier: ^5.3.0
         version: 5.3.0
       '@synonymdev/pubky':
-        specifier: 0.13.0
-        version: 0.13.0
+        specifier: 0.14.0
+        version: 0.14.0
       '@tailwindcss/postcss':
         specifier: ^4.3.3
         version: 4.3.3
@@ -764,8 +764,8 @@ packages:
   '@swc/helpers@0.5.23':
     resolution: {integrity: sha512-5lSsMOTXURePglDfvuAQUqkGek9Hg2kksOYay2m0+XR++b2NWYL/4sWyuvVBIs8oKnJaxkdi9whaL/sqN13afw==}
 
-  '@synonymdev/pubky@0.13.0':
-    resolution: {integrity: sha512-b+p9N+BlzJYyhX5HOwnmMud0oSNk/ogic4+aVNs3phFNfssRzAdu5Avh5ZwTvW9+EqHB6JxKioJi8ZrgvtikDw==}
+  '@synonymdev/pubky@0.14.0':
+    resolution: {integrity: sha512-BK+Rn49eah26+a4aTywmMvNcx/e+CE8oqdHbAB2N0onuqTLJ0SoM+JDP9qurYB4i0XuT0haZQyCRlDlMiArfEQ==}
 
   '@tailwindcss/node@4.3.3':
     resolution: {integrity: sha512-/T8IKEsf9VTU6tLjgC7+sv2mOPtQxzE2jMw7u4Tt40Tx+QSZxpzh95/H6cMKoja9XuW7iMdLJYBB0o9G1CaAgg==}
@@ -3589,7 +3589,7 @@ snapshots:
     dependencies:
       tslib: 2.8.1
 
-  '@synonymdev/pubky@0.13.0':
+  '@synonymdev/pubky@0.14.0':
     dependencies:
       fetch-cookie: 3.2.0
 
