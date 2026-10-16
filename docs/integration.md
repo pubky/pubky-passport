@@ -129,11 +129,7 @@ const pubky = new Pubky();
 type Outcome = "success" | "error" | "cancel";
 
 export async function signInWithPassport(): Promise<Session> {
-  const popup = window.open(
-    "about:blank",
-    `pubky-passport-${crypto.randomUUID()}`,
-    "popup,width=390,height=800",
-  );
+  const popup = window.open("about:blank", `pubky-passport-${crypto.randomUUID()}`, "popup");
   if (!popup) throw new Error("Passport popup was blocked");
 
   let outcome: Outcome | undefined;
@@ -367,11 +363,9 @@ For automated checks and a real-session browser harness, see
 
 ## Popup layout and identity management
 
-Open Passport in a portrait popup with `popup,width=390,height=800`. Passport also requests
-that size when it has an opener, capped to the available screen. Browser settings can ignore
-`resizeTo`, so the opening app should set these dimensions itself. Existing Shop integrations
-that open a wider popup still work. Authorization review uses the same narrow, stacked layout
-when opened in a full-size tab.
+Open Passport with `popup` and no explicit width or height to use the browser’s default window
+size. Passport does not resize its window. Opening apps may choose their own dimensions;
+authorization review adapts to the available viewport.
 
 The signing identity card offers **Manage** and **Switch**. Manage opens identity details and
 Backup, Keychain, Log out, and Detach from Google actions inside the pending authorization.

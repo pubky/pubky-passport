@@ -11,7 +11,7 @@ const expected = {
 /** Call directly from a click handler; return only nonsecret test results. */
 export async function testScopedPassport(passportOrigin, mode) {
   if (!Object.hasOwn(expected, mode)) throw new Error("Unknown test case");
-  const popup = window.open("about:blank", "passport-scoped-test", "popup,width=390,height=800");
+  const popup = window.open("about:blank", "passport-scoped-test", "popup");
   if (!popup) throw new Error("Popup blocked");
   const app = new Pubky();
   let flow;

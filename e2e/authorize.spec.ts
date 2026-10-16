@@ -339,10 +339,7 @@ test("authorization keeps its mobile card and stacked actions in wide tabs", asy
   }
 });
 
-test("only opener windows request portrait sizing and still work when resizing is refused", async ({
-  page,
-  context,
-}) => {
+test("authorization leaves popup and tab sizing to the browser", async ({ page, context }) => {
   await context.addInitScript(() => {
     const requests: number[][] = [];
     Object.defineProperty(window, "__passportResizeRequests", { value: requests });
@@ -359,18 +356,10 @@ test("only opener windows request portrait sizing and still work when resizing i
     );
   expect(await resizeRequests(page)).toEqual([]);
   const popupPromise = page.waitForEvent("popup");
-  await page.evaluate(() =>
-    window.open("/authorize", "portrait-test", "popup,width=520,height=760"),
-  );
+  await page.evaluate(() => window.open("/authorize", "default-size-test", "popup"));
   const popup = await popupPromise;
   await expect(popup.getByRole("heading", { name: "Authorize a service." })).toBeVisible();
-  await expect
-    .poll(() => resizeRequests(popup))
-    .toEqual(
-      await popup.evaluate(() => [
-        [Math.min(390, screen.availWidth || 390), Math.min(800, screen.availHeight || 800)],
-      ]),
-    );
+  expect(await resizeRequests(popup)).toEqual([]);
   await popup.close();
 });
 
