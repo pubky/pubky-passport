@@ -97,7 +97,7 @@ function parseAttempt(raw: string | null): GoogleRedirectAttempt | undefined {
     const value: unknown = JSON.parse(raw);
     if (!isRecord(value) || value.version !== 1 || typeof value.requestUrl !== "string")
       return undefined;
-    if (typeof value.state !== "string" || !/^[A-Za-z0-9_-]{43}$/.test(value.state))
+    if (typeof value.state !== "string" || !/^(?:redirect\.)?[A-Za-z0-9_-]{43}$/.test(value.state))
       return undefined;
     if (typeof value.nonce !== "string" || !/^[A-Za-z0-9_-]{43}$/.test(value.nonce))
       return undefined;

@@ -3,7 +3,10 @@ import "client-only";
 import { Result } from "better-result";
 
 import { encodeBase64Url } from "@/libs/encoding/base64Url";
-import { GOOGLE_REDIRECT_STORAGE_KEY } from "@/libs/authorization/googleRedirectConstants";
+import {
+  GOOGLE_REDIRECT_STORAGE_KEY,
+  GOOGLE_REDIRECT_STATE_PREFIX,
+} from "@/libs/authorization/googleRedirectConstants";
 import { AUTHORIZATION_TIMEOUT_MS } from "@/libs/passportPolicy";
 import {
   getGoogleRedirectContext,
@@ -65,7 +68,9 @@ export class GoogleRedirectAuthorization {
         ...operation,
         version: 1,
         requestUrl,
-        state: encodeBase64Url(crypto.getRandomValues(new Uint8Array(32))),
+        state:
+          GOOGLE_REDIRECT_STATE_PREFIX +
+          encodeBase64Url(crypto.getRandomValues(new Uint8Array(32))),
         nonce: encodeBase64Url(crypto.getRandomValues(new Uint8Array(32))),
         expiresAt: Date.now() + AUTHORIZATION_TIMEOUT_MS,
       };

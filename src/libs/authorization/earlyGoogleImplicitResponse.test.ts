@@ -33,7 +33,7 @@ describe("early Google implicit response bootstrap", () => {
       removeEventListener: vi.fn(),
     };
     context.window = context;
-    runInNewContext(EARLY_GOOGLE_IMPLICIT_RESPONSE_SCRIPT, context);
+    runInNewContext(EARLY_GOOGLE_IMPLICIT_RESPONSE_SCRIPT, { URLSearchParams, ...context });
     expect(location.hash).toBe("");
     expect(postMessage).not.toHaveBeenCalled();
     expect(setItem).not.toHaveBeenCalled();
@@ -46,6 +46,47 @@ describe("early Google implicit response bootstrap", () => {
     expect(take()).toBeUndefined();
     expect(context[EARLY_GOOGLE_REDIRECT_RESPONSE_PROPERTY]).toBeUndefined();
   });
+
+  it.each([false, true])(
+    "retains a marked redirect return when pending storage is unavailable (throws: %s)",
+    (throws) => {
+      const postMessage = vi.fn();
+      const location = {
+        pathname: "/",
+        origin: "https://passport.example",
+        hash: "#access_token=canary&state=redirect." + "s".repeat(43),
+      };
+      const context: Record<string, unknown> = {
+        location,
+        history: {},
+        History: {
+          prototype: {
+            replaceState() {
+              location.hash = "";
+            },
+          },
+        },
+        sessionStorage: {
+          getItem() {
+            if (throws) throw new Error("blocked");
+            return null;
+          },
+        },
+        opener: { postMessage },
+        setTimeout: vi.fn(),
+        clearTimeout: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      };
+      context.window = context;
+      runInNewContext(EARLY_GOOGLE_IMPLICIT_RESPONSE_SCRIPT, { URLSearchParams, ...context });
+      expect(location.hash).toBe("");
+      expect(postMessage).not.toHaveBeenCalled();
+      const take = context[EARLY_GOOGLE_REDIRECT_RESPONSE_PROPERTY] as () => unknown;
+      expect(take()).toMatchObject({ status: "captured" });
+      expect(take()).toBeUndefined();
+    },
+  );
 
   it("scrubs the credential fragment and sends it only to the opener", () => {
     const postMessage = vi.fn();
@@ -70,7 +111,7 @@ describe("early Google implicit response bootstrap", () => {
     };
     context.window = context;
 
-    runInNewContext(EARLY_GOOGLE_IMPLICIT_RESPONSE_SCRIPT, context);
+    runInNewContext(EARLY_GOOGLE_IMPLICIT_RESPONSE_SCRIPT, { URLSearchParams, ...context });
 
     expect(location.hash).toBe("");
     expect(postMessage).toHaveBeenCalledWith(
@@ -107,7 +148,7 @@ describe("early Google implicit response bootstrap", () => {
       };
       context.window = context;
 
-      runInNewContext(EARLY_GOOGLE_IMPLICIT_RESPONSE_SCRIPT, context);
+      runInNewContext(EARLY_GOOGLE_IMPLICIT_RESPONSE_SCRIPT, { URLSearchParams, ...context });
 
       expect(location.hash).toBe("");
       expect(postMessage).toHaveBeenCalledWith(
@@ -143,7 +184,7 @@ describe("early Google implicit response bootstrap", () => {
     };
     context.window = context;
 
-    runInNewContext(EARLY_GOOGLE_IMPLICIT_RESPONSE_SCRIPT, context);
+    runInNewContext(EARLY_GOOGLE_IMPLICIT_RESPONSE_SCRIPT, { URLSearchParams, ...context });
 
     expect(postMessage).toHaveBeenCalledWith(
       expect.objectContaining({ type: GOOGLE_IMPLICIT_RESPONSE_MESSAGE_TYPE, status }),
@@ -183,7 +224,7 @@ describe("early Google implicit response bootstrap", () => {
     };
     context.window = context;
 
-    runInNewContext(EARLY_GOOGLE_IMPLICIT_RESPONSE_SCRIPT, context);
+    runInNewContext(EARLY_GOOGLE_IMPLICIT_RESPONSE_SCRIPT, { URLSearchParams, ...context });
 
     expect(stop).toHaveBeenCalledOnce();
     expect(location.replace).toHaveBeenCalledWith("/");
@@ -218,7 +259,7 @@ describe("early Google implicit response bootstrap", () => {
     };
     context.window = context;
 
-    runInNewContext(EARLY_GOOGLE_IMPLICIT_RESPONSE_SCRIPT, context);
+    runInNewContext(EARLY_GOOGLE_IMPLICIT_RESPONSE_SCRIPT, { URLSearchParams, ...context });
 
     expect(location.replace).toHaveBeenCalledWith("/");
     expect(location.hash).toBe("");
