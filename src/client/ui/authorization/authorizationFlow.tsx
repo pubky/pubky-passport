@@ -57,7 +57,7 @@ function AuthorizationFlow() {
     case "manual-entry":
       return <ManualAuthorization onBack={goHome} />;
     case "invalid":
-      return <InvalidAuthorization onBack={goHome} />;
+      return <InvalidAuthorization onBack={goHome} interrupted={isGoogleRedirectReturn()} />;
     case "failed":
       return (
         <PassportScreen className="gap-6">

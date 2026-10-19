@@ -2,6 +2,7 @@ import { AUTHORIZATION_CAPTURE_MAX_CHARACTERS } from "@/libs/passportPolicy";
 import {
   EARLY_GOOGLE_REDIRECT_RESPONSE_PROPERTY,
   GOOGLE_REDIRECT_STORAGE_KEY,
+  GOOGLE_REDIRECT_STATE_PREFIX,
 } from "./googleRedirectConstants";
 
 export const EARLY_GOOGLE_IMPLICIT_RESPONSE_MAX_CHARACTERS = AUTHORIZATION_CAPTURE_MAX_CHARACTERS;
@@ -25,7 +26,11 @@ export const EARLY_GOOGLE_IMPLICIT_RESPONSE_SCRIPT = `(() => {
     : { type: "${GOOGLE_IMPLICIT_RESPONSE_MESSAGE_TYPE}", status: "captured", hash };
   let redirectPending = false;
   try { redirectPending = sessionStorage.getItem("${GOOGLE_REDIRECT_STORAGE_KEY}") !== null; } catch { /* Fail closed during bootstrap. */ }
-  if (redirectPending) {
+  // A marked redirect must not fall through to the popup credential transport
+  // when the originating tab lost its saved attempt. The marker is not proof
+  // of authorization: resumeGoogleRedirect still rejects missing/invalid state.
+  const redirectReturn = new URLSearchParams(hash.slice(1)).get("state")?.startsWith("${GOOGLE_REDIRECT_STATE_PREFIX}");
+  if (redirectPending || redirectReturn || !opener) {
     let pending = response;
     const dispose = () => {
       pending = undefined;

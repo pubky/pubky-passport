@@ -161,3 +161,52 @@ test("a single Passport popup navigates through Google without a nested popup", 
   await popup.getByRole("button", { name: "Back", exact: true }).click();
   await expect(popup).toHaveURL("https://client.example/cancel");
 });
+
+test("two sign-ins in the same tab retain each request's callback", async ({ context, page }) => {
+  const requests = await google(context);
+  await context.route("https://second.client.example/cancel", (route) =>
+    route.fulfill({ body: "Cancelled second request" }),
+  );
+  for (const host of ["client.example", "second.client.example"]) {
+    const request = REQUEST.replace("https%3A%2F%2Fclient.example", `https%3A%2F%2F${host}`);
+    await page.goto(`/authorize#d=${encodeURIComponent(request)}`);
+    await expect(page.getByRole("heading", { name: "Drive access optional." })).toBeVisible();
+    await expect(page.getByLabel(`Signing in to ${host}`)).toBeVisible();
+    await page.getByRole("button", { name: "Back", exact: true }).click();
+    await expect(page).toHaveURL(`https://${host}/cancel`);
+  }
+  expect(requests).toHaveLength(2);
+  expect(requests[0]!.searchParams.get("state")).not.toBe(requests[1]!.searchParams.get("state"));
+});
+
+for (const popup of [false, true]) {
+  test(`lost Google continuation shows restart instructions (popup: ${popup})`, async ({
+    context,
+    page,
+  }) => {
+    await google(context);
+    await context.addInitScript((key) => {
+      if (location.pathname === "/" && location.hash.includes("access_token="))
+        sessionStorage.removeItem(key);
+    }, STORAGE_KEY);
+    let callbackPage = page;
+    if (popup) {
+      await page.goto("/");
+      const opened = page.waitForEvent("popup");
+      await page.evaluate((entry) => window.open(entry, "passport"), ENTRY);
+      callbackPage = await opened;
+    } else await page.goto(ENTRY);
+    await expect(callbackPage.getByRole("heading", { name: "Sign-in interrupted" })).toBeVisible();
+    await expect(callbackPage.getByText(/Return to the app where you started/)).toBeVisible();
+    await expect(callbackPage.getByRole("button", { name: "Go to Passport home" })).toBeVisible();
+    expect(new URL(callbackPage.url()).hash).toBe("");
+    expect(
+      await callbackPage.evaluate(() =>
+        JSON.stringify([localStorage, sessionStorage, history.state]),
+      ),
+    ).not.toContain("redirect-access-canary");
+    await expect(callbackPage.getByRole("button", { name: "Authorize", exact: true })).toHaveCount(
+      0,
+    );
+  });
+}
