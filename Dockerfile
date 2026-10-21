@@ -3,7 +3,7 @@
 # Pin to the Node version required by package.json engines / .nvmrc.
 # Debian slim is used over Alpine for reliable native-module support
 # (sharp, and the @synonymdev/pubky server package).
-FROM node:24.18.0-slim AS base
+FROM node:24.22.1-slim AS base
 ENV PNPM_HOME=/pnpm \
     PATH=/pnpm:$PATH
 # Use the exact pnpm version declared in package.json's packageManager field.
