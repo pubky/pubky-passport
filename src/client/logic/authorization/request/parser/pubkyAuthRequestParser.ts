@@ -40,6 +40,7 @@ const PUBKY_AUTH_REQUEST_PARAMETERS = {
   clientPublicKey: "cpk",
   approvalFormat: "af",
   encryptionPublicKey: "epk",
+  signerPublicKey: "spk",
 } as const;
 
 const COMMON_PARAMETERS = new Set<string>([
@@ -58,6 +59,7 @@ const GRANT_PARAMETERS = new Set<string>([
   PUBKY_AUTH_REQUEST_PARAMETERS.clientPublicKey,
   PUBKY_AUTH_REQUEST_PARAMETERS.approvalFormat,
   PUBKY_AUTH_REQUEST_PARAMETERS.encryptionPublicKey,
+  PUBKY_AUTH_REQUEST_PARAMETERS.signerPublicKey,
 ]);
 
 type PubkyAuthParseErrorCode =
@@ -74,6 +76,7 @@ type PubkyAuthParseErrorCode =
   | "invalid_client_id"
   | "missing_client_public_key"
   | "invalid_client_public_key"
+  | "invalid_signer_public_key"
   | "unsupported_approval_format"
   | "missing_encryption_public_key"
   | "invalid_encryption_public_key"
@@ -310,6 +313,12 @@ function validateGrantParameters(
   }
   if (!isCanonicalPubkyPublicKey(clientPublicKey)) {
     return Result.err<never, PubkyAuthParseError>({ code: "invalid_client_public_key" });
+  }
+
+  // Passport accepts but does not use the optional signer hint to select an identity.
+  const signerPublicKey = url.searchParams.get(PUBKY_AUTH_REQUEST_PARAMETERS.signerPublicKey);
+  if (signerPublicKey !== null && !isCanonicalPubkyPublicKey(signerPublicKey)) {
+    return Result.err<never, PubkyAuthParseError>({ code: "invalid_signer_public_key" });
   }
 
   return Result.ok();

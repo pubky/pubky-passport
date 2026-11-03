@@ -127,6 +127,58 @@ describe("parseEncodedPubkyAuthRequest", () => {
     expect(result.value).not.toHaveProperty("clientId");
   });
 
+  it.each([
+    grantRequest("chat.example"),
+    SIGNED_APPROVAL_REQUEST,
+    SIGNED_APPROVAL_REQUEST.replace("&af=v1", "").replace(":rwe", ":rw"),
+  ])("accepts a grant signer hint without changing parsed authority", (request) => {
+    const hintedRequest = `${request}&spk=${"y".repeat(52)}`;
+    const unhinted = parseEncodedPubkyAuthRequest(encodeRequest(request));
+    const hinted = parseEncodedPubkyAuthRequest(encodeRequest(hintedRequest));
+
+    if (Result.isError(unhinted)) throw new Error(unhinted.error.code);
+    if (Result.isError(hinted)) throw new Error(hinted.error.code);
+    expect(hinted.value).toEqual({
+      ...unhinted.value,
+      sensitivePubkyAuthUrl: hintedRequest,
+    });
+    expect(Result.isOk(validateEncodedPubkyAuthRequest(encodeRequest(hintedRequest)))).toBe(true);
+  });
+
+  it.each([
+    "",
+    "short",
+    "y".repeat(51),
+    "y".repeat(53),
+    "Y".repeat(52),
+    `${"y".repeat(51)}b`,
+    `${"y".repeat(51)}0`,
+    `pubky${"y".repeat(52)}`,
+    `pk:${"y".repeat(52)}`,
+    ` ${"y".repeat(52)}`,
+    `${"y".repeat(52)}\n`,
+    "%ZZ",
+  ])("rejects a malformed grant signer hint: %s", (hint) => {
+    expectError(
+      encodeRequest(`${grantRequest("chat.example")}&spk=${encodeURIComponent(hint)}`),
+      "invalid_signer_public_key",
+    );
+  });
+
+  it.each(["spk", "s%70k"])("rejects a repeated signer hint: %s", (name) => {
+    expectError(
+      encodeRequest(`${SIGNED_APPROVAL_REQUEST}&spk=${"y".repeat(52)}&${name}=${"y".repeat(51)}o`),
+      "duplicate_parameter",
+    );
+  });
+
+  it.each([VALID_REQUEST, VALID_REQUEST.replace("//signin?", "///?")])(
+    "rejects signer hints on cookie requests",
+    (request) => {
+      expectError(encodeRequest(`${request}&spk=${"y".repeat(52)}`), "unsupported_parameter");
+    },
+  );
+
   it("parses HPKE signed approvals without requiring a shared secret", () => {
     const result = parseEncodedPubkyAuthRequest(encodeRequest(SIGNED_APPROVAL_REQUEST));
 
