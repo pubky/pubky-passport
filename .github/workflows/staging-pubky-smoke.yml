@@ -11,10 +11,6 @@ jobs:
     runs-on: ubuntu-latest
     environment: staging
     timeout-minutes: 10
-    env:
-      PUBKY_STAGING_HOMEGATE_URL: ${{ secrets.PUBKY_STAGING_HOMEGATE_URL }}
-      PUBKY_STAGING_GOOGLE_ID_TOKEN: ${{ secrets.PUBKY_STAGING_GOOGLE_ID_TOKEN }}
-      PUBKY_STAGING_RELAY_URL: ${{ secrets.PUBKY_STAGING_RELAY_URL }}
 
     steps:
       - name: Checkout
@@ -35,4 +31,8 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Run concrete Pubky critical path
+        env:
+          PUBKY_STAGING_HOMEGATE_URL: ${{ secrets.PUBKY_STAGING_HOMEGATE_URL }}
+          PUBKY_STAGING_GOOGLE_ID_TOKEN: ${{ secrets.PUBKY_STAGING_GOOGLE_ID_TOKEN }}
+          PUBKY_STAGING_RELAY_URL: ${{ secrets.PUBKY_STAGING_RELAY_URL }}
         run: pnpm test:staging:pubky

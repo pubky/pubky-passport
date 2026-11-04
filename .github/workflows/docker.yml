@@ -20,17 +20,17 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Log in to Docker Hub
         if: github.event_name == 'push'
-        uses: docker/login-action@v3
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Build Docker image (publish on release tags)
-        uses: pubky/ci-workflows/.github/actions/docker/build_and_push@main
+        uses: pubky/ci-workflows/.github/actions/docker/build_and_push@a57f2ae6382a8519ba4aa09d58b706f6b68a4426 # main
         with:
           registry: registry-1.docker.io/synonymsoft
           context: .
