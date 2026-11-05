@@ -70,13 +70,17 @@ const ESLINT_CONFIG = defineConfig([
     ignores: [
       `src/server/${testFiles}`,
       "src/server/wrapping-key/google/GoogleWrappingKeyIssuer.ts",
+      "src/server/wrapping-key/apple/AppleWrappingKeyIssuer.ts",
     ],
     rules: {
       "no-restricted-imports": restrictedImports(clientImport, serverEnvironmentImport, sdkImport),
     },
   },
   {
-    files: ["src/server/wrapping-key/google/GoogleWrappingKeyIssuer.ts"],
+    files: [
+      "src/server/wrapping-key/google/GoogleWrappingKeyIssuer.ts",
+      "src/server/wrapping-key/apple/AppleWrappingKeyIssuer.ts",
+    ],
     rules: { "no-restricted-imports": restrictedImports(clientImport, sdkImport) },
   },
   {

@@ -7,8 +7,8 @@ import { readBoundedText } from "@/libs/http/boundedBody";
 import { MAXIMUM_JSON_BODY_BYTES, passportKeyIdSchema } from "@/libs/passportPolicy";
 import type { CodedFailure } from "@/libs/result";
 
-/** JSON field that carries the provider's ID token, for example `googleIdToken`. */
-export type IdTokenField = "googleIdToken";
+/** JSON field that carries the provider's ID token, `googleIdToken` or `appleIdToken`. */
+export type IdTokenField = "googleIdToken" | "appleIdToken";
 
 export const WRAPPING_KEY_RESPONSE_HEADERS = {
   "Cache-Control": "no-store",

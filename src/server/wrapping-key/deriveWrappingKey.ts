@@ -3,7 +3,7 @@ import "server-only";
 import { hkdfSync } from "node:crypto";
 
 /** Sign-in providers whose verified identities can unlock a Passport file. */
-export type WrappingKeyProvider = "google";
+export type WrappingKeyProvider = "google" | "apple";
 
 /** An identity whose ID token the server verified. Only these fields reach key derivation. */
 export type VerifiedProviderIdentity = Readonly<{

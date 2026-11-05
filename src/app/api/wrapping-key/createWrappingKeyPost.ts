@@ -19,7 +19,11 @@ type WrappingKeyRouteBody<VerifierErrorCode extends string> =
   | { wrappingKey: string; keyId: string }
   | {
       error: {
-        code: WrappingKeyIssueErrorCode<VerifierErrorCode> | "invalid_request" | "internal_error";
+        code:
+          | WrappingKeyIssueErrorCode<VerifierErrorCode>
+          | "invalid_request"
+          | "internal_error"
+          | "provider_disabled";
       };
     };
 
@@ -32,12 +36,13 @@ type Issuer<VerifierErrorCode extends string> = {
 
 /**
  * Builds the POST handler for `/api/wrapping-key/<provider>`. The issuer is composed on the
- * first valid request and reused; a composition failure is retried on the next request.
+ * first valid request and reused; a composition failure is retried on the next request. A
+ * factory that returns `null` marks the provider as switched off: the route answers 404.
  */
 export function createWrappingKeyPost<VerifierErrorCode extends string>(options: {
   provider: WrappingKeyProvider;
   tokenField: IdTokenField;
-  createIssuer: () => Issuer<VerifierErrorCode>;
+  createIssuer: () => Issuer<VerifierErrorCode> | null;
   statusForVerifierError: (code: VerifierErrorCode) => number;
 }) {
   const route = `api.wrapping_key.${options.provider}`;
@@ -74,7 +79,11 @@ export function createWrappingKeyPost<VerifierErrorCode extends string>(options:
       }
 
       operation = "compose";
-      if (!activeIssuer) activeIssuer = options.createIssuer();
+      activeIssuer ??= options.createIssuer() ?? undefined;
+      if (!activeIssuer) {
+        LOGGER.info(event, { route, layer: "route", operation, code: "provider_disabled" });
+        return jsonResponse({ error: { code: "provider_disabled" } }, 404);
+      }
       operation = "execute";
       const result = await activeIssuer.issueWrappingKey(body.value.idToken, body.value.keyId);
 

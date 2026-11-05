@@ -29,6 +29,51 @@ export function getPublicEnvironment() {
   };
 }
 
+/** Public Sign in with Apple and CloudKit settings. None of these values is secret. */
+export type AppleConfiguration = Readonly<{
+  servicesId: string;
+  cloudKitContainerId: string;
+  cloudKitApiToken: string;
+  cloudKitEnvironment: "production" | "development";
+}>;
+
+const APPLE_SERVICES_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9.-]{0,254}$/u;
+const CLOUDKIT_CONTAINER_ID_PATTERN = /^iCloud\.[A-Za-z0-9][A-Za-z0-9.-]{0,247}$/u;
+const CLOUDKIT_API_TOKEN_PATTERN = /^[A-Za-z0-9]{16,128}$/u;
+
+/**
+ * Apple login is off unless `APPLE_LOGIN_ENABLED` is `true`. When it is on, every Apple setting
+ * must be present and valid.
+ *
+ * @returns `null` when Apple login is off.
+ * @throws {Error} when Apple login is on and a setting is missing or invalid.
+ */
+export function getAppleEnvironment(): AppleConfiguration | null {
+  if (process.env.APPLE_LOGIN_ENABLED?.trim() !== "true") return null;
+
+  const servicesId = requireEnvironmentVariable("APPLE_SERVICES_ID");
+  if (!APPLE_SERVICES_ID_PATTERN.test(servicesId)) throw new Error("APPLE_SERVICES_ID is invalid.");
+  const cloudKitContainerId = requireEnvironmentVariable("APPLE_CLOUDKIT_CONTAINER_ID");
+  if (!CLOUDKIT_CONTAINER_ID_PATTERN.test(cloudKitContainerId)) {
+    throw new Error("APPLE_CLOUDKIT_CONTAINER_ID is invalid.");
+  }
+  const cloudKitApiToken = requireEnvironmentVariable("APPLE_CLOUDKIT_API_TOKEN");
+  if (!CLOUDKIT_API_TOKEN_PATTERN.test(cloudKitApiToken)) {
+    throw new Error("APPLE_CLOUDKIT_API_TOKEN is invalid.");
+  }
+  const cloudKitEnvironment = process.env.APPLE_CLOUDKIT_ENVIRONMENT?.trim() || "production";
+  if (cloudKitEnvironment !== "production" && cloudKitEnvironment !== "development") {
+    throw new Error("APPLE_CLOUDKIT_ENVIRONMENT must be production or development.");
+  }
+
+  return Object.freeze({
+    servicesId,
+    cloudKitContainerId,
+    cloudKitApiToken,
+    cloudKitEnvironment,
+  });
+}
+
 /** @throws {Error} when the server keyring configuration is missing or invalid. */
 export function getServerEnvironment() {
   const currentKeyId = requireEnvironmentVariable("PASSPORT_SERVER_SECRET_CURRENT_KEY_ID");
