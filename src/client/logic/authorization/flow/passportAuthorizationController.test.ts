@@ -196,6 +196,83 @@ describe("PassportAuthorizationController", () => {
     expect(state).not.toHaveProperty("cause");
   });
 
+  describe("with an expected signer (spk)", () => {
+    const OTHER_IDENTITY = "y".repeat(52);
+
+    function createNamedController(handoffOutcome = vi.fn(async () => "navigated" as const)) {
+      const callbacks = `&x-success=${encodeURIComponent(SUCCESS_CALLBACK)}&x-error=${encodeURIComponent(ERROR_CALLBACK)}&x-cancel=${encodeURIComponent(CANCEL_CALLBACK)}`;
+      const validated = ValidatedPubkyAuthRequest.fromEncoded(
+        encodeURIComponent(
+          `pubkyauth://signin_grant?caps=/pub/example.app/:rw&relay=https://relay.example/inbox&secret=${SECRET}&cid=example.app&cpk=${OTHER_IDENTITY}&spk=${SELECTED_IDENTITY}${callbacks}`,
+        ),
+      );
+      if (Result.isError(validated)) throw new Error(validated.error.code);
+      MOCKS.handoffAuthorizationOutcome.mockImplementation(handoffOutcome);
+      return {
+        controller: new PassportAuthorizationController(window, {
+          status: "valid",
+          request: validated.value,
+        }),
+        handoffOutcome,
+        request: validated.value,
+      };
+    }
+
+    it("exposes the expected signer for review", () => {
+      const { controller } = createNamedController();
+
+      expect(controller.getState()).toMatchObject({
+        status: "review",
+        review: { expectedSigner: SELECTED_IDENTITY },
+      });
+    });
+
+    it("refuses another identity without approving or calling back", async () => {
+      const { controller, handoffOutcome, request } = createNamedController();
+
+      const state = await controller.approve(OTHER_IDENTITY);
+
+      expect(state).toEqual({ status: "failed", expectedSigner: SELECTED_IDENTITY });
+      expect(MOCKS.approveAuthorization).not.toHaveBeenCalled();
+      expect(handoffOutcome).not.toHaveBeenCalled();
+      expect(request.isLive()).toBe(false);
+    });
+
+    it("approves with the expected identity", async () => {
+      const { controller, handoffOutcome } = createNamedController();
+
+      await controller.approve(SELECTED_IDENTITY);
+
+      expect(MOCKS.approveAuthorization).toHaveBeenCalledWith(
+        expect.any(ValidatedPubkyAuthRequest),
+        SELECTED_IDENTITY,
+        expect.any(AbortSignal),
+        expect.any(Function),
+        [],
+      );
+      expect(handoffOutcome).toHaveBeenCalledWith(
+        window,
+        SUCCESS_CALLBACK,
+        "success",
+        expect.anything(),
+      );
+    });
+
+    it("shows the SDK signer's refusal locally without calling back", async () => {
+      MOCKS.approveAuthorization.mockResolvedValueOnce(
+        Result.err({ code: "expected_signer_mismatch", cause: new Error(SECRET) }),
+      );
+      const { controller, handoffOutcome, request } = createNamedController();
+
+      const state = await controller.approve(SELECTED_IDENTITY);
+
+      expect(state).toEqual({ status: "failed", expectedSigner: SELECTED_IDENTITY });
+      expect(handoffOutcome).not.toHaveBeenCalled();
+      expect(request.isLive()).toBe(false);
+      expect(JSON.stringify(state)).not.toContain(SECRET);
+    });
+  });
+
   it("contains handoff exceptions without exposing them to view state", async () => {
     const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
     const handoffError = new TypeError(`handoff failed ${SECRET} ${SUCCESS_CALLBACK}`);

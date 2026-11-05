@@ -24,7 +24,7 @@ export type PassportAuthorizationViewState =
   | { status: "completing"; review: AuthorizationRequestReview }
   | { status: "approved" }
   | { status: "cancelled" }
-  | { status: "failed" };
+  | { status: "failed"; expectedSigner?: string };
 
 type LocalTerminalState = Extract<
   PassportAuthorizationViewState,
@@ -116,6 +116,11 @@ export class PassportAuthorizationController {
     if (!action) return this.state;
 
     const review = action.review;
+    // A request that names its pubky (`spk`) is approved with that pubky or not at all.
+    if (review.expectedSigner && review.expectedSigner !== publicKeyZ32) {
+      return this.refuseForExpectedSigner(action.request, review);
+    }
+
     this.update({ status: "preparing", review });
     const result = await approveAuthorization(
       action.request,
@@ -126,6 +131,9 @@ export class PassportAuthorizationController {
       },
       [...declinedEncryptionPaths],
     );
+    if (Result.isError(result) && result.error.code === "expected_signer_mismatch") {
+      return this.refuseForExpectedSigner(action.request, review);
+    }
     return this.completeRequestOutcome(
       action.request,
       Result.isOk(result) ? "success" : "error",
@@ -147,6 +155,22 @@ export class PassportAuthorizationController {
       request: this.request,
       review: this.state.review,
     };
+  }
+
+  /** Nothing was signed or sent for another pubky; like Pubky Ring, no callback follows. */
+  private refuseForExpectedSigner(
+    request: ValidatedPubkyAuthRequest,
+    review: AuthorizationRequestReview,
+  ): PassportAuthorizationViewState {
+    request.release();
+    if (this.disposed) return this.state;
+
+    this.request = undefined;
+    return this.update(
+      review.expectedSigner
+        ? { status: "failed", expectedSigner: review.expectedSigner }
+        : { status: "failed" },
+    );
   }
 
   private async completeRequestOutcome(

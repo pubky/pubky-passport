@@ -293,6 +293,18 @@ describe("approveAuthorization", () => {
     expect(JSON.stringify(warning.mock.calls)).not.toContain(SECRET);
   });
 
+  it("reports the SDK signer's refusal of a request for another pubky", async () => {
+    vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+    const refusal = { code: "expected_signer_mismatch" as const, cause: new Error("refused") };
+    MOCKS.approveAuthRequest.mockResolvedValueOnce(Result.err(refusal));
+
+    const result = await approveAuthorization(validatedRequest(), SELECTED_IDENTITY);
+
+    if (Result.isOk(result)) throw new Error("Expected approval to fail");
+    expect(result.error).toEqual({ code: "expected_signer_mismatch", cause: refusal });
+    await expectCleanup();
+  });
+
   it("preserves expected restoration failures without logging their details", async () => {
     const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
     const sdkCause = new Error(`restore SDK failure ${SECRET}`);

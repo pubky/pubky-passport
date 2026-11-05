@@ -250,3 +250,70 @@ describe("AuthorizationReview identity actions", () => {
     expect(screen.getByRole("button", { name: "Switch" })).toBeEnabled();
   });
 });
+
+describe("AuthorizationReview with an expected signer (spk)", () => {
+  const EXPECTED = "8um71us3fyw6h8wbcxb5ar3rwusy1a6u49956ikzojg3gcwd1dty";
+  const named = (
+    identity: { publicIdentity: { publicKeyZ32: string } },
+    requesterName?: string,
+  ) => {
+    const base = props([]);
+    return {
+      ...base,
+      identity: {
+        ...identity,
+        googleAccount: {
+          email: "user@example.com",
+          googleSubject: "google-user",
+          name: "Alice",
+          pictureUrl: null,
+        },
+      },
+      review: {
+        ...base.review,
+        ...(requesterName ? { requesterName } : {}),
+        expectedSigner: EXPECTED,
+      },
+    };
+  };
+
+  it("says the app chose the pubky and offers no switch", async () => {
+    const user = userEvent.setup();
+    const reviewProps = named({ publicIdentity: { publicKeyZ32: EXPECTED } }, "Chat");
+    render(<AuthorizationReview {...reviewProps} />);
+
+    expect(screen.getByText("Chat asked to sign in as Alice (8um7...1dty)")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "The app chose this pubky. To use a different one, start a new sign-in from the app.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Switch" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Authorize" }));
+    expect(reviewProps.onAuthorize).toHaveBeenCalledExactlyOnceWith([]);
+  });
+
+  it("refuses before approval when the identity is another pubky", async () => {
+    const user = userEvent.setup();
+    const reviewProps = named(IDENTITY);
+    render(<AuthorizationReview {...reviewProps} />);
+
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "This request is for 8um7...1dty, which isn't in this Passport.",
+    );
+    expect(screen.queryByText(/asked to sign in as/u)).not.toBeInTheDocument();
+    const authorize = screen.getByRole("button", { name: "Authorize" });
+    expect(authorize).toBeDisabled();
+    await user.click(authorize);
+    expect(reviewProps.onAuthorize).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Switch" })).toBeEnabled();
+  });
+
+  it("shows no notice for a request that leaves the pubky to the user", () => {
+    render(<AuthorizationReview {...props([])} />);
+
+    expect(screen.queryByText(/asked to sign in as/u)).not.toBeInTheDocument();
+    expect(screen.queryByText(/This request is for/u)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Switch" })).toBeInTheDocument();
+  });
+});
