@@ -40,7 +40,7 @@ const PUBKY_AUTH_REQUEST_PARAMETERS = {
   clientPublicKey: "cpk",
   approvalFormat: "af",
   encryptionPublicKey: "epk",
-  signerPublicKey: "spk",
+  expectedSigner: "spk",
 } as const;
 
 const COMMON_PARAMETERS = new Set<string>([
@@ -59,7 +59,7 @@ const GRANT_PARAMETERS = new Set<string>([
   PUBKY_AUTH_REQUEST_PARAMETERS.clientPublicKey,
   PUBKY_AUTH_REQUEST_PARAMETERS.approvalFormat,
   PUBKY_AUTH_REQUEST_PARAMETERS.encryptionPublicKey,
-  PUBKY_AUTH_REQUEST_PARAMETERS.signerPublicKey,
+  PUBKY_AUTH_REQUEST_PARAMETERS.expectedSigner,
 ]);
 
 type PubkyAuthParseErrorCode =
@@ -76,7 +76,7 @@ type PubkyAuthParseErrorCode =
   | "invalid_client_id"
   | "missing_client_public_key"
   | "invalid_client_public_key"
-  | "invalid_signer_public_key"
+  | "invalid_expected_signer"
   | "unsupported_approval_format"
   | "missing_encryption_public_key"
   | "invalid_encryption_public_key"
@@ -97,6 +97,8 @@ export type ParsedPubkyAuthRequest = {
   capabilities: PubkyAuthCapability[];
   callbacks: Readonly<ValidatedPubkyAuthCallbacks>;
   source?: string;
+  /** z-base-32 pubky that must approve a grant sign-in (`spk`), if the app named one. */
+  expectedSigner?: string;
   sensitivePubkyAuthUrl: string;
 };
 
@@ -202,6 +204,7 @@ export function parseEncodedPubkyAuthRequest(encodedRequest: unknown): PubkyAuth
     capabilities: capabilities.value,
     callbacks: Object.freeze({ ...urls.value }),
     ...(source.value ? { source: source.value } : {}),
+    ...(grantParameters.value ? { expectedSigner: grantParameters.value } : {}),
     sensitivePubkyAuthUrl: decoded.value,
   });
 }
@@ -293,11 +296,12 @@ function validatePubkyAuthRequestParameters(
   return Result.ok();
 }
 
+/** Validates grant parameters and returns the expected signer (`spk`), if any. */
 function validateGrantParameters(
   url: URL,
   authenticationMethod: PubkyAuthenticationMethod,
-): ParseValueResult<void> {
-  if (authenticationMethod === "cookie") return Result.ok();
+): ParseValueResult<string | undefined> {
+  if (authenticationMethod === "cookie") return Result.ok(undefined);
 
   const clientId = url.searchParams.get(PUBKY_AUTH_REQUEST_PARAMETERS.clientId);
   if (clientId === null || clientId.length === 0) {
@@ -315,13 +319,14 @@ function validateGrantParameters(
     return Result.err<never, PubkyAuthParseError>({ code: "invalid_client_public_key" });
   }
 
-  // Passport accepts but does not use the optional signer hint to select an identity.
-  const signerPublicKey = url.searchParams.get(PUBKY_AUTH_REQUEST_PARAMETERS.signerPublicKey);
-  if (signerPublicKey !== null && !isCanonicalPubkyPublicKey(signerPublicKey)) {
-    return Result.err<never, PubkyAuthParseError>({ code: "invalid_signer_public_key" });
+  // The SDK signer enforces `spk` when it signs. It is read here only so the review can show
+  // which pubky the app chose, and a malformed value is rejected as the SDK parser does.
+  const expectedSigner = url.searchParams.get(PUBKY_AUTH_REQUEST_PARAMETERS.expectedSigner);
+  if (expectedSigner !== null && !isCanonicalPubkyPublicKey(expectedSigner)) {
+    return Result.err<never, PubkyAuthParseError>({ code: "invalid_expected_signer" });
   }
 
-  return Result.ok();
+  return Result.ok(expectedSigner ?? undefined);
 }
 
 /** Validates relay encryption and returns whether signed approval V1 is requested. */

@@ -5,6 +5,7 @@ import {
   Pubky,
   PublicKey,
   Signer,
+  SigninGrantDeepLink,
   type Session,
   validateCapabilities,
 } from "@synonymdev/pubky";
@@ -833,6 +834,65 @@ describe("PubkySdkAdapter", () => {
       pubky.dispose();
     }
   });
+
+  it("reports the SDK signer's refusal of a request for another pubky", async () => {
+    vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+    const refusal = Object.assign(new Error("this sign-in request is for a different key"), {
+      name: "AuthenticationError",
+    });
+    vi.spyOn(Signer.prototype, "approveAuthWithCapabilities").mockRejectedValue(refusal);
+    const pubky = new PubkySdkAdapter();
+
+    try {
+      const created = expectOk(await pubky.createIdentityKey());
+      const result = await pubky.approveAuthRequest(
+        created.keyHandle,
+        authorizationRequest("/pub/passport.test"),
+        "/pub/passport.test:r",
+      );
+
+      expectErrorCause(result, "expected_signer_mismatch", refusal);
+    } finally {
+      pubky.dispose();
+    }
+  });
+
+  // Runs once the SDK enforces `spk` (pubky/pubky-homeserver#787).
+  it.runIf("expectedSigner" in SigninGrantDeepLink.prototype)(
+    "relies on the SDK signer to refuse a grant sign-in for another pubky before sending",
+    async () => {
+      vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+      const clientKey = Keypair.random();
+      const otherKey = Keypair.random();
+      const relay = vi.spyOn(globalThis, "fetch");
+      const pubky = new PubkySdkAdapter();
+
+      try {
+        const created = expectOk(await pubky.createIdentityKey());
+        const request = expectOk(
+          ValidatedPubkyAuthRequest.fromEncoded(
+            encodeURIComponent(
+              `pubkyauth://signin_grant?caps=/pub/passport.test/:r&relay=https://relay.example/inbox&secret=kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8&cid=passport.test&cpk=${clientKey.publicKey.z32()}&spk=${otherKey.publicKey.z32()}`,
+            ),
+          ),
+        );
+        expect(request.review.expectedSigner).toBe(otherKey.publicKey.z32());
+
+        const result = await pubky.approveAuthRequest(
+          created.keyHandle,
+          request.validatedUrlForApproval()!,
+          request.approvedCapabilitiesForApproval()!,
+        );
+
+        expectErrorResult(result, "expected_signer_mismatch");
+        expect(relay).not.toHaveBeenCalled();
+      } finally {
+        pubky.dispose();
+        clientKey.free();
+        otherKey.free();
+      }
+    },
+  );
 
   it("disposes keypairs and rejects old handles", async () => {
     const pubky = new PubkySdkAdapter();

@@ -131,18 +131,20 @@ describe("parseEncodedPubkyAuthRequest", () => {
     grantRequest("chat.example"),
     SIGNED_APPROVAL_REQUEST,
     SIGNED_APPROVAL_REQUEST.replace("&af=v1", "").replace(":rwe", ":rw"),
-  ])("accepts a grant signer hint without changing parsed authority", (request) => {
-    const hintedRequest = `${request}&spk=${"y".repeat(52)}`;
-    const unhinted = parseEncodedPubkyAuthRequest(encodeRequest(request));
-    const hinted = parseEncodedPubkyAuthRequest(encodeRequest(hintedRequest));
+  ])("reads the expected signer of a grant sign-in without changing anything else", (request) => {
+    const namedRequest = `${request}&spk=${"y".repeat(52)}`;
+    const plain = parseEncodedPubkyAuthRequest(encodeRequest(request));
+    const named = parseEncodedPubkyAuthRequest(encodeRequest(namedRequest));
 
-    if (Result.isError(unhinted)) throw new Error(unhinted.error.code);
-    if (Result.isError(hinted)) throw new Error(hinted.error.code);
-    expect(hinted.value).toEqual({
-      ...unhinted.value,
-      sensitivePubkyAuthUrl: hintedRequest,
+    if (Result.isError(plain)) throw new Error(plain.error.code);
+    if (Result.isError(named)) throw new Error(named.error.code);
+    expect(plain.value).not.toHaveProperty("expectedSigner");
+    expect(named.value).toEqual({
+      ...plain.value,
+      expectedSigner: "y".repeat(52),
+      sensitivePubkyAuthUrl: namedRequest,
     });
-    expect(Result.isOk(validateEncodedPubkyAuthRequest(encodeRequest(hintedRequest)))).toBe(true);
+    expect(Result.isOk(validateEncodedPubkyAuthRequest(encodeRequest(namedRequest)))).toBe(true);
   });
 
   it.each([
@@ -158,14 +160,14 @@ describe("parseEncodedPubkyAuthRequest", () => {
     ` ${"y".repeat(52)}`,
     `${"y".repeat(52)}\n`,
     "%ZZ",
-  ])("rejects a malformed grant signer hint: %s", (hint) => {
+  ])("rejects a malformed expected signer: %s", (hint) => {
     expectError(
       encodeRequest(`${grantRequest("chat.example")}&spk=${encodeURIComponent(hint)}`),
-      "invalid_signer_public_key",
+      "invalid_expected_signer",
     );
   });
 
-  it.each(["spk", "s%70k"])("rejects a repeated signer hint: %s", (name) => {
+  it.each(["spk", "s%70k"])("rejects a repeated expected signer: %s", (name) => {
     expectError(
       encodeRequest(`${SIGNED_APPROVAL_REQUEST}&spk=${"y".repeat(52)}&${name}=${"y".repeat(51)}o`),
       "duplicate_parameter",
@@ -173,7 +175,7 @@ describe("parseEncodedPubkyAuthRequest", () => {
   });
 
   it.each([VALID_REQUEST, VALID_REQUEST.replace("//signin?", "///?")])(
-    "rejects signer hints on cookie requests",
+    "rejects an expected signer on cookie requests",
     (request) => {
       expectError(encodeRequest(`${request}&spk=${"y".repeat(52)}`), "unsupported_parameter");
     },

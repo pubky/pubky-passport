@@ -26,6 +26,8 @@ export type AuthorizationRequestReview = Readonly<{
   capabilities: readonly AuthorizationCapability[];
   requesterName?: string;
   callbackHost?: string;
+  /** z-base-32 pubky the app requires for this sign-in (`spk`); approval with any other fails. */
+  expectedSigner?: string;
 }>;
 
 type ValidatedAuthorizationMetadata = Readonly<{
@@ -130,7 +132,7 @@ export class ValidatedPubkyAuthRequest {
 function createAuthorizationReview(
   parsed: Pick<
     ParsedPubkyAuthRequest,
-    "authenticationMethod" | "capabilities" | "callbacks" | "source"
+    "authenticationMethod" | "capabilities" | "callbacks" | "source" | "expectedSigner"
   >,
 ): AuthorizationRequestReview {
   const capabilities = Object.freeze(
@@ -148,6 +150,7 @@ function createAuthorizationReview(
     capabilities,
     ...(parsed.source ? { requesterName: parsed.source } : {}),
     ...(callbackHost ? { callbackHost } : {}),
+    ...(parsed.expectedSigner ? { expectedSigner: parsed.expectedSigner } : {}),
   });
 }
 

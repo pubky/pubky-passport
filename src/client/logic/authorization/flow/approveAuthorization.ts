@@ -13,7 +13,10 @@ import type { PubkyIdentityKey, PubkyPublicIdentity } from "@/client/logic/pubky
 import type { PubkySdkAdapter } from "@/client/logic/pubky/PubkySdkAdapter";
 import type { ValidatedPubkyAuthRequest } from "@/client/logic/authorization/request/ValidatedPubkyAuthRequest";
 
-type ApproveAuthorizationResult = ResultType<void, CodedFailure<"approval_failed" | "cancelled">>;
+type ApproveAuthorizationResult = ResultType<
+  void,
+  CodedFailure<"approval_failed" | "cancelled" | "expected_signer_mismatch">
+>;
 
 type RestoreLocalIdentityResult = ResultType<
   PubkyIdentityKey,
@@ -90,7 +93,13 @@ export async function approveAuthorization(
         code: approved.error.code,
         ...safeErrorLogFields(approved.error),
       });
-      return Result.err({ code: "approval_failed", cause: approved.error });
+      return Result.err({
+        code:
+          approved.error.code === "expected_signer_mismatch"
+            ? "expected_signer_mismatch"
+            : "approval_failed",
+        cause: approved.error,
+      });
     }
     return Result.ok();
   } catch (e) {

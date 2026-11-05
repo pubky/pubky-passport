@@ -841,6 +841,51 @@ describe("AuthorizationFlow", () => {
     expect(MOCKS.approve).not.toHaveBeenCalled();
   });
 
+  it("opens the identity a request names, even when another one is active", async () => {
+    const user = userEvent.setup();
+    MOCKS.authorizationState = {
+      status: "review",
+      review: { ...REVIEW, expectedSigner: SECOND.publicIdentity.publicKeyZ32 },
+    };
+    renderFlow();
+
+    expect(
+      await screen.findByText("requesting.app asked to sign in as Second User (seco...-key)"),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Switch" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Authorize" }));
+
+    expect(MOCKS.approve).toHaveBeenCalledExactlyOnceWith(SECOND.publicIdentity.publicKeyZ32);
+    expect(MOCKS.select).not.toHaveBeenCalled();
+  });
+
+  it("refuses a request for a pubky this Passport does not hold", async () => {
+    const user = userEvent.setup();
+    MOCKS.authorizationState = {
+      status: "review",
+      review: { ...REVIEW, expectedSigner: "8um71us3fyw6h8wbcxb5ar3rwusy1a6u49956ikzojg3gcwd1dty" },
+    };
+    renderFlow();
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "This request is for 8um7...1dty, which isn't in this Passport.",
+    );
+    await user.click(screen.getByRole("button", { name: "Authorize" }));
+    expect(MOCKS.approve).not.toHaveBeenCalled();
+  });
+
+  it("explains an approval the SDK refused for another pubky", async () => {
+    MOCKS.authorizationState = {
+      status: "failed",
+      expectedSigner: "8um71us3fyw6h8wbcxb5ar3rwusy1a6u49956ikzojg3gcwd1dty",
+    };
+    renderFlow();
+
+    expect(
+      await screen.findByText("This request is for 8um7...1dty. Approve it with that pubky."),
+    ).toBeInTheDocument();
+  });
+
   it("authorizes with the selected identity", async () => {
     const user = userEvent.setup();
     renderFlow();
