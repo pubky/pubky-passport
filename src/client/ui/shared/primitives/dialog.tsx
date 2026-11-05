@@ -1,4 +1,4 @@
-import { type ComponentPropsWithoutRef, useEffect, useRef } from "react";
+import { type ComponentPropsWithoutRef, useLayoutEffect, useRef } from "react";
 
 type DialogProps = Omit<ComponentPropsWithoutRef<"dialog">, "onCancel" | "open"> & {
   onOpenChange: (open: boolean) => void;
@@ -8,7 +8,8 @@ type DialogProps = Omit<ComponentPropsWithoutRef<"dialog">, "onCancel" | "open">
 function Dialog({ onOpenChange, open, ...props }: DialogProps) {
   const dialog = useRef<HTMLDialogElement>(null);
 
-  useEffect(() => {
+  // A layout effect closes the dialog before React detaches it, so the browser returns focus.
+  useLayoutEffect(() => {
     const element = dialog.current;
     if (!element) return;
     if (open && !element.open) {

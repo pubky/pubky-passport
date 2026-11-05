@@ -11,8 +11,10 @@ import {
 const MOCKS = vi.hoisted(() => ({
   createRecoveryFile: vi.fn(),
   dispose: vi.fn(),
+  listAuthorizedApps: vi.fn(),
   publishHomeserver: vi.fn(),
   restoreIdentityKey: vi.fn(),
+  revokeAuthorizedApp: vi.fn(),
 }));
 
 vi.mock("@/client/logic/pubky/PubkySdkAdapter", async (importOriginal) => {
@@ -25,8 +27,10 @@ vi.mock("@/client/logic/pubky/PubkySdkAdapter", async (importOriginal) => {
       }
       createRecoveryFile = MOCKS.createRecoveryFile;
       dispose = MOCKS.dispose;
+      listAuthorizedApps = MOCKS.listAuthorizedApps;
       publishHomeserver = MOCKS.publishHomeserver;
       restoreIdentityKey = MOCKS.restoreIdentityKey;
+      revokeAuthorizedApp = MOCKS.revokeAuthorizedApp;
     },
   };
 });
@@ -37,6 +41,8 @@ const PUBLIC_KEY = "yqooxx9u3aemh8mo5wcqq16yufu6jitouq1o4za751dger1igghy";
 
 beforeEach(() => {
   MOCKS.createRecoveryFile.mockReset();
+  MOCKS.listAuthorizedApps.mockReset();
+  MOCKS.revokeAuthorizedApp.mockReset();
   MOCKS.dispose.mockReset();
   MOCKS.publishHomeserver.mockReset();
   MOCKS.restoreIdentityKey.mockReset();
@@ -210,6 +216,106 @@ describe("LocalIdentityController", () => {
       expect(secretBytes).toEqual(new Uint8Array(32));
       expect(MOCKS.dispose).toHaveBeenCalledOnce();
       expect(JSON.stringify(warning.mock.calls)).not.toContain("SECRET-REPUBLISH-CANARY");
+    },
+  );
+});
+
+describe("LocalIdentityController authorized apps", () => {
+  const app = {
+    grantId: "grant-1",
+    clientId: "demo.pubky.app",
+    capabilities: ["/pub/demo.pubky.app/:rw"],
+    issuedAt: 1,
+    expiresAt: 0,
+  };
+
+  it("lists apps with the restored key, then clears it and disposes the SDK", async () => {
+    const secretBytes = new Uint8Array(32).fill(7);
+    const keyHandle = {};
+    MOCKS.restoreIdentityKey.mockReturnValue(
+      Result.ok({ keyHandle, publicIdentity: { publicKeyZ32: PUBLIC_KEY } }),
+    );
+    MOCKS.listAuthorizedApps.mockResolvedValue(Result.ok([app]));
+
+    const result = await new LocalIdentityController(
+      storedIdentityRepository(secretBytes),
+    ).listAuthorizedApps(PUBLIC_KEY);
+
+    expect(expectResultOk(result)).toEqual([app]);
+    expect(MOCKS.listAuthorizedApps).toHaveBeenCalledWith(keyHandle);
+    expect(secretBytes).toEqual(new Uint8Array(32));
+    expect(MOCKS.dispose).toHaveBeenCalledOnce();
+  });
+
+  it("revokes one grant with the restored key", async () => {
+    const keyHandle = {};
+    MOCKS.restoreIdentityKey.mockReturnValue(
+      Result.ok({ keyHandle, publicIdentity: { publicKeyZ32: PUBLIC_KEY } }),
+    );
+    MOCKS.revokeAuthorizedApp.mockResolvedValue(Result.ok());
+
+    expectResultOk(
+      await new LocalIdentityController(
+        storedIdentityRepository(new Uint8Array(32)),
+      ).revokeAuthorizedApp(PUBLIC_KEY, "grant-1"),
+    );
+
+    expect(MOCKS.revokeAuthorizedApp).toHaveBeenCalledWith(keyHandle, "grant-1");
+    expect(MOCKS.dispose).toHaveBeenCalledOnce();
+  });
+
+  it("maps a missing identity without creating the SDK", async () => {
+    const repository = {
+      ...storedIdentityRepository(new Uint8Array(32)),
+      read: vi.fn(() => Result.err({ code: "storage_unavailable" as const })),
+    };
+
+    const result = await new LocalIdentityController(repository).listAuthorizedApps(PUBLIC_KEY);
+
+    expect(Result.isError(result) && result.error.code).toBe("identity_unavailable");
+    expect(MOCKS.restoreIdentityKey).not.toHaveBeenCalled();
+  });
+
+  it("rejects a stored key that restores to another identity", async () => {
+    MOCKS.restoreIdentityKey.mockReturnValue(
+      Result.ok({ keyHandle: {}, publicIdentity: { publicKeyZ32: "y".repeat(52) } }),
+    );
+
+    const result = await new LocalIdentityController(
+      storedIdentityRepository(new Uint8Array(32)),
+    ).revokeAuthorizedApp(PUBLIC_KEY, "grant-1");
+
+    expect(Result.isError(result) && result.error.code).toBe("revocation_failed");
+    expect(MOCKS.revokeAuthorizedApp).not.toHaveBeenCalled();
+    expect(MOCKS.dispose).toHaveBeenCalledOnce();
+  });
+
+  it.each(["failure", "exception"] as const)(
+    "contains a grant %s and still clears and disposes",
+    async (outcome) => {
+      const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+      const secretBytes = new Uint8Array(32).fill(7);
+      MOCKS.restoreIdentityKey.mockReturnValue(
+        Result.ok({ keyHandle: {}, publicIdentity: { publicKeyZ32: PUBLIC_KEY } }),
+      );
+      MOCKS.listAuthorizedApps.mockImplementation(async () => {
+        if (outcome === "exception") throw new Error("SECRET-GRANTS-CANARY");
+        return Result.err({ code: "list_failed" as const });
+      });
+      MOCKS.revokeAuthorizedApp.mockImplementation(async () => {
+        if (outcome === "exception") throw new Error("SECRET-GRANTS-CANARY");
+        return Result.err({ code: "revoke_failed" as const });
+      });
+      const controller = new LocalIdentityController(storedIdentityRepository(secretBytes));
+
+      const listed = await controller.listAuthorizedApps(PUBLIC_KEY);
+      const revoked = await controller.revokeAuthorizedApp(PUBLIC_KEY, "grant-1");
+
+      expect(Result.isError(listed) && listed.error.code).toBe("authorized_apps_unavailable");
+      expect(Result.isError(revoked) && revoked.error.code).toBe("revocation_failed");
+      expect(secretBytes).toEqual(new Uint8Array(32));
+      expect(MOCKS.dispose).toHaveBeenCalledTimes(2);
+      expect(JSON.stringify(warning.mock.calls)).not.toContain("SECRET-GRANTS-CANARY");
     },
   );
 });

@@ -5,7 +5,12 @@ import { Result, type Result as ResultType } from "better-result";
 import { LOGGER, safeErrorLogFields } from "@/libs/logger/logger";
 import type { CodedFailure } from "@/libs/result";
 import type { PubkyHomeserverResolutionResult } from "@/client/logic/pubky/pubkyIdentityKey";
-import type { PubkyRingMigration, PubkySdkAdapter } from "@/client/logic/pubky/PubkySdkAdapter";
+import type { PubkyIdentityKeyHandle } from "@/client/logic/pubky/pubkyIdentityKey";
+import type {
+  PubkyAuthorizedApp,
+  PubkyRingMigration,
+  PubkySdkAdapter,
+} from "@/client/logic/pubky/PubkySdkAdapter";
 import type { LocalIdentityCatalog } from "./localIdentityModels";
 import {
   LocalStorageIdentityRepository,
@@ -26,6 +31,17 @@ type LocalIdentityHomeserverRepublishErrorCode = "publication_failed" | "identit
 export type LocalIdentityHomeserverRepublishResult = ResultType<
   void,
   CodedFailure<LocalIdentityHomeserverRepublishErrorCode>
+>;
+
+type LocalIdentityAuthorizedAppsErrorCode = "authorized_apps_unavailable" | "identity_unavailable";
+export type LocalIdentityAuthorizedAppsResult = ResultType<
+  readonly PubkyAuthorizedApp[],
+  CodedFailure<LocalIdentityAuthorizedAppsErrorCode>
+>;
+type LocalIdentityAuthorizedAppRevocationErrorCode = "identity_unavailable" | "revocation_failed";
+export type LocalIdentityAuthorizedAppRevocationResult = ResultType<
+  void,
+  CodedFailure<LocalIdentityAuthorizedAppRevocationErrorCode>
 >;
 
 type LocalIdentityRepositoryPort = Pick<
@@ -72,44 +88,33 @@ export class LocalIdentityController {
   }
 
   async republishHomeserver(publicKeyZ32: string): Promise<LocalIdentityHomeserverRepublishResult> {
-    const stored = this.repository.read(publicKeyZ32);
-    if (Result.isError(stored)) {
-      return Result.err({ code: "identity_unavailable", cause: stored.error });
-    }
+    return this.withRestoredIdentity(
+      publicKeyZ32,
+      "republish_homeserver",
+      "publication_failed",
+      (pubky, keyHandle) => pubky.publishHomeserver(keyHandle),
+    );
+  }
 
-    let pubky: PubkySdkAdapter | undefined;
-    try {
-      const { PubkySdkAdapter } = await import("@/client/logic/pubky/PubkySdkAdapter");
-      pubky = new PubkySdkAdapter();
-      const restored = await pubky.restoreIdentityKey(stored.value.secretKey);
-      if (Result.isError(restored)) {
-        return Result.err({ code: "publication_failed", cause: restored.error });
-      }
-      if (restored.value.publicIdentity.publicKeyZ32 !== publicKeyZ32) {
-        return Result.err({ code: "publication_failed" });
-      }
-      const published = await pubky.publishHomeserver(restored.value.keyHandle);
-      return Result.isError(published)
-        ? Result.err({ code: "publication_failed", cause: published.error })
-        : Result.ok();
-    } catch (e) {
-      LOGGER.warn("identity.controller.failed", {
-        operation: "republish_homeserver",
-        code: "publication_failed",
-        ...safeErrorLogFields(e),
-      });
-      return Result.err({ code: "publication_failed", cause: e });
-    } finally {
-      stored.value.secretKey.bytes.fill(0);
-      try {
-        pubky?.dispose();
-      } catch (e) {
-        LOGGER.warn("identity.homeserver.republish.cleanup.failed", {
-          operation: "pubky_dispose",
-          ...safeErrorLogFields(e),
-        });
-      }
-    }
+  async listAuthorizedApps(publicKeyZ32: string): Promise<LocalIdentityAuthorizedAppsResult> {
+    return this.withRestoredIdentity(
+      publicKeyZ32,
+      "list_authorized_apps",
+      "authorized_apps_unavailable",
+      (pubky, keyHandle) => pubky.listAuthorizedApps(keyHandle),
+    );
+  }
+
+  async revokeAuthorizedApp(
+    publicKeyZ32: string,
+    grantId: string,
+  ): Promise<LocalIdentityAuthorizedAppRevocationResult> {
+    return this.withRestoredIdentity(
+      publicKeyZ32,
+      "revoke_authorized_app",
+      "revocation_failed",
+      (pubky, keyHandle) => pubky.revokeAuthorizedApp(keyHandle, grantId),
+    );
   }
 
   async createRecoveryFile(
@@ -178,6 +183,60 @@ export class LocalIdentityController {
       return Result.err({ code: "invalid_secret_key", cause: e });
     } finally {
       stored.value.secretKey.bytes.fill(0);
+    }
+  }
+
+  /**
+   * Restores the stored key into a short-lived SDK adapter for one operation, then clears the key
+   * bytes and disposes the adapter. Every failure after the identity is read maps to `failureCode`.
+   */
+  private async withRestoredIdentity<Success, FailureCode extends string>(
+    publicKeyZ32: string,
+    operation: "list_authorized_apps" | "republish_homeserver" | "revoke_authorized_app",
+    failureCode: FailureCode,
+    action: (
+      pubky: PubkySdkAdapter,
+      keyHandle: PubkyIdentityKeyHandle,
+    ) => Promise<ResultType<Success, CodedFailure<string>>>,
+  ): Promise<ResultType<Success, CodedFailure<FailureCode | "identity_unavailable">>> {
+    const stored = this.repository.read(publicKeyZ32);
+    if (Result.isError(stored)) {
+      return Result.err({ code: "identity_unavailable", cause: stored.error });
+    }
+
+    let pubky: PubkySdkAdapter | undefined;
+    try {
+      const { PubkySdkAdapter } = await import("@/client/logic/pubky/PubkySdkAdapter");
+      pubky = new PubkySdkAdapter();
+      const restored = pubky.restoreIdentityKey(stored.value.secretKey);
+      if (Result.isError(restored)) {
+        return Result.err({ code: failureCode, cause: restored.error });
+      }
+      if (restored.value.publicIdentity.publicKeyZ32 !== publicKeyZ32) {
+        return Result.err({ code: failureCode });
+      }
+      const result = await action(pubky, restored.value.keyHandle);
+      return Result.isError(result)
+        ? Result.err({ code: failureCode, cause: result.error })
+        : Result.ok(result.value);
+    } catch (e) {
+      LOGGER.warn("identity.controller.failed", {
+        operation,
+        code: failureCode,
+        ...safeErrorLogFields(e),
+      });
+      return Result.err({ code: failureCode, cause: e });
+    } finally {
+      stored.value.secretKey.bytes.fill(0);
+      try {
+        pubky?.dispose();
+      } catch (e) {
+        LOGGER.warn("identity.controller.cleanup.failed", {
+          operation,
+          stage: "pubky_dispose",
+          ...safeErrorLogFields(e),
+        });
+      }
     }
   }
 }

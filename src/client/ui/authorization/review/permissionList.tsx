@@ -2,11 +2,17 @@ import type { ReactNode } from "react";
 
 import { FolderIcon } from "@/client/ui/shared/icons";
 
-function PermissionList({ children }: { children: ReactNode }) {
+function PermissionList({
+  children,
+  title = "Requested permissions",
+}: {
+  children: ReactNode;
+  title?: string;
+}) {
   return (
     <section className="flex flex-col gap-2 rounded-[12px] border border-brand/32 p-[15px] shadow-xl">
       <h2 className="text-xs font-medium uppercase leading-5 tracking-[0.1em] text-brand">
-        Requested permissions
+        {title}
       </h2>
       {children}
     </section>
@@ -29,4 +35,11 @@ function PermissionRow({ access, path }: { access: string; path: string }) {
   );
 }
 
-export { PermissionList, PermissionRow };
+/** Short access label for a capability that grants read and/or write. */
+function formatPermissionAccess(capability: { read: boolean; write: boolean }): string {
+  if (capability.read && capability.write) return "Read,write";
+  if (capability.write) return "Write";
+  return "Read";
+}
+
+export { formatPermissionAccess, PermissionList, PermissionRow };
