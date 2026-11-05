@@ -5,7 +5,10 @@ import { Result } from "better-result";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { LOGGER } from "@/libs/logger/logger";
-import type { LocalIdentityHomeserverRepublishResult } from "@/client/logic/local-identity/LocalIdentityController";
+import type {
+  LocalIdentityAuthorizedAppsResult,
+  LocalIdentityHomeserverRepublishResult,
+} from "@/client/logic/local-identity/LocalIdentityController";
 import type { LocalIdentityMetadata } from "@/client/logic/local-identity/localIdentityModels";
 import type { LocalIdentityResult } from "@/client/logic/local-identity/LocalStorageIdentityRepository";
 import type { PubkyHomeserverResolutionResult } from "@/client/logic/pubky/pubkyIdentityKey";
@@ -36,6 +39,7 @@ describe("IdentityManagement", () => {
     render(
       <IdentityManagement
         identity={identity}
+        listAuthorizedApps={async () => Result.ok([])}
         onBack={vi.fn()}
         onDetachFromProvider={vi.fn()}
         onDownloadRecoveryFile={vi.fn()}
@@ -47,6 +51,7 @@ describe("IdentityManagement", () => {
             settleLookup = (pubky) => resolve(Result.ok(pubky));
           })
         }
+        revokeAuthorizedApp={async () => Result.ok()}
       />,
     );
 
@@ -235,6 +240,27 @@ describe("IdentityManagement", () => {
     await waitFor(() => expect(screen.getByText("homeserver-pubky")).toBeInTheDocument());
   });
 
+  it("lists authorized apps below the identity actions", async () => {
+    const listAuthorizedApps = vi.fn(async () =>
+      Result.ok([
+        {
+          grantId: "grant-1",
+          clientId: "demo.pubky.app",
+          capabilities: ["/pub/demo.pubky.app/:rw"],
+          issuedAt: 1_767_225_600,
+          expiresAt: 0,
+        },
+      ]),
+    );
+    renderManagement({ listAuthorizedApps });
+
+    const app = await screen.findByRole("button", { name: /demo\.pubky\.app/ });
+    const logout = screen.getByRole("button", { name: "Log out" });
+    expect(logout.compareDocumentPosition(app) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Authorized apps" })).toBeInTheDocument();
+    expect(listAuthorizedApps).toHaveBeenCalledOnce();
+  });
+
   it("keeps backup, keychain and logout available for an identity detached from Google", async () => {
     renderManagement({ identity: { publicIdentity: identity.publicIdentity } });
 
@@ -286,6 +312,7 @@ describe("IdentityManagement", () => {
 
 function renderManagement({
   identity: managedIdentity = identity,
+  listAuthorizedApps = async () => Result.ok([]),
   onBack = vi.fn(),
   onDetachFromProvider = vi.fn(),
   onDownloadRecoveryFile = vi.fn(),
@@ -295,6 +322,7 @@ function renderManagement({
   resolveHomeserver = async () => Result.ok("homeserver-pubky"),
 }: {
   identity?: LocalIdentityMetadata;
+  listAuthorizedApps?: () => Promise<LocalIdentityAuthorizedAppsResult>;
   onBack?: () => void;
   onDetachFromProvider?: (account: unknown) => void;
   onDownloadRecoveryFile?: () => void;
@@ -306,6 +334,7 @@ function renderManagement({
   return render(
     <IdentityManagement
       identity={managedIdentity}
+      listAuthorizedApps={listAuthorizedApps}
       onBack={onBack}
       onDetachFromProvider={onDetachFromProvider}
       onDownloadRecoveryFile={onDownloadRecoveryFile}
@@ -313,6 +342,7 @@ function renderManagement({
       onMigrateToKeychain={onMigrateToKeychain}
       republishHomeserver={republishHomeserver}
       resolveHomeserver={resolveHomeserver}
+      revokeAuthorizedApp={async () => Result.ok()}
     />,
   );
 }

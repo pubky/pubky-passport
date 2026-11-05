@@ -110,6 +110,7 @@ function ReadyIdentityDashboard({
       return (
         <IdentityManagement
           identity={identity}
+          listAuthorizedApps={() => actions.listAuthorizedApps(publicKeyZ32)}
           onBack={() => setNavigation({ view: "overview" })}
           onDetachFromProvider={(account) => {
             setNavigation({ view: "detach-from-provider", account, identity });
@@ -124,6 +125,7 @@ function ReadyIdentityDashboard({
           }}
           republishHomeserver={() => actions.republishHomeserver(publicKeyZ32)}
           resolveHomeserver={actions.resolveHomeserver}
+          revokeAuthorizedApp={(grantId) => actions.revokeAuthorizedApp(publicKeyZ32, grantId)}
         />
       );
     }

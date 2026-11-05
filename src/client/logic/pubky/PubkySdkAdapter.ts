@@ -1,6 +1,15 @@
 import "client-only";
 
-import { Keypair, Pubky, PublicKey, type PubkyError, type Session } from "@synonymdev/pubky";
+import {
+  GrantManager,
+  Keypair,
+  Pubky,
+  PublicKey,
+  type GrantInfo,
+  type GrantSession,
+  type PubkyError,
+  type Session,
+} from "@synonymdev/pubky";
 import { Result, type Result as ResultType } from "better-result";
 
 import { LOGGER, safeErrorLogFields } from "@/libs/logger/logger";
@@ -43,6 +52,26 @@ export type PubkyRecoveryFileResult = ResultType<
 type PubkyAuthApprovalErrorCode =
   "approval_failed" | "expected_signer_mismatch" | "key_unavailable" | "request_rejected";
 export type PubkyAuthApprovalResult = ResultType<void, CodedFailure<PubkyAuthApprovalErrorCode>>;
+
+/** An app the user authorized, as listed by the homeserver. Times are Unix seconds. */
+export type PubkyAuthorizedApp = Readonly<{
+  grantId: string;
+  clientId: string;
+  capabilities: readonly string[];
+  issuedAt: number;
+  expiresAt: number;
+}>;
+type PubkyAuthorizedAppsErrorCode = "key_unavailable" | "list_failed";
+export type PubkyAuthorizedAppsResult = ResultType<
+  readonly PubkyAuthorizedApp[],
+  CodedFailure<PubkyAuthorizedAppsErrorCode>
+>;
+type PubkyAuthorizedAppRevocationErrorCode =
+  "invalid_grant_id" | "key_unavailable" | "revoke_failed";
+export type PubkyAuthorizedAppRevocationResult = ResultType<
+  void,
+  CodedFailure<PubkyAuthorizedAppRevocationErrorCode>
+>;
 
 type Signer = ReturnType<Pubky["signer"]>;
 type PublicKeyParseResult<ErrorCode extends string> = ResultType<
@@ -367,6 +396,77 @@ export class PubkySdkAdapter {
     }
   }
 
+  /**
+   * Lists the apps this identity authorized. Signs in with a short-lived root session and hides
+   * that session's own grant by id. Earlier Passport sessions whose signout failed stay listed so
+   * the user can revoke them.
+   */
+  async listAuthorizedApps(keyHandle: PubkyIdentityKeyHandle): Promise<PubkyAuthorizedAppsResult> {
+    const keypair = this.keypairFor(keyHandle);
+    if (!keypair) {
+      return failure("list_authorized_apps", "key_lookup", "key_unavailable");
+    }
+
+    try {
+      const apps = await this.withGrantManager(
+        "list_authorized_apps",
+        keypair,
+        async (manager, sessionGrantId) => {
+          const grants = await manager.list();
+          try {
+            return Object.freeze(
+              grants
+                .filter((grant) => grant.grantId !== sessionGrantId)
+                .map((grant) => authorizedApp(grant)),
+            );
+          } finally {
+            for (const grant of grants) {
+              cleanup("list_authorized_apps", "grant_info_free", () => grant.free());
+            }
+          }
+        },
+      );
+      return Result.ok(apps);
+    } catch (e) {
+      return failure("list_authorized_apps", "sdk_grants", "list_failed", e);
+    }
+  }
+
+  /** Revokes one grant issued by this identity. */
+  async revokeAuthorizedApp(
+    keyHandle: PubkyIdentityKeyHandle,
+    grantId: string,
+  ): Promise<PubkyAuthorizedAppRevocationResult> {
+    if (grantId.trim().length === 0) {
+      return failure("revoke_authorized_app", "input_validation", "invalid_grant_id");
+    }
+
+    const keypair = this.keypairFor(keyHandle);
+    if (!keypair) {
+      return failure("revoke_authorized_app", "key_lookup", "key_unavailable");
+    }
+
+    try {
+      const revoked = await this.withGrantManager(
+        "revoke_authorized_app",
+        keypair,
+        async (manager, sessionGrantId) => {
+          // The session's own grant is removed by signout; it is never offered for revocation.
+          if (grantId === sessionGrantId) return false;
+          await manager.revoke(grantId);
+          return true;
+        },
+      );
+      return revoked
+        ? Result.ok()
+        : failure("revoke_authorized_app", "input_validation", "invalid_grant_id");
+    } catch (e) {
+      // A grant the homeserver no longer knows is already in the requested state.
+      if (requestStatus(e) === 404) return Result.ok();
+      return failure("revoke_authorized_app", "sdk_grants", "revoke_failed", e);
+    }
+  }
+
   dispose(): void {
     if (this.disposed) {
       return;
@@ -436,6 +536,39 @@ export class PubkySdkAdapter {
 
   private keypairFor(keyHandle: PubkyIdentityKeyHandle): Keypair | undefined {
     return this.disposed ? undefined : this.keypairs.get(keyHandle);
+  }
+
+  /**
+   * Runs one grant-management call with a root session that is signed out and freed afterwards.
+   * `sessionGrantId` is the grant backing that session, so callers can hide it.
+   */
+  private async withGrantManager<OperationResult>(
+    operationName: "list_authorized_apps" | "revoke_authorized_app",
+    keypair: Keypair,
+    operation: (
+      manager: GrantManager,
+      sessionGrantId: string | undefined,
+    ) => Promise<OperationResult>,
+  ): Promise<OperationResult> {
+    let session: Session | undefined;
+    let grantSession: GrantSession | undefined;
+    let manager: GrantManager | undefined;
+    try {
+      session = await this.withSigner(operationName, keypair, (signer) =>
+        signer.signin(PASSPORT_CLIENT_ID),
+      );
+      grantSession = session.grant;
+      const sessionGrantId = grantSession ? await grantSession.grantId() : undefined;
+      manager = new GrantManager(session);
+      return await operation(manager, sessionGrantId);
+    } finally {
+      cleanup(operationName, "grant_manager_free", () => manager?.free());
+      cleanup(operationName, "grant_session_free", () => grantSession?.free());
+      if (session) {
+        await signout(operationName, session);
+      }
+      cleanup(operationName, "session_free", () => session?.free());
+    }
   }
 
   private async withSigner<OperationResult>(
@@ -548,6 +681,34 @@ function isExpectedSignerRefusalMessage(message: string): boolean {
   return message === EXPECTED_SIGNER_REFUSAL || message.endsWith(`: ${EXPECTED_SIGNER_REFUSAL}`);
 }
 
+function authorizedApp(grant: GrantInfo): PubkyAuthorizedApp {
+  return Object.freeze({
+    grantId: grant.grantId,
+    clientId: grant.clientId,
+    capabilities: Object.freeze(
+      grant.capabilities
+        .split(",")
+        .map((capability) => capability.trim())
+        .filter((capability) => capability.length > 0),
+    ),
+    issuedAt: grant.issuedAt,
+    expiresAt: grant.expiresAt,
+  });
+}
+
+async function signout(operation: PubkyOperation, session: Session): Promise<void> {
+  try {
+    await session.signout();
+  } catch (e) {
+    LOGGER.warn("identity.pubky.cleanup.failed", {
+      operation,
+      stage: "session_signout",
+      code: "cleanup_failed",
+      ...safeErrorLogFields(e),
+    });
+  }
+}
+
 function authenticatedIdentityFromSession(
   operation: "signup" | "signin",
   session: Session,
@@ -577,9 +738,11 @@ type PubkyOperation =
   | "dispose_adapter"
   | "dispose_identity_key"
   | "export_secret_key"
+  | "list_authorized_apps"
   | "publish_homeserver"
   | "resolve_homeserver"
   | "restore_identity_key"
+  | "revoke_authorized_app"
   | "signin"
   | "signup";
 
@@ -592,6 +755,7 @@ type PubkyFailureStage =
   | "sdk_approval"
   | "sdk_create"
   | "sdk_export"
+  | "sdk_grants"
   | "sdk_initialize"
   | "sdk_public_identity"
   | "sdk_recovery_file"
@@ -602,6 +766,9 @@ type PubkyFailureStage =
   | "sdk_signup";
 
 type PubkyCleanupStage =
+  | "grant_info_free"
+  | "grant_manager_free"
+  | "grant_session_free"
   | "homeserver_free"
   | "keypair_free"
   | "pkdns_free"
@@ -615,6 +782,8 @@ type PubkyCleanupStage =
 
 type PubkyErrorCode =
   | PubkyAuthApprovalErrorCode
+  | PubkyAuthorizedAppRevocationErrorCode
+  | PubkyAuthorizedAppsErrorCode
   | PubkyPublicationErrorCode
   | PubkyIdentityKeysErrorCode
   | PubkyRecoveryFileErrorCode

@@ -2,6 +2,8 @@ import { Result } from "better-result";
 import { useState, useSyncExternalStore } from "react";
 
 import type {
+  LocalIdentityAuthorizedAppRevocationResult,
+  LocalIdentityAuthorizedAppsResult,
   LocalIdentityHomeserverRepublishResult,
   LocalIdentityRecoveryFileResult,
 } from "@/client/logic/local-identity/LocalIdentityController";
@@ -21,9 +23,14 @@ type IdentityCatalogActions = {
     publicKeyZ32: string,
     password: string,
   ) => Promise<LocalIdentityRecoveryFileResult>;
+  listAuthorizedApps: (publicKeyZ32: string) => Promise<LocalIdentityAuthorizedAppsResult>;
   removeIdentity: (publicKeyZ32: string) => LocalIdentityResult<void>;
   republishHomeserver: (publicKeyZ32: string) => Promise<LocalIdentityHomeserverRepublishResult>;
   resolveHomeserver: (publicKeyZ32: string) => Promise<PubkyHomeserverResolutionResult>;
+  revokeAuthorizedApp: (
+    publicKeyZ32: string,
+    grantId: string,
+  ) => Promise<LocalIdentityAuthorizedAppRevocationResult>;
   selectIdentity: (publicKeyZ32: string) => LocalIdentityResult<void>;
 };
 
@@ -48,10 +55,13 @@ class IdentityCatalogStore {
         this.controller.createPubkyRingMigration(publicKeyZ32),
       createRecoveryFile: async (publicKeyZ32, password) =>
         this.controller.createRecoveryFile(publicKeyZ32, password),
+      listAuthorizedApps: async (publicKeyZ32) => this.controller.listAuthorizedApps(publicKeyZ32),
       removeIdentity: (publicKeyZ32) => this.controller.removeIdentity(publicKeyZ32),
       republishHomeserver: async (publicKeyZ32) =>
         this.controller.republishHomeserver(publicKeyZ32),
       resolveHomeserver: async (publicKeyZ32) => this.controller.resolveHomeserver(publicKeyZ32),
+      revokeAuthorizedApp: async (publicKeyZ32, grantId) =>
+        this.controller.revokeAuthorizedApp(publicKeyZ32, grantId),
       selectIdentity: (publicKeyZ32) => this.controller.selectIdentity(publicKeyZ32),
     };
   }

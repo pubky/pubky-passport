@@ -57,10 +57,12 @@ export type LocalIdentityControllerPort = Pick<
   LocalIdentityController,
   | "createPubkyRingMigration"
   | "createRecoveryFile"
+  | "listAuthorizedApps"
   | "listIdentities"
   | "removeIdentity"
   | "republishHomeserver"
   | "resolveHomeserver"
+  | "revokeAuthorizedApp"
   | "selectIdentity"
   | "subscribeToIdentityChanges"
 >;

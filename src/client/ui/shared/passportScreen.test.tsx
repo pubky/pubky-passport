@@ -31,6 +31,7 @@ const MD_ALLOWED = new Set([
   // Bottom sheets on phones, centred 375px dialogs on wider screens.
   "onboarding/signInHelpDrawer.tsx",
   "shared/confirmDeletionDialog.tsx",
+  "identity-dashboard/management/authorized-apps/authorizedAppDialog.tsx",
   // A computer shows the Pubky Ring QR inline; a phone gets Show QR and Import pubky.
   "identity-dashboard/management/migrate-to-pubky-ring/migrateToPubkyRing.tsx",
 ]);

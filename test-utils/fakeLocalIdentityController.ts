@@ -18,6 +18,7 @@ export function fakeLocalIdentityController(
     createRecoveryFile:
       overrides.createRecoveryFile ??
       (async () => Result.err({ code: "recovery_file_failed" as const })),
+    listAuthorizedApps: overrides.listAuthorizedApps ?? (async () => Result.ok([])),
     listIdentities:
       overrides.listIdentities ??
       (() =>
@@ -40,6 +41,7 @@ export function fakeLocalIdentityController(
       }),
     republishHomeserver: overrides.republishHomeserver ?? (async () => Result.ok()),
     resolveHomeserver: overrides.resolveHomeserver ?? (async () => Result.ok(null)),
+    revokeAuthorizedApp: overrides.revokeAuthorizedApp ?? (async () => Result.ok()),
     selectIdentity:
       overrides.selectIdentity ??
       ((publicKeyZ32) => {

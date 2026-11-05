@@ -213,6 +213,7 @@ function ReadyAuthorizationWithIdentity({
     return (
       <IdentityManagement
         identity={identity}
+        listAuthorizedApps={() => actions.listAuthorizedApps(publicKeyZ32)}
         onBack={() =>
           setNavigation((current) =>
             current.view === "identity-selection" ? current : { view: "review" },
@@ -230,6 +231,7 @@ function ReadyAuthorizationWithIdentity({
         onMigrateToKeychain={() => setNavigation({ view: "migrate-to-pubky-ring", publicKeyZ32 })}
         republishHomeserver={() => actions.republishHomeserver(publicKeyZ32)}
         resolveHomeserver={actions.resolveHomeserver}
+        revokeAuthorizedApp={(grantId) => actions.revokeAuthorizedApp(publicKeyZ32, grantId)}
       />
     );
   }
