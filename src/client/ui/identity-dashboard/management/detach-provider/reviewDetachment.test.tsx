@@ -4,15 +4,17 @@ import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { ReviewGoogleDetachment } from "./reviewGoogleDetachment";
+import { ReviewDetachment } from "./reviewDetachment";
 
-describe("ReviewGoogleDetachment", () => {
+describe("ReviewDetachment", () => {
   afterEach(cleanup);
 
   it("shows the warning and gates confirmation behind Remove Google Access", async () => {
     const onBack = vi.fn();
     const onRemove = vi.fn();
-    const { container } = render(<ReviewGoogleDetachment onBack={onBack} onRemove={onRemove} />);
+    const { container } = render(
+      <ReviewDetachment providerName="Google" onBack={onBack} onRemove={onRemove} />,
+    );
 
     expect(screen.getByRole("heading", { name: "Detach from Google." })).toBeInTheDocument();
     expect(

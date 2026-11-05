@@ -1185,7 +1185,7 @@ function createSubject(): GoogleIdentityLifecycle {
       remove: MOCKS.repositoryRemove,
     },
     wrappingKeys: {
-      requestGoogleWrappingKey: MOCKS.requestWrappingKey,
+      requestWrappingKey: MOCKS.requestWrappingKey,
     },
     homegate: {
       requestGoogleSignupToken: MOCKS.requestSignupToken,

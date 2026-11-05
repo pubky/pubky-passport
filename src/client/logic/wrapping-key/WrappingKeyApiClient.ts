@@ -29,46 +29,55 @@ const ERROR_SCHEMA = z
   })
   .strict();
 
-export type GoogleWrappingKeyErrorCode =
+export type WrappingKeyErrorCode =
   (typeof ERROR_CODES)[number] | "invalid_response" | "network_failed";
 
-export type GoogleWrappingKeyResult = Result<
+export type WrappingKeyResult = Result<
   { wrappingKey: string; keyId: string },
-  { code: GoogleWrappingKeyErrorCode; cause: unknown; httpStatus?: number }
+  { code: WrappingKeyErrorCode; cause: unknown; httpStatus?: number }
 >;
 
+/** Sign-in providers with a same-origin wrapping-key endpoint, and their token field. */
+const ID_TOKEN_FIELDS = { google: "googleIdToken" } as const;
+export type WrappingKeyProvider = keyof typeof ID_TOKEN_FIELDS;
+
 /** Requests account-bound Passport wrapping keys from the same-origin server endpoint. */
-export class GoogleWrappingKeyApiClient {
-  /** @param fetch Same-origin transport used to call the Passport server endpoint. */
-  constructor(private readonly fetch: typeof globalThis.fetch) {}
+export class WrappingKeyApiClient {
+  /**
+   * @param fetch Same-origin transport used to call the Passport server endpoint.
+   * @param provider Provider whose ID token this client sends.
+   */
+  constructor(
+    private readonly fetch: typeof globalThis.fetch,
+    private readonly provider: WrappingKeyProvider,
+  ) {}
 
   /**
-   * Requests a wrapping key without exposing the Google token to failure details.
+   * Requests a wrapping key without exposing the ID token to failure details.
    *
-   * @param googleIdToken Google credential verified by the server before key derivation.
+   * @param idToken Provider ID token verified by the server before key derivation.
    * @param keyId Key ID from an existing envelope; omit it to request the current server key.
    * The promise settles with a Result for request and response failures. It does not
    * intentionally reject.
    */
-  async requestGoogleWrappingKey(
-    googleIdToken: string,
-    keyId?: string,
-  ): Promise<GoogleWrappingKeyResult> {
+  async requestWrappingKey(idToken: string, keyId?: string): Promise<WrappingKeyResult> {
+    const event = `identity.${this.provider}.wrapping_key.failed`;
+    const tokenField = ID_TOKEN_FIELDS[this.provider];
     let response: Response;
     try {
-      response = await this.fetch("/api/wrapping-key/google", {
+      response = await this.fetch(`/api/wrapping-key/${this.provider}`, {
         method: "POST",
         headers: { Accept: "application/json", "Content-Type": "application/json" },
-        // The optional key ID is public envelope metadata; Drive tokens never cross this boundary.
-        body: JSON.stringify(keyId ? { googleIdToken, keyId } : { googleIdToken }),
+        // Only the ID token and the public key ID cross this boundary; storage tokens never do.
+        body: JSON.stringify(keyId ? { [tokenField]: idToken, keyId } : { [tokenField]: idToken }),
         cache: "no-store",
         credentials: "same-origin",
         redirect: "error",
         referrerPolicy: "no-referrer",
       });
     } catch (e) {
-      LOGGER.warn("identity.google.wrapping_key.failed", {
-        operation: "request_google_wrapping_key",
+      LOGGER.warn(event, {
+        operation: "request_wrapping_key",
         stage: "request",
         ...safeErrorLogFields(e),
         code: "network_failed",
@@ -78,8 +87,8 @@ export class GoogleWrappingKeyApiClient {
 
     const contents = await readBoundedText(response, MAXIMUM_JSON_BODY_BYTES);
     if (Result.isError(contents)) {
-      LOGGER.warn("identity.google.wrapping_key.failed", {
-        operation: "request_google_wrapping_key",
+      LOGGER.warn(event, {
+        operation: "request_wrapping_key",
         stage: "response_read",
         httpStatus: response.status,
         ...safeErrorLogFields(contents.error.cause),
@@ -106,8 +115,8 @@ export class GoogleWrappingKeyApiClient {
       const cause = new HttpResponseError(response.status, response.statusText, responseText, {
         cause: parseCause,
       });
-      LOGGER.warn("identity.google.wrapping_key.failed", {
-        operation: "request_google_wrapping_key",
+      LOGGER.warn(event, {
+        operation: "request_wrapping_key",
         stage: "error_response",
         httpStatus: response.status,
         ...safeErrorLogFields(cause),
@@ -121,8 +130,8 @@ export class GoogleWrappingKeyApiClient {
       body = JSON.parse(responseText);
     } catch (e) {
       const responseError = new Error("Wrapping-key response must be valid JSON.", { cause: e });
-      LOGGER.warn("identity.google.wrapping_key.failed", {
-        operation: "request_google_wrapping_key",
+      LOGGER.warn(event, {
+        operation: "request_wrapping_key",
         stage: "response_parse",
         httpStatus: response.status,
         ...safeErrorLogFields(responseError),
@@ -140,8 +149,8 @@ export class GoogleWrappingKeyApiClient {
       return Result.ok(parsed.data);
     }
     // Zod issues may echo the wrapping key, so retain only a fixed diagnostic cause.
-    LOGGER.warn("identity.google.wrapping_key.failed", {
-      operation: "request_google_wrapping_key",
+    LOGGER.warn(event, {
+      operation: "request_wrapping_key",
       stage: "response_validation",
       httpStatus: response.status,
       code: "invalid_response",

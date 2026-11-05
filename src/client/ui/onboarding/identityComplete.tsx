@@ -1,24 +1,28 @@
 import Image from "next/image";
 
-import type { GoogleAccountProfile } from "@/libs/googleAccountProfile";
+import type { IdentityProviderAccount } from "@/client/logic/local-identity/localIdentityModels";
 import type { PubkyPublicIdentity } from "@/client/logic/pubky/pubkyIdentityKey";
 import { PassportScreen } from "@/client/ui/shared/passportScreen";
+import { ProviderAccountCard } from "@/client/ui/shared/providerAccountCard";
 import { ArrowRightIcon } from "@/client/ui/shared/icons";
 import { Button } from "@/client/ui/shared/primitives/button";
 import { DisplayHeading, LeadText } from "@/client/ui/shared/primitives/typography";
-import { GoogleAccountCard } from "./googleAccountCard";
 
 /** Confirms a newly created identity; a restored identity moves on without this screen. */
-function GoogleIdentityComplete({
-  googleAccount,
+function IdentityComplete({
+  account,
   identity,
+  notice,
   onContinue,
-  visibleRecoveryCopyStatus,
+  storageName,
 }: {
-  googleAccount: GoogleAccountProfile;
+  account: IdentityProviderAccount;
   identity: PubkyPublicIdentity;
+  /** Optional status shown above the account card, for example a missing recovery copy. */
+  notice?: string | undefined;
   onContinue: () => void;
-  visibleRecoveryCopyStatus: "created" | "unconfirmed" | "skipped";
+  /** Where the encrypted backup lives, for example "Google Drive". */
+  storageName: string;
 }) {
   return (
     <PassportScreen className="gap-0 md:pb-0">
@@ -26,20 +30,18 @@ function GoogleIdentityComplete({
         <DisplayHeading accent="complete." aria-label="Setup complete.">
           Setup
         </DisplayHeading>
-        <LeadText>Stored backup in Google Drive.</LeadText>
+        <LeadText>Stored backup in {storageName}.</LeadText>
       </div>
       <div className="mt-6 flex min-h-0 flex-1 flex-col md:mt-8">
-        {visibleRecoveryCopyStatus === "unconfirmed" || visibleRecoveryCopyStatus === "skipped" ? (
+        {notice ? (
           <p
             className="mb-6 rounded-xl border border-amber-400/40 bg-amber-400/10 p-4 text-sm leading-5"
             role="status"
           >
-            {visibleRecoveryCopyStatus === "skipped"
-              ? "Your identity is ready. No visible recovery copy was created in Google Drive because you did not grant that permission. Download a recovery file from identity management."
-              : "Your identity is ready, but Passport could not confirm the visible recovery copy in Google Drive. Download a recovery file from identity management."}
+            {notice}
           </p>
         ) : null}
-        <GoogleAccountCard account={googleAccount} />
+        <ProviderAccountCard account={account} />
         <div className="mt-6 min-h-[84px] rounded-xl border border-brand/32 p-[15px] shadow-xl">
           <p className="mb-2 text-xs font-medium uppercase leading-5 tracking-[0.1em] text-brand">
             Your Pubky
@@ -65,4 +67,4 @@ function GoogleIdentityComplete({
   );
 }
 
-export { GoogleIdentityComplete };
+export { IdentityComplete };

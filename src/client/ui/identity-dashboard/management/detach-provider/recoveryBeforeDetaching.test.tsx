@@ -12,6 +12,7 @@ describe("RecoveryBeforeDetaching", () => {
   it("shows the recovery gate and its available recovery methods", () => {
     render(
       <RecoveryBeforeDetaching
+        providerName="Google"
         onBack={vi.fn()}
         onRecoveryConfirmed={vi.fn()}
         onDownloadRecoveryFile={vi.fn()}
@@ -37,6 +38,7 @@ describe("RecoveryBeforeDetaching", () => {
     const onMigrateToKeychain = vi.fn();
     render(
       <RecoveryBeforeDetaching
+        providerName="Google"
         onBack={onBack}
         onRecoveryConfirmed={onRecoveryConfirmed}
         onDownloadRecoveryFile={onDownloadRecoveryFile}

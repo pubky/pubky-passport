@@ -2,9 +2,9 @@ import { useEffect, useRef } from "react";
 import { preload } from "react-dom";
 
 import { GoogleAccessScreen } from "./google/googleAccessScreen";
-import { GoogleIdentityComplete } from "./google/googleIdentityComplete";
 import { GoogleIdentityError } from "./google/googleIdentityError";
-import { GoogleIdentityProgress } from "./google/googleIdentityProgress";
+import { IdentityComplete } from "./identityComplete";
+import { IdentityProgress } from "./identityProgress";
 import { ContinueWithGoogle } from "./google/continueWithGoogle";
 import { useGoogleIdentityEstablishment } from "./google/useGoogleIdentityEstablishment";
 import { BackButton } from "@/client/ui/shared/backButton";
@@ -57,11 +57,12 @@ function IdentityEstablishmentFlow({
     case "complete":
       if (view.mode === "restored") return null;
       return (
-        <GoogleIdentityComplete
-          googleAccount={view.googleAccount}
+        <IdentityComplete
+          account={{ provider: "google", googleAccount: view.googleAccount }}
           identity={view.identity}
-          visibleRecoveryCopyStatus={view.visibleRecoveryCopyStatus}
+          notice={visibleRecoveryCopyNotice(view.visibleRecoveryCopyStatus)}
           onContinue={onComplete}
+          storageName="Google Drive"
         />
       );
     case "requesting-access":
@@ -79,7 +80,7 @@ function IdentityEstablishmentFlow({
       );
     }
     case "working":
-      return <GoogleIdentityProgress progress={view.progress} />;
+      return <IdentityProgress progress={view.progress} storageName="Google Drive" />;
     case "idle":
       if (forAuthorization) return <GoogleAccessScreen fullWidthAction />;
       return (
@@ -88,6 +89,19 @@ function IdentityEstablishmentFlow({
           {onBack ? <BackButton className="md:mt-auto" onClick={onBack} /> : null}
         </SignInPage>
       );
+  }
+}
+
+function visibleRecoveryCopyNotice(
+  status: "created" | "unconfirmed" | "skipped",
+): string | undefined {
+  switch (status) {
+    case "created":
+      return undefined;
+    case "skipped":
+      return "Your identity is ready. No visible recovery copy was created in Google Drive because you did not grant that permission. Download a recovery file from identity management.";
+    case "unconfirmed":
+      return "Your identity is ready, but Passport could not confirm the visible recovery copy in Google Drive. Download a recovery file from identity management.";
   }
 }
 

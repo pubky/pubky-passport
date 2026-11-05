@@ -1,4 +1,4 @@
-import type { GoogleIdentityProgress as GoogleIdentityProgressState } from "@/client/logic/google-identity/GoogleIdentityController";
+import type { IdentityProgress as IdentityProgressState } from "@/client/logic/identity-lifecycle/PassportFileIdentityLifecycle";
 import { PassportScreen } from "@/client/ui/shared/passportScreen";
 import { DisplayHeading } from "@/client/ui/shared/primitives/typography";
 
@@ -9,13 +9,20 @@ type ProgressPresentation =
   | { heading: "Setting up" | "Repairing"; listLabel: string; steps: SetupStep[] };
 
 /**
- * One screen for every establishment phase. The Drive lookup and a restore are usually over in a
+ * One screen for every establishment phase. The backup lookup and a restore are usually over in a
  * moment, so both stay on one steady "Loading" heading without a checklist; flashing steps past
  * for a few milliseconds reads as a glitch. Setup and repair take longer, so they announce
- * themselves and tick through their steps, starting from the completed Drive lookup.
+ * themselves and tick through their steps, starting from the completed backup lookup.
  */
-function GoogleIdentityProgress({ progress }: { progress: GoogleIdentityProgressState }) {
-  const presentation = progressPresentation(progress);
+function IdentityProgress({
+  progress,
+  storageName,
+}: {
+  progress: IdentityProgressState;
+  /** Where the encrypted backup lives, for example "Google Drive". */
+  storageName: string;
+}) {
+  const presentation = progressPresentation(progress, storageName);
   const heading = (
     <DisplayHeading
       accent="your pubky."
@@ -90,17 +97,19 @@ function ProgressStep({ step }: { step: SetupStep }) {
   );
 }
 
-const LOOKUP_STEP = "Check Google Drive for a backup";
-
-function progressPresentation(progress: GoogleIdentityProgressState): ProgressPresentation {
+function progressPresentation(
+  progress: IdentityProgressState,
+  storageName: string,
+): ProgressPresentation {
+  const lookupStep = `Check ${storageName} for a backup`;
   switch (progress.flow) {
     case "lookup":
     case "restore":
       return { heading: "Loading" };
     case "create":
-      return setupPresentation(CREATE_STEP_INDEX[progress.step]);
+      return setupPresentation(lookupStep, CREATE_STEP_INDEX[progress.step]);
     case "repair":
-      return repairPresentation(REPAIR_STEP_INDEX[progress.step]);
+      return repairPresentation(lookupStep, REPAIR_STEP_INDEX[progress.step]);
   }
 }
 
@@ -111,24 +120,25 @@ const CREATE_STEP_INDEX = {
   signing_up: 1,
   publishing: 2,
   activating: 3,
-} satisfies Record<Extract<GoogleIdentityProgressState, { flow: "create" }>["step"], number>;
+} satisfies Record<Extract<IdentityProgressState, { flow: "create" }>["step"], number>;
 
 const REPAIR_STEP_INDEX = {
   signing_up: 1,
   publishing: 2,
   signing_in: 3,
-} satisfies Record<Extract<GoogleIdentityProgressState, { flow: "repair" }>["step"], number>;
+} satisfies Record<Extract<IdentityProgressState, { flow: "repair" }>["step"], number>;
 
-/** Every flow starts with the completed Drive lookup, so flow indexes are offset by one. */
-function flowSteps(labels: string[], activeIndex: number): SetupStep[] {
-  return states([LOOKUP_STEP, ...labels], activeIndex + 1);
+/** Every flow starts with the completed backup lookup, so flow indexes are offset by one. */
+function flowSteps(lookupStep: string, labels: string[], activeIndex: number): SetupStep[] {
+  return states([lookupStep, ...labels], activeIndex + 1);
 }
 
-function repairPresentation(activeIndex: number): ProgressPresentation {
+function repairPresentation(lookupStep: string, activeIndex: number): ProgressPresentation {
   return {
     heading: "Repairing",
     listLabel: "Pubky identity repair progress",
     steps: flowSteps(
+      lookupStep,
       [
         "Restore encrypted backup",
         "Repair homeserver access",
@@ -140,11 +150,12 @@ function repairPresentation(activeIndex: number): ProgressPresentation {
   };
 }
 
-function setupPresentation(activeIndex: number): ProgressPresentation {
+function setupPresentation(lookupStep: string, activeIndex: number): ProgressPresentation {
   return {
     heading: "Setting up",
     listLabel: "Pubky identity setup progress",
     steps: flowSteps(
+      lookupStep,
       [
         "Store encrypted backup",
         "Sign up to the homeserver",
@@ -209,4 +220,4 @@ function PendingIcon() {
   );
 }
 
-export { GoogleIdentityProgress };
+export { IdentityProgress };

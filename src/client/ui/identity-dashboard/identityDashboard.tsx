@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 import type {
+  IdentityProviderAccount,
   LocalIdentityCatalog,
   LocalIdentityMetadata,
 } from "@/client/logic/local-identity/localIdentityModels";
@@ -16,7 +17,7 @@ import { RotateCcwIcon } from "@/client/ui/shared/icons";
 import { LoadingScreen } from "@/client/ui/shared/loadingScreen";
 import { ButtonLink } from "@/client/ui/shared/primitives/button";
 import { IdentityManagement } from "./management/identityManagement";
-import { DetachFromGoogleFlow } from "./management/detach-from-google/detachFromGoogleFlow";
+import { DetachFromProviderFlow } from "./management/detach-provider/detachFromProviderFlow";
 import { RecoveryFileDownload } from "./management/recovery-file/recoveryFileDownload";
 import { MigrateToPubkyRing } from "./management/migrate-to-pubky-ring/migrateToPubkyRing";
 import { IdentityOverview } from "./identityOverview";
@@ -28,7 +29,11 @@ type IdentityDashboardView =
   | { view: "manage-identity"; publicKeyZ32: string }
   | { view: "recovery-file"; publicKeyZ32: string }
   | { view: "migrate-to-pubky-ring"; publicKeyZ32: string }
-  | { view: "detach-from-google"; googleSubject: string; identity: LocalIdentityMetadata };
+  | {
+      view: "detach-from-provider";
+      account: IdentityProviderAccount;
+      identity: LocalIdentityMetadata;
+    };
 
 function IdentityDashboard() {
   const identityCatalogState = useIdentityCatalog();
@@ -106,14 +111,8 @@ function ReadyIdentityDashboard({
         <IdentityManagement
           identity={identity}
           onBack={() => setNavigation({ view: "overview" })}
-          onDetachFromGoogle={() => {
-            if (identity.googleAccount) {
-              setNavigation({
-                view: "detach-from-google",
-                googleSubject: identity.googleAccount.googleSubject,
-                identity,
-              });
-            }
+          onDetachFromProvider={(account) => {
+            setNavigation({ view: "detach-from-provider", account, identity });
           }}
           onDownloadRecoveryFile={() => setNavigation({ view: "recovery-file", publicKeyZ32 })}
           onRemoveLocalIdentity={() => actions.removeIdentity(publicKeyZ32)}
@@ -150,15 +149,15 @@ function ReadyIdentityDashboard({
           }
         />
       );
-    case "detach-from-google":
+    case "detach-from-provider":
       return (
-        <DetachFromGoogleFlow
+        <DetachFromProviderFlow
+          account={state.account}
           createRecoveryFile={actions.createRecoveryFile}
           createMigration={() => {
             // Detachment must back up the same identity that it will remove.
             return actions.createMigration(state.identity.publicIdentity.publicKeyZ32);
           }}
-          googleSubject={state.googleSubject}
           identity={state.identity}
           onBack={() =>
             setNavigation({
@@ -198,7 +197,7 @@ function resolveIdentityDashboardView(
   state: IdentityDashboardView,
   catalog: LocalIdentityCatalog,
 ): IdentityDashboardView {
-  if (state.view === "detach-from-google" || state.view === "onboarding") return state;
+  if (state.view === "detach-from-provider" || state.view === "onboarding") return state;
   if (catalog.identities.length === 0) return { view: "onboarding" };
   if (
     "publicKeyZ32" in state &&

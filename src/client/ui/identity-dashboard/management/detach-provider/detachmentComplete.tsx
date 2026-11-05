@@ -5,16 +5,26 @@ import { PassportScreen } from "@/client/ui/shared/passportScreen";
 import { Button } from "@/client/ui/shared/primitives/button";
 import { DisplayHeading, LeadText } from "@/client/ui/shared/primitives/typography";
 
-function GoogleDetachmentComplete({ onDone }: { onDone: () => void }) {
+function DetachmentComplete({
+  onDone,
+  providerName,
+}: {
+  onDone: () => void;
+  /** Sign-in provider that was removed, for example "Google". */
+  providerName: string;
+}) {
   return (
     <PassportScreen className="gap-6 md:gap-8">
       <div className="flex flex-col gap-6 md:gap-3">
-        <DisplayHeading accent="from Google." aria-label="Detached from Google.">
+        <DisplayHeading
+          accent={`from ${providerName}.`}
+          aria-label={`Detached from ${providerName}.`}
+        >
           Detached
         </DisplayHeading>
         <LeadText>
-          Google access has been removed. Your identity is self-managed, and recoverable only with
-          your backup.
+          {providerName} access has been removed. Your identity is self-managed, and recoverable
+          only with your backup.
         </LeadText>
       </div>
       <div className="flex h-[296px] items-center justify-center md:h-56">
@@ -35,4 +45,4 @@ function GoogleDetachmentComplete({ onDone }: { onDone: () => void }) {
   );
 }
 
-export { GoogleDetachmentComplete };
+export { DetachmentComplete };

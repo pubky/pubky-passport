@@ -2,9 +2,12 @@ import { describe, expect, it } from "vitest";
 import { Result } from "better-result";
 
 import { expectAsyncResultError } from "@test-utils/resultAssertions";
-import { parseGoogleIdTokenRequest } from "./routePolicy";
+import { parseIdTokenRequest } from "./idTokenRequestPolicy";
 
-describe("Google wrapping-key route policy", () => {
+const parseGoogleIdTokenRequest = (request: Request) =>
+  parseIdTokenRequest(request, "googleIdToken");
+
+describe("ID-token request policy", () => {
   it("accepts an exact non-empty field with JSON parameters", async () => {
     const result = await parseGoogleIdTokenRequest(
       jsonRequest({ googleIdToken: "id-token" }, "application/json; charset=utf-8"),
@@ -12,7 +15,7 @@ describe("Google wrapping-key route policy", () => {
 
     expect(Result.isOk(result)).toBe(true);
     if (Result.isOk(result)) {
-      expect(result.value).toEqual({ googleIdToken: "id-token" });
+      expect(result.value).toEqual({ idToken: "id-token" });
     }
   });
 
@@ -43,7 +46,7 @@ describe("Google wrapping-key route policy", () => {
     );
 
     expect(Result.isOk(result) && result.value).toEqual({
-      googleIdToken: "id-token",
+      idToken: "id-token",
       keyId: "2026-08",
     });
   });

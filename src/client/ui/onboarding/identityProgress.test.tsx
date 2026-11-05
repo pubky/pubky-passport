@@ -3,20 +3,20 @@
 import { cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
-import type { GoogleIdentityProgress as GoogleIdentityProgressState } from "@/client/logic/google-identity/GoogleIdentityController";
-import { GoogleIdentityProgress } from "./googleIdentityProgress";
+import type { IdentityProgress as IdentityProgressState } from "@/client/logic/identity-lifecycle/PassportFileIdentityLifecycle";
+import { IdentityProgress } from "./identityProgress";
 
 afterEach(cleanup);
 
-describe("GoogleIdentityProgress", () => {
+describe("IdentityProgress", () => {
   it.each([
     { flow: "lookup", step: "checking" },
     { flow: "restore", step: "restoring" },
     { flow: "restore", step: "signing_in" },
-  ] satisfies GoogleIdentityProgressState[])(
+  ] satisfies IdentityProgressState[])(
     "keeps %s on the steady loading screen without a step list",
     (progress) => {
-      render(<GoogleIdentityProgress progress={progress} />);
+      render(<IdentityProgress storageName="Google Drive" progress={progress} />);
 
       const heading = screen.getByRole("heading", { name: "Loading your pubky." });
       expect(heading.parentElement).toHaveClass("gap-6", "md:gap-8");
@@ -33,10 +33,10 @@ describe("GoogleIdentityProgress", () => {
     [{ flow: "create", step: "signing_up" }, "Sign up to the homeserver"],
     [{ flow: "create", step: "publishing" }, "Publish PKDNS records"],
     [{ flow: "create", step: "activating" }, "Activate identity"],
-  ] satisfies Array<[GoogleIdentityProgressState, string]>)(
+  ] satisfies Array<[IdentityProgressState, string]>)(
     "presents %s as the active setup step",
     (progress, activeLabel) => {
-      render(<GoogleIdentityProgress progress={progress} />);
+      render(<IdentityProgress storageName="Google Drive" progress={progress} />);
 
       const heading = screen.getByRole("heading", { name: "Setting up your pubky." });
       expect(heading.parentElement).toHaveClass("gap-6", "md:gap-8");
@@ -62,10 +62,10 @@ describe("GoogleIdentityProgress", () => {
     [{ flow: "repair", step: "signing_up" }, "Repair homeserver access"],
     [{ flow: "repair", step: "publishing" }, "Publish PKDNS records"],
     [{ flow: "repair", step: "signing_in" }, "Sign in to the homeserver"],
-  ] satisfies Array<[GoogleIdentityProgressState, string]>)(
+  ] satisfies Array<[IdentityProgressState, string]>)(
     "presents %s as the active repair step",
     (progress, activeLabel) => {
-      render(<GoogleIdentityProgress progress={progress} />);
+      render(<IdentityProgress storageName="Google Drive" progress={progress} />);
 
       expect(screen.getByRole("heading", { name: "Repairing your pubky." })).toBeInTheDocument();
       const progressList = screen.getByRole("list", {

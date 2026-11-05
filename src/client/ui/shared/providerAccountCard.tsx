@@ -1,15 +1,16 @@
 import type { ComponentPropsWithoutRef } from "react";
 
-import type { GoogleAccountProfile } from "@/libs/googleAccountProfile";
+import type { IdentityProviderAccount } from "@/client/logic/local-identity/localIdentityModels";
 import { GoogleLogo } from "@/client/ui/shared/brand/googleLogo";
 import { IdentitySummary } from "@/client/ui/shared/identitySummary";
 import { cn } from "@/client/ui/shared/mergeClassNames";
 
-type GoogleAccountCardProps = ComponentPropsWithoutRef<"div"> & {
-  account: GoogleAccountProfile;
+type ProviderAccountCardProps = ComponentPropsWithoutRef<"div"> & {
+  account: IdentityProviderAccount;
 };
 
-function GoogleAccountCard({ account, className, ...props }: GoogleAccountCardProps) {
+/** The sign-in account behind an identity, marked with its provider's logo. */
+function ProviderAccountCard({ account, className, ...props }: ProviderAccountCardProps) {
   return (
     <div
       className={cn(
@@ -19,14 +20,14 @@ function GoogleAccountCard({ account, className, ...props }: GoogleAccountCardPr
       {...props}
     >
       <IdentitySummary
-        avatarSrc={account.pictureUrl ?? undefined}
-        detail={account.email}
+        avatarSrc={account.googleAccount.pictureUrl ?? undefined}
+        detail={account.googleAccount.email}
         detailClassName="uppercase leading-4"
-        name={account.name}
+        name={account.googleAccount.name}
       />
       <GoogleLogo className="size-4 shrink-0" />
     </div>
   );
 }
 
-export { GoogleAccountCard };
+export { ProviderAccountCard };

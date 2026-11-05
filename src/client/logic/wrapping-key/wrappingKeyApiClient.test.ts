@@ -4,9 +4,15 @@ import { Result } from "better-result";
 import { encodeBase64Url } from "@/libs/encoding/base64Url";
 import { HttpResponseError } from "@/libs/http/HttpResponseError";
 import { LOGGER } from "@/libs/logger/logger";
-import { GoogleWrappingKeyApiClient } from "./GoogleWrappingKeyApiClient";
+import { WrappingKeyApiClient } from "./WrappingKeyApiClient";
 
-describe("GoogleWrappingKeyApiClient", () => {
+class GoogleWrappingKeyApiClient extends WrappingKeyApiClient {
+  constructor(fetch: typeof globalThis.fetch) {
+    super(fetch, "google");
+  }
+}
+
+describe("WrappingKeyApiClient", () => {
   afterEach(() => vi.restoreAllMocks());
 
   it("sends only the ID token to the wrapping-key endpoint", async () => {
@@ -30,7 +36,7 @@ describe("GoogleWrappingKeyApiClient", () => {
       });
     });
 
-    const result = await client.requestGoogleWrappingKey("id-token");
+    const result = await client.requestWrappingKey("id-token");
 
     expect(Result.isError(result)).toBe(false);
     expect(endpoint).toBe("/api/wrapping-key/google");
@@ -46,7 +52,7 @@ describe("GoogleWrappingKeyApiClient", () => {
       Response.json({ error: { code: "invalid_google_id_token" } }, { status: 401 }),
     );
 
-    const result = await client.requestGoogleWrappingKey("id-token");
+    const result = await client.requestWrappingKey("id-token");
 
     expect(Result.isError(result)).toBe(true);
     if (Result.isError(result)) {
@@ -61,7 +67,7 @@ describe("GoogleWrappingKeyApiClient", () => {
       });
     }
     expect(warn).toHaveBeenCalledWith("identity.google.wrapping_key.failed", {
-      operation: "request_google_wrapping_key",
+      operation: "request_wrapping_key",
       stage: "error_response",
       code: "invalid_google_id_token",
       httpStatus: 401,
@@ -78,7 +84,7 @@ describe("GoogleWrappingKeyApiClient", () => {
       return Response.json({ wrappingKey, keyId: "2026-07" });
     });
 
-    const result = await client.requestGoogleWrappingKey("id-token", "2026-07");
+    const result = await client.requestWrappingKey("id-token", "2026-07");
 
     expect(requestBody).toEqual({ googleIdToken: "id-token", keyId: "2026-07" });
     expect(Result.isOk(result) && result.value).toEqual({ wrappingKey, keyId: "2026-07" });
@@ -88,7 +94,7 @@ describe("GoogleWrappingKeyApiClient", () => {
     const client = new GoogleWrappingKeyApiClient(async () =>
       Response.json({ error: { code: "future_error" } }, { status: 401 }),
     );
-    const result = await client.requestGoogleWrappingKey("id-token");
+    const result = await client.requestWrappingKey("id-token");
     expect(Result.isError(result)).toBe(true);
     if (Result.isError(result)) {
       expect(result.error).toMatchObject({
@@ -103,7 +109,7 @@ describe("GoogleWrappingKeyApiClient", () => {
     const client = new GoogleWrappingKeyApiClient(
       async () => new Response("unavailable", { status: 503 }),
     );
-    const result = await client.requestGoogleWrappingKey("id-token");
+    const result = await client.requestWrappingKey("id-token");
     expect(Result.isError(result)).toBe(true);
     if (Result.isError(result)) {
       expect(result.error).toMatchObject({
@@ -124,7 +130,7 @@ describe("GoogleWrappingKeyApiClient", () => {
     { wrappingKey: `${"A".repeat(42)}*`, keyId: "current" },
   ])("rejects invalid or non-canonical wrapping-key responses", async (body) => {
     const client = new GoogleWrappingKeyApiClient(async () => Response.json(body));
-    const result = await client.requestGoogleWrappingKey("id-token");
+    const result = await client.requestWrappingKey("id-token");
     expect(Result.isError(result)).toBe(true);
     if (Result.isError(result)) {
       expect(result.error).toMatchObject({
@@ -146,7 +152,7 @@ describe("GoogleWrappingKeyApiClient", () => {
         Response.json({ wrappingKey, keyId: "current" }),
       );
 
-      expect(Result.isOk(await client.requestGoogleWrappingKey("id-token"))).toBe(true);
+      expect(Result.isOk(await client.requestWrappingKey("id-token"))).toBe(true);
     }
 
     expect(terminalCharacters).toEqual([
@@ -180,7 +186,7 @@ describe("GoogleWrappingKeyApiClient", () => {
       const client = new GoogleWrappingKeyApiClient(async () =>
         Response.json({ wrappingKey, keyId: "current" }),
       );
-      const result = await client.requestGoogleWrappingKey("id-token");
+      const result = await client.requestWrappingKey("id-token");
       expect(Result.isError(result)).toBe(false);
       if (!Result.isError(result)) expect(result.value).toEqual({ wrappingKey, keyId: "current" });
     }
@@ -190,7 +196,7 @@ describe("GoogleWrappingKeyApiClient", () => {
     const client = new GoogleWrappingKeyApiClient(async () =>
       Response.json({ padding: "x".repeat(16 * 1024) }),
     );
-    const result = await client.requestGoogleWrappingKey("id-token");
+    const result = await client.requestWrappingKey("id-token");
     expect(Result.isError(result)).toBe(true);
     if (Result.isError(result)) {
       expect(result.error).toMatchObject({
@@ -207,13 +213,13 @@ describe("GoogleWrappingKeyApiClient", () => {
     const client = new GoogleWrappingKeyApiClient(async () => {
       throw cause;
     });
-    const result = await client.requestGoogleWrappingKey("SECRET-GOOGLE-ID-TOKEN");
+    const result = await client.requestWrappingKey("SECRET-GOOGLE-ID-TOKEN");
     expect(Result.isError(result)).toBe(true);
     if (!Result.isError(result)) throw new Error("Expected wrapping-key network failure.");
     expect(result.error.code).toBe("network_failed");
     expect(result.error.cause).toBe(cause);
     expect(warn).toHaveBeenCalledWith("identity.google.wrapping_key.failed", {
-      operation: "request_google_wrapping_key",
+      operation: "request_wrapping_key",
       stage: "request",
       code: "network_failed",
       diagnosticId: expect.any(String),

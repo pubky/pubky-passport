@@ -37,7 +37,7 @@ describe("IdentityManagement", () => {
       <IdentityManagement
         identity={identity}
         onBack={vi.fn()}
-        onDetachFromGoogle={vi.fn()}
+        onDetachFromProvider={vi.fn()}
         onDownloadRecoveryFile={vi.fn()}
         onRemoveLocalIdentity={() => Result.ok()}
         onMigrateToKeychain={vi.fn()}
@@ -190,11 +190,11 @@ describe("IdentityManagement", () => {
     const onBack = vi.fn();
     const onDownloadRecoveryFile = vi.fn();
     const onMigrateToKeychain = vi.fn();
-    const onDetachFromGoogle = vi.fn();
+    const onDetachFromProvider = vi.fn();
     const onRemoveLocalIdentity = vi.fn(() => Result.ok());
     renderManagement({
       onBack,
-      onDetachFromGoogle,
+      onDetachFromProvider,
       onDownloadRecoveryFile,
       onMigrateToKeychain,
       onRemoveLocalIdentity,
@@ -225,7 +225,7 @@ describe("IdentityManagement", () => {
     fireEvent.click(detach);
     expect(onDownloadRecoveryFile).toHaveBeenCalledOnce();
     expect(onMigrateToKeychain).toHaveBeenCalledOnce();
-    expect(onDetachFromGoogle).toHaveBeenCalledOnce();
+    expect(onDetachFromProvider).toHaveBeenCalledOnce();
     expect(onRemoveLocalIdentity).not.toHaveBeenCalled();
     expect(onBack).not.toHaveBeenCalled();
 
@@ -250,7 +250,7 @@ describe("IdentityManagement", () => {
 function renderManagement({
   identity: managedIdentity = identity,
   onBack = vi.fn(),
-  onDetachFromGoogle = vi.fn(),
+  onDetachFromProvider = vi.fn(),
   onDownloadRecoveryFile = vi.fn(),
   onMigrateToKeychain = vi.fn(),
   onRemoveLocalIdentity = () => Result.ok(),
@@ -259,7 +259,7 @@ function renderManagement({
 }: {
   identity?: LocalIdentityMetadata;
   onBack?: () => void;
-  onDetachFromGoogle?: () => void;
+  onDetachFromProvider?: () => void;
   onDownloadRecoveryFile?: () => void;
   onMigrateToKeychain?: () => void;
   onRemoveLocalIdentity?: () => LocalIdentityResult<void>;
@@ -270,7 +270,7 @@ function renderManagement({
     <IdentityManagement
       identity={managedIdentity}
       onBack={onBack}
-      onDetachFromGoogle={onDetachFromGoogle}
+      onDetachFromProvider={onDetachFromProvider}
       onDownloadRecoveryFile={onDownloadRecoveryFile}
       onRemoveLocalIdentity={onRemoveLocalIdentity}
       onMigrateToKeychain={onMigrateToKeychain}

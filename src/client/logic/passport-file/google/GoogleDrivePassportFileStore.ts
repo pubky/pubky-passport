@@ -12,6 +12,10 @@ import {
   serializePassportFileEnvelope,
   type PassportFileEnvelope,
 } from "@/client/logic/passport-file/passportFileEnvelope";
+import type {
+  PassportFileReadResult as ProviderPassportFileReadResult,
+  PassportFileStore,
+} from "@/client/logic/passport-file/passportFileStore";
 import {
   authorizationHeaders,
   browserRequestLock,
@@ -50,9 +54,7 @@ type StoreFailure = CodedFailure<StoreErrorCode> & { httpStatus?: number };
 type StoreResult<Success> = ResultType<Success, StoreFailure>;
 type PassportFileMetadataFailure = StoreFailure | CodedFailure<"exact_file_missing">;
 /** Result of looking up the sole operational Passport file in `appDataFolder`. */
-type PassportFileReadResult =
-  | { status: "found"; envelope: PassportFileEnvelope; reference: DriveFileRevision }
-  | { status: "missing" };
+type PassportFileReadResult = ProviderPassportFileReadResult<DriveFileRevision>;
 type LocatedFile = { status: "missing" } | { status: "found"; reference: DriveFileRevision };
 type InspectedPassportFileMedia =
   { status: "valid"; envelope: PassportFileEnvelope } | { status: "invalid" };
@@ -67,7 +69,10 @@ const CREATE_PASSPORT_FILE_LOCK_NAME = "pubky-passport:google-drive:passport-fil
  * ID and uniqueness because Drive may advance `version` for invisible server-side
  * changes immediately after upload.
  */
-export class GoogleDrivePassportFileStore {
+export class GoogleDrivePassportFileStore implements PassportFileStore<
+  DriveFileRevision,
+  StoreFailure
+> {
   constructor(
     private readonly accessToken: string,
     private readonly fetchImpl: typeof fetch,
