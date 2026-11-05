@@ -2,6 +2,7 @@ import "client-only";
 
 import { Result, type Result as ResultType } from "better-result";
 
+import type { AppleAccount } from "@/libs/appleAccount";
 import type { GoogleAccountProfile } from "@/libs/googleAccountProfile";
 import { LOGGER, safeErrorLogFields } from "@/libs/logger/logger";
 import { NETWORK_OPERATION_TIMEOUT_MS } from "@/libs/passportPolicy";
@@ -43,7 +44,8 @@ export type IdentityProgress =
   | { flow: "repair"; step: "signing_up" | "publishing" | "signing_in" };
 
 /** The sign-in account saved with a local identity. */
-export type LocalIdentityAccount = { googleAccount: GoogleAccountProfile };
+export type LocalIdentityAccount =
+  { googleAccount: GoogleAccountProfile } | { appleAccount: AppleAccount };
 
 /** Failures shared by every provider that stores an encrypted Passport file. */
 export type IdentityLifecycleError =

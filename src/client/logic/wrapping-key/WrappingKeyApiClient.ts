@@ -14,6 +14,9 @@ const ERROR_CODES = [
   "invalid_google_id_token",
   "key_unavailable",
   "google_verifier_unavailable",
+  "invalid_apple_id_token",
+  "apple_verifier_unavailable",
+  "provider_disabled",
   "key_derivation_failed",
   "internal_error",
 ] as const;
@@ -38,7 +41,7 @@ export type WrappingKeyResult = Result<
 >;
 
 /** Sign-in providers with a same-origin wrapping-key endpoint, and their token field. */
-const ID_TOKEN_FIELDS = { google: "googleIdToken" } as const;
+const ID_TOKEN_FIELDS = { google: "googleIdToken", apple: "appleIdToken" } as const;
 export type WrappingKeyProvider = keyof typeof ID_TOKEN_FIELDS;
 
 /** Requests account-bound Passport wrapping keys from the same-origin server endpoint. */
