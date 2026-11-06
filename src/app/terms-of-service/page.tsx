@@ -13,7 +13,7 @@ export default function TermsOfServicePage() {
       <p>
         <strong>PUBKY PASSPORT TERMS AND CONDITIONS</strong>
         <br />
-        Effective Date: September 21, 2026
+        Effective Date: November 6, 2026
       </p>
       <p>
         Thank you for using Pubky Passport, the web application at passport.pubky.app that lets you
@@ -96,8 +96,8 @@ export default function TermsOfServicePage() {
             Homeserver;
           </li>
           <li>
-            keep an encrypted backup of that identity (the “Passport File”) in your own Google
-            Drive; and
+            keep an encrypted backup of that identity (the “Passport File”) in your own Google Drive
+            or iCloud; and
           </li>
           <li>
             review and approve or decline authorization requests sent to Passport by other
@@ -119,10 +119,7 @@ export default function TermsOfServicePage() {
         </SectionIntroduction>
         <p>You acknowledge and agree that in order to use Passport:</p>
         <ul>
-          <li>
-            you must be at least eighteen (18) years old, or have the permission of a parent or
-            legal guardian who accepts these Terms with you and is responsible for your activity;
-          </li>
+          <li>you must be at least eighteen (18) years old; Passport is for adults only;</li>
           <li>
             we must not have previously disabled your access for violation of Law or of any of our
             policies referenced in these Terms;
@@ -132,8 +129,8 @@ export default function TermsOfServicePage() {
             window rather than embedded in another site; and
           </li>
           <li>
-            you must have a Google Account, because Passport uses Google sign-in and Google Drive as
-            described below.
+            you must have a Google Account or an Apple Account, because Passport uses Google sign-in
+            and Google Drive, or Sign in with Apple and iCloud, as described below.
           </li>
         </ul>
         <p>
@@ -152,10 +149,12 @@ export default function TermsOfServicePage() {
           This section explains the role of Google, which is not us.
         </SectionIntroduction>
         <p>
-          Passport signs you in with Google and asks for your permission to use your Google Account
+          If you sign in with Google, Passport asks for your permission to use your Google Account
           for two purposes: to identify the Google Account associated with an identity, and to store
-          and read the Passport File in your Google Drive. Google is a third party. Your use of your
-          Google Account is governed by Google’s terms and privacy policy, not by these Terms.
+          and read the Passport File in your Google Drive. Passport asks Google for your name, email
+          address, and profile picture and stores them only in your browser. Google is a third
+          party. Your use of your Google Account is governed by Google’s terms and privacy policy,
+          not by these Terms.
         </p>
         <p>
           You may withdraw Google’s permissions at any time from your Google Account settings. If
@@ -163,6 +162,27 @@ export default function TermsOfServicePage() {
           Google will not work until you grant permission again. Loss of access to your Google
           Account, deletion of your Google Account, or deletion of the Passport File by you or by
           Google may make recovery impossible.
+        </p>
+      </LegalSection>
+
+      <LegalSection title="YOUR APPLE ACCOUNT">
+        <SectionIntroduction>
+          This section explains the role of Apple, which is not us.
+        </SectionIntroduction>
+        <p>
+          Where Passport offers it, you may sign in with Apple instead of Google. Passport asks
+          Apple for your name and email address and stores them only in your browser. Passport uses
+          Sign in with Apple to identify the Apple Account associated with an identity, and asks you
+          to connect iCloud to store and read the Passport File in your iCloud. Apple is a third
+          party. Your use of your Apple Account and iCloud is governed by Apple’s terms and privacy
+          policy, not by these Terms.
+        </p>
+        <p>
+          Recovery through Apple needs both the Apple Account you signed in with and the iCloud that
+          holds the Passport File. You may delete the Passport File from your iCloud with “Detach
+          from Apple” in Passport. Loss of access to your Apple Account or iCloud, deletion of your
+          Apple Account, or deletion of the Passport File by you or by Apple may make recovery
+          impossible.
         </p>
       </LegalSection>
 
@@ -178,16 +198,17 @@ export default function TermsOfServicePage() {
         </p>
         <p>
           The Passport File is a copy of that secret key, encrypted in your browser before it leaves
-          your device. Passport stores it in your Google Drive. Passport may also write additional
-          encrypted copies to a visible folder in your Google Drive so that you can see and keep
-          them yourself. We do not receive, hold, or store the Passport File, and we cannot read it.
+          your device. Passport stores it in your Google Drive or, if you sign in with Apple, in
+          your iCloud. Passport may also write additional encrypted copies to a visible folder in
+          your Google Drive so that you can see and keep them yourself. We do not receive, hold, or
+          store the Passport File, and we cannot read it.
         </p>
         <p>Decrypting a Passport File requires both:</p>
         <ul>
-          <li>the encrypted file, which lives in your Google Drive; and</li>
+          <li>the encrypted file, which lives in your Google Drive or iCloud; and</li>
           <li>
-            a wrapping key, which Passport’s server derives only after Google has verified an
-            identity assertion for the same Google Account, using a secret we hold.
+            a wrapping key, which Passport’s server derives only after verifying an identity
+            assertion signed by Google or Apple for the same account, using a secret we hold.
           </li>
         </ul>
         <p>You acknowledge and agree that:</p>
@@ -197,13 +218,14 @@ export default function TermsOfServicePage() {
             reconstruct it from the wrapping key alone;
           </li>
           <li>
-            if you clear your browser storage, lose your device, or lose your Google Account, and no
-            usable Passport File remains, your identity and anything that depends on it may be
-            permanently lost;
+            if you clear your browser storage, lose your device, or lose your Google Account or
+            Apple Account, and no usable Passport File remains, your identity and anything that
+            depends on it may be permanently lost;
           </li>
           <li>
-            anyone who obtains both your Google Account access and the encrypted file may be able to
-            restore your identity, so you must protect your Google Account accordingly;
+            anyone who obtains both access to your Google Account or Apple Account and the encrypted
+            file may be able to restore your identity, so you must protect those accounts
+            accordingly;
           </li>
           <li>you should keep your own copy of any recovery material Passport offers you; and</li>
           <li>
@@ -279,9 +301,9 @@ export default function TermsOfServicePage() {
         </SectionIntroduction>
         <p>
           Where Passport helps you create an account on a Homeserver, it asks a Synonym-operated
-          verification service to confirm your Google identity assertion and, if that succeeds, to
-          issue a signup invitation for a Homeserver. Passport then uses that invitation to create
-          the account.
+          verification service to confirm your Google or Apple identity assertion and, if that
+          succeeds, to issue a signup invitation for a Homeserver. Passport then uses that
+          invitation to create the account.
         </p>
         <p>
           Verification exists to limit abuse and automated account creation. It is rate limited, it
@@ -366,7 +388,8 @@ export default function TermsOfServicePage() {
         <p>
           The Pubky Passport <a href="/privacy-policy">Privacy Policy</a> explains how we treat
           personal information in connection with Passport, including what we receive from Google
-          and what stays on your device and in your Google Drive. It forms part of these Terms.
+          and Apple and what stays on your device, in your Google Drive, and in your iCloud. It
+          forms part of these Terms.
         </p>
       </LegalSection>
 
@@ -389,7 +412,8 @@ export default function TermsOfServicePage() {
         </p>
         <p>
           We may change, suspend, or discontinue Passport or any part of it, including a deployment,
-          an endpoint, or support for a Google permission, at any time.
+          an endpoint, support for a Google permission, or support for Sign in with Apple or iCloud,
+          at any time.
         </p>
       </LegalSection>
 
@@ -399,12 +423,13 @@ export default function TermsOfServicePage() {
         </SectionIntroduction>
         <p>
           Passport interoperates with Third-Party Materials, including Google sign-in and Google
-          Drive, Homeservers and their operators, public key resolution relays, authorization
-          relays, and the applications that ask you for authorization. Synonym is not responsible
-          for the content, availability, privacy settings, policies, or procedures of Third-Party
-          Materials, and their products and services are the sole responsibility of the third party.
-          If you decide to access any Third-Party Materials, you do so entirely at your own risk,
-          and you are advised to read their terms and privacy policies first.
+          Drive, Sign in with Apple and iCloud, Homeservers and their operators, public key
+          resolution relays, authorization relays, and the applications that ask you for
+          authorization. Synonym is not responsible for the content, availability, privacy settings,
+          policies, or procedures of Third-Party Materials, and their products and services are the
+          sole responsibility of the third party. If you decide to access any Third-Party Materials,
+          you do so entirely at your own risk, and you are advised to read their terms and privacy
+          policies first.
         </p>
       </LegalSection>
 
@@ -427,14 +452,15 @@ export default function TermsOfServicePage() {
           You may stop using Passport at any time. To remove your data, you can remove the
           identities held in your browser, clear Passport’s browser storage, delete the Passport
           File and any visible copies from your Google Drive, and withdraw Passport’s permissions in
-          your Google Account.
+          your Google Account. If you use Apple, you can delete the Passport File from your iCloud
+          with “Detach from Apple” in Passport.
         </p>
         <p>
           We may restrict or terminate your access to Passport at any time, including for a
           Prohibited Use, for a legal or regulatory reason, or because we discontinue the service,
           without liability for that termination. Termination does not delete your identity, your
-          Homeserver account, or files held in your Google Drive, and it does not by itself make
-          your identity unrecoverable.
+          Homeserver account, or files held in your Google Drive or iCloud, and it does not by
+          itself make your identity unrecoverable.
         </p>
       </LegalSection>
 
@@ -446,7 +472,8 @@ export default function TermsOfServicePage() {
           To the maximum extent permitted by applicable Law, neither Synonym nor any of its
           Associates assumes any liability or responsibility for any Losses directly or indirectly
           arising out of or related to Passport, including any loss of an identity, a key, a
-          Passport File, access to a Google Account, or access to a Homeserver account.
+          Passport File, access to a Google Account or Apple Account, or access to a Homeserver
+          account.
         </p>
         <p>
           You hereby agree to release Synonym and its Associates from liability for any and all such
@@ -466,8 +493,8 @@ export default function TermsOfServicePage() {
         <p>
           Synonym is not responsible for Losses caused by delay or failure of Synonym or of Passport
           where the delay or failure is due to an event outside our reasonable control, including
-          outages or changes at Google, at a Homeserver operator, or at a relay, network or protocol
-          failures, public health events, government acts, and acts of God.
+          outages or changes at Google, at Apple, at a Homeserver operator, or at a relay, network
+          or protocol failures, public health events, government acts, and acts of God.
         </p>
       </LegalSection>
 
@@ -576,6 +603,10 @@ export default function TermsOfServicePage() {
         </p>
         <ul>
           <li>
+            <strong>“Apple Account”</strong> means the account you use to sign in to Apple services
+            and iCloud;
+          </li>
+          <li>
             <strong>“Associates”</strong> means Synonym, its subsidiaries and affiliates and their
             respective directors, officers, employees, agents and representatives;
           </li>
@@ -606,7 +637,7 @@ export default function TermsOfServicePage() {
           </li>
           <li>
             <strong>“Passport File”</strong> means the encrypted copy of an identity secret key that
-            Passport writes to your Google Drive, including any visible copy;
+            Passport writes to your Google Drive or iCloud, including any visible copy;
           </li>
           <li>
             <strong>“Person”</strong> includes an individual, association, partnership, corporation,
