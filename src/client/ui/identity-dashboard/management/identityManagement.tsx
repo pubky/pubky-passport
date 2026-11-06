@@ -5,7 +5,11 @@ import { toast } from "sonner";
 
 import { LOGGER, safeErrorLogFields } from "@/libs/logger/logger";
 import type { LocalIdentityResult } from "@/client/logic/local-identity/LocalStorageIdentityRepository";
-import type { LocalIdentityHomeserverRepublishResult } from "@/client/logic/local-identity/LocalIdentityController";
+import type {
+  LocalIdentityAuthorizedAppRevocationResult,
+  LocalIdentityAuthorizedAppsResult,
+  LocalIdentityHomeserverRepublishResult,
+} from "@/client/logic/local-identity/LocalIdentityController";
 import type { LocalIdentityMetadata } from "@/client/logic/local-identity/localIdentityModels";
 import type { PubkyHomeserverResolutionResult } from "@/client/logic/pubky/pubkyIdentityKey";
 import {
@@ -26,6 +30,7 @@ import { Button } from "@/client/ui/shared/primitives/button";
 import { IconButton } from "@/client/ui/shared/primitives/iconButton";
 import { FieldMessage } from "@/client/ui/shared/primitives/fieldMessage";
 import { DisplayHeading } from "@/client/ui/shared/primitives/typography";
+import { AuthorizedApps } from "./authorized-apps/authorizedApps";
 
 type HomeserverLookup =
   { status: "looking-up" } | { status: "unavailable" } | { status: "resolved"; pubky: string };
@@ -43,6 +48,7 @@ function homeserverLabel(lookup: HomeserverLookup): string {
 
 function IdentityManagement({
   identity,
+  listAuthorizedApps,
   onBack,
   onDetachFromGoogle,
   onDownloadRecoveryFile,
@@ -50,8 +56,10 @@ function IdentityManagement({
   onMigrateToKeychain,
   republishHomeserver,
   resolveHomeserver,
+  revokeAuthorizedApp,
 }: {
   identity: LocalIdentityMetadata;
+  listAuthorizedApps: () => Promise<LocalIdentityAuthorizedAppsResult>;
   onBack: () => void;
   onDetachFromGoogle: () => void;
   onDownloadRecoveryFile: () => void;
@@ -59,6 +67,7 @@ function IdentityManagement({
   onMigrateToKeychain: () => void;
   republishHomeserver: () => Promise<LocalIdentityHomeserverRepublishResult>;
   resolveHomeserver: (publicKeyZ32: string) => Promise<PubkyHomeserverResolutionResult>;
+  revokeAuthorizedApp: (grantId: string) => Promise<LocalIdentityAuthorizedAppRevocationResult>;
 }) {
   const account = identity.googleAccount;
   const name = account?.name ?? "Your Pubky";
@@ -210,6 +219,11 @@ function IdentityManagement({
           </ManagementButton>
         ) : null}
       </div>
+      <AuthorizedApps
+        key={identity.publicIdentity.publicKeyZ32}
+        listAuthorizedApps={listAuthorizedApps}
+        revokeAuthorizedApp={revokeAuthorizedApp}
+      />
       <PassportNavigation
         back={<BackButton className="md:w-full" onClick={onBack} />}
         className="mt-auto pt-8 md:grid-cols-1"
