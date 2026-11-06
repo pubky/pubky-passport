@@ -101,6 +101,44 @@ test("the sign-in title keeps its designed line break and accent color", async (
   }
 });
 
+test("the sign-in page asks for 18 or older and opens the legal pages in a new tab", async ({
+  page,
+}) => {
+  for (const viewport of [
+    { width: 1280, height: 720 },
+    { width: 390, height: 844 },
+  ]) {
+    await page.setViewportSize(viewport);
+    await page.goto("/");
+
+    const consent = page.getByText(/By continuing, you confirm you are 18 or older/u);
+    await expect(consent).toBeVisible();
+    await expect(consent).toHaveText(
+      "By continuing, you confirm you are 18 or older and agree to the Terms and Privacy Policy.",
+    );
+    const googleBox = await page
+      .getByRole("button", { name: "Continue with Google" })
+      .boundingBox();
+    const consentBox = await consent.boundingBox();
+    expect(consentBox?.y ?? 0).toBeGreaterThan(googleBox?.y ?? 0);
+  }
+
+  for (const [name, heading] of [
+    ["Terms", "PUBKY PASSPORT TERMS AND CONDITIONS"],
+    ["Privacy Policy", "PUBKY PASSPORT PRIVACY POLICY"],
+  ] as const) {
+    const opened = page.waitForEvent("popup");
+    await page
+      .getByText(/By continuing, you confirm you are 18 or older/u)
+      .getByRole("link", { name, exact: true })
+      .click();
+    const legalPage = await opened;
+    await expect(legalPage.getByText(heading)).toBeVisible();
+    await legalPage.close();
+  }
+  await expect(page.getByRole("heading", { name: "Quick & easy signing." })).toBeVisible();
+});
+
 test("the passport chrome does not overlap content in a short viewport", async ({ page }) => {
   await page.setViewportSize({ width: 1024, height: 400 });
   await page.goto("/");
