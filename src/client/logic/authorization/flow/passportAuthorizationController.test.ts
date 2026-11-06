@@ -40,6 +40,7 @@ type ControllerOverrides = {
 
 type EntryOptions = {
   callbacks?: boolean;
+  providerHint?: "google" | "apple";
   status?: "valid" | "invalid" | "empty" | "expired";
 };
 
@@ -74,6 +75,21 @@ describe("PassportAuthorizationController", () => {
     });
     expect(serializedState).not.toContain(SECRET);
     expect(serializedState).not.toContain(SUCCESS_CALLBACK);
+  });
+
+  it("keeps the app's provider choice beside the request, never in review or approval", async () => {
+    let approvedUrl: string | undefined;
+    MOCKS.approveAuthorization.mockImplementation((request: ValidatedPubkyAuthRequest) => {
+      approvedUrl = request.validatedUrlForApproval();
+      return Promise.resolve(Result.ok());
+    });
+    const { controller } = createController({}, { providerHint: "apple" });
+
+    expect(controller.providerHint).toBe("apple");
+    expect(JSON.stringify(controller.getState())).not.toContain("apple");
+
+    await controller.approve(SELECTED_IDENTITY);
+    expect(approvedUrl).toBe(validRequest());
   });
 
   it("approves once with the reviewed identity and completes the success callback", async () => {
@@ -361,6 +377,7 @@ function createEntry(options: EntryOptions): AuthorizationEntry {
       return {
         status: "valid",
         request: validated.value,
+        ...(options.providerHint ? { providerHint: options.providerHint } : {}),
       };
     }
     case "invalid":

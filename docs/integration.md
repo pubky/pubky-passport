@@ -320,10 +320,44 @@ navigates the popup to the matching callback.
 A `success` message means the approval reached the relay; keep waiting for the SDK. `error` and
 `cancel` end the attempt. None of these messages authenticate the user.
 
+## Choosing the provider
+
+If your app lets the person pick Google or Apple before opening Passport, pass that choice so
+they do not pick again in Passport. Add `x-provider` after `d` in the fragment:
+
+```ts
+const passportUrl = `${PASSPORT_ORIGIN}/authorize#d=${encodeURIComponent(flow.authorizationUrl)}&x-provider=apple`;
+// https://passport.pubky.app/authorize#d=pubkyauth%3A%2F%2Fsignin_grant%3F...&x-provider=apple
+```
+
+| Value    | When the browser has no Passport identity                                      |
+| -------- | ------------------------------------------------------------------------------ |
+| `google` | Passport goes straight to Google in the same tab, with no choice screen.       |
+| `apple`  | Passport shows only **Continue with Apple**; other options are one click away. |
+
+- `x-provider` sits beside `d`, outside the Pubky authorization URL, so it never changes the
+  request: the same capabilities are reviewed and the SDK signs the same URL. The SDK does not
+  add it; append it yourself.
+- Identities already in the browser still come first. If exactly one of them uses the chosen
+  provider, review shows that identity for this request; otherwise the active identity is shown.
+  Passport does not save this as the active identity. The user can still switch, and
+  **Authorize** is always an explicit click.
+- Any other value, an empty value, or a repeated `x-provider` is ignored: Passport shows its normal
+  choice. It is never an error, as long as all `x-provider` parts together stay within 256
+  characters.
+- With `apple`, the person still clicks **Continue with Apple**, then **Connect iCloud**. Each
+  opens one of Apple's windows, and browsers open windows only from a click on the page that
+  opens them. Same-tab redirects are not possible here without passing Apple's result through
+  Passport's server: with the name and email scopes, Sign in with Apple returns only by
+  `form_post`, and CloudKit's sign-in callback puts the session in the query string.
+- Where Apple login is off, `apple` shows the Google sign-in screen and waits for a click; it never
+  sends the person to Google by itself.
+
 ## Browser requirements
 
-- Build the Passport URL as `/authorize#d=${encodeURIComponent(flow.authorizationUrl)}`. Passport
-  rejects requests that carry a query string.
+- Build the Passport URL as `/authorize#d=${encodeURIComponent(flow.authorizationUrl)}`, optionally
+  followed by `&x-provider=google|apple`. Passport rejects requests that carry a query string or
+  any other fragment parameter.
 - Set `xSource` to a short display name of at most 128 characters. Passport shows the callback
   host separately because `xSource` is not a verified identity.
 - Open the popup without `noopener` or `noreferrer`, otherwise Passport cannot message your page.
@@ -336,8 +370,9 @@ A `success` message means the approval reached the relay; keep waiting for the S
 
 ## Same-tab navigation
 
-During authorization, Passport now starts Google automatically when an identity must be created
-or restored. Google opens in the current Passport tab/window, including when Passport itself
+During authorization, Passport starts Google automatically when an identity must be created
+or restored and either the app passed `x-provider=google`, or Google is the only provider and
+the app did not pass `x-provider=apple`. Otherwise the user picks Google or Apple first. Google opens in the current Passport tab/window, including when Passport itself
 was opened as a popup. There is no second Google button or nested popup. Existing local
 identities still go straight to capability review; Google sign-in does not grant app permissions
 without that review. Standalone dashboard sign-in and management retain their popup behavior.

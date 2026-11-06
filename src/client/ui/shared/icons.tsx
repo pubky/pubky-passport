@@ -145,6 +145,20 @@ function CircleInfoIcon(props: IconProps) {
   );
 }
 
+function CloudIcon(props: IconProps) {
+  return (
+    <Glyph height={12} viewBox="0 0 16 12" width={16} {...props}>
+      <path
+        d="M4.5 11.25h7.25a3.25 3.25 0 0 0 .4-6.47A4.5 4.5 0 0 0 3.6 4.1 3.6 3.6 0 0 0 4.5 11.25Z"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.33"
+      />
+    </Glyph>
+  );
+}
+
 function CopyIcon(props: IconProps) {
   return (
     <Glyph height={props.size ?? 16} viewBox="0 0 21.5 21.5" width={props.size ?? 16} {...props}>
@@ -413,6 +427,7 @@ export {
   CircleHelpIcon,
   CircleInfoIcon,
   ClipboardPasteIcon,
+  CloudIcon,
   CopyIcon,
   DownloadRecoveryFileIcon,
   DownloadIcon,

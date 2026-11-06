@@ -7,6 +7,7 @@ import { LOGGER, safeErrorLogFields } from "@/libs/logger/logger";
 import type { LocalIdentityResult } from "@/client/logic/local-identity/LocalStorageIdentityRepository";
 import type { LocalIdentityHomeserverRepublishResult } from "@/client/logic/local-identity/LocalIdentityController";
 import {
+  identityProfile,
   identityProviderAccount,
   type IdentityProviderAccount,
   type LocalIdentityMetadata,
@@ -67,7 +68,8 @@ function IdentityManagement({
 }) {
   const providerAccount = identityProviderAccount(identity);
   const account = identity.googleAccount;
-  const name = account?.name ?? "Your Pubky";
+  const profile = identityProfile(identity);
+  const name = profile.name ?? "Your Pubky";
   const [homeserver, setHomeserver] = useState<HomeserverLookup>({ status: "looking-up" });
   const [logoutFailed, setLogoutFailed] = useState(false);
   const [republishing, setRepublishing] = useState(false);
@@ -162,7 +164,14 @@ function IdentityManagement({
 
       <section className="flex flex-col gap-6">
         <IdentityDetail label="User" value={name} />
-        <IdentityDetail label="Google account" value={account?.email ?? "Not connected"} />
+        {providerAccount?.provider === "apple" ? (
+          <IdentityDetail
+            label="Apple Account"
+            value={providerAccount.appleAccount.email ?? "Key stored in iCloud"}
+          />
+        ) : (
+          <IdentityDetail label="Google account" value={account?.email ?? "Not connected"} />
+        )}
         <IdentityDetail
           copyable
           label="Pubky"

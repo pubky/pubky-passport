@@ -1,9 +1,8 @@
 import type { ButtonProps } from "@/client/ui/shared/primitives/button";
 import { Button } from "@/client/ui/shared/primitives/button";
-import { AppleLogo } from "@/client/ui/shared/brand/appleLogo";
 import { GoogleLogo } from "@/client/ui/shared/brand/googleLogo";
 
-const providerMark = { apple: <AppleLogo />, google: <GoogleLogo />, ring: "P" };
+const providerMark = { google: <GoogleLogo />, ring: "P" };
 
 function ProviderSignInButton({
   children,

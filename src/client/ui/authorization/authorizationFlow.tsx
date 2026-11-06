@@ -6,10 +6,12 @@ import { useState } from "react";
 import { preload } from "react-dom";
 
 import type { PassportAuthorizationViewState } from "@/client/logic/authorization/flow/PassportAuthorizationController";
-import type {
-  LocalIdentityCatalog,
-  IdentityProviderAccount,
-  LocalIdentityMetadata,
+import type { IdentityProviderHint } from "@/client/logic/authorization/entry/identityProviderHint";
+import {
+  identityProviderAccount,
+  type LocalIdentityCatalog,
+  type IdentityProviderAccount,
+  type LocalIdentityMetadata,
 } from "@/client/logic/local-identity/localIdentityModels";
 import { IdentityManagement } from "@/client/ui/identity-dashboard/management/identityManagement";
 import { DetachFromProviderFlow } from "@/client/ui/identity-dashboard/management/detach-provider/detachFromProviderFlow";
@@ -167,14 +169,23 @@ function ReadyAuthorizationWithIdentity({
         ? "first-identity-setup"
         : "review",
   }));
+  const [providerChoice, setProviderChoice] = useState(() =>
+    initialProviderChoice(passportAuthorizationController.providerHint, catalog),
+  );
   // Consent belongs to the pending request, including while switching or managing identities.
   const [declinedEncryptionPaths, setDeclinedEncryptionPaths] = useState<readonly string[]>([]);
   const state = resolveAuthorizationIdentityView(navigation, catalog);
+  const reviewedPublicKeyZ32 = catalog.identities.some(
+    (identity) => identity.publicIdentity.publicKeyZ32 === providerChoice.preselectedPublicKeyZ32,
+  )
+    ? (providerChoice.preselectedPublicKeyZ32 ?? null)
+    : catalog.activePublicKeyZ32;
 
   if (state.view === "first-identity-setup") {
     return (
       <Setup
         forAuthorization
+        providerHint={providerChoice.setupHint}
         onBack={() => {
           void passportAuthorizationController.cancel();
         }}
@@ -190,10 +201,14 @@ function ReadyAuthorizationWithIdentity({
   if (state.view === "identity-selection") {
     return (
       <IdentitySelectionFlow
-        catalog={catalog}
+        catalog={{ ...catalog, activePublicKeyZ32: reviewedPublicKeyZ32 }}
         forAuthorization
         onBack={() => setNavigation({ view: "review" })}
-        onIdentitySelected={() => setNavigation({ view: "review" })}
+        onIdentitySelected={() => {
+          // The person's own choice replaces the app's preselection.
+          setProviderChoice({});
+          setNavigation({ view: "review" });
+        }}
         selectIdentity={actions.selectIdentity}
       />
     );
@@ -268,7 +283,7 @@ function ReadyAuthorizationWithIdentity({
   }
 
   const activeIdentity = catalog.identities.find(
-    (identity) => identity.publicIdentity.publicKeyZ32 === catalog.activePublicKeyZ32,
+    (identity) => identity.publicIdentity.publicKeyZ32 === reviewedPublicKeyZ32,
   );
   return (
     <AuthorizationReview
@@ -307,6 +322,25 @@ function ReadyAuthorizationWithIdentity({
       review={authorization.review}
     />
   );
+}
+
+/**
+ * The app's provider choice for this one authorization, read once when the catalog is first
+ * ready: it goes to first-identity setup only when no identity existed then, and otherwise
+ * preselects the single local identity of that provider for review. Nothing is saved: the
+ * active identity stays as it was until the person switches.
+ */
+function initialProviderChoice(
+  providerHint: IdentityProviderHint | undefined,
+  catalog: LocalIdentityCatalog,
+): { setupHint?: IdentityProviderHint; preselectedPublicKeyZ32?: string } {
+  if (!providerHint) return {};
+  if (catalog.identities.length === 0) return { setupHint: providerHint };
+  const matching = catalog.identities.filter(
+    (identity) => identityProviderAccount(identity)?.provider === providerHint,
+  );
+  const preselected = matching.length === 1 ? matching[0] : undefined;
+  return preselected ? { preselectedPublicKeyZ32: preselected.publicIdentity.publicKeyZ32 } : {};
 }
 
 function resolveAuthorizationIdentityView(

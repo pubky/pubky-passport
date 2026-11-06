@@ -5,7 +5,20 @@ import { PASSPORT_README_URL } from "./google/continueWithGoogle";
 import { PassportScreen } from "@/client/ui/shared/passportScreen";
 import { DisplayHeading, LeadText } from "@/client/ui/shared/primitives/typography";
 
-function SignInPage({ children }: { children: ReactNode }) {
+const PROVIDER_LEAD = {
+  google: "Use your Google account to sign in to the Pubky ecosystem.",
+  apple: "Use your Apple Account to sign in to the Pubky ecosystem.",
+  "google-or-apple": "Use your Google Account or Apple Account to sign in to the Pubky ecosystem.",
+} as const;
+
+function SignInPage({
+  provider = "google",
+  children,
+}: {
+  /** Which accounts the buttons below offer. */
+  provider?: keyof typeof PROVIDER_LEAD;
+  children: ReactNode;
+}) {
   return (
     <PassportScreen className="gap-6 md:gap-8">
       <section className="flex flex-col gap-6 md:gap-8">
@@ -18,8 +31,7 @@ function SignInPage({ children }: { children: ReactNode }) {
             Quick &amp; easy
           </DisplayHeading>
           <LeadText>
-            Use your Google account to sign in to the Pubky ecosystem. No seed phrase, no app, no
-            hassle.{" "}
+            {PROVIDER_LEAD[provider]} No seed phrase, no app, no hassle.{" "}
             <a
               className="rounded-sm font-bold text-brand outline-none hover:underline hover:underline-offset-4 focus-visible:ring-3 focus-visible:ring-ring/50"
               href={PASSPORT_README_URL}

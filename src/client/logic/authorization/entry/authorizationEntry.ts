@@ -10,11 +10,18 @@ import { LOGGER, safeErrorLogFields } from "@/libs/logger/logger";
 import { AUTHORIZATION_CAPTURE_MAX_CHARACTERS } from "@/libs/passportPolicy";
 import { ValidatedPubkyAuthRequest } from "@/client/logic/authorization/request/ValidatedPubkyAuthRequest";
 import { PUBKY_AUTH_REQUEST_LIMITS } from "@/client/logic/authorization/request/parser/pubkyAuthRequestParser";
+import {
+  IDENTITY_PROVIDER_HINT_PARAMETER,
+  parseIdentityProviderHint,
+  type IdentityProviderHint,
+} from "./identityProviderHint";
 
 export type AuthorizationEntry =
   | {
       status: "valid";
       request: ValidatedPubkyAuthRequest;
+      /** Which sign-in screen to show first; never part of the request itself. */
+      providerHint?: IdentityProviderHint;
     }
   | { status: "empty" }
   | { status: "expired" }
@@ -56,12 +63,11 @@ export function readAndScrubAuthorizationEntry(appWindow: Window): Authorization
       code: rawD.valid ? validated.error.code : "invalid_fragment_shape",
     });
   }
-  return Result.isError(validated)
-    ? { status: "invalid" }
-    : {
-        status: "valid",
-        request: validated.value,
-      };
+  if (Result.isError(validated)) return { status: "invalid" };
+  const providerHint = rawD.valid ? rawD.providerHint : undefined;
+  return providerHint
+    ? { status: "valid", request: validated.value, providerHint }
+    : { status: "valid", request: validated.value };
 }
 
 function takeEarlyAuthorizationLocation(appWindow: Window): EarlyAuthorizationLocation | undefined {
@@ -96,10 +102,23 @@ function takeEarlyAuthorizationLocation(appWindow: Window): EarlyAuthorizationLo
   }
 }
 
+/** Room left beside `d` for `x-provider` parts; an ignored hint must not make `d` too long. */
+const MAXIMUM_PROVIDER_HINT_PARTS_LENGTH = 256;
+
+/**
+ * Reads `d` (exactly once) and the optional `x-provider` hint from the fragment. Any other
+ * parameter makes the entry invalid. A repeated or unknown `x-provider` is no hint, never an
+ * error.
+ */
 function extractAuthorizationFragmentValue(
   hash: string,
-): { valid: true; value?: string } | { valid: false } {
-  if (hash.length > PUBKY_AUTH_REQUEST_LIMITS.maximumEncodedDCodeUnits + "#d=".length) {
+): { valid: true; value?: string; providerHint?: IdentityProviderHint } | { valid: false } {
+  if (
+    hash.length >
+    PUBKY_AUTH_REQUEST_LIMITS.maximumEncodedDCodeUnits +
+      "#d=".length +
+      MAXIMUM_PROVIDER_HINT_PARTS_LENGTH
+  ) {
     return { valid: false };
   }
 
@@ -107,16 +126,23 @@ function extractAuthorizationFragmentValue(
   if (fragment.length === 0) return { valid: true };
 
   let value: string | undefined;
+  const hints: string[] = [];
   for (const parameter of fragment.split("&")) {
     const separator = parameter.indexOf("=");
     const name = separator === -1 ? parameter : parameter.slice(0, separator);
+    if (name === IDENTITY_PROVIDER_HINT_PARAMETER) {
+      hints.push(separator === -1 ? "" : parameter.slice(separator + 1));
+      continue;
+    }
     if (name !== "d" || separator === -1 || value !== undefined) {
       return { valid: false };
     }
     value = parameter.slice(separator + 1);
   }
 
-  return value === undefined ? { valid: true } : { valid: true, value };
+  const providerHint = hints.length === 1 ? parseIdentityProviderHint(hints[0]) : undefined;
+  if (value === undefined) return { valid: true };
+  return providerHint ? { valid: true, value, providerHint } : { valid: true, value };
 }
 
 /** Removes authorization data, navigating away without it when native scrubbing fails. */

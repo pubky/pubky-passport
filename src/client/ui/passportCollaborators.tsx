@@ -2,6 +2,11 @@
 
 import { createContext, type ReactNode, useContext, useMemo } from "react";
 
+import {
+  AppleIdentityController,
+  type AppleIdentityConfiguration,
+} from "@/client/logic/apple-identity/AppleIdentityController";
+import type { IdentityProviderHint } from "@/client/logic/authorization/entry/identityProviderHint";
 import type { PassportAuthorizationController } from "@/client/logic/authorization/flow/PassportAuthorizationController";
 import { GoogleIdentityController } from "@/client/logic/google-identity/GoogleIdentityController";
 import { GoogleRedirectAuthorization } from "@/client/logic/google-identity/gia/GoogleRedirectAuthorization";
@@ -9,6 +14,7 @@ import { LocalIdentityController } from "@/client/logic/local-identity/LocalIden
 
 export type IdentitySetup = (props: {
   forAuthorization?: boolean | undefined;
+  providerHint?: IdentityProviderHint | undefined;
   onBack?: (() => void) | undefined;
   onComplete: () => void;
 }) => ReactNode;
@@ -16,7 +22,7 @@ export type IdentitySetup = (props: {
 /** The controller surface each screen consumes; fakes in `test-utils/` implement these ports. */
 export type AuthorizationControllerPort = Pick<
   PassportAuthorizationController,
-  "approve" | "cancel" | "dispose" | "getState" | "subscribe"
+  "approve" | "cancel" | "dispose" | "getState" | "providerHint" | "subscribe"
 >;
 
 export type GoogleIdentityControllerPort = Pick<
@@ -25,6 +31,19 @@ export type GoogleIdentityControllerPort = Pick<
   | "dispose"
   | "establishIdentity"
   | "continueWithoutVisibleBackup"
+  | "getState"
+  | "replaceInvalidPassportFile"
+  | "replaceUndecryptablePassportFile"
+  | "reset"
+  | "subscribe"
+>;
+
+export type AppleIdentityControllerPort = Pick<
+  AppleIdentityController,
+  | "connectICloud"
+  | "continueWithApple"
+  | "detachIdentity"
+  | "dispose"
   | "getState"
   | "replaceInvalidPassportFile"
   | "replaceUndecryptablePassportFile"
@@ -51,6 +70,9 @@ export type PassportCollaborators = {
     homegateBaseUrl: string,
     forAuthorization?: boolean,
   ) => GoogleIdentityControllerPort;
+  createAppleIdentityController: (
+    configuration: AppleIdentityConfiguration,
+  ) => AppleIdentityControllerPort;
   createLocalIdentityController: () => LocalIdentityControllerPort;
   IdentitySetup?: IdentitySetup;
 };
@@ -64,6 +86,7 @@ const DEFAULT_PASSPORT_COLLABORATORS: PassportCollaborators = {
       undefined,
       forAuthorization ? new GoogleRedirectAuthorization(googleClientId) : undefined,
     ),
+  createAppleIdentityController: (configuration) => new AppleIdentityController(configuration),
   createLocalIdentityController: () => new LocalIdentityController(),
 };
 

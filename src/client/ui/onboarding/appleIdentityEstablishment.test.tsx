@@ -1,0 +1,283 @@
+/** @vitest-environment jsdom */
+
+import { act, cleanup, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+import {
+  fakeAppleIdentityController,
+  TEST_APPLE_CONFIGURATION,
+} from "@test-utils/fakeAppleIdentityController";
+import { withPassportTestProviders } from "@test-utils/googleIdentityConfiguration";
+import { mockGoogleIdentityController } from "@test-utils/mockGoogleIdentityController";
+import type { IdentityProviderHint } from "@/client/logic/authorization/entry/identityProviderHint";
+import { AppleIdentityConfigurationProvider } from "@/client/ui/appleIdentityConfiguration";
+import { IdentityEstablishmentFlow } from "./identityEstablishmentFlow";
+
+const PUBKY = "o1gg96ewuojmopcjbz8895478wdtxtzzber7aezq6ror5a91j7dy";
+
+function renderFlow({
+  apple = TEST_APPLE_CONFIGURATION,
+  forAuthorization = false,
+  providerHint,
+  onBack,
+  onComplete = vi.fn(),
+}: {
+  apple?: typeof TEST_APPLE_CONFIGURATION | null;
+  forAuthorization?: boolean;
+  providerHint?: IdentityProviderHint;
+  onBack?: () => void;
+  onComplete?: () => void;
+} = {}) {
+  const fake = fakeAppleIdentityController();
+  const google = mockGoogleIdentityController();
+  const createAppleIdentityController = vi.fn(() => fake.controller);
+  const createGoogleIdentityController = vi.fn(() => google);
+  render(
+    withPassportTestProviders(
+      <AppleIdentityConfigurationProvider apple={apple}>
+        <IdentityEstablishmentFlow
+          forAuthorization={forAuthorization}
+          onBack={onBack}
+          onComplete={onComplete}
+          providerHint={providerHint}
+        />
+      </AppleIdentityConfigurationProvider>,
+      {
+        createAppleIdentityController,
+        createGoogleIdentityController,
+      },
+    ),
+  );
+  return { createAppleIdentityController, createGoogleIdentityController, fake };
+}
+
+describe("Apple onboarding", () => {
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+  });
+
+  it("is hidden while Apple login is off", () => {
+    const { createAppleIdentityController } = renderFlow({ apple: null });
+    expect(screen.queryByRole("button", { name: "Continue with Apple" })).not.toBeInTheDocument();
+    expect(screen.getByText(/Use your Google account to sign in/u)).toBeInTheDocument();
+    expect(createAppleIdentityController).not.toHaveBeenCalled();
+  });
+
+  it("offers Apple next to Google without loading any Apple script", async () => {
+    const { fake } = renderFlow();
+    expect(
+      screen.getByText(/Use your Google Account or Apple Account to sign in/u),
+    ).toBeInTheDocument();
+    expect(document.querySelectorAll("script[src*='apple']")).toHaveLength(0);
+
+    await userEvent.setup().click(screen.getByRole("button", { name: "Continue with Apple" }));
+    expect(fake.controller.continueWithApple).toHaveBeenCalledOnce();
+  });
+
+  it("asks for the second click on Connect iCloud", async () => {
+    const { fake } = renderFlow();
+    act(() => fake.emit({ status: "requesting-apple" }));
+    expect(screen.getByRole("button", { name: "Waiting for Apple..." })).toBeDisabled();
+
+    act(() => fake.emit({ status: "connect-icloud", ready: false }));
+    expect(screen.getByRole("heading", { name: "Connect iCloud." })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Connect iCloud" })).toBeDisabled();
+
+    act(() => fake.emit({ status: "connect-icloud", ready: true, notice: "icloud_popup_blocked" }));
+    expect(screen.getByText(/blocked the iCloud window/u)).toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole("button", { name: "Connect iCloud" }));
+    expect(fake.controller.connectICloud).toHaveBeenCalledOnce();
+
+    await userEvent.setup().click(screen.getByRole("button", { name: "Back" }));
+    expect(fake.controller.reset).toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Continue with Apple" })).toBeInTheDocument();
+  });
+
+  it("shows progress, then the created identity with the Apple Account", async () => {
+    const onComplete = vi.fn();
+    const { fake } = renderFlow({ onComplete });
+    act(() =>
+      fake.emit({ status: "establishing", progress: { flow: "create", step: "signing_up" } }),
+    );
+    expect(screen.getByText("Check iCloud for a backup")).toBeInTheDocument();
+
+    act(() =>
+      fake.emit({
+        status: "established",
+        identity: {
+          establishmentMode: "created",
+          appleAccount: {
+            appleSubject: "001234.abcdef.1234",
+            email: "abc123@privaterelay.appleid.com",
+            name: "Jane Appleseed",
+          },
+          publicIdentity: { publicKeyZ32: PUBKY },
+        },
+      }),
+    );
+    expect(screen.getByText("Stored backup in iCloud.")).toBeInTheDocument();
+    expect(screen.getByText("Jane Appleseed")).toBeInTheDocument();
+    expect(screen.getByText("abc123@privaterelay.appleid.com")).toBeInTheDocument();
+    expect(screen.queryByText("001234.abcdef.1234")).not.toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole("button", { name: "Continue" }));
+    expect(onComplete).toHaveBeenCalledOnce();
+  });
+
+  it("moves straight on after a restore", () => {
+    const onComplete = vi.fn();
+    const { fake } = renderFlow({ onComplete });
+    act(() =>
+      fake.emit({
+        status: "established",
+        identity: {
+          establishmentMode: "restored",
+          appleAccount: { appleSubject: "001234.abcdef.1234", email: null, name: null },
+          publicIdentity: { publicKeyZ32: PUBKY },
+        },
+      }),
+    );
+    expect(onComplete).toHaveBeenCalledOnce();
+  });
+
+  it("explains failures and offers replacement only for verified file problems", async () => {
+    const { fake } = renderFlow();
+    act(() =>
+      fake.emit({
+        status: "failed",
+        error: { code: "icloud_account_mismatch" },
+        appleEmail: "jane@example.com",
+      }),
+    );
+    expect(screen.getByText(/different Apple Account/u)).toBeInTheDocument();
+    expect(screen.getByText("You signed in with Apple as jane@example.com.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Delete/u })).not.toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole("button", { name: "Try again" }));
+    expect(fake.controller.continueWithApple).toHaveBeenCalledOnce();
+
+    act(() => fake.emit({ status: "failed", error: { code: "invalid_passport_file" } }));
+    await userEvent.setup().click(screen.getByRole("button", { name: /Delete/u }));
+    expect(screen.getByRole("heading", { name: "Permanently replace identity?" })).toBeVisible();
+  });
+
+  it("shows the account type when Apple sent no name or email", () => {
+    const { fake } = renderFlow();
+    act(() =>
+      fake.emit({
+        status: "established",
+        identity: {
+          establishmentMode: "created",
+          appleAccount: { appleSubject: "001234.abcdef.1234", email: null, name: null },
+          publicIdentity: { publicKeyZ32: PUBKY },
+        },
+      }),
+    );
+    expect(screen.getByText("Apple Account")).toBeInTheDocument();
+    expect(screen.getByText("Key stored in iCloud")).toBeInTheDocument();
+  });
+
+  it("shows the email alone when Apple sent no name", () => {
+    const { fake } = renderFlow();
+    act(() =>
+      fake.emit({
+        status: "established",
+        identity: {
+          establishmentMode: "created",
+          appleAccount: {
+            appleSubject: "001234.abcdef.1234",
+            email: "jane@icloud.com",
+            name: null,
+          },
+          publicIdentity: { publicKeyZ32: PUBKY },
+        },
+      }),
+    );
+    expect(screen.getByText("jane@icloud.com")).toBeInTheDocument();
+    expect(screen.getByText("Key stored in iCloud")).toBeInTheDocument();
+  });
+
+  it("lets an authorization choose instead of starting Google automatically", () => {
+    const { createGoogleIdentityController } = renderFlow({ forAuthorization: true });
+    expect(screen.getByRole("button", { name: "Continue with Apple" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Continue with Google" })).toBeInTheDocument();
+    expect(createGoogleIdentityController).not.toHaveBeenCalled();
+  });
+
+  describe("with the app's x-provider choice", () => {
+    it("google starts Google's redirect at once, even with Apple on", async () => {
+      const { createGoogleIdentityController } = renderFlow({
+        forAuthorization: true,
+        providerHint: "google",
+      });
+      await vi.waitFor(() => expect(createGoogleIdentityController).toHaveBeenCalled());
+      expect(screen.queryByRole("button", { name: "Continue with Apple" })).not.toBeInTheDocument();
+    });
+
+    it("apple shows only Apple's step and opens nothing before the person's click", async () => {
+      const onBack = vi.fn();
+      const { createGoogleIdentityController, fake } = renderFlow({
+        forAuthorization: true,
+        onBack,
+        providerHint: "apple",
+      });
+      expect(screen.getByText(/Use your Apple Account to sign in/u)).toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: "Continue with Google" }),
+      ).not.toBeInTheDocument();
+      expect(fake.controller.continueWithApple).not.toHaveBeenCalled();
+      expect(createGoogleIdentityController).not.toHaveBeenCalled();
+
+      const user = userEvent.setup();
+      await user.click(screen.getByRole("button", { name: "Continue with Apple" }));
+      expect(fake.controller.continueWithApple).toHaveBeenCalledOnce();
+
+      await user.click(screen.getByRole("button", { name: "Back" }));
+      expect(onBack).toHaveBeenCalledOnce();
+    });
+
+    it("apple keeps Google one click away", async () => {
+      renderFlow({ forAuthorization: true, providerHint: "apple" });
+      await userEvent.setup().click(screen.getByRole("button", { name: "Other sign-in options" }));
+      expect(screen.getByRole("button", { name: "Continue with Google" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Continue with Apple" })).toBeInTheDocument();
+    });
+
+    it("apple comes back to the Apple-only page after Back from Connect iCloud", async () => {
+      const { fake } = renderFlow({ forAuthorization: true, providerHint: "apple" });
+      act(() => fake.emit({ status: "connect-icloud", ready: true }));
+      await userEvent.setup().click(screen.getByRole("button", { name: "Back" }));
+
+      expect(fake.controller.reset).toHaveBeenCalled();
+      expect(screen.getByText(/Use your Apple Account to sign in/u)).toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: "Continue with Google" }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("apple keeps the full choice once the person asked for it", async () => {
+      const { fake } = renderFlow({ forAuthorization: true, providerHint: "apple" });
+      const user = userEvent.setup();
+      await user.click(screen.getByRole("button", { name: "Other sign-in options" }));
+      act(() => fake.emit({ status: "connect-icloud", ready: true }));
+      await user.click(screen.getByRole("button", { name: "Back" }));
+
+      expect(screen.getByRole("button", { name: "Continue with Google" })).toBeInTheDocument();
+    });
+
+    it("apple never sends the person to Google where Apple is off", () => {
+      const { createGoogleIdentityController } = renderFlow({
+        apple: null,
+        forAuthorization: true,
+        providerHint: "apple",
+      });
+      expect(screen.getByRole("button", { name: "Continue with Google" })).toBeInTheDocument();
+      expect(createGoogleIdentityController).not.toHaveBeenCalled();
+    });
+
+    it("is ignored outside an authorization", () => {
+      renderFlow({ providerHint: "apple" });
+      expect(screen.getByRole("button", { name: "Continue with Google" })).toBeInTheDocument();
+    });
+  });
+});

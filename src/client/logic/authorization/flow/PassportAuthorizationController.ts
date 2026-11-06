@@ -4,6 +4,7 @@ import { Result } from "better-result";
 
 import { LOGGER, safeErrorLogFields } from "@/libs/logger/logger";
 import type { AuthorizationEntry } from "@/client/logic/authorization/entry/authorizationEntry";
+import type { IdentityProviderHint } from "@/client/logic/authorization/entry/identityProviderHint";
 import {
   type AuthorizationRequestReview,
   ValidatedPubkyAuthRequest,
@@ -48,6 +49,8 @@ export class PassportAuthorizationController {
   private listeners = new Set<(state: PassportAuthorizationViewState) => void>();
   private request: ValidatedPubkyAuthRequest | undefined;
   private state: PassportAuthorizationViewState;
+  /** The app's `x-provider` choice; decides which sign-in or identity comes first, nothing else. */
+  readonly providerHint: IdentityProviderHint | undefined;
 
   /**
    * Idempotently owns the injected bootstrap entry, consulting the taker once when the
@@ -79,6 +82,7 @@ export class PassportAuthorizationController {
     }
 
     this.request = entry.request;
+    this.providerHint = entry.providerHint;
     this.state = { status: "review", review: entry.request.review };
   }
 

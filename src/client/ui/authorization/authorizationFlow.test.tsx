@@ -19,6 +19,7 @@ const MOCKS = {
   approve: vi.fn(),
   authorizationListener: null as null | (() => void),
   authorizationState: undefined as PassportAuthorizationViewState | undefined,
+  providerHint: undefined as "google" | "apple" | undefined,
   cancel: vi.fn(),
   catalog: undefined as LocalIdentityCatalog | undefined,
   catalogListener: undefined as (() => void) | undefined,
@@ -33,10 +34,12 @@ const MOCKS = {
 
 function IdentitySetupStub({
   forAuthorization,
+  providerHint,
   onBack,
   onComplete,
 }: {
   forAuthorization?: boolean | undefined;
+  providerHint?: string | undefined;
   onBack?: (() => void) | undefined;
   onComplete: () => void;
 }) {
@@ -44,6 +47,7 @@ function IdentitySetupStub({
     <main>
       <h1>Add identity</h1>
       {forAuthorization ? <p>Authorization identity setup</p> : null}
+      {providerHint ? <p>Provider hint: {providerHint}</p> : null}
       <button
         onClick={() => {
           MOCKS.catalogListener?.();
@@ -82,6 +86,7 @@ function authorizationCollaborators() {
           approve: MOCKS.approve,
           cancel: MOCKS.cancel,
           dispose: MOCKS.dispose,
+          providerHint: MOCKS.providerHint,
         },
       );
     },
@@ -202,6 +207,7 @@ describe("AuthorizationFlow", () => {
     vi.clearAllMocks();
     MOCKS.authorizationListener = null;
     MOCKS.catalogListener = undefined;
+    MOCKS.providerHint = undefined;
   });
 
   const renderFlow = () => render(wrapFlow(<AuthorizationFlow />));
@@ -770,6 +776,71 @@ describe("AuthorizationFlow", () => {
     expect(screen.getAllByLabelText("Signing in to requesting.app")).toHaveLength(1);
     await user.click(screen.getByRole("button", { name: "Complete identity setup" }));
     expect(screen.getByRole("heading", { name: "Sign in to requesting.app" })).toBeInTheDocument();
+  });
+
+  it("passes the app's provider choice to first-identity setup", async () => {
+    MOCKS.catalog = { activePublicKeyZ32: null, identities: [] };
+    MOCKS.providerHint = "apple";
+    renderFlow();
+
+    expect(await screen.findByText("Provider hint: apple")).toBeInTheDocument();
+  });
+
+  it("reviews the one identity of the app's chosen provider without saving it as active", async () => {
+    const APPLE = {
+      publicIdentity: { publicKeyZ32: "apple-public-key" },
+      appleAccount: { appleSubject: "001234.abcdef.1234", email: "jane@icloud.com", name: "Jane" },
+    };
+    MOCKS.catalog = {
+      activePublicKeyZ32: FIRST.publicIdentity.publicKeyZ32,
+      identities: [FIRST, APPLE],
+    };
+    MOCKS.providerHint = "apple";
+    const user = userEvent.setup();
+    render(<StrictMode>{wrapFlow(<AuthorizationFlow />)}</StrictMode>);
+
+    await screen.findByRole("heading", { name: "Sign in to requesting.app" });
+    expect(screen.getByText("appl...-key")).toBeInTheDocument();
+    expect(screen.queryByText("First User")).not.toBeInTheDocument();
+    expect(MOCKS.select).not.toHaveBeenCalled();
+    expect(MOCKS.catalog.activePublicKeyZ32).toBe(FIRST.publicIdentity.publicKeyZ32);
+
+    await user.click(screen.getByRole("button", { name: "Authorize" }));
+    expect(MOCKS.approve).toHaveBeenCalledWith(APPLE.publicIdentity.publicKeyZ32);
+  });
+
+  it("lets the person's own switch replace the app's preselection", async () => {
+    const APPLE = {
+      publicIdentity: { publicKeyZ32: "apple-public-key" },
+      appleAccount: { appleSubject: "001234.abcdef.1234", email: "jane@icloud.com", name: "Jane" },
+    };
+    MOCKS.catalog = {
+      activePublicKeyZ32: FIRST.publicIdentity.publicKeyZ32,
+      identities: [FIRST, APPLE],
+    };
+    MOCKS.providerHint = "apple";
+    const user = userEvent.setup();
+    renderFlow();
+
+    await screen.findByText("appl...-key");
+    await user.click(screen.getByRole("button", { name: "Switch" }));
+    await user.click(screen.getByRole("button", { name: /First User/iu }));
+
+    await waitFor(() => expect(screen.getByText("First User")).toBeInTheDocument());
+    expect(MOCKS.select).toHaveBeenCalledWith(FIRST.publicIdentity.publicKeyZ32);
+    expect(screen.queryByText("appl...-key")).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ["no identity uses it", "apple"],
+    ["several identities use it", "google"],
+  ] as const)("keeps the active identity when %s", async (_case, providerHint) => {
+    MOCKS.providerHint = providerHint;
+    renderFlow();
+
+    await screen.findByRole("heading", { name: "Sign in to requesting.app" });
+    expect(MOCKS.select).not.toHaveBeenCalled();
+    expect(screen.getByText("First User")).toBeInTheDocument();
   });
 
   it("opens Google identity setup immediately when no local identity exists", async () => {

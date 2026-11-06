@@ -69,6 +69,32 @@ describe("request CSP proxy", () => {
     expect(cspSources(policy, "connect-src")).toContain("https://homeserver.example");
   });
 
+  it("adds CloudKit's hosts only while Apple login is on", () => {
+    const appleSources = (path: string) => {
+      const policy = proxy(new NextRequest(`https://passport.example${path}`)).headers.get(
+        "Content-Security-Policy",
+      );
+      return {
+        script: cspSources(policy, "script-src").filter((source) => source.includes("apple")),
+        connect: cspSources(policy, "connect-src").filter((source) => source.includes("apple")),
+        frame: cspSources(policy, "frame-src"),
+      };
+    };
+    expect(appleSources("/")).toEqual({ script: [], connect: [], frame: ["'none'"] });
+
+    vi.stubEnv("APPLE_LOGIN_ENABLED", "true");
+    vi.stubEnv("APPLE_SERVICES_ID", "app.pubky.passport.signin");
+    vi.stubEnv("APPLE_CLOUDKIT_CONTAINER_ID", "iCloud.app.pubky.passport");
+    vi.stubEnv("APPLE_CLOUDKIT_API_TOKEN", "0123456789abcdef0123456789abcdef");
+    for (const path of ["/", "/authorize", "/terms-of-service"]) {
+      expect(appleSources(path)).toEqual({
+        script: [],
+        connect: ["https://api.apple-cloudkit.com"],
+        frame: ["'none'"],
+      });
+    }
+  });
+
   it("normalizes and deduplicates configured homeserver origins", () => {
     vi.stubEnv(
       "PUBKY_HOMESERVER_CONNECT_ORIGINS",

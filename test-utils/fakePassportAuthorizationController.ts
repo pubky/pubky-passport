@@ -22,6 +22,7 @@ export function fakePassportAuthorizationController(
         }
         return state.current;
       }),
+    providerHint: overrides.providerHint,
     subscribe:
       overrides.subscribe ??
       ((listener) => {

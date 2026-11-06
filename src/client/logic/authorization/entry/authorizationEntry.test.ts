@@ -130,6 +130,57 @@ describe("authorizationEntry", () => {
     expect(JSON.stringify(info.mock.calls)).not.toContain(SECRET);
   });
 
+  it.each([
+    ["x-provider=google&d=REQUEST", "google"],
+    ["d=REQUEST&x-provider=apple", "apple"],
+  ] as const)("reads the app's provider choice from %s", (fragment, providerHint) => {
+    setRawAuthorizationFragment(fragment.replace("REQUEST", encodeURIComponent(validRequest())));
+
+    const entry = readAndScrubAuthorizationEntry(window);
+
+    expect(entry).toMatchObject({ status: "valid", providerHint });
+    expect(window.location.hash).toBe("");
+    // The hint stays outside the Pubky Auth request that is reviewed and approved.
+    if (entry.status !== "valid") throw new Error("expected a valid entry");
+    expect(entry.request.validatedUrlForApproval()).toBe(validRequest());
+    expect(entry.request.review).not.toHaveProperty("providerHint");
+  });
+
+  it.each([
+    "x-provider=microsoft",
+    "x-provider=Apple",
+    "x-provider=",
+    "x-provider",
+    "x-provider=%61pple",
+    "x-provider=apple&x-provider=apple",
+    "x-provider=apple&x-provider=google",
+  ])("treats %s as no choice, never as an error", (hint) => {
+    setRawAuthorizationFragment(`d=${encodeURIComponent(validRequest())}&${hint}`);
+
+    const entry = readAndScrubAuthorizationEntry(window);
+
+    expect(entry.status).toBe("valid");
+    expect(entry).not.toHaveProperty("providerHint");
+  });
+
+  it("ignores a repeated hint even beside the largest accepted d", () => {
+    const maximumD = PUBKY_AUTH_REQUEST_LIMITS.maximumEncodedDCodeUnits;
+    window.history.replaceState({}, "", "/authorize");
+    const hash = `#d=${"A".repeat(maximumD)}&x-provider=apple&x-provider=apple`;
+    // Too large a d is rejected later by the parser, not by the hint's size allowance.
+    setRawAuthorizationFragment(hash.slice(1));
+    const info = vi.spyOn(LOGGER, "info").mockImplementation(() => undefined);
+
+    expect(readAndScrubAuthorizationEntry(window)).toEqual({ status: "invalid" });
+    expect(info).toHaveBeenCalledOnce();
+    expect(info.mock.calls[0]?.[1]).not.toMatchObject({ code: "invalid_fragment_shape" });
+  });
+
+  it("still needs d when the fragment carries only a provider choice", () => {
+    setRawAuthorizationFragment("x-provider=apple");
+    expect(readAndScrubAuthorizationEntry(window)).toEqual({ status: "invalid" });
+  });
+
   it("rejects legacy query transport even when a valid fragment is present", () => {
     window.history.replaceState(
       {},
