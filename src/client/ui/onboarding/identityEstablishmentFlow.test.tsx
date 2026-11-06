@@ -86,6 +86,31 @@ describe("IdentityEstablishmentFlow", () => {
     shell.remove();
   });
 
+  it("asks the person to confirm they are 18 or older next to the sign-in buttons", () => {
+    render(<ConfiguredIdentityEstablishmentFlow onComplete={vi.fn()} />);
+
+    const consent = screen.getByText(/By continuing, you confirm you are 18 or older/);
+    expect(consent).toHaveTextContent(
+      "By continuing, you confirm you are 18 or older and agree to the Terms and Privacy Policy.",
+    );
+    expect(within(consent).getByRole("link", { name: "Terms" })).toHaveAttribute(
+      "href",
+      "/terms-of-service",
+    );
+    expect(within(consent).getByRole("link", { name: "Privacy Policy" })).toHaveAttribute(
+      "href",
+      "/privacy-policy",
+    );
+    for (const link of within(consent).getAllByRole("link")) {
+      expect(link).toHaveAttribute("target", "_blank");
+      expect(link).toHaveAttribute("rel", "noopener noreferrer");
+    }
+    // The line sits right under the buttons it applies to.
+    expect(
+      screen.getByRole("button", { name: "Continue with Google" }).closest("div.flex-col"),
+    ).toContainElement(consent);
+  });
+
   it("starts Google authorization from one button click", async () => {
     const establishIdentity = vi.fn(() => new Promise<never>(() => undefined));
     useController(mockGoogleIdentityController({ establishIdentity }));

@@ -12,7 +12,7 @@ describe("legal pages", () => {
     const markup = renderToStaticMarkup(<Page />);
 
     expect(markup).toContain(heading);
-    expect(markup).toContain("Effective Date: September 21, 2026");
+    expect(markup).toContain("Effective Date: November 6, 2026");
     expect(markup).not.toContain("[DATE]");
     expect(markup).not.toContain("[Legal:");
     expect(markup).not.toContain('aria-label="Legal documents"');
@@ -25,5 +25,33 @@ describe("legal pages", () => {
     expect(markup).toContain("COPPA Information Request");
     expect(markup).toContain("Pubky session containing your public key");
     expect(markup).not.toContain("eligible minor");
+  });
+
+  it("limits Passport to adults in the terms", () => {
+    const markup = renderToStaticMarkup(<TermsOfServicePage />);
+
+    expect(markup).toContain("you must be at least eighteen (18) years old");
+    expect(markup).toContain("Passport is for adults only");
+    expect(markup).not.toContain("permission of a parent or legal guardian");
+  });
+
+  it.each([
+    ["terms of service", TermsOfServicePage, "YOUR APPLE ACCOUNT"],
+    ["privacy policy", PrivacyPolicyPage, "In your iCloud."],
+  ])("describes Apple and iCloud next to Google in the %s", (_, Page, appleSection) => {
+    const markup = renderToStaticMarkup(<Page />);
+
+    expect(markup).toContain(appleSection);
+    expect(markup).toContain("Detach from Apple");
+    expect(markup).toContain("asks Apple for your name and email address");
+    expect(markup).not.toContain("Apple ID");
+  });
+
+  it("keeps Apple name and email in the browser like the Google profile", () => {
+    const markup = renderToStaticMarkup(<PrivacyPolicyPage />);
+
+    expect(markup).toContain("Apple Account Information (browser only).");
+    expect(markup).toContain("Apple does not provide a profile picture.");
+    expect(markup).toContain("Your name is never sent to us.");
   });
 });

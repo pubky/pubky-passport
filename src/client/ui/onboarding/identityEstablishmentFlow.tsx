@@ -5,6 +5,7 @@ import { GoogleAccessScreen } from "./google/googleAccessScreen";
 import { GoogleIdentityComplete } from "./google/googleIdentityComplete";
 import { GoogleIdentityError } from "./google/googleIdentityError";
 import { GoogleIdentityProgress } from "./google/googleIdentityProgress";
+import { IdentityConsent } from "./identityConsent";
 import { ContinueWithGoogle } from "./google/continueWithGoogle";
 import { useGoogleIdentityEstablishment } from "./google/useGoogleIdentityEstablishment";
 import { BackButton } from "@/client/ui/shared/backButton";
@@ -85,6 +86,7 @@ function IdentityEstablishmentFlow({
       return (
         <SignInPage>
           <ContinueWithGoogle onContinue={google.establishIdentity} />
+          <IdentityConsent />
           {onBack ? <BackButton className="md:mt-auto" onClick={onBack} /> : null}
         </SignInPage>
       );
