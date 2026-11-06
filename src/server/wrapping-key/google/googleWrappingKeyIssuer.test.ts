@@ -27,7 +27,7 @@ describe("Google wrapping-key issuer", () => {
     );
     const issuer = new GoogleWrappingKeyIssuer(GOOGLE_CLIENT_ID, "current", SECRETS);
 
-    const result = await issuer.issueGoogleWrappingKey("id-token");
+    const result = await issuer.issueWrappingKey("id-token");
 
     expect(Result.isOk(result) && result.value.keyId).toBe("current");
   });
@@ -45,8 +45,8 @@ describe("Google wrapping-key issuer", () => {
       ]),
     );
 
-    const current = await issuer.issueGoogleWrappingKey("id-token");
-    const old = await issuer.issueGoogleWrappingKey("id-token", "old");
+    const current = await issuer.issueWrappingKey("id-token");
+    const old = await issuer.issueWrappingKey("id-token", "old");
 
     expect(Result.isOk(current) && current.value).toMatchObject({ keyId: "current" });
     expect(Result.isOk(old) && old.value).toMatchObject({ keyId: "old" });
@@ -62,7 +62,7 @@ describe("Google wrapping-key issuer", () => {
     );
     const issuer = new GoogleWrappingKeyIssuer(GOOGLE_CLIENT_ID, "current", SECRETS);
 
-    await expectAsyncResultError(issuer.issueGoogleWrappingKey("id-token", "removed"), {
+    await expectAsyncResultError(issuer.issueWrappingKey("id-token", "removed"), {
       code: "key_unavailable",
     });
     expect(warning).toHaveBeenCalledWith("identity.google.wrapping_key.failed", {
@@ -78,7 +78,7 @@ describe("Google wrapping-key issuer", () => {
     );
     const issuer = new GoogleWrappingKeyIssuer(GOOGLE_CLIENT_ID, "current", SECRETS);
 
-    await expectAsyncResultError(issuer.issueGoogleWrappingKey("SECRET-GOOGLE-ID-TOKEN"), {
+    await expectAsyncResultError(issuer.issueWrappingKey("SECRET-GOOGLE-ID-TOKEN"), {
       code: "invalid_google_id_token",
     });
   });
@@ -90,7 +90,7 @@ describe("Google wrapping-key issuer", () => {
     );
     const issuer = new GoogleWrappingKeyIssuer(GOOGLE_CLIENT_ID, "current", SECRETS);
 
-    const result = await issuer.issueGoogleWrappingKey("id-token");
+    const result = await issuer.issueWrappingKey("id-token");
     expect(Result.isError(result)).toBe(true);
     if (!Result.isError(result)) throw new Error("Expected verifier failure.");
     expect(result.error.code).toBe("google_verifier_unavailable");
@@ -104,7 +104,7 @@ describe("Google wrapping-key issuer", () => {
     vi.spyOn(OAuth2Client.prototype, "getFederatedSignonCertsAsync").mockRejectedValue(cause);
     const issuer = new GoogleWrappingKeyIssuer(GOOGLE_CLIENT_ID, "current", SECRETS);
 
-    const result = await issuer.issueGoogleWrappingKey("id-token");
+    const result = await issuer.issueWrappingKey("id-token");
 
     expect(Result.isError(result)).toBe(true);
     if (!Result.isError(result)) throw new Error("Expected verifier failure.");
@@ -129,7 +129,7 @@ describe("Google wrapping-key issuer", () => {
       }),
     );
 
-    expect(GoogleWrappingKeyIssuer.fromEnvironment().issueGoogleWrappingKey).toEqual(
+    expect(GoogleWrappingKeyIssuer.fromEnvironment().issueWrappingKey).toEqual(
       expect.any(Function),
     );
   });

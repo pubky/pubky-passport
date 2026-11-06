@@ -365,3 +365,64 @@ function normalizeHeaderName(name: string): string {
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join("-");
 }
+
+describe("HomegateClient Apple verification", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it("posts only the Apple ID token to the Apple verification endpoint", async () => {
+    const calls: Array<{ url: string; init: RequestInit | undefined }> = [];
+    const client = new HomegateClient(HOMEGATE_BASE_URL, async (input, init) => {
+      calls.push({ url: String(input), init });
+      return jsonResponse({ signupCode: "signup-token", homeserverPubky: HOMESERVER_PUBKY });
+    });
+
+    const result = await client.requestAppleSignupToken("apple-id-token");
+
+    expect(Result.isOk(result) && result.value).toEqual({
+      signupToken: "signup-token",
+      homeserverPubky: HOMESERVER_PUBKY,
+    });
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.url).toBe("https://homegate.example/apple_verification");
+    expect(calls[0]?.init?.method).toBe("POST");
+    expect(calls[0]?.init?.body).toBe('{"appleIdToken":"apple-id-token"}');
+    expect(calls[0]?.init?.credentials).toBe("omit");
+    expect(calls[0]?.init?.redirect).toBe("error");
+    expect(calls[0]?.init?.referrerPolicy).toBe("no-referrer");
+  });
+
+  it.each([
+    ["invalid_apple_id_token", "invalid_apple_id_token"],
+    ["apple_verifier_unavailable", "apple_verifier_unavailable"],
+    ["weekly_limit_exceeded", "weekly_limit_exceeded"],
+  ] satisfies ReadonlyArray<readonly [string, HomegateSignupTokenErrorCode]>)(
+    "maps the %s error body",
+    async (body, code) => {
+      const warn = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+      const client = new HomegateClient(
+        HOMEGATE_BASE_URL,
+        async () => new Response(body, { status: 400 }),
+      );
+
+      const result = await client.requestAppleSignupToken("SECRET-APPLE-ID-TOKEN");
+
+      expect(Result.isError(result) && result.error.code).toBe(code);
+      expect(warn).toHaveBeenCalledWith(
+        "identity.apple.homeserver_signup_token.failed",
+        expect.objectContaining({ operation: "request_apple_signup_token", code }),
+      );
+      expect(JSON.stringify(warn.mock.calls)).not.toContain("SECRET-APPLE-ID-TOKEN");
+    },
+  );
+
+  it("rejects an empty Apple ID token without a request", async () => {
+    vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+    const fetch = vi.fn<typeof globalThis.fetch>();
+    const client = new HomegateClient(HOMEGATE_BASE_URL, fetch);
+
+    const result = await client.requestAppleSignupToken("  ");
+
+    expect(Result.isError(result) && result.error.code).toBe("homegate_invalid_request");
+    expect(fetch).not.toHaveBeenCalled();
+  });
+});

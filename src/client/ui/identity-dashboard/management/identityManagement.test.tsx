@@ -37,7 +37,7 @@ describe("IdentityManagement", () => {
       <IdentityManagement
         identity={identity}
         onBack={vi.fn()}
-        onDetachFromGoogle={vi.fn()}
+        onDetachFromProvider={vi.fn()}
         onDownloadRecoveryFile={vi.fn()}
         onRemoveLocalIdentity={() => Result.ok()}
         onMigrateToKeychain={vi.fn()}
@@ -190,11 +190,11 @@ describe("IdentityManagement", () => {
     const onBack = vi.fn();
     const onDownloadRecoveryFile = vi.fn();
     const onMigrateToKeychain = vi.fn();
-    const onDetachFromGoogle = vi.fn();
+    const onDetachFromProvider = vi.fn();
     const onRemoveLocalIdentity = vi.fn(() => Result.ok());
     renderManagement({
       onBack,
-      onDetachFromGoogle,
+      onDetachFromProvider,
       onDownloadRecoveryFile,
       onMigrateToKeychain,
       onRemoveLocalIdentity,
@@ -225,7 +225,7 @@ describe("IdentityManagement", () => {
     fireEvent.click(detach);
     expect(onDownloadRecoveryFile).toHaveBeenCalledOnce();
     expect(onMigrateToKeychain).toHaveBeenCalledOnce();
-    expect(onDetachFromGoogle).toHaveBeenCalledOnce();
+    expect(onDetachFromProvider).toHaveBeenCalledOnce();
     expect(onRemoveLocalIdentity).not.toHaveBeenCalled();
     expect(onBack).not.toHaveBeenCalled();
 
@@ -238,11 +238,48 @@ describe("IdentityManagement", () => {
   it("keeps backup, keychain and logout available for an identity detached from Google", async () => {
     renderManagement({ identity: { publicIdentity: identity.publicIdentity } });
 
+    expect(screen.getByText("Sign-in account")).toBeInTheDocument();
     expect(screen.getByText("Not connected")).toBeInTheDocument();
+    expect(screen.queryByText("Google account")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Backup" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Keychain" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Log out" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Detach from Google" })).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("homeserver-pubky")).toBeInTheDocument());
+  });
+
+  it("names the Apple Account and detaches from Apple for an Apple identity", async () => {
+    const onDetachFromProvider = vi.fn();
+    const appleAccount = { appleSubject: "001234.abcdef.1234", email: null, name: null };
+    const appleIdentity = {
+      appleAccount,
+      publicIdentity: identity.publicIdentity,
+    } satisfies LocalIdentityMetadata;
+    renderManagement({ identity: appleIdentity, onDetachFromProvider });
+
+    expect(screen.getByText("Apple Account")).toBeInTheDocument();
+    expect(screen.getByText("Key stored in iCloud")).toBeInTheDocument();
+    expect(screen.queryByText("Google account")).not.toBeInTheDocument();
+    expect(screen.queryByText("001234.abcdef.1234")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Detach from Apple" }));
+    expect(onDetachFromProvider).toHaveBeenCalledWith({ provider: "apple", appleAccount });
+    await waitFor(() => expect(screen.getByText("homeserver-pubky")).toBeInTheDocument());
+  });
+
+  it("shows the Apple name and email kept in this browser", async () => {
+    renderManagement({
+      identity: {
+        appleAccount: {
+          appleSubject: "001234.abcdef.1234",
+          email: "abc123@privaterelay.appleid.com",
+          name: "Jane Appleseed",
+        },
+        publicIdentity: identity.publicIdentity,
+      },
+    });
+
+    expect(screen.getByText("Jane Appleseed")).toBeInTheDocument();
+    expect(screen.getByText("abc123@privaterelay.appleid.com")).toBeInTheDocument();
     await waitFor(() => expect(screen.getByText("homeserver-pubky")).toBeInTheDocument());
   });
 });
@@ -250,7 +287,7 @@ describe("IdentityManagement", () => {
 function renderManagement({
   identity: managedIdentity = identity,
   onBack = vi.fn(),
-  onDetachFromGoogle = vi.fn(),
+  onDetachFromProvider = vi.fn(),
   onDownloadRecoveryFile = vi.fn(),
   onMigrateToKeychain = vi.fn(),
   onRemoveLocalIdentity = () => Result.ok(),
@@ -259,7 +296,7 @@ function renderManagement({
 }: {
   identity?: LocalIdentityMetadata;
   onBack?: () => void;
-  onDetachFromGoogle?: () => void;
+  onDetachFromProvider?: (account: unknown) => void;
   onDownloadRecoveryFile?: () => void;
   onMigrateToKeychain?: () => void;
   onRemoveLocalIdentity?: () => LocalIdentityResult<void>;
@@ -270,7 +307,7 @@ function renderManagement({
     <IdentityManagement
       identity={managedIdentity}
       onBack={onBack}
-      onDetachFromGoogle={onDetachFromGoogle}
+      onDetachFromProvider={onDetachFromProvider}
       onDownloadRecoveryFile={onDownloadRecoveryFile}
       onRemoveLocalIdentity={onRemoveLocalIdentity}
       onMigrateToKeychain={onMigrateToKeychain}

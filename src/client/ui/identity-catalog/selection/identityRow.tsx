@@ -42,11 +42,10 @@ function IdentityRow({
         detailClassName="lowercase"
         name={name}
       />
-      {selected ? (
-        <CheckIcon className="text-brand" />
-      ) : !googleProvider && providerMark ? (
-        <span className="flex size-4 shrink-0 items-center justify-center">{providerMark}</span>
+      {!googleProvider && providerMark ? (
+        <span className="flex shrink-0 items-center justify-center">{providerMark}</span>
       ) : null}
+      {selected ? <CheckIcon className="text-brand" /> : null}
     </button>
   );
 }

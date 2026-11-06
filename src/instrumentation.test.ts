@@ -53,4 +53,20 @@ describe("server instrumentation", () => {
 
     await expect(register()).resolves.toBeUndefined();
   });
+
+  it("fails server registration when Apple login is on with invalid settings", async () => {
+    vi.stubEnv("NEXT_RUNTIME", "nodejs");
+    vi.stubEnv("GOOGLE_CLIENT_ID", "google-client-id");
+    vi.stubEnv("HOMEGATE_URL", "https://homegate.example");
+    vi.stubEnv("PUBKY_HOMESERVER_CONNECT_ORIGINS", "https://homeserver.example");
+    vi.stubEnv("PASSPORT_SERVER_SECRET_CURRENT_KEY_ID", "current");
+    vi.stubEnv(
+      "PASSPORT_SERVER_SECRET_KEYRING_JSON",
+      JSON.stringify({ current: Buffer.alloc(32, 1).toString("base64") }),
+    );
+    vi.stubEnv("APPLE_LOGIN_ENABLED", "true");
+    vi.stubEnv("APPLE_SERVICES_ID", undefined);
+
+    await expect(register()).rejects.toThrow("APPLE_SERVICES_ID is required");
+  });
 });

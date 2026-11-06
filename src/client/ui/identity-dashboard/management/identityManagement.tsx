@@ -6,7 +6,12 @@ import { toast } from "sonner";
 import { LOGGER, safeErrorLogFields } from "@/libs/logger/logger";
 import type { LocalIdentityResult } from "@/client/logic/local-identity/LocalStorageIdentityRepository";
 import type { LocalIdentityHomeserverRepublishResult } from "@/client/logic/local-identity/LocalIdentityController";
-import type { LocalIdentityMetadata } from "@/client/logic/local-identity/localIdentityModels";
+import {
+  identityProfile,
+  identityProviderAccount,
+  type IdentityProviderAccount,
+  type LocalIdentityMetadata,
+} from "@/client/logic/local-identity/localIdentityModels";
 import type { PubkyHomeserverResolutionResult } from "@/client/logic/pubky/pubkyIdentityKey";
 import {
   CopyIcon,
@@ -26,6 +31,7 @@ import { Button } from "@/client/ui/shared/primitives/button";
 import { IconButton } from "@/client/ui/shared/primitives/iconButton";
 import { FieldMessage } from "@/client/ui/shared/primitives/fieldMessage";
 import { DisplayHeading } from "@/client/ui/shared/primitives/typography";
+import { providerDisplayName } from "@/client/ui/shared/providerDisplayName";
 
 type HomeserverLookup =
   { status: "looking-up" } | { status: "unavailable" } | { status: "resolved"; pubky: string };
@@ -44,7 +50,7 @@ function homeserverLabel(lookup: HomeserverLookup): string {
 function IdentityManagement({
   identity,
   onBack,
-  onDetachFromGoogle,
+  onDetachFromProvider,
   onDownloadRecoveryFile,
   onRemoveLocalIdentity,
   onMigrateToKeychain,
@@ -53,15 +59,17 @@ function IdentityManagement({
 }: {
   identity: LocalIdentityMetadata;
   onBack: () => void;
-  onDetachFromGoogle: () => void;
+  onDetachFromProvider: (account: IdentityProviderAccount) => void;
   onDownloadRecoveryFile: () => void;
   onRemoveLocalIdentity: () => LocalIdentityResult<void>;
   onMigrateToKeychain: () => void;
   republishHomeserver: () => Promise<LocalIdentityHomeserverRepublishResult>;
   resolveHomeserver: (publicKeyZ32: string) => Promise<PubkyHomeserverResolutionResult>;
 }) {
+  const providerAccount = identityProviderAccount(identity);
   const account = identity.googleAccount;
-  const name = account?.name ?? "Your Pubky";
+  const profile = identityProfile(identity);
+  const name = profile.name ?? "Your Pubky";
   const [homeserver, setHomeserver] = useState<HomeserverLookup>({ status: "looking-up" });
   const [logoutFailed, setLogoutFailed] = useState(false);
   const [republishing, setRepublishing] = useState(false);
@@ -156,7 +164,17 @@ function IdentityManagement({
 
       <section className="flex flex-col gap-6">
         <IdentityDetail label="User" value={name} />
-        <IdentityDetail label="Google account" value={account?.email ?? "Not connected"} />
+        {providerAccount?.provider === "apple" ? (
+          <IdentityDetail
+            label="Apple Account"
+            value={providerAccount.appleAccount.email ?? "Key stored in iCloud"}
+          />
+        ) : (
+          <IdentityDetail
+            label={account ? "Google account" : "Sign-in account"}
+            value={account?.email ?? "Not connected"}
+          />
+        )}
         <IdentityDetail
           copyable
           label="Pubky"
@@ -204,9 +222,12 @@ function IdentityManagement({
         <ManagementButton icon={<LogOutIcon />} onClick={logout}>
           Log out
         </ManagementButton>
-        {account ? (
-          <ManagementButton icon={<LinkOffIcon />} onClick={onDetachFromGoogle}>
-            Detach from Google
+        {providerAccount ? (
+          <ManagementButton
+            icon={<LinkOffIcon />}
+            onClick={() => onDetachFromProvider(providerAccount)}
+          >
+            {`Detach from ${providerDisplayName(providerAccount.provider)}`}
           </ManagementButton>
         ) : null}
       </div>
