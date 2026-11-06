@@ -1,4 +1,7 @@
-import type { LocalIdentityMetadata } from "@/client/logic/local-identity/localIdentityModels";
+import {
+  identityProfile,
+  type LocalIdentityMetadata,
+} from "@/client/logic/local-identity/localIdentityModels";
 import { useSyncExternalStore } from "react";
 import { shortPublicKey } from "@/client/ui/shared/formatPublicKey";
 import { UserRoundPlusIcon } from "@/client/ui/shared/icons";
@@ -7,6 +10,7 @@ import { PassportScreen } from "@/client/ui/shared/passportScreen";
 import { Button } from "@/client/ui/shared/primitives/button";
 import { FieldMessage } from "@/client/ui/shared/primitives/fieldMessage";
 import { DisplayHeading } from "@/client/ui/shared/primitives/typography";
+import { AppleAccountLabel } from "@/client/ui/shared/appleAccountLabel";
 import { IdentityRow } from "./identityRow";
 
 function IdentitySwitcher({
@@ -52,16 +56,22 @@ function IdentitySwitcher({
           Select a Pubky
         </p>
         {orderedIdentities.map((identity) => {
-          const account = identity.googleAccount;
+          const profile = identityProfile(identity);
           const publicKeyZ32 = identity.publicIdentity.publicKeyZ32;
           return (
             <IdentityRow
-              avatarSrc={account?.pictureUrl ?? undefined}
-              detail={account?.email ?? shortPublicKey(publicKeyZ32)}
+              avatarSrc={profile.pictureUrl ?? undefined}
+              detail={profile.email ?? shortPublicKey(publicKeyZ32)}
               key={publicKeyZ32}
-              name={account?.name ?? "Your Pubky"}
+              name={profile.name ?? "Your Pubky"}
               onClick={() => onSelect(publicKeyZ32)}
-              provider={account ? "google" : undefined}
+              provider={
+                identity.googleAccount ? (
+                  "google"
+                ) : identity.appleAccount ? (
+                  <AppleAccountLabel />
+                ) : undefined
+              }
               selected={publicKeyZ32 === activePublicKeyZ32}
             />
           );

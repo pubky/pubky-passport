@@ -74,6 +74,14 @@ export function getAppleEnvironment(): AppleConfiguration | null {
   });
 }
 
+/**
+ * The Apple live-check page exists only for checking a real Apple setup on a staging origin.
+ * It is off unless `APPLE_LIVE_CHECK=true` and Apple login is on. Never set it in production.
+ */
+export function isAppleLiveCheckEnabled(): boolean {
+  return process.env.APPLE_LIVE_CHECK?.trim() === "true" && getAppleEnvironment() !== null;
+}
+
 /** @throws {Error} when the server keyring configuration is missing or invalid. */
 export function getServerEnvironment() {
   const currentKeyId = requireEnvironmentVariable("PASSPORT_SERVER_SECRET_CURRENT_KEY_ID");

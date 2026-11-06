@@ -71,17 +71,12 @@ describe("IdentityEstablishmentFlow", () => {
       within(shell).getByRole("heading", { name: "Quick & easy signing." }).lastElementChild,
     ).toHaveClass("md:block");
     expect(googleButton).toBeEnabled();
-    expect(googleButton.parentElement?.parentElement).toHaveClass(
-      "md:col-start-1",
-      "md:row-start-1",
+    expect(googleButton.parentElement).toHaveClass("md:col-start-1", "md:row-start-1");
+    expect(within(shell).getByRole("button", { name: "How?" })).toHaveAttribute(
+      "aria-expanded",
+      "false",
     );
-    expect(
-      within(shell).getByRole("button", { name: "About signing in with Google" }),
-    ).toHaveAttribute("aria-expanded", "false");
-    expect(within(shell).getByRole("link", { name: "How?" })).toHaveAttribute(
-      "href",
-      "https://github.com/pubky/pubky-passport/blob/main/README.md",
-    );
+    expect(within(shell).queryByRole("link")).not.toBeInTheDocument();
     expect(MOCKS.constructGoogleIdentityController).not.toHaveBeenCalled();
     shell.remove();
   });
