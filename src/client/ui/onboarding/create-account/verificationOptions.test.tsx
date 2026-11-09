@@ -245,7 +245,7 @@ it("says what creating an account agrees to, linking Passport's own terms", () =
   render(options({}));
   const consent = screen.getByText(/By joining and creating a Pubky account, you agree to the/u);
   expect(consent).toHaveTextContent(
-    "By joining and creating a Pubky account, you agree to the Terms of Service and Privacy Policy, and confirm you are at least 18 years old.",
+    "By joining and creating a Pubky account, you agree to the Terms of Service and Privacy Policy.",
   );
   expect(within(consent).getByRole("link", { name: "Terms of Service" })).toHaveAttribute(
     "href",

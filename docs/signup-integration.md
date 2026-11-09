@@ -56,8 +56,8 @@ homeserver confirms the code. The phone step says the number is used only to sen
 limit sign-ups per number, and that the sign-up service keeps only a one-way hash of it. A finished
 verification says so in a toast ("Verification Code Valid", "Received payment of ₿ 1,000"). Join,
 Verify, the Google screen and a request's Sign in end on one line: "By joining and creating a Pubky
-account, you agree to the Terms of Service and Privacy Policy, and confirm you are at least 18 years
-old.", linking Passport's own terms pages as the footer does (in a new tab while a request waits).
+account, you agree to the Terms of Service and Privacy Policy.", linking Passport's own terms pages
+as the footer does (in a new tab while a request waits).
 
 **Pick your keychain.** then presents Pubky Ring and Bitkit together on one card (both logos, both
 apps' store badges, one **Continue with keychain**): one `pubkyauth://direct_signup` link works

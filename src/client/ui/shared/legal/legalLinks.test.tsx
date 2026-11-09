@@ -53,7 +53,7 @@ describe("LegalLinks", () => {
 
 describe("LegalConsent", () => {
   const CONSENT =
-    "By joining and creating a Pubky account, you agree to the Terms of Service and Privacy Policy, and confirm you are at least 18 years old.";
+    "By joining and creating a Pubky account, you agree to the Terms of Service and Privacy Policy.";
 
   afterEach(cleanup);
 
@@ -92,9 +92,9 @@ describe("LegalConsent", () => {
       expect(link).toHaveAttribute("rel", "noopener noreferrer");
     }
     // The note is in the links' names only: the line reads exactly as it does outside a request,
-    // with no space trailing a link before its comma.
+    // with no space trailing a link before its period.
     expect(screen.getByText(/^By joining/u)).toHaveTextContent(
-      "By joining and creating a Pubky account, you agree to the Terms of Service and Privacy Policy, and confirm you are at least 18 years old.",
+      "By joining and creating a Pubky account, you agree to the Terms of Service and Privacy Policy.",
     );
 
     // Once the request has its answer, the pages open in the tab again.

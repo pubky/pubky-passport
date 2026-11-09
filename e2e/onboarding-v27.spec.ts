@@ -23,7 +23,7 @@ const KEYCHAIN_QR_CARD = "Scan QR with keychain.";
 /** A request's Join hands the request to the keychain from this line (a grant request). */
 const USE_KEYCHAIN = "Use Pubky Ring or Bitkit";
 const LEGAL_CONSENT =
-  "By joining and creating a Pubky account, you agree to the Terms of Service and Privacy Policy, and confirm you are at least 18 years old.";
+  "By joining and creating a Pubky account, you agree to the Terms of Service and Privacy Policy.";
 
 /** The plain Sign in, opened from Join's header, and a computer's keychain card. */
 async function openPlainSignIn(page: Page) {

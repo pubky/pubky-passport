@@ -45,7 +45,7 @@ function LegalLinks({ className }: { className?: string }) {
 /**
  * What creating an account agrees to, under the ways to create one (Join, Verify, the Google
  * screen, a request's Sign in), as pubky.app's onboarding says it: the same two pages as the
- * footer, and the age those terms require.
+ * footer.
  */
 function LegalConsent({ className }: { className?: string }) {
   const linkTo = useLegalLinkTarget();
@@ -63,7 +63,7 @@ function LegalConsent({ className }: { className?: string }) {
       <a className={CONSENT_LINK_CLASS_NAME} href="/privacy-policy" {...linkTo("Privacy Policy")}>
         Privacy Policy
       </a>
-      , and confirm you are at least 18 years old.
+      .
     </p>
   );
 }

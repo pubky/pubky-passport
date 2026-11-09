@@ -75,7 +75,7 @@ function addIdentity(props: Partial<Parameters<typeof AddIdentity>[0]> = {}) {
 
 /** The consent line under the ways to create an account. */
 const CONSENT =
-  "By joining and creating a Pubky account, you agree to the Terms of Service and Privacy Policy, and confirm you are at least 18 years old.";
+  "By joining and creating a Pubky account, you agree to the Terms of Service and Privacy Policy.";
 
 /**
  * Passport's own keychain connection as the signer hands it to Sign in (see
