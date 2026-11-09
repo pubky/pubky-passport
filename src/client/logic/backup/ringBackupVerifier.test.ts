@@ -54,7 +54,7 @@ function setup() {
 it("records the verification when Pubky Ring approves with this key, then signs the Session out", async () => {
   const { backup, connection, start, verifier } = setup();
   expectResultOk(await verifier.start(KEY));
-  expect(start).toHaveBeenCalledExactlyOnceWith(RELAY);
+  expect(start).toHaveBeenCalledExactlyOnceWith(RELAY, "grant");
   expect(verifier.authorizationUrl()).toBe(URL);
   expect(expectResultOk(await verifier.poll())).toEqual({ status: "waiting" });
   expect(backup()).toBeUndefined();
@@ -135,4 +135,11 @@ it("releases a request that finished starting after it was disposed", async () =
   expectResultError(await started, { code: "cancelled" });
   expect(connection.dispose).toHaveBeenCalledOnce();
   expect(verifier.authorizationUrl()).toBeUndefined();
+});
+
+it("asks the legacy way for Pubky Ring older than 2.0 when the classic QR is on", async () => {
+  const { start, verifier } = setup();
+  expectResultOk(await verifier.start(KEY, "cookie"));
+  expect(start).toHaveBeenCalledExactlyOnceWith(RELAY, "cookie");
+  verifier.dispose();
 });

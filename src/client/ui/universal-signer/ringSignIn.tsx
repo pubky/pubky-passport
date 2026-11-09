@@ -49,18 +49,26 @@ export function RingSignIn({
   const [, handoffLauncher] = useDeepLinkLauncher(launcher);
   // Only a computer shows a code; a phone opens Pubky Ring, whatever became of a launch.
   const scanning = mode === "scan";
+  const grant = review.authenticationMethod === "grant";
   const watching = watchApproval !== undefined;
   const startWatching = useEffectEvent(() => watchApproval?.());
   // Watches only while this screen is shown: Back or any other way out stops it.
   useEffect(() => (watching ? startWatching() : undefined), [watching]);
   return (
     <RingHandoffScreen
+      // A grant request reaches either keychain app; the legacy kind only Pubky Ring, as Bitkit
+      // refuses it.
+      accent={grant ? "keychain." : "Pubky Ring."}
       action="Sign in with"
       instruction={
         <>
           {scanning
-            ? "Scan this code with Pubky Ring on your phone, then choose an identity and approve the sign-in"
-            : "Choose an identity in Pubky Ring and approve the sign-in"}
+            ? grant
+              ? "Scan this code with Pubky Ring or Bitkit on your phone, then choose an identity and approve the sign-in"
+              : "Scan this code with Pubky Ring on your phone, then choose an identity and approve the sign-in"
+            : grant
+              ? "Choose an identity in your keychain app and approve the sign-in"
+              : "Choose an identity in Pubky Ring and approve the sign-in"}
           {requester ? <> to {requester}</> : null}.
         </>
       }
@@ -68,7 +76,11 @@ export function RingSignIn({
     >
       {opener.unverified ? <UnverifiedRequestNotice /> : null}
       <BroadAccessWarning capabilities={review.capabilities} />
-      <ExternalSignerRequest getAuthorizationUrl={getAuthorizationUrl} launcher={handoffLauncher} />
+      <ExternalSignerRequest
+        getAuthorizationUrl={getAuthorizationUrl}
+        launcher={handoffLauncher}
+        purpose={grant ? "app-request" : "app-request-ring"}
+      />
     </RingHandoffScreen>
   );
 }

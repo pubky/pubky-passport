@@ -6,6 +6,7 @@ import { afterEach, expect, it, vi } from "vitest";
 
 import type { SignupTokenStatus } from "@/client/logic/pubky/SignupTokenChecker";
 import { withPassportTestProviders } from "@test-utils/googleIdentityConfiguration";
+import { makeInstanceConfig } from "@test-utils/instanceConfig";
 import { InviteCodeStep } from "./inviteCodeStep";
 
 const HOMESERVER = "8pinxxgqs41n4aididenw5apqp1urfmzdztr8jt4abrkdn435ewo";
@@ -29,6 +30,7 @@ function renderStep(
   homeserver = HOMESERVER,
   props: Partial<Parameters<typeof InviteCodeStep>[0]> = {},
   reachable: (homeserverPubky: string) => boolean = () => true,
+  instance = makeInstanceConfig(),
 ) {
   const checkSignupToken = vi.fn(async () => status);
   const checkHomeserver = vi.fn(async (homeserverPubky: string) => reachable(homeserverPubky));
@@ -41,10 +43,35 @@ function renderStep(
         {...props}
       />,
       { checkHomeserver, checkSignupToken },
+      instance,
     ),
   );
   return { checkHomeserver, checkSignupToken };
 }
+
+it("asks for the invite under one heading, with Continue in the actions outside the form", () => {
+  renderStep();
+  expect(screen.getByRole("heading", { level: 1, name: "Use invite." })).toBeInTheDocument();
+  expect(
+    screen.getByText("Enter the invite code you received to create your account."),
+  ).toBeInTheDocument();
+  // The actions sit under the card (pinned on phones), so Continue submits the form by its id.
+  const proceed = screen.getByRole("button", { name: "Continue" });
+  expect(proceed.closest("form")).toBeNull();
+  expect(proceed).toHaveAttribute(
+    "form",
+    screen.getByLabelText("Enter invite code").closest("form")?.id,
+  );
+});
+
+it("names nobody to ask for an invite: an instance has no provider to name", () => {
+  renderStep();
+  expect(screen.queryByText(/Ask us/u)).toBeNull();
+  expect(screen.queryByRole("link", { name: /^Ask on/u })).toBeNull();
+  expect(
+    screen.getByText("Enter the invite code you received to create your account."),
+  ).toBeInTheDocument();
+});
 
 it("prefills the instance homeserver and lets the person change it", () => {
   renderStep();

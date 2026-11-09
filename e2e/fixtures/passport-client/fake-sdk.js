@@ -64,27 +64,27 @@ export class Pubky {
   async startGrantAuthFlow(capabilities, kind, options) {
     const index = sdk.starts.length;
     sdk.starts.push({
+      kind: "grant",
       capabilities,
       clientId: options?.clientId,
       xSource: options?.xCallback?.xSource,
       callbacks: Boolean(options?.xCallback?.xSuccess),
     });
-    return {
-      // Numbered on request, so a test can tell one flow's link from the next.
-      get authorizationUrl() {
-        return sdk.numberLinks ? `${sdk.authorizationUrl}&flow=${index}` : sdk.authorizationUrl;
-      },
-      tryPollOnce() {
-        sdk.polls++;
-        return new Promise((resolve) => sdk.pending.push(resolve));
-      },
-      saveDelegated() {
-        throw new Error("Popup flows never save state");
-      },
-      free() {
-        sdk.flowFrees++;
-      },
-    };
+    return flow(index);
+  }
+  /** The classic QR's legacy cookie sign-in: no client ID, no delegated save. */
+  startCookieAuthFlow(capabilities, kind, relay, xCallback) {
+    const index = sdk.starts.length;
+    sdk.starts.push({
+      kind: "cookie",
+      capabilities,
+      relay: relay ?? undefined,
+      xSource: xCallback?.xSource,
+      callbacks: Boolean(xCallback?.xSuccess),
+    });
+    const { saveDelegated, ...cookie } = flow(index, sdk.cookieAuthorizationUrl);
+    void saveDelegated;
+    return cookie;
   }
   async resumeDelegatedGrantAuthFlow() {
     throw new Error("No same-tab return in this fixture");
@@ -99,4 +99,25 @@ export class Pubky {
       free() {},
     };
   }
+}
+
+/** One flow handle; `url` replaces the test's link (a cookie request has its own). */
+function flow(index, url) {
+  return {
+    // Numbered on request, so a test can tell one flow's link from the next.
+    get authorizationUrl() {
+      const link = url ?? sdk.authorizationUrl;
+      return sdk.numberLinks ? `${link}&flow=${index}` : link;
+    },
+    tryPollOnce() {
+      sdk.polls++;
+      return new Promise((resolve) => sdk.pending.push(resolve));
+    },
+    saveDelegated() {
+      throw new Error("Popup flows never save state");
+    },
+    free() {
+      sdk.flowFrees++;
+    },
+  };
 }

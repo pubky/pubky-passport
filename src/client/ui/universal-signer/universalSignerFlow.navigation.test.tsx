@@ -6,6 +6,7 @@ import userEvent from "@testing-library/user-event";
 import { Result } from "better-result";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { PassportAuthorizationViewState } from "@/client/logic/authorization/flow/PassportAuthorizationController";
 import type { LocalIdentityCatalog } from "@/client/logic/local-identity/localIdentityModels";
 import type { PubkyPublicIdentity } from "@/client/logic/pubky/pubkyIdentityKey";
 import { TEST_PROVIDER_HOMESERVER } from "@test-utils/instanceConfig";
@@ -27,11 +28,13 @@ const FLOW = {
   storageUnavailable: false,
 };
 
-function renderSigner() {
+const cancel = vi.fn();
+
+function renderSigner(authorization: PassportAuthorizationViewState = { status: "manual-entry" }) {
   return render(
     withPassportTestProviders(<UniversalSignerFlow />, {
       createAuthorizationController: () =>
-        fakePassportAuthorizationController({ current: { status: "manual-entry" } }),
+        fakePassportAuthorizationController({ current: authorization }, { cancel }),
       // Pubky Ring never answers here: the check waits until it is left.
       createRingBackupVerifier: () => ({
         start: async () => Result.ok(),
@@ -148,7 +151,7 @@ describe("UniversalSignerFlow identity navigation", () => {
 
   it("shows the landing page when no local identity exists", async () => {
     renderSigner();
-    expect(await screen.findByRole("heading", { name: "Get your pubky." })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Let’s join Pubky." })).toBeInTheDocument();
   });
 
   it("says why identities are unavailable and offers to reload once that is fixed", async () => {
@@ -226,7 +229,7 @@ describe("UniversalSignerFlow identity navigation", () => {
     expect(
       screen.queryByRole("button", { name: "Download recovery file" }),
     ).not.toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "Get your pubky." })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Let’s join Pubky." })).not.toBeInTheDocument();
   });
 
   it("shows the active identity when several identities exist", async () => {
@@ -264,7 +267,10 @@ describe("UniversalSignerFlow identity navigation", () => {
     expect(screen.getByRole("heading", { name: "Switch identity." })).toBeInTheDocument();
     await userEvent.setup().click(screen.getByRole("button", { name: "Add identity" }));
 
-    expect(await screen.findByRole("heading", { name: "Add an account." })).toBeInTheDocument();
+    // A new account by default, with Back to the switcher.
+    expect(await screen.findByRole("heading", { name: "Let’s join Pubky." })).toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole("button", { name: "Back" }));
+    expect(screen.getByRole("heading", { name: "Switch identity." })).toBeInTheDocument();
   });
 
   it("gates a newly added identity behind setup completion", async () => {
@@ -518,7 +524,7 @@ describe("UniversalSignerFlow identity navigation", () => {
       FLOW.listener?.();
     });
 
-    expect(await screen.findByRole("heading", { name: "Get your pubky." })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Let’s join Pubky." })).toBeInTheDocument();
   });
 
   it.each([
@@ -565,7 +571,7 @@ describe("UniversalSignerFlow identity navigation", () => {
     await userEvent.setup().click(screen.getByRole("checkbox"));
     await userEvent.setup().click(screen.getByRole("button", { name: "Remove from this browser" }));
 
-    expect(await screen.findByRole("heading", { name: "Get your pubky." })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Let’s join Pubky." })).toBeInTheDocument();
   });
 
   it("returns to the logout confirmation after the backup it asked for", async () => {
@@ -589,5 +595,192 @@ describe("UniversalSignerFlow identity navigation", () => {
     await user.click(screen.getByRole("button", { name: "Download recovery file" }));
     await user.click(screen.getByRole("button", { name: "Back" }));
     expect(screen.getByRole("heading", { name: "Manage identity." })).toBeInTheDocument();
+  });
+});
+
+describe("UniversalSignerFlow start page screens", () => {
+  const REVIEW = {
+    authenticationMethod: "cookie",
+    capabilities: [{ path: "/pub/requesting.app/", read: true, write: true, scope: "specific" }],
+  } as const;
+  const TWO_SAVED: LocalIdentityCatalog = {
+    activePublicKeyZ32: "first",
+    identities: [
+      { publicIdentity: { publicKeyZ32: "first" } },
+      { publicIdentity: { publicKeyZ32: "second" } },
+    ],
+  };
+
+  beforeEach(() => {
+    FLOW.catalog = { activePublicKeyZ32: null, identities: [] };
+    FLOW.listener = undefined;
+    FLOW.storageUnavailable = false;
+  });
+
+  afterEach(() => {
+    cleanup();
+    window.dispatchEvent(new PageTransitionEvent("pagehide"));
+    localStorage.clear();
+    vi.clearAllMocks();
+  });
+
+  it("opens on Join without a request, whose header leads to Sign in, and Back returns to Join", async () => {
+    const user = userEvent.setup();
+    renderSigner();
+
+    expect(await screen.findByRole("heading", { name: "Let’s join Pubky." })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Sign in" }));
+    expect(screen.getByRole("heading", { level: 1 })).toHaveAccessibleName("Sign in to Pubky");
+    // Join is one Back away, so Sign in's header has no link there of its own.
+    expect(screen.queryByRole("button", { name: "New here?" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Back" }));
+    expect(screen.getByRole("heading", { name: "Let’s join Pubky." })).toBeInTheDocument();
+  });
+
+  it("keeps a request on Join, with Sign in's ways in under its cards instead of a switch", async () => {
+    const user = userEvent.setup();
+    // The app's "Join now" opened Join; a request's Join has no header link to Sign in.
+    renderSigner({ status: "review", review: REVIEW, entry: "join" });
+
+    await screen.findByRole("heading", { name: "Let’s join Pubky." });
+    expect(screen.queryByRole("button", { name: "Sign in" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "New here?" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Import it" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Use Pubky Ring" })).toBeInTheDocument();
+    // Back on the screen the request opened on answers the app.
+    await user.click(screen.getByRole("button", { name: "Back" }));
+    expect(cancel).toHaveBeenCalledOnce();
+  });
+
+  it("goes Back to Join from the Sign in it opened, without a request", async () => {
+    const user = userEvent.setup();
+    renderSigner();
+
+    // The first screen has nowhere to go back to.
+    await screen.findByRole("heading", { name: "Let’s join Pubky." });
+    expect(screen.queryByRole("button", { name: "Back" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Sign in" }));
+    await user.click(screen.getByRole("button", { name: "Back" }));
+    expect(screen.getByRole("heading", { name: "Let’s join Pubky." })).toBeInTheDocument();
+  });
+
+  it.each([undefined, "sign-in"] as const)(
+    "opens a request with nothing to sign with on its Join, where Back answers the app, entry=%s",
+    async (entry) => {
+      renderSigner({ status: "review", review: REVIEW, ...(entry ? { entry } : {}) });
+
+      expect(await screen.findByRole("heading", { level: 1 })).toHaveAccessibleName(
+        "Let’s join Pubky.",
+      );
+      expect(screen.queryByRole("button", { name: "Sign in" })).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Import it" })).toBeInTheDocument();
+      await userEvent.setup().click(screen.getByRole("button", { name: "Back" }));
+      expect(cancel).toHaveBeenCalledOnce();
+    },
+  );
+
+  it.each([
+    ["join", "Let’s join Pubky."],
+    ["google", "Continue with Google."],
+  ] as const)(
+    "opens a request whose app asked for %s on that screen, answering the app on Back",
+    async (entry, heading) => {
+      renderSigner({ status: "review", review: REVIEW, entry });
+
+      expect(await screen.findByRole("heading", { level: 1 })).toHaveAccessibleName(heading);
+      await userEvent.setup().click(screen.getByRole("button", { name: "Back" }));
+      expect(cancel).toHaveBeenCalledOnce();
+    },
+  );
+
+  it.each(["join", "google"] as const)(
+    "lists the saved identities for a request whose app asked for %s",
+    async (entry) => {
+      FLOW.catalog = TWO_SAVED;
+      renderSigner({ status: "review", review: REVIEW, entry });
+
+      // The app's screen never skips identities that can sign: the person picks one first.
+      expect(await screen.findByText("Choose the identity to sign in with.")).toBeInTheDocument();
+      expect(screen.queryByRole("heading", { name: "Let’s join Pubky." })).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("heading", { name: "Continue with Google." }),
+      ).not.toBeInTheDocument();
+      expect(cancel).not.toHaveBeenCalled();
+    },
+  );
+
+  it("lists the saved identities for a request that asked for Sign in", async () => {
+    FLOW.catalog = TWO_SAVED;
+    renderSigner({ status: "review", review: REVIEW, entry: "sign-in" });
+
+    expect(await screen.findByText("Choose the identity to sign in with.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "New here?" })).not.toBeInTheDocument();
+  });
+
+  it("returns from account creation to the request's Join it was opened from", async () => {
+    const user = userEvent.setup();
+    renderSigner({ status: "review", review: REVIEW });
+
+    await screen.findByRole("heading", { name: "Let’s join Pubky." });
+    await user.click(screen.getByRole("button", { name: "Manage your own keys" }));
+    expect(
+      await screen.findByRole("heading", { name: "Prove you’re not a robot." }),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Back" }));
+
+    expect(await screen.findByRole("heading", { level: 1 })).toHaveAccessibleName(
+      "Let’s join Pubky.",
+    );
+    expect(cancel).not.toHaveBeenCalled();
+    // The request's first screen again: Back answers the app.
+    await user.click(screen.getByRole("button", { name: "Back" }));
+    expect(cancel).toHaveBeenCalledOnce();
+  });
+
+  it("returns from account creation to Join where the app asked for Join", async () => {
+    const user = userEvent.setup();
+    renderSigner({ status: "review", review: REVIEW, entry: "join" });
+
+    await screen.findByRole("heading", { name: "Let’s join Pubky." });
+    await user.click(screen.getByRole("button", { name: "Manage your own keys" }));
+    expect(
+      await screen.findByRole("heading", { name: "Prove you’re not a robot." }),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Back" }));
+
+    expect(await screen.findByRole("heading", { name: "Let’s join Pubky." })).toBeInTheDocument();
+    expect(cancel).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "Back" }));
+    expect(cancel).toHaveBeenCalledOnce();
+  });
+
+  it("returns from account creation to Join without a request", async () => {
+    const user = userEvent.setup();
+    renderSigner();
+
+    await screen.findByRole("heading", { name: "Let’s join Pubky." });
+    await user.click(screen.getByRole("button", { name: "Manage your own keys" }));
+    expect(
+      await screen.findByRole("heading", { name: "Prove you’re not a robot." }),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Back" }));
+
+    expect(await screen.findByRole("heading", { name: "Let’s join Pubky." })).toBeInTheDocument();
+  });
+
+  it("returns from import to Sign in, even where the page opened on Join", async () => {
+    const user = userEvent.setup();
+    renderSigner();
+
+    await user.click(await screen.findByRole("button", { name: "Sign in" }));
+    await user.click(screen.getByRole("button", { name: "Import it" }));
+    expect(
+      await screen.findByRole("heading", { name: "Import recovery file." }),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Back" }));
+
+    expect(await screen.findByRole("heading", { level: 1 })).toHaveAccessibleName(
+      "Sign in to Pubky",
+    );
   });
 });

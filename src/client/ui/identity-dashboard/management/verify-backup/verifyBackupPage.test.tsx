@@ -10,6 +10,10 @@ import type {
 } from "@/client/logic/backup/RingBackupVerifier";
 import type { LocalIdentityBackupCheckResult } from "@/client/logic/local-identity/LocalIdentityController";
 import type { LocalIdentityMetadata } from "@/client/logic/local-identity/localIdentityModels";
+import {
+  KEYCHAIN_AUTH_METHOD_KEY,
+  writeKeychainAuthMethod,
+} from "@/client/logic/pubky/keychainAuthMethod";
 import { formatBackupDate } from "@/client/ui/identity-dashboard/backupStatus";
 import { VerifyBackupPage } from "./verifyBackupPage";
 import { expectNoTextAssistance } from "@test-utils/passwordField";
@@ -85,6 +89,9 @@ afterEach(() => {
   vi.clearAllMocks();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
+  // The classic QR choice is kept for the device; no test inherits another's.
+  writeKeychainAuthMethod("grant");
+  localStorage.clear();
 });
 
 describe("VerifyBackupPage", () => {
@@ -178,7 +185,7 @@ describe("VerifyBackupPage", () => {
     const { onBack, onRingVerified } = mount({ ring });
 
     await waitFor(() => expect(onBack).toHaveBeenCalledOnce());
-    expect(ring.start).toHaveBeenCalledExactlyOnceWith(KEY);
+    expect(ring.start).toHaveBeenCalledExactlyOnceWith(KEY, "grant");
     expect(onRingVerified).toHaveBeenCalledExactlyOnceWith(AT);
     expect(MOCKS.toastSuccess).toHaveBeenCalledExactlyOnceWith("Verified in Pubky Ring");
   });
@@ -258,7 +265,7 @@ describe("VerifyBackupPage", () => {
     const start = within(ringCard()).getByRole("button", { name: "Verify in Pubky Ring" });
     expect(ring.start).not.toHaveBeenCalled();
     await user.click(start);
-    expect(ring.start).toHaveBeenCalledExactlyOnceWith(KEY);
+    expect(ring.start).toHaveBeenCalledExactlyOnceWith(KEY, "grant");
     // The press opens Pubky Ring as soon as the request exists, once, from the button that took
     // the pressed one's place, with Cancel beneath it and no waiting line.
     const link = await within(ringCard()).findByRole("link", { name: "Opening Pubky Ring…" });
@@ -270,6 +277,51 @@ describe("VerifyBackupPage", () => {
     expect(ring.dispose).toHaveBeenCalled();
     expect(assign).toHaveBeenCalledOnce();
     expect(within(ringCard()).getByRole("button", { name: "Verify in Pubky Ring" })).toHaveFocus();
+  });
+
+  it("asks older Pubky Ring the classic way once its switch is on, and the new way once it is off", async () => {
+    const { ring } = mount();
+    const user = userEvent.setup();
+    await within(ringCard()).findByRole("img", { name: "Pubky Ring verification QR code" });
+    expect(ring.start).toHaveBeenCalledExactlyOnceWith(KEY, "grant");
+    // Under the code, off until this device chose otherwise.
+    const classic = within(ringCard()).getByRole("switch", {
+      name: "Older Pubky Ring? Classic QR",
+    });
+    expect(classic).not.toBeChecked();
+    expect(
+      within(ringCard())
+        .getByRole("img", { name: "Pubky Ring verification QR code" })
+        .compareDocumentPosition(classic) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+
+    // On: the pending request is let go and the same check is asked again, the legacy way.
+    await user.click(classic);
+    await waitFor(() => expect(ring.start).toHaveBeenCalledTimes(2));
+    expect(ring.start).toHaveBeenLastCalledWith(KEY, "cookie");
+    expect(ring.dispose).toHaveBeenCalledOnce();
+    expect(classic).toBeChecked();
+    expect(localStorage.getItem(KEYCHAIN_AUTH_METHOD_KEY)).toBe("cookie");
+    expect(
+      await within(ringCard()).findByRole("img", { name: "Pubky Ring verification QR code" }),
+    ).toBeVisible();
+
+    // Off again: back to the request Pubky Ring 2.0 and Bitkit approve.
+    await user.click(classic);
+    await waitFor(() => expect(ring.start).toHaveBeenCalledTimes(3));
+    expect(ring.start).toHaveBeenLastCalledWith(KEY, "grant");
+    expect(localStorage.getItem(KEYCHAIN_AUTH_METHOD_KEY)).toBeNull();
+  });
+
+  it("asks the classic way from the start on a device that chose it", async () => {
+    writeKeychainAuthMethod("cookie");
+    const { ring } = mount();
+
+    await within(ringCard()).findByRole("img", { name: "Pubky Ring verification QR code" });
+    expect(ring.start).toHaveBeenCalledExactlyOnceWith(KEY, "cookie");
+    expect(
+      within(ringCard()).getByRole("switch", { name: "Older Pubky Ring? Classic QR" }),
+    ).toBeChecked();
   });
 
   it("after the export, offers Skip for now, and a passing check leads on to the same place", async () => {

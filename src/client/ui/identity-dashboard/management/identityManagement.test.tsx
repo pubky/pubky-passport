@@ -21,9 +21,9 @@ import { PassportProviderConfiguration } from "@/client/ui/passportProviderConfi
 import { makeInstanceConfig } from "@test-utils/instanceConfig";
 import { IdentityManagement } from "./identityManagement";
 
-const MOCKS = vi.hoisted(() => ({ toastInfo: vi.fn() }));
+const MOCKS = vi.hoisted(() => ({ toastSuccess: vi.fn() }));
 
-vi.mock("sonner", () => ({ toast: { info: MOCKS.toastInfo } }));
+vi.mock("sonner", () => ({ toast: { success: MOCKS.toastSuccess } }));
 
 const PROVIDER_HOMESERVER = "ufibwbmed6jeq9k4p583go95wofakh9fwpp4k734trq79pd9u1uy";
 const REGISTERED_HOMESERVER = "8um71us3fyw6h8wbcxb5ar3rwusy1a6u49956ikzojg3gcwd1dty";
@@ -67,8 +67,8 @@ describe("IdentityManagement", () => {
     await waitFor(() =>
       expect(writeText).toHaveBeenCalledWith(identity.publicIdentity.publicKeyZ32),
     );
-    expect(MOCKS.toastInfo).toHaveBeenCalledWith("Pubky copied to clipboard", {
-      description: `${identity.publicIdentity.publicKeyZ32.slice(0, 32)}...`,
+    expect(MOCKS.toastSuccess).toHaveBeenCalledWith("Pubky copied to clipboard", {
+      description: `${identity.publicIdentity.publicKeyZ32.slice(0, 28)}…`,
     });
     fireEvent.click(screen.getByRole("button", { name: "Back" }));
     expect(onBack).toHaveBeenCalledOnce();

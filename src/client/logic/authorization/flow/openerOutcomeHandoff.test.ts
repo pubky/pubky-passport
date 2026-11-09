@@ -1,7 +1,12 @@
 // @vitest-environment node
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { LOGGER } from "@/libs/logger/logger";
 import { OpenerChannel } from "../opener/OpenerChannel";
-import { handoffOpenerOutcome } from "./openerOutcomeHandoff";
+import {
+  CANCEL_CLOSE_DELAY_MS,
+  CLOSE_CONFIRM_MS,
+  handoffOpenerOutcome,
+} from "./openerOutcomeHandoff";
 
 const ORIGIN = "https://opener.example";
 const CALLBACK = "https://return.example/callback?private=callback-canary";
@@ -48,7 +53,7 @@ function fixture(bound = true) {
   const signal = new AbortController();
   const complete = (
     callback: string | undefined = undefined,
-    outcome: "success" | "error" | "cancel" = "cancel",
+    outcome: "success" | "error" | "cancel" = "success",
   ) =>
     handoffOpenerOutcome(
       appWindow,
@@ -69,10 +74,16 @@ function fixture(bound = true) {
       },
       origin,
     );
-  return { channel, state, opener, appWindow, send, hello, ack, complete, signal };
+  /** A window that goes when closed: its page hides, which aborts the handoff. */
+  const closeLeaves = () =>
+    state.close.mockImplementation(() => {
+      state.closed = true;
+      signal.abort();
+    });
+  return { channel, state, opener, appWindow, send, hello, ack, complete, signal, closeLeaves };
 }
 
-it.each(["success", "error", "cancel"] as const)(
+it.each(["success", "error"] as const)(
   "posts %s without callbacks, closes only after a matching ack and clears the wait",
   async (outcome) => {
     const f = fixture();
@@ -123,6 +134,7 @@ it("uses the local result screen when there is no callback after a timeout", asy
 
 it.each(["success", "cancel"] as const)("never adds a reason to %s", async (outcome) => {
   const f = fixture();
+  f.closeLeaves();
   const pending = handoffOpenerOutcome(
     f.appWindow,
     undefined,
@@ -133,8 +145,111 @@ it.each(["success", "cancel"] as const)("never adds a reason to %s", async (outc
   );
   expect(f.opener.postMessage.mock.calls[0]?.[0]).not.toHaveProperty("code");
   f.ack();
-  await expect(pending).resolves.toBe("acknowledged-and-closed");
+  await expect(pending).resolves.toBe(outcome === "cancel" ? "aborted" : "acknowledged-and-closed");
 });
+
+it("closes a cancelled pop-up as soon as the app acknowledges, then lets the page go", async () => {
+  const info = vi.spyOn(LOGGER, "info").mockImplementation(() => undefined);
+  const f = fixture();
+  f.closeLeaves();
+  const pending = f.complete(CALLBACK, "cancel");
+  expect(f.opener.postMessage).toHaveBeenCalledExactlyOnceWith(
+    expect.objectContaining({ type: "pubky-passport.authorization-outcome", outcome: "cancel" }),
+    ORIGIN,
+  );
+  expect(f.state.close).not.toHaveBeenCalled();
+  f.ack();
+  await expect(pending).resolves.toBe("aborted");
+  expect(f.state.close).toHaveBeenCalledOnce();
+  expect(info).toHaveBeenCalledExactlyOnceWith("authorize.opener_handoff.closing", {
+    outcome: "cancel",
+    path: "acknowledged",
+  });
+  expect(f.state.location.replace).not.toHaveBeenCalled();
+  expect(vi.getTimerCount()).toBe(0);
+});
+
+it("closes a cancelled pop-up after a second without an ack, and never navigates", async () => {
+  const info = vi.spyOn(LOGGER, "info").mockImplementation(() => undefined);
+  const f = fixture();
+  f.closeLeaves();
+  const pending = f.complete(CALLBACK, "cancel");
+  await vi.advanceTimersByTimeAsync(CANCEL_CLOSE_DELAY_MS - 1);
+  expect(f.state.close).not.toHaveBeenCalled();
+  await vi.advanceTimersByTimeAsync(1);
+  expect(f.state.close).toHaveBeenCalledOnce();
+  await expect(pending).resolves.toBe("aborted");
+  expect(info).toHaveBeenCalledExactlyOnceWith("authorize.opener_handoff.closing", {
+    outcome: "cancel",
+    path: "timer",
+  });
+  // A late ack changes nothing, and no wait outlives the page.
+  f.ack();
+  expect(f.state.close).toHaveBeenCalledOnce();
+  expect(f.state.location.replace).not.toHaveBeenCalled();
+  expect(vi.getTimerCount()).toBe(0);
+});
+
+it.each([true, false])(
+  "reports a cancelled pop-up that stays open a second after its close, acknowledged=%s",
+  async (acknowledged) => {
+    vi.spyOn(LOGGER, "info").mockImplementation(() => undefined);
+    const warn = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+    const f = fixture();
+    // `closed` turns true, yet the page keeps running: only the second that passes tells.
+    const pending = f.complete(CALLBACK, "cancel");
+    if (acknowledged) f.ack();
+    else await vi.advanceTimersByTimeAsync(CANCEL_CLOSE_DELAY_MS);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(f.state.close).toHaveBeenCalledOnce();
+    await vi.advanceTimersByTimeAsync(CLOSE_CONFIRM_MS - 1);
+    expect(warn).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1);
+    await expect(pending).resolves.toBe("stayed-open");
+    expect(warn).toHaveBeenCalledExactlyOnceWith("authorize.opener_handoff.failed", {
+      operation: "close",
+      path: acknowledged ? "acknowledged" : "timer",
+    });
+    expect(f.state.location.replace).not.toHaveBeenCalled();
+    expect(vi.getTimerCount()).toBe(0);
+  },
+);
+
+it("reports a cancelled pop-up whose close throws as stayed open at once", async () => {
+  vi.spyOn(LOGGER, "info").mockImplementation(() => undefined);
+  const warn = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+  const f = fixture();
+  f.state.close.mockImplementation(() => {
+    throw new Error("private-" + "failure");
+  });
+  const pending = f.complete(CALLBACK, "cancel");
+  f.ack();
+  await expect(pending).resolves.toBe("stayed-open");
+  expect(warn).toHaveBeenCalledWith(
+    "authorize.opener_handoff.failed",
+    expect.objectContaining({ operation: "close", path: "acknowledged" }),
+  );
+  expect(JSON.stringify(warn.mock.calls)).not.toContain("private-failure");
+  expect(f.state.location.replace).not.toHaveBeenCalled();
+  expect(vi.getTimerCount()).toBe(0);
+});
+
+it.each(["before the close", "after the close"])(
+  "a cancel abandoned %s neither closes again nor reports a stayed-open window",
+  async (when) => {
+    vi.spyOn(LOGGER, "info").mockImplementation(() => undefined);
+    const f = fixture();
+    const pending = f.complete(undefined, "cancel");
+    if (when === "after the close") {
+      await vi.advanceTimersByTimeAsync(CANCEL_CLOSE_DELAY_MS);
+      expect(f.state.close).toHaveBeenCalledOnce();
+    }
+    f.signal.abort();
+    await expect(pending).resolves.toBe("aborted");
+    expect(f.state.close).toHaveBeenCalledTimes(when === "after the close" ? 1 : 0);
+    expect(vi.getTimerCount()).toBe(0);
+  },
+);
 
 it.each(["post", "uuid"])(
   "falls back immediately after %s fails and clears its ack wait",
@@ -202,9 +317,9 @@ it.each([true, false])(
 
 it("keeps v1 routing without a hello and does nothing without a callback", async () => {
   const f = fixture(false);
-  await expect(f.complete()).resolves.toBe("unavailable");
+  await expect(f.complete(undefined, "cancel")).resolves.toBe("unavailable");
   expect(f.opener.postMessage).not.toHaveBeenCalled();
-  const pending = f.complete(CALLBACK);
+  const pending = f.complete(CALLBACK, "cancel");
   expect(f.opener.postMessage).toHaveBeenCalledWith(
     {
       type: "pubky-passport.authorization-outcome",

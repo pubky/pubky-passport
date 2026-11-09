@@ -4,7 +4,7 @@ import type { PassportAuthorizationViewState } from "@/client/logic/authorizatio
 import type { AuthorizationController } from "@/client/ui/authorization/usePassportAuthorization";
 import type { LocalIdentityErrorCode } from "@/client/logic/local-identity/LocalStorageIdentityRepository";
 import type { IdentityCatalogUnavailableReason } from "@/client/ui/identity-catalog/useIdentityCatalog";
-import { PubkyBrandIcon } from "@/client/ui/shared/brand/pubkyBrandIcon";
+import { KeychainBrandIcon } from "@/client/ui/shared/brand/keychainBrands";
 import { CancelButton } from "@/client/ui/shared/cancelButton";
 import { ErrorScreen } from "@/client/ui/shared/errorScreen";
 import { RotateCcwIcon } from "@/client/ui/shared/icons";
@@ -18,13 +18,13 @@ const CAUSES = {
       "Your browser is blocking Passport's storage. This happens in private windows or when site data is turned off for this site.",
     nextStep: "Allow site data for this site, then try again.",
     nextStepInRequest:
-      "Continue with Pubky Ring instead, or cancel this sign-in, allow site data for this site and start again in the app.",
+      "Continue with your keychain instead, or cancel this sign-in, allow site data for this site and start again in the app.",
   },
   unreadable_store: {
     cause: "Passport's saved data in this browser can't be read.",
     nextStep:
       "Try again. If it keeps happening, restore your identity from its recovery file in another browser.",
-    nextStepInRequest: "Continue with Pubky Ring instead, or cancel this sign-in.",
+    nextStepInRequest: "Continue with your keychain instead, or cancel this sign-in.",
   },
 } as const;
 
@@ -80,8 +80,8 @@ export function IdentitiesUnavailable({
             size="lg"
             variant="secondary"
           >
-            <PubkyBrandIcon />
-            Continue with Pubky Ring
+            <KeychainBrandIcon />
+            Continue with keychain
           </Button>
         ) : (
           <Button className="w-full" onClick={() => window.location.replace("/")} size="lg">

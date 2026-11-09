@@ -41,6 +41,8 @@ import type { ProfileRead } from "../profile/PassportProfile.js";
 import type { AttemptResult } from "./AttemptResult.js";
 import type { PreparedLease, ReturnResult } from "./InternalClient.js";
 import { PopupActions } from "./PopupActions.js";
+import type { PassportEntry } from "./PassportClient.js";
+import { type KeychainAuth, readKeychainAuth, writeKeychainAuth } from "../config/keychainAuth.js";
 
 /** Browser and SDK seams; tests replace them, production uses the page and the SDK. */
 export interface ClientPlatform {
@@ -89,6 +91,10 @@ export class ClientRuntime {
   private leases = 0;
   private leaseIdle: (() => void) | undefined;
   private resume: SavedFlow | undefined;
+  /** The screen the current sign-in asks Passport to open on. */
+  private entry: PassportEntry | undefined;
+  /** This device's classic QR choice, read once and kept for this page. */
+  private keychainAuth: KeychainAuth;
   private disposed = false;
 
   constructor(
@@ -117,7 +123,9 @@ export class ClientRuntime {
       () => page.localStorage,
       () => ({ appName: options.appName }),
     );
+    this.keychainAuth = readKeychainAuth(() => page.localStorage);
     const flowOptions: FlowOptions = {
+      keychainAuth: () => this.keychainAuth,
       appName: options.appName,
       clientId: options.clientId,
       capabilities: options.capabilities,
@@ -129,7 +137,12 @@ export class ClientRuntime {
     const returnTo = returnPage(page.location);
     const port = (instance: PassportInstance) =>
       platform.flowPort(flowOptions, { ...this.errors, instance });
-    const popup = new BrowserPopup(() => page, options.development?.openWindow, clock);
+    const popup = new BrowserPopup(
+      () => page,
+      options.development?.openWindow,
+      clock,
+      () => this.entry,
+    );
     this.popup = popup;
     this.flows = new FlowRegistry(
       port,
@@ -153,6 +166,8 @@ export class ClientRuntime {
       popup,
       profile: options.profile,
       network: options.network,
+      // An element holding a prepared Ring request shows its code or its "Open keychain app" button.
+      keychainOffered: () => this.leases > 0,
       readProfile: (publicKey) =>
         platform.readProfile(publicKey, options.pubky, options.pkarrRelays),
       event: (event) => this.controller.dispatch(event),
@@ -193,6 +208,7 @@ export class ClientRuntime {
       page: () => page,
       profile: options.profile,
       network: options.network,
+      entry: () => this.entry,
       errors: this.errors,
     });
     this.controller.subscribe((state) => observer.state(state));
@@ -220,7 +236,26 @@ export class ClientRuntime {
     });
   }
 
-  signIn(): Promise<AttemptResult> {
+  /** The screen the next sign-in asks Passport to open on; the element sets it from its button. */
+  setEntry(entry: PassportEntry | undefined): void {
+    this.entry = entry;
+  }
+
+  /** The classic QR (legacy cookie sign-in) for this device; a prepared code is replaced. */
+  setClassicQr(on: boolean): void {
+    const auth = on ? "cookie" : "grant";
+    if (auth === this.keychainAuth) return;
+    this.keychainAuth = auth;
+    writeKeychainAuth(() => this.page.localStorage, auth);
+    this.controller.dispatch({ type: "RING_RELOAD" });
+  }
+
+  classicQr(): boolean {
+    return this.keychainAuth === "cookie";
+  }
+
+  signIn(entry?: PassportEntry): Promise<AttemptResult> {
+    if (entry !== undefined) this.entry = entry;
     const state = this.controller.getState();
     // Signing in again while a profile is missing means finishing it in Passport.
     if (state.status === "needs-profile") {

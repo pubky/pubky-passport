@@ -216,7 +216,9 @@ export function describeBlockedMethods(
 ): string {
   if (blocked.length === 0) return "";
   const names = new Intl.ListFormat("en-US", { type: "conjunction" }).format(blocked);
-  const sentence = `${names} ${blocked.length === 1 ? "isn’t" : "aren’t"} available in your country.`;
+  // A sentence starts with a capital, whatever the first method's name is.
+  const subject = names.charAt(0).toUpperCase() + names.slice(1);
+  const sentence = `${subject} ${blocked.length === 1 ? "isn’t" : "aren’t"} available in your country.`;
   if (usable.length === 0) return sentence;
   const alternatives = new Intl.ListFormat("en-US", { type: "disjunction" }).format(usable);
   return `${sentence} You can use ${alternatives}.`;

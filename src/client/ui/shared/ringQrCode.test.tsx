@@ -7,8 +7,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { LOGGER } from "@/libs/logger/logger";
 import { fitsRingQrCode, RING_QR_MAXIMUM_BYTES, RingQrCode } from "./ringQrCode";
 
-const MOCKS = vi.hoisted(() => ({ info: vi.fn(), error: vi.fn() }));
-vi.mock("sonner", () => ({ toast: { info: MOCKS.info, error: MOCKS.error } }));
+const MOCKS = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
+vi.mock("sonner", () => ({ toast: { success: MOCKS.success, error: MOCKS.error } }));
 
 const LINK = "pubkyauth://signin?caps=/pub/example.app/:rw&secret=link-secret-canary";
 
@@ -46,9 +46,9 @@ describe("RingQrCode", () => {
     await user.click(screen.getByRole("button", { name: "Copy authentication link" }));
 
     expect(writeText).toHaveBeenCalledExactlyOnceWith(LINK);
-    expect(MOCKS.info).toHaveBeenCalledExactlyOnceWith("Authentication link copied");
+    expect(MOCKS.success).toHaveBeenCalledExactlyOnceWith("Authentication link copied");
     expect(MOCKS.error).not.toHaveBeenCalled();
-    expect(JSON.stringify([logged.mock.calls, MOCKS.info.mock.calls])).not.toContain("canary");
+    expect(JSON.stringify([logged.mock.calls, MOCKS.success.mock.calls])).not.toContain("canary");
   });
 
   it("fades the code and the Ring logo only while pressed, never on hover or after the click", () => {

@@ -38,6 +38,18 @@ function codeBoxes() {
 describe("SmsCodeStep", () => {
   afterEach(cleanup);
 
+  it("asks for the code sent to the number, outside the form's card", () => {
+    render(codeStep({ pending: false }));
+
+    expect(screen.getByRole("heading", { name: "Enter code." })).toBeInTheDocument();
+    const code = screen.getByLabelText("Verification code");
+    expect(code).toHaveAccessibleDescription(`Enter the code you received on ${PHONE}.`);
+    // The actions sit under the card (pinned on phones), so Verify submits its form by id.
+    const verify = screen.getByRole("button", { name: "Verify Code" });
+    expect(verify.closest("form")).toBeNull();
+    expect(verify).toHaveAttribute("form", code.closest("form")?.id);
+  });
+
   it("shows the resend as the work in progress, not a verification", async () => {
     // Like the signup controller, starting a send sets `pending` within the same press.
     function Harness() {
@@ -59,7 +71,7 @@ describe("SmsCodeStep", () => {
     const resend = screen.getByRole("button", { name: "Sending…" });
     expect(resend).toHaveAttribute("aria-busy", "true");
     expect(resend).toHaveFocus();
-    const verify = screen.getByRole("button", { name: "Verify code" });
+    const verify = screen.getByRole("button", { name: "Verify Code" });
     expect(verify).toBeDisabled();
     expect(verify).not.toHaveAttribute("aria-busy");
     expect(screen.queryByText("Verifying…")).toBeNull();
@@ -161,7 +173,7 @@ describe("SmsCodeStep", () => {
     expect(code).toHaveValue("");
     const resend = screen.getByRole("button", { name: "Resend code" });
     expect(resend).toBeEnabled();
-    const verify = screen.getByRole("button", { name: "Verify code" });
+    const verify = screen.getByRole("button", { name: "Verify Code" });
     expect(verify).toBeDisabled();
     // A new code is the way on, so Resend is the primary until new digits are typed.
     expect(resend).toHaveClass("bg-brand/16");
@@ -176,6 +188,26 @@ describe("SmsCodeStep", () => {
 describe("PhoneNumberStep", () => {
   afterEach(cleanup);
 
+  it("asks for the phone number and sends it from the actions under the card", async () => {
+    const onSendCode = vi.fn();
+    render(
+      <PhoneNumberStep
+        error={null}
+        initialPhoneNumber={PHONE}
+        onBack={vi.fn()}
+        onSendCode={onSendCode}
+        pending={false}
+      />,
+    );
+
+    expect(screen.getByRole("heading", { name: "Enter phone." })).toBeInTheDocument();
+    const send = screen.getByRole("button", { name: "Send Code" });
+    expect(send.closest("form")).toBeNull();
+    expect(send).toHaveAttribute("form", screen.getByLabelText("Phone number").closest("form")?.id);
+    await userEvent.setup().click(send);
+    expect(onSendCode).toHaveBeenCalledWith(PHONE);
+  });
+
   it("shows sending as a busy button and returns to the number after a failure", async () => {
     const step = (pending: boolean, error: string | null) => (
       <PhoneNumberStep
@@ -187,7 +219,7 @@ describe("PhoneNumberStep", () => {
       />
     );
     const { rerender } = render(step(false, null));
-    await userEvent.setup().click(screen.getByRole("button", { name: "Send code" }));
+    await userEvent.setup().click(screen.getByRole("button", { name: "Send Code" }));
     rerender(step(true, null));
 
     const send = screen.getByRole("button", { name: "Sending code…" });
@@ -208,7 +240,7 @@ describe("PhoneNumberStep", () => {
     await user.type(phone, "079 123 45 67");
     // Not flagged while typed.
     expect(phone).toHaveAttribute("aria-invalid", "false");
-    const send = screen.getByRole("button", { name: "Send code" });
+    const send = screen.getByRole("button", { name: "Send Code" });
     expect(send).toBeEnabled();
     await user.keyboard("{Enter}");
     expect(onSendCode).not.toHaveBeenCalled();
@@ -261,7 +293,7 @@ describe("PhoneNumberStep", () => {
     expect(phone).not.toHaveClass("text-brand");
     expect(phone).toHaveAttribute("aria-invalid", "true");
     expect(screen.getByRole("alert")).toHaveTextContent(refusal.message);
-    expect(screen.getByRole("button", { name: "Send code" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Send Code" })).toBeDisabled();
     await user.click(screen.getByRole("button", { name: "Pay with Lightning instead" }));
     expect(onLightning).toHaveBeenCalledOnce();
     await user.click(screen.getByRole("button", { name: "Use an invite code" }));
@@ -270,7 +302,7 @@ describe("PhoneNumberStep", () => {
     // Another number may be sent; the refusal is only about the one refused.
     await user.type(phone, "8");
     expect(onEdit).toHaveBeenCalled();
-    expect(screen.getByRole("button", { name: "Send code" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Send Code" })).toBeEnabled();
     expect(screen.queryByRole("button", { name: "Use an invite code" })).not.toBeInTheDocument();
   });
 
@@ -279,7 +311,7 @@ describe("PhoneNumberStep", () => {
 
     const phone = screen.getByRole("textbox", { name: "Phone number" });
     expect(phone).toHaveAccessibleDescription(
-      /only to send this code and to limit sign-ups per number\. The sign-up service keeps a one-way hash of it, never the number itself\. It isn’t added to your Pubky profile or shared with the apps you sign in to\./u,
+      /Only used to send this code; the sign-up service keeps a one-way hash, never the number\.$/u,
     );
   });
 });

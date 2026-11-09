@@ -73,17 +73,16 @@ function placeControl(width: number, height: number, pill: Edges, panel?: Edges)
 }
 
 function expectExplanation(container: HTMLElement): void {
+  // The design's four points: Google confirms the person and keeps the encrypted backup, the key
+  // is made in the browser, and Passport holds the other piece, so neither can recover alone.
   for (const point of [
-    "Your key: Created in this browser and encrypted before it’s saved to your Google Drive. Google never sees your key.",
-    "Google’s role: Stores the encrypted backup and confirms it’s you when you sign in.",
-    "Passport’s role: Holds the second piece needed to unlock the backup, and hands it over only after a fresh sign-in with the same Google account. Passport’s server never sees your key or your backup.",
-    "New device? Sign in to Passport with the same Google account and your pubky comes back. There’s nothing to write down.",
-    "Not tied to Google: You can download a recovery file or add your pubky to Pubky Ring anytime in Manage identity.",
+    "Google’s role: Helps identify you and securely retrieve your encrypted backup. It does not create or control your pubky.",
+    "Your keys: Keys are created in your browser and encrypted before storage on Google Drive. Google never sees the private key.",
+    "Recovery: Recovery requires both your encrypted Google Drive backup and a separate recovery key from Passport.",
+    "Split security: Neither Google nor Passport can recover your pubky on its own, reducing reliance on either one.",
   ]) {
     expect(container).toHaveTextContent(point);
   }
-  // Passport's server releases a key only after a sign-in; nobody is handed one to keep.
-  expect(container).not.toHaveTextContent(/recovery key/iu);
   const learnMore = within(container).getByRole("link", { name: "Learn more" });
   expect(learnMore).toHaveAttribute("href", PASSPORT_README_URL);
   expect(learnMore).toHaveAttribute("target", "_blank");

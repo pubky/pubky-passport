@@ -246,11 +246,11 @@ test("the waiting screen puts its actions first and cancels back to the entry", 
   }
 
   await page.getByRole("button", { name: "Cancel" }).click();
-  await expect(page.getByRole("heading", { name: "Get your pubky." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Let’s join Pubky." })).toBeVisible();
   await expect.poll(() => popup.isClosed()).toBe(true);
   // A cancel is not a failure: nothing reports the closed window afterwards.
   await page.waitForTimeout(500);
-  await expect(page.getByRole("heading", { name: "Get your pubky." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Let’s join Pubky." })).toBeVisible();
   await expect(page.getByText("google_authorization_popup_closed")).toHaveCount(0);
 });
 
@@ -274,7 +274,7 @@ test("closing Google's window is a cancel, not a failure with a code", async ({
   await expect(page.getByText("Technical details")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Try again" })).toBeEnabled();
   await page.getByRole("button", { name: "Back", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Get your pubky." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Let’s join Pubky." })).toBeVisible();
 });
 
 test("a regional block on new Google sign-ups ends without a retry that cannot succeed", async ({

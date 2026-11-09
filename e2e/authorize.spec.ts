@@ -34,14 +34,33 @@ const LOCAL_IDENTITY_STORAGE = {
   "pubky-passport/local-identities/v1/active": LOCAL_IDENTITY_PUBLIC_KEY,
 };
 
-test("shows shared onboarding when no request was supplied", async ({ page }) => {
+test("shows shared onboarding when no request was supplied", async ({ page, isMobile }) => {
   await page.goto("/");
 
-  await expect(page.getByRole("heading", { name: "Get your pubky." })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Continue with Google" })).toBeVisible();
+  // Join: keys of your own or Google; Sign in, from the header, adds an identity you have, from
+  // the keychain or a recovery file.
+  await expect(page.getByRole("heading", { name: "Let’s join Pubky." })).toBeVisible();
+  await expect(
+    page
+      .getByRole("region", { name: "Sovereign & Secure" })
+      .getByRole("button", { name: "Manage your own keys" }),
+  ).toBeVisible();
+  await expect(
+    page
+      .getByRole("region", { name: "Quick & Easy" })
+      .getByRole("button", { name: "Continue with Google" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Sign in to Pubky" })).toBeVisible();
+  // The keychain: a computer's card is named by its code's heading, a phone's by its section.
+  await expect(
+    page.getByRole("region", { name: isMobile ? "Sovereign & Secure" : "Scan QR with keychain." }),
+  ).toBeVisible();
   await expect(page.getByRole("button", { name: "Import it" })).toBeVisible();
-  await expect(page.getByRole("region", { name: "Create account" })).toBeVisible();
-  await expect(page.getByRole("region", { name: "Pubky Ring", exact: true })).toBeVisible();
+  // Google stays on Join, one Back away.
+  await expect(page.getByRole("button", { name: "Continue with Google" })).toHaveCount(0);
+  await page.getByRole("button", { name: "Back", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Continue with Google" })).toBeVisible();
 });
 
 test("shows identity setup context as the designed full-width accent band", async ({ page }) => {
@@ -215,21 +234,26 @@ test("lists requested permissions with spelled-out access and flags broad rows",
   await expect(page.locator("main").getByRole("alert")).toHaveText(
     "This app asks for all your public data, including the folders other apps keep for you.",
   );
-  const permissions = page.getByRole("list", { name: "Requested permissions" });
+  await expect(page.getByRole("heading", { name: "Requested permissions" })).toBeVisible();
+  const writes = page.getByRole("list", { name: "Can read and change" });
+  const reads = page.getByRole("list", { name: "Can only read" });
   // A plain title over the exact path, which stays visible; a plain link has no folder of its own,
-  // so every app folder is just an app's.
-  await expect(permissions.getByRole("listitem")).toHaveText([
-    "An app's data: “example.app”, /pub/example.app/, Read & write",
+  // so every app folder is just an app's. What can change data is listed apart from what only
+  // reads it.
+  await expect(writes.getByRole("listitem")).toHaveText([
+    "Public: An app's data: “example.app”, /pub/example.app/, Read & write",
+  ]);
+  await expect(reads.getByRole("listitem")).toHaveText([
     "Broad access: All your public data, /pub/, Read only",
   ]);
-  const [scoped, broad, text] = await permissions
-    .getByRole("listitem")
-    .evaluateAll((items) => [
-      ...items.map((item) => getComputedStyle(item.querySelector("span.flex-1 > span")!).color),
-      getComputedStyle(document.body).color,
-    ]);
-  expect(scoped).toBe(text);
+  const titleColor = (item: Element) =>
+    getComputedStyle(item.querySelector("span.flex-1 > span")!).color;
+  const scoped = await writes.getByRole("listitem").evaluate(titleColor);
+  const broad = await reads.getByRole("listitem").evaluate(titleColor);
+  const text = await page.evaluate(() => getComputedStyle(document.body).color);
+  // The broad row stands out from the body text and from the scoped row.
   expect(broad).not.toBe(text);
+  expect(broad).not.toBe(scoped);
   // A request past the app's own folder names what its primary action gives, and the sentence
   // above it says the same.
   await expect(page.getByRole("button", { name: "Allow reading all public data" })).toBeVisible();
@@ -430,7 +454,9 @@ test("keeps stacked combining marks from drawing over the warning or other rows"
   expect(nameBox!.y + nameBox!.height).toBeLessThanOrEqual(warningBox!.y);
   expect(await name.evaluate((element) => getComputedStyle(element).overflow)).toBe("hidden");
 
-  const rows = page.getByRole("list", { name: /^Requested permissions/u }).getByRole("listitem");
+  const rows = page
+    .getByRole("list", { name: /^Can (?:read and change|only read)$/u })
+    .getByRole("listitem");
   const evilPath = rows.locator("bdi.font-mono").filter({ hasText: "/pub/evil" });
   await expect(evilPath).toHaveText(`/pub/evil${"\u0332".repeat(3)}.example/`);
   expect(await evilPath.evaluate((element) => getComputedStyle(element).overflow)).toBe("hidden");
@@ -597,9 +623,9 @@ test("shows the request to Ring only in its link and QR code", async ({ page, is
   const leakMonitor = await installAuthorizationLeakMonitor(page, { handoff: request });
   await installLocalIdentityFixture(page);
   await page.goto(authorizationUrl(request));
-  // One saved identity opens on its review, whose "or" offers Pubky Ring.
-  await page.getByRole("button", { name: "Continue with Pubky Ring", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Sign in with Pubky Ring." })).toBeVisible();
+  // One saved identity opens on its review, whose "or" offers the keychain (Pubky Ring or Bitkit).
+  await page.getByRole("button", { name: "Continue with keychain", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Sign in with keychain." })).toBeVisible();
   const links = page.locator('main a[href^="pubkyauth:"]');
   const qrCode = page.getByRole("img", { name: "Pubky authorization QR code" });
   // A computer gets the QR code and no link, which it cannot open; a phone gets one button that
@@ -652,7 +678,7 @@ test("rejects an unsafe relay without adding it to CSP", async ({ page }) => {
   await page.getByRole("button", { name: "Go to Passport" }).click();
   expect((await homeResponse).ok()).toBe(true);
   await expect(page).toHaveURL(/\/$/u);
-  await expect(page.getByRole("heading", { name: "Get your pubky." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Let’s join Pubky." })).toBeVisible();
 });
 
 test("sends an invalid link in a tab back to the app that sent it, not into onboarding", async ({

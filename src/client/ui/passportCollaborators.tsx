@@ -34,7 +34,9 @@ export type RingBackupVerifierPort = Pick<
 export type RingProfileControllerPort = Pick<
   RingProfileController,
   "start" | "poll" | "confirm" | "authorizationUrl" | "isConnected" | "save" | "dispose"
->;
+> &
+  /** The stored profile grant: reconnect without the keychain, see it, revoke it. */
+  Partial<Pick<RingProfileController, "resume" | "hasStoredConnection" | "disconnect">>;
 
 /** The controller surface each screen consumes; fakes in `test-utils/` implement these ports. */
 export type AuthorizationControllerPort = Pick<

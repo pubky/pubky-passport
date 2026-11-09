@@ -7,7 +7,15 @@ import { RECOVERY_FILE_PASSWORD, recoveryFile } from "./helpers/recoveryFile";
 
 const PASSWORD = RECOVERY_FILE_PASSWORD;
 
+/** From Join, Sign in: the start screen for an identity the person already has. */
+async function openSignIn(page: Page) {
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Sign in to Pubky" })).toBeVisible();
+}
+
+/** Imports `file` from Sign in's recovery-file link, which Join leads to. */
 async function importBackup(page: Page, passphrase: string, file = recoveryFile()) {
+  await openSignIn(page);
   await page.getByRole("button", { name: "Import it", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Import recovery file." })).toBeVisible();
   await page.getByLabel("Recovery file", { exact: true }).setInputFiles(file);
@@ -29,6 +37,7 @@ for (const width of [320, 390]) {
   test(`the picked backup's long name stays inside the page at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 800 });
     await page.goto("/");
+    await openSignIn(page);
     await page.getByRole("button", { name: "Import it", exact: true }).click();
     const picker = page.getByLabel("Recovery file", { exact: true });
     await picker.setInputFiles(recoveryFile());

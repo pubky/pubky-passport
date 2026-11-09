@@ -48,6 +48,43 @@ export function createPassportMark(document: Document): SVGSVGElement {
   return svg;
 }
 
+// Google's "G", as Passport draws it (brand/googleLogo.tsx): four coloured paths in a 16-unit box.
+const GOOGLE_PATHS = [
+  {
+    d: "M0 0V3.09819H4.30544C4.11638 4.09455 3.54904 4.93822 2.69815 5.50548L5.2945 7.52004C6.80722 6.12373 7.67996 4.0728 7.67996 1.63644C7.67996 1.06918 7.62906.523675 7.53449.000087Z",
+    fill: "#4285F4",
+    transform: "translate(8 6.5456)",
+  },
+  {
+    d: "M2.65834 0 2.07276.448253 0 2.06277C1.31636 4.67365 4.01434 6.47732 7.14159 6.47732C9.30154 6.47732 11.1124 5.76459 12.4361 4.5428L9.83974 2.52824C9.12701 3.00823 8.21791 3.29917 7.14159 3.29917C5.0616 3.29917 3.29438 1.89555 2.66161.004619Z",
+    fill: "#34A853",
+    transform: "translate(.8576 9.5227)",
+  },
+  {
+    d: "M.858119 0C.312695 1.07632 0 2.29088 0 3.5854s.312695 2.5091.858119 3.58541C.858119 7.17804 3.51998 5.10536 3.51998 5.10536c-.16-.48-.25457-.98906-.25457-1.52004s.09457-1.04004.25457-1.52003Z",
+    fill: "#FBBC05",
+    transform: "translate(0 4.4146)",
+  },
+  {
+    d: "M7.14175 3.18545C8.31995 3.18545 9.36721 3.59271 10.2036 4.37818L12.4945 2.0873C11.1054.792777 9.30178 0 7.14175 0 4.01451 0 1.31636 1.79636 0 4.41455L2.66178 6.48001C3.29447 4.58908 5.06177 3.18545 7.14175 3.18545Z",
+    fill: "#EA4335",
+    transform: "translate(.8576)",
+  },
+] as const;
+
+/** Google's "G": the icon of a button whose entry is Passport's Google sign-in. */
+export function createGoogleMark(document: Document): SVGSVGElement {
+  const svg = svgElement(document, "svg", {
+    viewBox: "0 0 16 16",
+    width: "16",
+    height: "16",
+    "aria-hidden": "true",
+    "data-slot": "mark",
+  });
+  for (const path of GOOGLE_PATHS) svg.append(svgElement(document, "path", { ...path }));
+  return svg;
+}
+
 /**
  * Pubky Ring's logo in the middle of a QR code, as Passport draws it: 48 of the code's 176 units,
  * restored by the H error correction the element renders with. Its glyph is the Pubky mark, a blue

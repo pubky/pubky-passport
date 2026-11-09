@@ -5,6 +5,7 @@ import { systemClock, type Clock } from "../shared/Clock.js";
 import type { PassportDiagnostic } from "../shared/PassportDiagnostic.js";
 import {
   isPassportMessage,
+  KEYCHAIN_FEATURE,
   parsePassportMessage,
   PROFILE_SETUP_FEATURE,
 } from "./passportMessages.js";
@@ -46,6 +47,8 @@ export class PassportChannel {
     private readonly clock: Clock = systemClock,
     /** Named in every hello; a Passport on another network refuses the request. */
     private readonly network: PubkyNetwork = "mainnet",
+    /** The app offers a keychain route of its own right now; each hello says so when it does. */
+    private readonly keychainOffered: () => boolean = () => false,
   ) {}
 
   startHandshake(popup: Window, origin: string, request: string): void {
@@ -202,7 +205,9 @@ export class PassportChannel {
       type: "pubky-passport.hello",
       version: 2,
       attemptId: this.attemptId,
-      features: ["outcome-v2", "status"],
+      features: this.keychainOffered()
+        ? ["outcome-v2", "status", KEYCHAIN_FEATURE]
+        : ["outcome-v2", "status"],
       profile: this.profile,
       network: this.network,
       ...loop.binding.match,

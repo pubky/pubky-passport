@@ -7,15 +7,19 @@ import { BackButton } from "@/client/ui/shared/backButton";
 import { copyToClipboard } from "@/client/ui/shared/copyToClipboard";
 import { CopyIcon, RotateCcwIcon } from "@/client/ui/shared/icons";
 import { Button, ButtonLink } from "@/client/ui/shared/primitives/button";
-import { FieldMessage } from "@/client/ui/shared/primitives/fieldMessage";
 import { Notice } from "@/client/ui/shared/notice";
-import { OnboardingCard } from "@/client/ui/shared/onboardingCard";
+import { OnboardingScreen } from "@/client/ui/shared/onboardingScreen";
 import { PassportNavigation } from "@/client/ui/shared/passportNavigation";
 import { Spinner } from "@/client/ui/shared/primitives/spinner";
 import { useFocusWhenSettled } from "@/client/ui/shared/useFocusWhenSettled";
 import { formatSats } from "./formatSats";
-import { SignupStep } from "./signupStep";
 
+/**
+ * Pay: the Lightning invoice that verifies the account, as pubky.app draws it. A computer scans
+ * its QR code ("Scan to pay."); a phone hands it to its wallet app with Pay Now in the card ("Tap
+ * to pay."). Copy Invoice is the screen's other action. Passport watches the invoice and goes on
+ * by itself once it is paid; an expired one can be checked or replaced.
+ */
 export function LightningVerification({
   invoice,
   expired,
@@ -55,29 +59,76 @@ export function LightningVerification({
     });
     setCopyFailed(!copied);
   }
-  // The QR code and Pay now exist only while there is an invoice that hasn't expired.
-  const payable = invoice !== null && !expired;
+  const amount = invoice ? formatSats(invoice.amountSat) : "";
   return (
-    <SignupStep
-      title="Pay with"
-      accent="Lightning."
-      description={
-        payable ? (
-          <>
-            <span className="sr-only">Pay the invoice with your favorite bitcoin wallet.</span>
-            <span aria-hidden="true" className="hidden md:inline">
-              Scan the QR code with your favorite wallet.
-            </span>
-            <span aria-hidden="true" className="md:hidden">
-              Tap Pay now to open the invoice in your bitcoin wallet.
-            </span>
-          </>
-        ) : (
-          "Pay the invoice with your favorite bitcoin wallet."
-        )
+    <OnboardingScreen
+      accent="pay."
+      // Its actions lead on: pinned to a phone's window.
+      stickyActions
+      actions={
+        <PassportNavigation
+          back={<BackButton className="max-[30rem]:w-full" onClick={onBack} />}
+          confirm={
+            invoice ? (
+              expired ? (
+                <Button
+                  className="w-full"
+                  disabled={pending}
+                  loading={busyAction === "check"}
+                  onClick={() => {
+                    setBusyAction("check");
+                    onCheckPayment(invoice);
+                  }}
+                  size="lg"
+                >
+                  <RotateCcwIcon />
+                  {busyAction === "check" ? "Checking payment…" : "Check payment"}
+                </Button>
+              ) : (
+                <Button
+                  className="w-full"
+                  onClick={() => void copyInvoice()}
+                  size="lg"
+                  variant="secondary"
+                >
+                  <CopyIcon />
+                  Copy Invoice
+                </Button>
+              )
+            ) : pending && busyAction !== "create" ? undefined : (
+              // No retry while the first invoice is created; one that was pressed keeps focus.
+              <Button
+                className="w-full"
+                loading={busyAction === "create"}
+                onClick={createInvoice}
+                size="lg"
+              >
+                <RotateCcwIcon />
+                {busyAction === "create" ? "Creating invoice…" : "Try again"}
+              </Button>
+            )
+          }
+        />
       }
+      // The design's words in every state (frames 45785-544678, 544580): the card says the rest.
+      lead={
+        <>
+          <span className="hidden md:inline">Scan the QR with your favorite wallet.</span>
+          <span className="md:hidden">Pay with your favorite bitcoin wallet.</span>
+        </>
+      }
+      title={
+        <>
+          <span className="hidden md:inline">Scan to</span>
+          <span className="md:hidden">Tap to</span>
+        </>
+      }
+      windowTitle="Pay"
     >
-      <OnboardingCard>
+      <section
+        aria-label="Bitcoin Lightning payment"
+        className="flex min-w-0 flex-col gap-6 rounded-lg bg-card p-6 md:flex-row md:items-center md:gap-12 md:p-12"
+      >
         {invoice ? (
           expired ? (
             <div className="flex flex-col gap-4">
@@ -86,6 +137,7 @@ export function LightningVerification({
                 If you already paid, check the payment before creating another invoice.
               </p>
               <Button
+                className="w-full md:w-fit"
                 disabled={pending}
                 loading={busyAction === "create"}
                 onClick={createInvoice}
@@ -97,17 +149,17 @@ export function LightningVerification({
               </Button>
             </div>
           ) : (
-            <div className="flex flex-col gap-6 md:flex-row md:items-center">
-              <div className="hidden size-44 shrink-0 items-center justify-center rounded-lg bg-white p-2 md:flex">
+            <>
+              <div className="hidden size-48 shrink-0 items-center justify-center rounded-lg bg-white p-2 md:flex">
                 <QRCodeSVG
                   value={`lightning:${invoice.bolt11Invoice.toUpperCase()}`}
-                  size={160}
+                  size={176}
                   marginSize={2}
                   level="H"
                   imageSettings={{
                     src: "/brand/bitcoin-logo.svg",
-                    height: 32,
-                    width: 32,
+                    height: 36,
+                    width: 36,
                     excavate: true,
                   }}
                   role="img"
@@ -117,40 +169,48 @@ export function LightningVerification({
               </div>
               <div className="flex min-w-0 flex-1 flex-col gap-3">
                 <h2
-                  className="text-xl font-bold leading-7 outline-none"
+                  className="text-xl font-bold leading-7 outline-none md:text-2xl md:leading-8"
                   ref={invoiceHeading}
                   tabIndex={-1}
                 >
-                  Bitcoin Lightning payment
+                  Bitcoin Lightning Payment
                 </h2>
-                {/* The unit is part of the text, so the amount never reads as bitcoin. */}
-                <p className="text-5xl font-bold leading-none text-brand">
-                  {formatSats(invoice.amountSat)}{" "}
-                  <span className="text-2xl font-semibold text-secondary-foreground">sats</span>
+                {/* ₿ stands for sats here, as on pubky.app; the unit is said in words too. */}
+                <p
+                  aria-label={`${amount} sats`}
+                  className="text-5xl font-bold leading-none text-brand md:text-6xl"
+                >
+                  ₿ {amount}
                 </p>
                 <p className="text-base leading-6 text-secondary-foreground">
-                  One-time payment to verify your new account.
+                  Please pay ₿{amount} to continue.
                 </p>
                 <p className="flex items-center gap-2 text-sm text-muted-foreground" role="status">
                   <Spinner className="size-4" decorative />
-                  Waiting for payment…
+                  Waiting for payment · expires{" "}
+                  {new Date(invoice.expiresAt).toLocaleTimeString([], { timeStyle: "short" })}
                 </p>
-                <FieldMessage>
-                  Expires at {new Date(invoice.expiresAt).toLocaleTimeString()}.
-                </FieldMessage>
-                <Button
-                  className="mt-3 w-full md:w-fit"
-                  onClick={() => void copyInvoice()}
-                  variant="secondary"
+                {/* A phone hands the invoice to its wallet app; a computer scans the code. */}
+                <ButtonLink
+                  className="mt-3 w-full md:hidden"
+                  href={`lightning:${invoice.bolt11Invoice}`}
+                  size="lg"
                 >
-                  <CopyIcon />
-                  Copy invoice
-                </Button>
+                  <Image
+                    alt=""
+                    aria-hidden="true"
+                    className="size-4"
+                    height={16}
+                    src="/icons/wallet.svg"
+                    width={16}
+                  />
+                  Pay Now
+                </ButtonLink>
               </div>
-            </div>
+            </>
           )
         ) : pending ? (
-          <p className="flex min-h-36 items-center justify-center gap-2" role="status">
+          <p className="flex min-h-36 w-full items-center justify-center gap-2" role="status">
             <Spinner decorative />
             Creating invoice…
           </p>
@@ -159,98 +219,46 @@ export function LightningVerification({
             Your invoice could not be created. Please try again.
           </p>
         )}
-        {error ? (
-          <Notice tone="error">
-            {error}
-            {onUseInvite ? (
-              <button
-                className="w-fit cursor-pointer font-medium text-brand hover:underline pointer-coarse:min-h-11"
-                type="button"
-                onClick={onUseInvite}
-              >
-                Use an invite code
-              </button>
-            ) : null}
-          </Notice>
-        ) : null}
-        {copyFailed && invoice && !expired ? (
-          // The whole invoice as text: never cut off at a fixed height, and not a field-like box.
-          // A labelled read-only textbox that selects all of itself when focused or tapped, so it
-          // is easy to copy by hand on every device.
-          <div className="flex flex-col gap-2">
-            <p
-              className="text-xs font-medium uppercase leading-4 tracking-[0.1em] text-muted-foreground"
-              id="lightning-invoice-label"
+      </section>
+      {error ? (
+        <Notice tone="error">
+          {error}
+          {onUseInvite ? (
+            <button
+              className="w-fit cursor-pointer font-medium text-brand hover:underline pointer-coarse:min-h-11"
+              type="button"
+              onClick={onUseInvite}
             >
-              Lightning invoice
-            </p>
-            <div
-              aria-labelledby="lightning-invoice-label"
-              aria-multiline="true"
-              aria-readonly="true"
-              className="select-all break-all rounded-sm font-mono text-sm leading-5 text-foreground"
-              id="lightning-invoice-text"
-              onFocus={(event) => window.getSelection()?.selectAllChildren(event.currentTarget)}
-              role="textbox"
-              tabIndex={0}
-            >
-              {invoice.bolt11Invoice}
-            </div>
+              Use an invite code
+            </button>
+          ) : null}
+        </Notice>
+      ) : null}
+      {copyFailed && invoice && !expired ? (
+        // The whole invoice as text: never cut off at a fixed height, and not a field-like box.
+        // A labelled read-only textbox that selects all of itself when focused or tapped, so it
+        // is easy to copy by hand on every device.
+        <div className="flex flex-col gap-2">
+          <p
+            className="text-xs font-medium uppercase leading-4 tracking-[0.1em] text-muted-foreground"
+            id="lightning-invoice-label"
+          >
+            Lightning invoice
+          </p>
+          <div
+            aria-labelledby="lightning-invoice-label"
+            aria-multiline="true"
+            aria-readonly="true"
+            className="select-all break-all rounded-sm font-mono text-sm leading-5 text-foreground"
+            id="lightning-invoice-text"
+            onFocus={(event) => window.getSelection()?.selectAllChildren(event.currentTarget)}
+            role="textbox"
+            tabIndex={0}
+          >
+            {invoice.bolt11Invoice}
           </div>
-        ) : null}
-      </OnboardingCard>
-      <PassportNavigation
-        className="mt-auto md:mt-0"
-        back={<BackButton onClick={onBack} />}
-        confirm={
-          invoice ? (
-            expired ? (
-              <Button
-                className="w-full"
-                disabled={pending}
-                loading={busyAction === "check"}
-                onClick={() => {
-                  setBusyAction("check");
-                  onCheckPayment(invoice);
-                }}
-                size="lg"
-              >
-                <RotateCcwIcon />
-                {busyAction === "check" ? "Checking payment…" : "Check payment"}
-              </Button>
-            ) : (
-              // Paying is the way on. A phone hands the invoice to its wallet app; a computer
-              // has no wallet to open, so it scans the QR code and has no forward action here.
-              <ButtonLink
-                className="w-full md:hidden"
-                href={`lightning:${invoice.bolt11Invoice}`}
-                size="lg"
-              >
-                <Image
-                  alt=""
-                  aria-hidden="true"
-                  src="/icons/wallet.svg"
-                  width={16}
-                  height={16}
-                  className="size-4"
-                />
-                Pay now
-              </ButtonLink>
-            )
-          ) : pending && busyAction !== "create" ? undefined : (
-            // No retry while the first invoice is created; one that was pressed keeps focus.
-            <Button
-              className="w-full"
-              loading={busyAction === "create"}
-              onClick={createInvoice}
-              size="lg"
-            >
-              <RotateCcwIcon />
-              {busyAction === "create" ? "Creating invoice…" : "Try again"}
-            </Button>
-          )
-        }
-      />
-    </SignupStep>
+        </div>
+      ) : null}
+    </OnboardingScreen>
   );
 }

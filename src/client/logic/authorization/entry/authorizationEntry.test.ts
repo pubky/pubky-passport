@@ -118,6 +118,23 @@ describe("authorizationEntry", () => {
   });
 
   it.each([
+    [(): string => `d=${encodeURIComponent(validRequest())}&entry=join`, "join"],
+    [(): string => `entry=google&d=${encodeURIComponent(validRequest())}`, "google"],
+    [
+      (): string => `d=${encodeURIComponent(validRequest())}&profile=required&entry=sign-in`,
+      "sign-in",
+    ],
+    [(): string => `d=${encodeURIComponent(validRequest())}`, undefined],
+  ] as const)("reads the screen the app asked to open on, next to d= (%#)", (fragment, screen) => {
+    setRawAuthorizationFragment(fragment());
+    const entry = readAndScrubAuthorizationEntry(window);
+    if (entry.status !== "valid") throw new Error("Expected a valid authorization entry");
+    expect(entry.entry).toBe(screen);
+    expect(window.location.hash).toBe("");
+    entry.request.release();
+  });
+
+  it.each([
     ["mainnet", (): string => `d=${encodeURIComponent(validRequest())}`],
     ["mainnet", (): string => `d=${encodeURIComponent(validRequest())}&network=mainnet`],
     [
@@ -209,6 +226,15 @@ describe("authorizationEntry", () => {
       "invalid_fragment_shape",
     ],
     [(): string => "network=testnet", "invalid_fragment_shape"],
+    [
+      (): string => `d=${encodeURIComponent(validRequest())}&entry=signup`,
+      "invalid_fragment_shape",
+    ],
+    [
+      (): string => `d=${encodeURIComponent(validRequest())}&entry=join&entry=join`,
+      "invalid_fragment_shape",
+    ],
+    [(): string => "entry=join", "invalid_fragment_shape"],
   ] as const)("rejects invalid raw d input without exposing it", (fragment, code) => {
     const info = vi.spyOn(LOGGER, "info").mockImplementation(() => undefined);
     setRawAuthorizationFragment(fragment());

@@ -18,6 +18,7 @@ import { RING_ILLUSTRATION } from "@/client/ui/shared/ringHandoffCard";
 import { RingHandoffScreen } from "@/client/ui/shared/ringHandoffScreen";
 import { useDeepLinkLauncher, useKnownRingHandoffMode } from "@/client/ui/shared/useRingHandoff";
 import { ExternalSignerRequest } from "@/client/ui/universal-signer/externalSignerRequest";
+import { ClassicQrSwitch, useKeychainAuthMethod } from "@/client/ui/shared/classicQrSwitch";
 import { ChoiceCard } from "@/client/ui/shared/choiceCard";
 
 type CheckState =
@@ -86,6 +87,13 @@ export function RingBackupCheck({
   const scanning = mode === "scan";
   const [state, setState] = useState<CheckState>({ status: "starting" });
   const [attempt, setAttempt] = useState(0);
+  // Older Pubky Ring needs the legacy request: switching asks again, the other way.
+  const method = useKeychainAuthMethod();
+  const [requestedMethod, setRequestedMethod] = useState(method);
+  if (method !== requestedMethod) {
+    setRequestedMethod(method);
+    setState({ status: "starting" });
+  }
   const verified = useEffectEvent((at: Date) => onVerified?.(at));
   const region = useRef<HTMLDivElement>(null);
   const start = useRef<HTMLButtonElement>(null);
@@ -123,7 +131,7 @@ export function RingBackupCheck({
       }
       timer = setTimeout(() => void poll(), POLL_INTERVAL_MS);
     }
-    void verifier.start(publicKey).then((result) => {
+    void verifier.start(publicKey, method).then((result) => {
       if (!active) return;
       if (Result.isError(result)) {
         setState({ status: "failed", failure: result.error.code });
@@ -137,7 +145,7 @@ export function RingBackupCheck({
       clearTimeout(timer);
       verifier.dispose();
     };
-  }, [verifier, publicKey, attempt, running]);
+  }, [verifier, publicKey, attempt, running, method]);
 
   // A failure is said in a toast, not in a box under the code. One per attempt and failure.
   const failure =
@@ -199,18 +207,22 @@ export function RingBackupCheck({
               scanning ? null : <CancelButton onClick={() => setOpened("closed")} />
             }
           >
-            <div className="w-full min-w-0 outline-none" ref={handoff} tabIndex={-1}>
-              <ExternalSignerRequest
-                getAuthorizationUrl={() => verifier.authorizationUrl()}
-                launcher={launcher}
-                // A phone's press started this check: Pubky Ring opens as soon as it can.
-                openOnReady={opened === "open"}
-                preparing={state.status === "starting"}
-                purpose="backup-verification"
-                // Retried from the hand-off itself (the toast says why): a computer presses the
-                // spent code, a phone Try again.
-                spent={state.status === "failed" ? { onRetry: retry } : undefined}
-              />
+            {/* The switch stays close: a computer's page shows both cards in one window. */}
+            <div className="flex w-full min-w-0 flex-col gap-1">
+              <div className="w-full min-w-0 outline-none" ref={handoff} tabIndex={-1}>
+                <ExternalSignerRequest
+                  getAuthorizationUrl={() => verifier.authorizationUrl()}
+                  launcher={launcher}
+                  // A phone's press started this check: Pubky Ring opens as soon as it can.
+                  openOnReady={opened === "open"}
+                  preparing={state.status === "starting"}
+                  purpose="backup-verification"
+                  // Retried from the hand-off itself (the toast says why): a computer presses the
+                  // spent code, a phone Try again.
+                  spent={state.status === "failed" ? { onRetry: retry } : undefined}
+                />
+              </div>
+              <ClassicQrSwitch />
             </div>
           </RingHandoffScreen>
         </div>

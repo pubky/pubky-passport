@@ -143,7 +143,7 @@ describe("DetachFromGoogleFlow", () => {
     expect(
       await screen.findByRole("heading", { name: "Back up your pubky first." }),
     ).toBeInTheDocument();
-    expect(verifier.start).toHaveBeenCalledWith(identity.publicIdentity.publicKeyZ32);
+    expect(verifier.start).toHaveBeenCalledWith(identity.publicIdentity.publicKeyZ32, "grant");
     expect(screen.getByRole("status")).toHaveTextContent(
       `Pubky Ring signed in with this key on ${formatBackupDate(at)}.`,
     );

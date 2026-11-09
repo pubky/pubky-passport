@@ -41,30 +41,27 @@ const PLACEMENT_CLASSES: Record<Placement, string> = {
 const TITLE = "Continue with Google, powered by Pubky Passport.";
 
 /**
- * The Google trust model as the README states it: the key is encrypted in the browser, Google
- * stores the ciphertext, Passport's server releases the wrapping key only for a fresh sign-in, and
- * nothing is handed to the person to keep.
+ * The Google trust model in the words of pubky.app's design: the key is made and encrypted in the
+ * browser, Google keeps the encrypted backup and confirms the person, and Passport's server holds
+ * the other piece (the wrapping key it releases only for a fresh sign-in), so neither side can
+ * recover the pubky alone.
  */
 const POINTS = [
   {
-    term: "Your key:",
-    text: "Created in this browser and encrypted before it’s saved to your Google Drive. Google never sees your key.",
-  },
-  {
     term: "Google’s role:",
-    text: "Stores the encrypted backup and confirms it’s you when you sign in.",
+    text: "Helps identify you and securely retrieve your encrypted backup. It does not create or control your pubky.",
   },
   {
-    term: "Passport’s role:",
-    text: "Holds the second piece needed to unlock the backup, and hands it over only after a fresh sign-in with the same Google account. Passport’s server never sees your key or your backup.",
+    term: "Your keys:",
+    text: "Keys are created in your browser and encrypted before storage on Google Drive. Google never sees the private key.",
   },
   {
-    term: "New device?",
-    text: "Sign in to Passport with the same Google account and your pubky comes back. There’s nothing to write down.",
+    term: "Recovery:",
+    text: "Recovery requires both your encrypted Google Drive backup and a separate recovery key from Passport.",
   },
   {
-    term: "Not tied to Google:",
-    text: "You can download a recovery file or add your pubky to Pubky Ring anytime in Manage identity.",
+    term: "Split security:",
+    text: "Neither Google nor Passport can recover your pubky on its own, reducing reliance on either one.",
   },
 ];
 
@@ -512,6 +509,11 @@ function PermissionHint({ id }: { id: string }) {
   );
 }
 
+/** What signing in with Google means, point by point; also the Google sign-in screen's body. */
+function GoogleExplanation() {
+  return <ExplanationPoints />;
+}
+
 function ExplanationPoints() {
   return (
     <div className="flex flex-col gap-4">
@@ -546,4 +548,4 @@ function useDesktopBreakpoint(): boolean {
   return useSyncExternalStore(subscribeToDesktop, isDesktop, () => false);
 }
 
-export { ContinueWithGoogle };
+export { ContinueWithGoogle, GoogleExplanation, PermissionHint as GooglePermissionHint };

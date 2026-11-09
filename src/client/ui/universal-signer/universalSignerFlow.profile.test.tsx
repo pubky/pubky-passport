@@ -77,10 +77,16 @@ it("offers unfinished profile setup from the overview and never forces it", asyn
     "status",
   );
   await user.click(screen.getByRole("button", { name: "Set up profile" }));
-  await user.type(await screen.findByLabelText("Name"), "Satoshi");
+  const suggested = await screen.findByLabelText("Name");
+  // Nothing is published and there is no Google name: a random name starts the form, with no
+  // hint about it.
+  expect(suggested).not.toHaveValue("");
+  expect(suggested).toHaveAccessibleDescription("3–50 characters. Shown publicly.");
+  await user.clear(suggested);
+  await user.type(suggested, "Satoshi");
   await user.type(screen.getByLabelText("Bio"), "Bitcoin");
   await user.type(screen.getByLabelText("X (Twitter)"), "@satoshi");
-  await user.click(screen.getByRole("button", { name: "Save profile" }));
+  await user.click(screen.getByRole("button", { name: "Continue" }));
   expect(await screen.findByRole("alert")).toHaveTextContent("Could not save your profile");
   expect(screen.getByLabelText("Name")).toHaveValue("Satoshi");
   expect(save).toHaveBeenCalledWith(
@@ -94,7 +100,8 @@ it("offers unfinished profile setup from the overview and never forces it", asyn
   expect(await screen.findByRole("heading", { name: "Your pubky." })).toBeInTheDocument();
   expect(screen.queryByRole("heading", { name: "Create your profile." })).not.toBeInTheDocument();
   await user.click(screen.getByRole("button", { name: "Set up profile" }));
-  await user.type(await screen.findByLabelText("Name"), "Satoshi");
+  await user.clear(await screen.findByLabelText("Name"));
+  await user.type(screen.getByLabelText("Name"), "Satoshi");
   let publish!: () => void;
   save.mockImplementationOnce(
     () =>
@@ -111,7 +118,7 @@ it("offers unfinished profile setup from the overview and never forces it", asyn
         };
       }),
   );
-  await user.click(screen.getByRole("button", { name: "Save profile" }));
+  await user.click(screen.getByRole("button", { name: "Continue" }));
   expect(screen.getByRole("button", { name: "Saving…" })).toHaveAttribute("aria-busy", "true");
   expect(screen.getByRole("button", { name: "Back" })).toBeDisabled();
   await act(async () => publish());
@@ -176,7 +183,7 @@ it("publishes an edited profile, says so and returns to Manage, where editing st
   expect(published).toHaveBeenCalledWith("Profile published");
   expect(approve).not.toHaveBeenCalled();
 });
-it("keeps the first two saved custom link titles editable", async () => {
+it("keeps the first two saved custom links under their own titles", async () => {
   load.mockResolvedValue(
     Result.ok({
       profile: {
@@ -191,23 +198,28 @@ it("keeps the first two saved custom link titles editable", async () => {
   const user = userEvent.setup();
   mount();
   await user.click(await screen.findByRole("button", { name: "Set up profile" }));
-  const firstTitle = within(await screen.findByRole("group", { name: "Link 1" })).getByRole(
-    "textbox",
-    { name: "Title" },
-  );
-  const secondTitle = within(screen.getByRole("group", { name: "Link 2" })).getByRole("textbox", {
-    name: "Title",
-  });
-  await user.clear(firstTitle);
-  await user.type(firstTitle, "Writing");
-  await user.clear(secondTitle);
-  await user.type(secondTitle, "Code");
-  await user.click(screen.getByRole("button", { name: "Save profile" }));
+  // They do not take the Website and X (Twitter) rows a profile without links starts with.
+  const blog = await screen.findByLabelText("My blog");
+  expect(blog).toHaveValue("https://blog.example/");
+  expect(screen.getByLabelText("Projects")).toHaveValue("https://projects.example/");
+  expect(screen.queryByLabelText("Website")).not.toBeInTheDocument();
+  expect(screen.queryByLabelText("X (Twitter)")).not.toBeInTheDocument();
+  // An address is edited in place; a label is changed by removing the link and adding it again.
+  await user.clear(blog);
+  await user.type(blog, "https://writing.example/");
+  await user.click(screen.getByRole("button", { name: "Remove Projects" }));
+  await user.click(screen.getByRole("button", { name: "Add link" }));
+  const dialog = screen.getByRole("dialog", { name: "Add link" });
+  await user.type(within(dialog).getByLabelText("Label"), "Code");
+  await user.type(within(dialog).getByLabelText("URL"), "https://projects.example/");
+  await user.click(within(dialog).getByRole("button", { name: "Save Link" }));
+  expect(screen.getByLabelText("Code")).toHaveValue("https://projects.example/");
+  await user.click(screen.getByRole("button", { name: "Continue" }));
   expect(save).toHaveBeenCalledWith(
     KEY,
     expect.objectContaining({
       links: [
-        { title: "Writing", url: "https://blog.example/" },
+        { title: "My blog", url: "https://writing.example/" },
         { title: "Code", url: "https://projects.example/" },
       ],
     }),
@@ -220,7 +232,7 @@ it("does not offer Finish when a profile read fails and retries without overwrit
   mount();
   await user.click(await screen.findByRole("button", { name: "Set up profile" }));
   expect(await screen.findByRole("alert")).toHaveTextContent("Could not load your profile");
-  expect(screen.queryByRole("button", { name: "Save profile" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Continue" })).not.toBeInTheDocument();
   load.mockResolvedValue(Result.ok({ profile }));
   await user.click(screen.getByRole("button", { name: "Try again" }));
   expect(await screen.findByLabelText("Name")).toHaveValue("Satoshi");
@@ -342,14 +354,17 @@ describe("an app that requires a profile", () => {
         await screen.findByRole("heading", { name: "Create your profile." }),
       ).toBeInTheDocument();
       expect(
-        screen.getByText(/The app you’re signing in to needs a public profile/u),
+        screen.getByText(
+          "The app you’re signing in to needs a public profile. Add at least a name to continue.",
+        ),
       ).toBeInTheDocument();
       expect(screen.queryByRole("button", { name: "Skip for now" })).not.toBeInTheDocument();
       expect(screen.queryByRole("button", { name: "Authorize" })).not.toBeInTheDocument();
-      await user.type(await screen.findByLabelText("Name"), "Satoshi");
+      await user.clear(await screen.findByLabelText("Name"));
+      await user.type(screen.getByLabelText("Name"), "Satoshi");
       await user.click(
         screen.getByRole("button", {
-          name: read.isOk() ? "Save profile" : "Replace profile",
+          name: read.isOk() ? "Continue" : "Replace profile",
         }),
       );
 

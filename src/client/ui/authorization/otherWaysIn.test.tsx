@@ -8,14 +8,14 @@ import { OtherWaysIn } from "./otherWaysIn";
 
 afterEach(cleanup);
 
-it("offers the start page and Pubky Ring below an or, neither as the primary action", async () => {
+it("offers the start page and the keychain below an or, neither as the primary action", async () => {
   const onOpenRing = vi.fn();
   const onUseAnotherIdentity = vi.fn();
   render(<OtherWaysIn onOpenRing={onOpenRing} onUseAnotherIdentity={onUseAnotherIdentity} />);
 
   const or = screen.getByText("or", { exact: true });
   const another = screen.getByRole("button", { name: "Use another identity" });
-  const ring = screen.getByRole("button", { name: "Continue with Pubky Ring" });
+  const ring = screen.getByRole("button", { name: "Continue with keychain" });
   for (const button of [another, ring]) {
     expect(button).toHaveClass("bg-secondary");
     expect(or.compareDocumentPosition(button)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
@@ -37,7 +37,7 @@ it("starts nothing while an answer is on its way", async () => {
   );
 
   const user = userEvent.setup();
-  for (const name of ["Use another identity", "Continue with Pubky Ring"]) {
+  for (const name of ["Use another identity", "Continue with keychain"]) {
     const button = screen.getByRole("button", { name });
     expect(button).toBeDisabled();
     await user.click(button);

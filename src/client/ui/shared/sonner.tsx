@@ -2,7 +2,7 @@
 
 import { Toaster } from "sonner";
 
-import { CircleAlertIcon, CircleCheckIcon, CircleInfoIcon, XIcon } from "./icons";
+import { CheckIcon, CircleAlertIcon, CircleInfoIcon, XIcon } from "./icons";
 
 /** Below the header, so the logo, the sign-in band and the header's action stay in view. */
 const BELOW_HEADER = "calc(var(--passport-context-band-height) + var(--passport-header-height))";
@@ -16,7 +16,12 @@ function Sonner() {
         close: <XIcon />,
         error: <CircleAlertIcon className="text-destructive-text" size={20} />,
         info: <CircleInfoIcon className="text-[#89898F]" size={20} />,
-        success: <CircleCheckIcon className="text-brand" size={20} />,
+        // A filled brand circle with a dark tick, as pubky.app's success toasts show it.
+        success: (
+          <span className="flex size-5 items-center justify-center rounded-full bg-brand text-background">
+            <CheckIcon size={14} />
+          </span>
+        ),
       }}
       mobileOffset={{ left: 24, right: 24, top: BELOW_HEADER }}
       offset={{ top: "calc(var(--passport-context-band-height) + 24px)" }}
@@ -35,7 +40,7 @@ function Sonner() {
             "!border-destructive-text/40 bg-[#141419] bg-linear-to-b from-destructive/15 to-destructive/15",
           icon: "flex size-5 shrink-0 items-center justify-center",
           info: "!border-[#303034] bg-[linear-gradient(rgba(5,5,10,0.6),rgba(5,5,10,0.6)),linear-gradient(#454549,#454549)]",
-          success: "!border-brand/50 bg-[#141419] bg-linear-to-b from-brand/25 to-brand/25",
+          success: "!border-brand bg-[#141419] bg-linear-to-b from-brand/25 to-brand/25",
           title: "w-full text-sm font-bold leading-5 text-popover-foreground",
           // Sonner's own stylesheet sets a system font on the toaster; the toast takes Passport's.
           toast:

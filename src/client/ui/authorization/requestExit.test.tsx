@@ -7,7 +7,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   BackToAppAction,
   closeRequestWindow,
+  EDIT_LINK_BACK_TIMEOUT_MS,
   goToPassport,
+  leaveEditLink,
   useCameFromPage,
   useOpenedByApp,
 } from "./requestExit";
@@ -50,6 +52,94 @@ describe("closeRequestWindow", () => {
     closeRequestWindow(target);
 
     expect(target.location.replace).toHaveBeenCalledExactlyOnceWith("/");
+  });
+});
+
+describe("leaveEditLink", () => {
+  /** A window an edit link opened: `closes` when a script may close it, `length` its history. */
+  function editWindow({ closes = false, length = 1 } = {}) {
+    let pagehide: (() => void) | undefined;
+    let timer: { callback: () => void; delay: number | undefined } | undefined;
+    const target = {
+      closed: false,
+      close: vi.fn(() => {
+        if (closes) target.closed = true;
+      }),
+      history: { length, back: vi.fn() },
+      addEventListener: vi.fn((_type: string, listener: () => void) => {
+        pagehide = listener;
+      }),
+      setTimeout: vi.fn((callback: () => void, delay?: number) => {
+        timer = { callback, delay };
+        return 1;
+      }),
+    };
+    return {
+      target: target as unknown as Window,
+      fake: target,
+      leavePage: () => pagehide?.(),
+      timer: () => timer,
+    };
+  }
+
+  it("closes a window a script may close, and goes nowhere else", () => {
+    const home = vi.fn();
+    const { target, fake } = editWindow({ closes: true, length: 3 });
+
+    leaveEditLink(home, target);
+
+    expect(fake.close).toHaveBeenCalledOnce();
+    expect(fake.history.back).not.toHaveBeenCalled();
+    expect(home).not.toHaveBeenCalled();
+  });
+
+  it("goes back to the page before in this tab, and nowhere else once the page is left", () => {
+    const home = vi.fn();
+    const { target, fake, leavePage, timer } = editWindow({ length: 2 });
+
+    leaveEditLink(home, target);
+
+    expect(fake.history.back).toHaveBeenCalledOnce();
+    expect(fake.addEventListener).toHaveBeenCalledWith("pagehide", expect.any(Function), {
+      once: true,
+    });
+    expect(timer()?.delay).toBe(EDIT_LINK_BACK_TIMEOUT_MS);
+    leavePage();
+    timer()?.callback();
+    expect(home).not.toHaveBeenCalled();
+  });
+
+  it("goes home when going back stayed on this page", () => {
+    const home = vi.fn();
+    const { target, timer } = editWindow({ length: 2 });
+
+    leaveEditLink(home, target);
+    expect(home).not.toHaveBeenCalled();
+    timer()?.callback();
+
+    expect(home).toHaveBeenCalledOnce();
+  });
+
+  it("goes home at once without a page to go back to", () => {
+    const home = vi.fn();
+    const { target, fake } = editWindow();
+
+    leaveEditLink(home, target);
+
+    expect(fake.history.back).not.toHaveBeenCalled();
+    expect(home).toHaveBeenCalledOnce();
+  });
+
+  it("goes on when closing throws", () => {
+    const home = vi.fn();
+    const { target, fake } = editWindow({ length: 2 });
+    fake.close.mockImplementation(() => {
+      throw new DOMException("Blocked", "SecurityError");
+    });
+
+    leaveEditLink(home, target);
+
+    expect(fake.history.back).toHaveBeenCalledOnce();
   });
 });
 

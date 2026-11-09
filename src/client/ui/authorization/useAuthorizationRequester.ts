@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useReducer, useSyncExternalStore } from "react";
-import { takeOpenerChannel } from "@/client/logic/authorization/opener/OpenerChannel";
+import {
+  OPENER_KEYCHAIN_FEATURE,
+  takeOpenerChannel,
+} from "@/client/logic/authorization/opener/OpenerChannel";
 import {
   describeAuthorizationRequester,
   verifiedOwnHost,
@@ -36,6 +39,8 @@ export function useAuthorizationRequester(review?: AuthorizationRequestReview) {
     bound: opener !== undefined,
     /** The page has an opener whose request-bound hello may still arrive (A39 grace). */
     awaitingHello,
+    /** The bound app offers its own keychain route (its hello's `keychain` feature). */
+    appOffersKeychain: opener?.features.includes(OPENER_KEYCHAIN_FEATURE) === true,
     /** Nobody verifies who asks: no hello bound this request, and none can still arrive. */
     unverified: opener === undefined && !awaitingHello,
     /** The host whose folder is the app's own (see `verifiedOwnHost`). */

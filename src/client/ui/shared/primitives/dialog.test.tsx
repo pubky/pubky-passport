@@ -19,6 +19,27 @@ describe("Dialog", () => {
     expect(dialog.open).toBe(false);
   });
 
+  it("focuses its data-autofocus field when it opens, not the first button", () => {
+    const content = (
+      <>
+        <button type="button">Close</button>
+        <input aria-label="Label" data-autofocus />
+      </>
+    );
+    const rendered = render(
+      <Dialog aria-label="Add link" onOpenChange={() => undefined} open={false}>
+        {content}
+      </Dialog>,
+    );
+    rendered.rerender(
+      <Dialog aria-label="Add link" onOpenChange={() => undefined} open>
+        {content}
+      </Dialog>,
+    );
+
+    expect(screen.getByRole("textbox", { name: "Label" })).toHaveFocus();
+  });
+
   it("gives confirmations one shared sheet style that a caller can extend", () => {
     render(
       <Dialog

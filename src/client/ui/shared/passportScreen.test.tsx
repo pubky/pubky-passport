@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { PassportScreen } from "./passportScreen";
 import { DisplayHeading } from "./primitives/typography";
-import { SetupProgressProvider } from "./setupProgress";
+import { SetupProgressProvider, SetupProgressSlot } from "./setupProgress";
 
 describe("PassportScreen", () => {
   beforeEach(() => {
@@ -94,18 +94,45 @@ describe("PassportScreen", () => {
     expect(window.scrollTo).toHaveBeenCalledOnce();
   });
 
+  it("keeps Passport's own screens in their column on a desktop only, and the v27 frames wide", () => {
+    const { unmount } = render(
+      <PassportScreen>
+        <h1 tabIndex={-1}>Your pubky.</h1>
+      </PassportScreen>,
+    );
+    // Full width below a desktop window, 24px in; the 588px column above 1024px.
+    expect(screen.getByRole("main")).toHaveClass(
+      "max-w-[1280px]",
+      "min-[64.0625rem]:max-w-[588px]",
+      "min-[64.0625rem]:px-0",
+    );
+    expect(screen.getByRole("main").className).not.toMatch(/md:px-10/u);
+    unmount();
+    render(
+      <PassportScreen width="wide">
+        <h1 tabIndex={-1}>Let’s join Pubky.</h1>
+      </PassportScreen>,
+    );
+    const wide = screen.getByRole("main");
+    // The v27 track: 24px in below a desktop window, 40px on one.
+    expect(wide).toHaveClass("max-w-[1280px]", "min-[64.0625rem]:px-10");
+    expect(wide.className).not.toMatch(/max-w-\[588px\]/u);
+  });
+
   it("shows setup progress only inside a setup flow", () => {
     render(<PassportScreen>Content</PassportScreen>);
     expect(screen.queryByRole("navigation")).not.toBeInTheDocument();
 
     cleanup();
+    // The progress shows in the header's slot, which the root layout renders above every screen.
+    render(<SetupProgressSlot />);
     render(
-      <SetupProgressProvider steps={["Account", "Keys", "Profile"]} current={1}>
+      <SetupProgressProvider current={1}>
         <PassportScreen>Content</PassportScreen>
       </SetupProgressProvider>,
     );
-    expect(screen.getByRole("main")).toContainElement(
-      screen.getByRole("navigation", { name: "Account setup progress" }),
-    );
+    const progress = screen.getByRole("navigation", { name: "Account setup progress" });
+    expect(document.getElementById("passport-header-progress")).toContainElement(progress);
+    expect(screen.getByRole("main")).not.toContainElement(progress);
   });
 });

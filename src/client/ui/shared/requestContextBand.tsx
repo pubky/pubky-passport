@@ -51,7 +51,7 @@ export function RequestContextBand({
     <aside
       ref={band}
       aria-label={requester === undefined ? label : `${label} ${requester}`}
-      className="absolute inset-x-0 top-0 z-20 w-full shrink-0 border-b border-brand/20 bg-brand/10 px-6 text-xs font-medium leading-4 text-brand md:px-10"
+      className="absolute inset-x-0 top-0 z-20 w-full shrink-0 border-b border-brand/20 bg-brand/10 px-6 text-xs font-medium leading-4 text-brand min-[64.0625rem]:px-10"
       data-passport-context-band=""
     >
       <div className="flex min-h-[33px] items-center gap-1">

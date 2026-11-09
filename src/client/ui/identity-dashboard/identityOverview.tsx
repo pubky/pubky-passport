@@ -33,8 +33,10 @@ import { DisplayHeading } from "@/client/ui/shared/primitives/typography";
  */
 function IdentityOverview({
   identity,
+  keychainConnected = false,
   onAuthorize,
   onBackup,
+  onDisconnectKeychain,
   onEditProfile,
   onManage,
   onVerifyBackup,
@@ -43,9 +45,13 @@ function IdentityOverview({
   onSwitch,
 }: {
   identity: LocalIdentityMetadata;
+  /** A Ring identity's profile grant is stored in this browser, so editing needs no new approval. */
+  keychainConnected?: boolean;
   onAuthorize: () => void;
   /** Opens a new recovery file. */
   onBackup: () => void;
+  /** Revokes that stored grant; the next profile edit asks the keychain again. */
+  onDisconnectKeychain?: (() => void) | undefined;
   /** Opens the profile editor, which sets up a public profile that does not exist yet. */
   onEditProfile: () => void;
   onManage: () => void;
@@ -191,6 +197,14 @@ function IdentityOverview({
           Switch
         </Button>
       </section>
+      {heldInRing && keychainConnected && onDisconnectKeychain ? (
+        // Passport keeps its profile connection to the keychain; this ends it on the homeserver.
+        <p className="text-sm leading-5 pointer-coarse:-my-1.5">
+          <Button onClick={onDisconnectKeychain} variant="link">
+            Disconnect keychain
+          </Button>
+        </p>
+      ) : null}
     </PassportScreen>
   );
 }

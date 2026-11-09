@@ -44,9 +44,9 @@ export function RingHandoffScreen({
   action: string;
   children: ReactNode;
   /**
-   * Inside a card that already names Pubky Ring. `"quiet"` is the card that shows its code with
-   * the page, on a computer: the card's own line says what it is for, so the instruction is kept
-   * for assistive technology only and the page stays within a 1280x800 window.
+   * Inside a card that already names Pubky Ring. `"quiet"` is a card whose own line says what it is
+   * for (Verify your backup on a computer, a phone's keychain card on Sign in), so the instruction
+   * is kept for assistive technology only and the card stays short.
    */
   embedded?: boolean | "quiet";
   instruction: ReactNode;

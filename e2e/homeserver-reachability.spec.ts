@@ -65,12 +65,18 @@ test("local signup sends nothing while its homeserver is unreachable and retries
   });
 
   await page.goto("/");
-  await page.getByRole("button", { name: "Continue with SMS" }).click();
+  await page.getByRole("button", { name: "Manage your own keys" }).click();
+  await page.getByRole("button", { name: "Phone number", exact: true }).click();
   await page.getByLabel("Phone number", { exact: true }).fill("+41791234567");
-  await page.getByRole("button", { name: "Send code" }).click();
+  await page.getByRole("button", { name: "Send Code" }).click();
   await page.getByLabel("Verification code", { exact: true }).fill("123456");
-  await page.getByRole("button", { name: "Verify code" }).click();
-  await page.getByRole("button", { name: /Keep key in this browser/u }).click();
+  await page.getByRole("button", { name: "Verify Code" }).click();
+  // The key is kept in this browser: the keychain choice's quiet link, past its tradeoffs.
+  await page.getByRole("button", { name: "Keep key in this browser" }).click();
+  await page
+    .getByRole("dialog", { name: "Be aware of these tradeoffs:" })
+    .getByRole("button", { name: "Create in browser anyway" })
+    .click();
   await page.getByLabel("Enter strong password").fill("correct horse");
   await page.getByRole("button", { name: "Download recovery file" }).click();
   await page.getByRole("button", { name: "Skip this check (not recommended)" }).click();

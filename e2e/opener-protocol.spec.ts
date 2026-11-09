@@ -154,7 +154,9 @@ test("a first hello during the Ring view gets ready then Ring, and the Ring view
   baseURL,
 }) => {
   const popup = await openPassport(page, baseURL!, requestPath());
-  await popup.getByRole("button", { name: "Continue with Pubky Ring", exact: true }).click();
+  // No hello came, so Join shows its keychain line once a hello's grace is over: the legacy
+  // request goes to Pubky Ring alone.
+  await popup.getByRole("button", { name: "Use Pubky Ring", exact: true }).click();
   expect(await messages(page)).toEqual([]);
   await sendHello(page);
   await expect.poll(() => messages(page)).toHaveLength(2);
@@ -293,6 +295,9 @@ test("home keeps answering only empty while identity-management UI changes", asy
   baseURL,
 }) => {
   const popup = await openPassport(page, baseURL!, "/");
+  await expectReady(page, { status: "empty" });
+  // Join, then Sign in, then the recovery file's import.
+  await popup.getByRole("button", { name: "Sign in", exact: true }).click();
   await expectReady(page, { status: "empty" });
   await popup.getByRole("button", { name: "Import it", exact: true }).click();
   await expectReady(page, { status: "empty" });
@@ -656,7 +661,7 @@ test("an HTTP loopback opener is visibly a local development app", async ({ page
   await popup.close();
 });
 
-test("v2 cancel without callbacks closes only after acknowledgment", async ({
+test("v2 cancel closes the popup as soon as the app acknowledges", async ({
   page,
   context,
   baseURL,
@@ -682,16 +687,49 @@ test("v2 cancel without callbacks closes only after acknowledgment", async ({
   ]);
 });
 
-test("a missing v2 ack stays local without callbacks and reports completed", async ({
+test("a cancel on the request's first screen closes the popup a second later without an ack", async ({
+  page,
+  baseURL,
+}) => {
+  // Nothing saved: the request opens on Join, whose Back answers the app. This app never
+  // acknowledges.
+  const popup = await openPassport(page, baseURL!, requestPath());
+  await expectReady(page, { status: "valid" });
+  await expect(popup.getByRole("heading", { name: "Let’s join Pubky." })).toBeVisible();
+  const closed = popup.waitForEvent("close", { timeout: 5_000 });
+  await popup.getByRole("button", { name: "Back", exact: true }).click();
+  await closed;
+  expect(
+    (await messages(page)).filter(
+      (message) => message.type === "pubky-passport.authorization-outcome",
+    ),
+  ).toEqual([
+    {
+      type: "pubky-passport.authorization-outcome",
+      version: 2,
+      attemptId: ATTEMPT_ID,
+      messageId: expect.any(String),
+      outcome: "cancel",
+    },
+  ]);
+});
+
+test("a cancelled popup that does not close shows the cancelled outcome with Close, never a blank page", async ({
   page,
   context,
   baseURL,
 }) => {
   await seedPassportIdentity(context, baseURL!);
+  // This window ignores a script's close, as a browser does for a window it will not let go.
+  await context.addInitScript((origin) => {
+    if (location.origin === origin) window.close = () => undefined;
+  }, new URL(baseURL!).origin);
   const popup = await openPassport(page, baseURL!, requestPath());
   await expectReady(page, { status: "valid" });
+  await acknowledgeOutcomes(page, baseURL!);
   await popup.getByRole("button", { name: "Cancel", exact: true }).click();
   await expect(popup.getByRole("heading", { name: "Sign-in cancelled." })).toBeVisible();
+  await expect(popup.getByRole("button", { name: "Close window", exact: true })).toBeVisible();
   expect(popup.isClosed()).toBe(false);
   await expectReady(page, { status: "completed" });
 });
@@ -711,7 +749,7 @@ test("a late first hello after a local cancel receives completed with no outcome
   );
 });
 
-test("v2 posts to the opener before falling back to an exact foreign-origin callback", async ({
+test("a v2 cancel with a foreign callback closes the popup and never visits the callback", async ({
   page,
   context,
   baseURL,
@@ -719,26 +757,31 @@ test("v2 posts to the opener before falling back to an exact foreign-origin call
   const callback = "https://return.example/cancel?opaque=callback-canary";
   await seedPassportIdentity(context, baseURL!);
   const popup = await openPassport(page, baseURL!, requestPath(callback));
-  await context.route("https://return.example/**", (route) =>
-    route.fulfill({ contentType: "text/html", body: "<!doctype html><h1>Callback reached</h1>" }),
-  );
+  let visited = false;
+  await context.route("https://return.example/**", (route) => {
+    visited = true;
+    return route.fulfill({
+      contentType: "text/html",
+      body: "<!doctype html><h1>Callback reached</h1>",
+    });
+  });
   await expectReady(page, { status: "valid" });
   await expectSavedIdentityReview(popup);
   await expect(
     popup.getByText("This app asks to return you to return.example, which is not client.example."),
   ).toHaveCount(2);
   await expect(popup.getByRole("button", { name: "Authorize", exact: true })).toBeEnabled();
+  // The app has the answer by message: the popup closes, acknowledged or not, without the callback.
+  const closed = popup.waitForEvent("close", { timeout: 5_000 });
   await popup.getByRole("button", { name: "Cancel", exact: true }).click();
-  await expect
-    .poll(async () =>
-      (await messages(page)).some(
-        (message) =>
-          message.type === "pubky-passport.authorization-outcome" && message.outcome === "cancel",
-      ),
-    )
-    .toBe(true);
-  await expect(popup).toHaveURL(callback);
-  await expect(popup.getByRole("heading", { name: "Callback reached" })).toBeVisible();
+  await closed;
+  expect(
+    (await messages(page)).some(
+      (message) =>
+        message.type === "pubky-passport.authorization-outcome" && message.outcome === "cancel",
+    ),
+  ).toBe(true);
+  expect(visited).toBe(false);
   expect(JSON.stringify(await messages(page))).not.toContain("callback-canary");
 });
 

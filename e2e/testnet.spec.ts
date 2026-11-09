@@ -1,6 +1,7 @@
 import { TESTNET } from "./helpers/e2eServer";
 import { expect, test } from "./helpers/passportTest";
 import { clientAuthRequest, clientAuthorizationPath } from "./helpers/pubkyAuthRequests";
+import { UNVERIFIED_BAND } from "./helpers/requester";
 
 // Runs only in the `testnet` project, against an instance with PUBKY_NETWORK=testnet.
 test("marks every page and names the testnet's PKARR relay in place of the public ones", async ({
@@ -27,8 +28,10 @@ test("refuses a request made for mainnet before showing it, and opens a testnet 
   ).toBeVisible();
   expect(page.url()).not.toContain("#");
 
+  // With no identity here yet, the request opens on Join, under its band.
   await page.goto(`${clientAuthorizationPath(clientAuthRequest())}&network=testnet`);
-  await expect(page).toHaveTitle("Sign-in request | Pubky Passport");
+  await expect(page).toHaveTitle("Let’s join Pubky | Pubky Passport");
+  await expect(page.getByRole("complementary", UNVERIFIED_BAND)).toBeVisible();
   await expect(page.getByRole("heading", { name: "Different network." })).toHaveCount(0);
 });
 

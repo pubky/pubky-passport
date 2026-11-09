@@ -1,6 +1,9 @@
 /** @vitest-environment jsdom */
 import { act, cleanup, render, screen } from "@testing-library/react";
-import { OPENER_HELLO_GRACE_MS } from "@/client/logic/authorization/opener/OpenerChannel";
+import {
+  OPENER_HELLO_GRACE_MS,
+  OPENER_KEYCHAIN_FEATURE,
+} from "@/client/logic/authorization/opener/OpenerChannel";
 import { Result } from "better-result";
 import { renderToString } from "react-dom/server";
 import { afterEach, expect, it, vi } from "vitest";
@@ -15,6 +18,7 @@ import {
 import { requestDigest } from "@/libs/requestDigest";
 import { SignInBand } from "./signInBand";
 import { AuthorizationReview } from "./review/authorizationReview";
+import { useAuthorizationRequester } from "./useAuthorizationRequester";
 
 const SECRET = ["kqnceEMgrNQM_xi06oQXjA3c", "JHX_RQmw1BY6JE1bse8"].join("");
 // The package's popup request: no callbacks, so only the bound opener can name the requester.
@@ -54,7 +58,11 @@ function fixture() {
   const validated = ValidatedPubkyAuthRequest.fromEncoded(encodeURIComponent(REQUEST));
   if (Result.isError(validated)) throw new Error(validated.error.code);
   installOpenerChannel(window, { status: "valid", request: validated.value });
-  const send = (origin = "https://real.example:8443", request = requestDigest(REQUEST)) =>
+  const send = (
+    origin = "https://real.example:8443",
+    request = requestDigest(REQUEST),
+    features: readonly string[] = [],
+  ) =>
     act(() => {
       window.dispatchEvent(
         Object.assign(new Event("message"), {
@@ -64,7 +72,7 @@ function fixture() {
             type: "pubky-passport.hello",
             version: 2,
             attemptId: "0123456789abcdef",
-            features: [],
+            features,
             request,
           },
         }),
@@ -87,6 +95,39 @@ function Screens({ review = WITHOUT_CALLBACKS }: { review?: AuthorizationRequest
     </>
   );
 }
+
+/** What a request's start page reads from the hook: whether to leave the keychain line out. */
+function KeychainProbe() {
+  const { appOffersKeychain, awaitingHello } = useAuthorizationRequester(WITHOUT_CALLBACKS);
+  return <p>{`keychain=${appOffersKeychain} awaiting=${awaitingHello}`}</p>;
+}
+
+it("says the app offers its own keychain once a hello bound to this request names it", () => {
+  vi.useFakeTimers();
+  const f = fixture();
+  render(<KeychainProbe />);
+  // Nothing is known while the hello may still come.
+  expect(screen.getByText("keychain=false awaiting=true")).toBeVisible();
+  f.send(undefined, undefined, ["outcome-v2", "status", OPENER_KEYCHAIN_FEATURE]);
+  expect(screen.getByText("keychain=true awaiting=false")).toBeVisible();
+});
+
+it.each([
+  ["names no keychain", requestDigest(REQUEST), ["outcome-v2", "status"]],
+  ["is for another request", requestDigest(`${REQUEST}&x=1`), [OPENER_KEYCHAIN_FEATURE]],
+] as const)("never says the app offers a keychain for a hello that %s", (_, request, features) => {
+  vi.useFakeTimers();
+  const f = fixture();
+  render(<KeychainProbe />);
+  f.send(undefined, request, features);
+  graceElapses();
+  expect(screen.getByText("keychain=false awaiting=false")).toBeVisible();
+});
+
+it("says no app offers a keychain on a page without an opener", () => {
+  render(<KeychainProbe />);
+  expect(screen.getByText("keychain=false awaiting=false")).toBeVisible();
+});
 
 it("A39: a hello bound to this request names its opener in the band and drops the no-website line", () => {
   const f = fixture();

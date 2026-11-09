@@ -109,9 +109,10 @@ async function approve(page: Page) {
 }
 
 for (const identity of ["local", "ring", "none"] as const) {
-  const action = "Continue with Pubky Ring";
-  // One saved identity Passport can sign with opens on its review, whose "or" offers Ring; with
-  // none saved, or only one whose key stays in Ring, the start page offers it.
+  // One saved identity Passport can sign with opens on its review, whose "or" offers the keychain;
+  // with none saved, or only one whose key stays in Ring, the start page's Join offers it under
+  // its cards: the harness's hello does not say the app offers a keychain route of its own.
+  const action = identity === "local" ? "Continue with keychain" : "Use Pubky Ring or Bitkit";
   test(`${identity}: the explicit Ring action reports phase; the app closes Passport once it has the Session`, async ({
     page,
     baseURL,
@@ -124,7 +125,7 @@ for (const identity of ["local", "ring", "none"] as const) {
       .poll(async () => (await snapshot(page)).state)
       .toMatchObject({ status: "waiting", phase: "ring" });
     // Nobody reports the approval: the Ring screen stays, with Back, until the app has its Session.
-    await expect(popup.getByRole("heading", { name: "Sign in with Pubky Ring." })).toBeVisible();
+    await expect(popup.getByRole("heading", { name: "Sign in with keychain." })).toBeVisible();
     await expect(popup.getByRole("button", { name: /approved|Back to /u })).toHaveCount(0);
     expect((await snapshot(page)).events.filter((event) => event.type === "OUTCOME")).toEqual([]);
     expect((await snapshot(page)).deliveries).toBe(0);

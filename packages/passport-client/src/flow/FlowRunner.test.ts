@@ -404,3 +404,13 @@ test.each([false, true])(
     expect(freed).toHaveBeenCalledOnce();
   },
 );
+
+test("a cookie flow (the classic QR) has no delegated save, so a same-tab return is refused", () => {
+  const legacy = new FakeFlowPort("pubkyauth://signin?secret=legacy");
+  // The SDK's cookie AuthFlow has no saveDelegated.
+  Object.defineProperty(legacy, "saveDelegated", { value: undefined });
+  const h = setup(legacy);
+  expect(h.runner.save()).toMatchObject({ ok: false, error: { code: "internal" } });
+  expect(legacy.saves).toBe(0);
+  h.runner.free();
+});

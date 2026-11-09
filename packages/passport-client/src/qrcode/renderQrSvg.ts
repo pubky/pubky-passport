@@ -59,7 +59,7 @@ export function renderQrSvg(text: string, options?: Options): SVGSVGElement {
     svg.setAttribute("viewBox", `0 0 ${size} ${size}`);
     svg.setAttribute("shape-rendering", "crispEdges");
     svg.setAttribute("role", "img");
-    svg.setAttribute("aria-label", label || "QR code to sign in with Pubky Ring");
+    svg.setAttribute("aria-label", label || "QR code to sign in with Pubky Ring or Bitkit");
     // Styled through the CSSOM, which strict style-src policies allow: the code sits in a closed
     // root the element's stylesheet cannot reach, and an inline SVG would leave a line-box gap
     // under the code.

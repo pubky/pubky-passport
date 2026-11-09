@@ -5,6 +5,12 @@ const MAX_FEATURES = 16;
 const FEATURE_TOKEN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$/u;
 /** Passport's `ready` feature: it accepts `profile-needed` and answers `profile-ready`. */
 export const PROFILE_SETUP_FEATURE = "profile-setup";
+/**
+ * Sent in the hello while the app offers a keychain route of its own (the large element's code
+ * or its "Open keychain app" button): Passport then leaves the keychain out of a request's Sign in.
+ * A display hint only; it grants nothing.
+ */
+export const KEYCHAIN_FEATURE = "keychain";
 
 // Kept exhaustive against Passport's types by the repository-level drift test.
 export const REQUEST_CODES = [

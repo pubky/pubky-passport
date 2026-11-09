@@ -41,7 +41,7 @@ afterEach(async () => {
   }
 });
 
-function setup(requireProfile = false) {
+function setup(requireProfile = false, keychainOffered?: () => boolean) {
   const clock = new FakeClock();
   let snapshot = 0;
   const context = {
@@ -121,6 +121,7 @@ function setup(requireProfile = false) {
     flows,
     popup,
     profile: requireProfile ? "required" : "optional",
+    ...(keychainOffered ? { keychainOffered } : {}),
     readProfile,
     appWindow,
     clock,
@@ -560,6 +561,31 @@ test.each(["s", "c", "e", "none"] as const)(
     h.clock.assertEmpty();
   },
 );
+
+test("names the app's own keychain route in each hello only while the app offers one", async () => {
+  let offered = true;
+  const keychainOffered = vi.fn(() => offered);
+  const h = setup(false, keychainOffered);
+  const { w } = h.start();
+  await h.created();
+  expect(w.posts[0]).toMatchObject({
+    message: { type: "pubky-passport.hello", features: ["outcome-v2", "status", "keychain"] },
+  });
+  offered = false;
+  h.clock.advance(250);
+  expect(w.posts.at(-1)).toMatchObject({
+    message: { type: "pubky-passport.hello", features: ["outcome-v2", "status"] },
+  });
+  expect(keychainOffered).toHaveBeenCalledTimes(w.posts.length);
+
+  // Without the option, no hello names it.
+  const plain = setup();
+  const { w: other } = plain.start();
+  await plain.created();
+  expect(other.posts[0]).toMatchObject({
+    message: { type: "pubky-passport.hello", features: ["outcome-v2", "status"] },
+  });
+});
 
 test("a pinned flow navigates once, confirms, acknowledges, then only its Session signs in", async () => {
   const h = setup();

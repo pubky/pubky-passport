@@ -12,13 +12,14 @@ test("the element entry only defines <pubky-passport>", () => {
   expect(customElements.get("pubky-passport")).toBeDefined();
 });
 
-test("a public client has exactly the five public methods", () => {
+test("a public client has exactly the six public methods", () => {
   const client = core.createPassportClient({ instance: "https://passport.example" });
   try {
     expect(Object.keys(client).sort()).toEqual([
       "describe",
       "dispose",
       "reset",
+      "setClassicQr",
       "signIn",
       "subscribe",
     ]);

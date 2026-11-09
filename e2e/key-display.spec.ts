@@ -45,11 +45,9 @@ test("the invite step's homeserver key is one line where it fits, else two equal
 }, info) => {
   await mockHomeserverRecords(page);
   await page.goto("/");
-  await page
-    .getByRole("region", { name: "Create account" })
-    .getByRole("button", { name: "Enter invite manually" })
-    .click();
-  await expect(page.getByRole("heading", { name: "Use an invite." })).toBeVisible();
+  await page.getByRole("button", { name: "Manage your own keys" }).click();
+  await page.getByRole("button", { name: "Invite code", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Use invite." })).toBeVisible();
   const key = page.locator("#invite-homeserver");
   const viewport = page.viewportSize()!;
   await page.screenshot({ path: info.outputPath("invite-homeserver.png"), fullPage: true });
