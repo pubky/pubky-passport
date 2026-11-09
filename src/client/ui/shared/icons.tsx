@@ -113,23 +113,6 @@ function CircleCheckIcon(props: IconProps) {
   );
 }
 
-function CircleHelpIcon(props: IconProps) {
-  const size = props.size ?? 20;
-
-  return (
-    <Glyph height={size} size={size} viewBox="0 0 20 20" width={size} {...props}>
-      <circle cx="10" cy="10" r="7.25" stroke="currentColor" strokeWidth="1.5" />
-      <path
-        d="M7.9 7.6a2.2 2.2 0 1 1 3.1 2c-.65.36-1 .8-1 1.4v.25"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeWidth="1.5"
-      />
-      <circle cx="10" cy="14" r="0.9" fill="currentColor" />
-    </Glyph>
-  );
-}
-
 function CircleInfoIcon(props: IconProps) {
   const size = props.size ?? 20;
 
@@ -140,6 +123,20 @@ function CircleInfoIcon(props: IconProps) {
         d="M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0ZM11 6a1 1 0 1 1-2 0 1 1 0 0 1 2 0ZM9 9a.75.75 0 0 0 0 1.5h.253a.25.25 0 0 1 .244.304l-.459 2.066A1.75 1.75 0 0 0 10.747 15H11a.75.75 0 0 0 0-1.5h-.253a.25.25 0 0 1-.244-.304l.459-2.066A1.75 1.75 0 0 0 9.253 9H9Z"
         fill="currentColor"
         fillRule="evenodd"
+      />
+    </Glyph>
+  );
+}
+
+function CloudIcon(props: IconProps) {
+  return (
+    <Glyph height={12} viewBox="0 0 16 12" width={16} {...props}>
+      <path
+        d="M4.5 11.25h7.25a3.25 3.25 0 0 0 .4-6.47A4.5 4.5 0 0 0 3.6 4.1 3.6 3.6 0 0 0 4.5 11.25Z"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.33"
       />
     </Glyph>
   );
@@ -200,27 +197,6 @@ function DownloadIcon(props: IconProps) {
         stroke="currentColor"
         strokeLinecap="round"
         strokeLinejoin="round"
-        strokeWidth="1.5"
-      />
-    </Glyph>
-  );
-}
-
-function FileTextIcon(props: IconProps) {
-  const size = props.size ?? 16;
-
-  return (
-    <Glyph height={size} size={size} viewBox="0 0 20 20" width={size} {...props}>
-      <path
-        d="M11.5 2.5H6A1.5 1.5 0 0 0 4.5 4v12A1.5 1.5 0 0 0 6 17.5h8a1.5 1.5 0 0 0 1.5-1.5V6.5l-4-4Z"
-        stroke="currentColor"
-        strokeLinejoin="round"
-        strokeWidth="1.5"
-      />
-      <path
-        d="M11.5 2.5v4h4M7.5 10.5h5M7.5 13.5h5"
-        stroke="currentColor"
-        strokeLinecap="round"
         strokeWidth="1.5"
       />
     </Glyph>
@@ -410,13 +386,12 @@ export {
   CameraIcon,
   CheckIcon,
   CircleCheckIcon,
-  CircleHelpIcon,
   CircleInfoIcon,
   ClipboardPasteIcon,
+  CloudIcon,
   CopyIcon,
   DownloadRecoveryFileIcon,
   DownloadIcon,
-  FileTextIcon,
   FolderIcon,
   KeyRoundIcon,
   LinkOffIcon,

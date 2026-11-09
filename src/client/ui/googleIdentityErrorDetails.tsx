@@ -1,10 +1,13 @@
 import { useId } from "react";
 
-import type { GoogleIdentityViewError } from "@/client/logic/google-identity/googleIdentityErrors";
 import { Label } from "@/client/ui/shared/primitives/label";
 
-/** Visible support diagnostics for a Google identity view error. */
-function GoogleIdentityErrorDetails({ error }: { error: GoogleIdentityViewError }) {
+/** Visible support diagnostics for a Google or Apple identity view error. */
+function GoogleIdentityErrorDetails({
+  error,
+}: {
+  error: { code: string; detailCode?: string | undefined };
+}) {
   const labelId = useId();
 
   return (

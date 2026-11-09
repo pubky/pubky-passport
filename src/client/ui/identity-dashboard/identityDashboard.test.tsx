@@ -97,9 +97,7 @@ describe("IdentityDashboard", () => {
 
   it("shows the landing page when no local identity exists", async () => {
     renderDashboard();
-    expect(
-      await screen.findByRole("heading", { name: "Quick & easy signing." }),
-    ).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Quick access." })).toBeInTheDocument();
   });
 
   it("offers to reload when local identity storage is unavailable", async () => {
@@ -173,9 +171,7 @@ describe("IdentityDashboard", () => {
       "md:px-0",
     );
     expect(screen.queryByRole("button", { name: "satoshi@gmail.com" })).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("heading", { name: "Quick & easy signing." }),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Quick access." })).not.toBeInTheDocument();
   });
 
   it("shows the active identity when several identities exist", async () => {
@@ -212,9 +208,7 @@ describe("IdentityDashboard", () => {
     expect(screen.getByRole("heading", { name: "Switch identity." })).toBeInTheDocument();
     await userEvent.setup().click(screen.getByRole("button", { name: "Add identity" }));
 
-    expect(
-      await screen.findByRole("heading", { name: "Quick & easy signing." }),
-    ).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Quick access." })).toBeInTheDocument();
   });
 
   it("gates a newly added identity behind setup completion", async () => {
@@ -360,9 +354,7 @@ describe("IdentityDashboard", () => {
     expect((await screen.findByText("Detached")).closest("h1")).toBeInTheDocument();
     expect(FLOW.catalog.identities).toEqual([]);
     await userEvent.setup().click(screen.getByRole("button", { name: "Done" }));
-    expect(
-      await screen.findByRole("heading", { name: "Quick & easy signing." }),
-    ).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Quick access." })).toBeInTheDocument();
   });
 
   it("returns to signed out when the last identity logs out", async () => {
@@ -375,8 +367,6 @@ describe("IdentityDashboard", () => {
     await userEvent.setup().click(await screen.findByRole("button", { name: "Manage" }));
     await userEvent.setup().click(screen.getByRole("button", { name: "Log out" }));
 
-    expect(
-      await screen.findByRole("heading", { name: "Quick & easy signing." }),
-    ).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Quick access." })).toBeInTheDocument();
   });
 });

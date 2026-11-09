@@ -7,12 +7,13 @@ import {
 } from "@/client/ui/googleDrivePermissionPrompt";
 import { GoogleIdentityErrorDetails } from "@/client/ui/googleIdentityErrorDetails";
 import { googleIdentityErrorMessage } from "@/client/ui/googleIdentityErrorMessage";
-import { RotateCcwIcon, TrashIcon } from "@/client/ui/shared/icons";
+import { TrashIcon } from "@/client/ui/shared/icons";
 import { BackButton } from "@/client/ui/shared/backButton";
 import { ConfirmDeletionDialog } from "@/client/ui/shared/confirmDeletionDialog";
 import { PassportScreen } from "@/client/ui/shared/passportScreen";
 import { Button } from "@/client/ui/shared/primitives/button";
 import { DisplayHeading, LeadText } from "@/client/ui/shared/primitives/typography";
+import { ContinueWithGoogle } from "./continueWithGoogle";
 
 /** A confirmed deletion of the Drive identity file followed by creation of a new identity. */
 type PassportFileReplacement = {
@@ -80,10 +81,9 @@ function GoogleIdentityError({
                 className="mt-auto grid w-full grid-cols-1 gap-3 md:hidden"
                 role="group"
               >
-                <Button className="w-full" onClick={onTryAgain} size="lg" type="button">
-                  <RotateCcwIcon />
-                  Try again
-                </Button>
+                <div className="w-full">
+                  <ContinueWithGoogle onContinue={onTryAgain} />
+                </div>
                 <Button
                   className="w-full"
                   onClick={() => setConfirmationOpen(true)}
@@ -98,12 +98,15 @@ function GoogleIdentityError({
               </div>
               <div
                 aria-label="Desktop error actions"
-                className="hidden w-full grid-cols-(--passport-error-actions-columns) gap-3 md:grid md:gap-x-6"
+                className="hidden w-full grid-cols-[120px_1fr] gap-3 md:grid md:gap-x-6"
                 role="group"
               >
-                <BackButton className="md:col-start-1 md:row-start-1" onClick={onBack} />
+                <div className="w-full md:col-span-2 md:row-start-1">
+                  <ContinueWithGoogle onContinue={onTryAgain} />
+                </div>
+                <BackButton className="md:col-start-1 md:row-start-2" onClick={onBack} />
                 <Button
-                  className="w-full md:col-start-2 md:row-start-1"
+                  className="w-full md:col-start-2 md:row-start-2"
                   onClick={() => setConfirmationOpen(true)}
                   size="lg"
                   type="button"
@@ -111,15 +114,6 @@ function GoogleIdentityError({
                 >
                   <TrashIcon />
                   Delete &amp; create new
-                </Button>
-                <Button
-                  className="w-full md:col-start-3 md:row-start-1"
-                  onClick={onTryAgain}
-                  size="lg"
-                  type="button"
-                >
-                  <RotateCcwIcon />
-                  Try again
                 </Button>
               </div>
             </>
@@ -130,27 +124,20 @@ function GoogleIdentityError({
                 className="mt-auto grid w-full grid-cols-1 gap-3 md:hidden"
                 role="group"
               >
-                <Button className="w-full" onClick={onTryAgain} size="lg" type="button">
-                  <RotateCcwIcon />
-                  Try again
-                </Button>
+                <div className="w-full">
+                  <ContinueWithGoogle onContinue={onTryAgain} />
+                </div>
                 <BackButton onClick={onBack} />
               </div>
               <div
                 aria-label="Desktop error actions"
-                className="hidden w-full grid-cols-(--passport-error-actions-columns) gap-3 md:grid md:gap-x-0"
+                className="hidden w-full grid-cols-[120px_1fr] gap-3 md:grid md:gap-x-6"
                 role="group"
               >
-                <BackButton className="md:col-start-1 md:row-start-1" onClick={onBack} />
-                <Button
-                  className="w-full md:col-start-3 md:row-start-1"
-                  onClick={onTryAgain}
-                  size="lg"
-                  type="button"
-                >
-                  <RotateCcwIcon />
-                  Try again
-                </Button>
+                <div className="w-full md:col-span-2 md:row-start-1">
+                  <ContinueWithGoogle onContinue={onTryAgain} />
+                </div>
+                <BackButton className="md:col-start-1 md:row-start-2" onClick={onBack} />
               </div>
             </>
           )}
@@ -242,27 +229,20 @@ function GoogleAccessDenied({
         className="mt-auto grid w-full grid-cols-1 gap-3 md:hidden"
         role="group"
       >
-        <Button className="w-full" onClick={onTryAgain} size="lg" type="button">
-          <RotateCcwIcon />
-          Try again
-        </Button>
+        <div className="w-full">
+          <ContinueWithGoogle onContinue={onTryAgain} />
+        </div>
         <BackButton onClick={onBack} />
       </div>
       <div
         aria-label="Desktop error actions"
-        className="hidden w-full grid-cols-(--passport-error-actions-columns) items-center gap-0 md:grid"
+        className="hidden w-full grid-cols-[120px_1fr] items-center gap-3 md:grid md:gap-x-6"
         role="group"
       >
-        <BackButton className="md:col-start-1 md:row-start-1" onClick={onBack} />
-        <Button
-          className="w-full md:col-start-3 md:row-start-1"
-          onClick={onTryAgain}
-          size="lg"
-          type="button"
-        >
-          <RotateCcwIcon />
-          Try again
-        </Button>
+        <div className="w-full md:col-span-2 md:row-start-1">
+          <ContinueWithGoogle onContinue={onTryAgain} />
+        </div>
+        <BackButton className="md:col-start-1 md:row-start-2" onClick={onBack} />
       </div>
     </PassportScreen>
   );

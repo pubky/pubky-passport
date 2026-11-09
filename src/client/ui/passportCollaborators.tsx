@@ -2,6 +2,10 @@
 
 import { createContext, type ReactNode, useContext, useMemo } from "react";
 
+import {
+  AppleIdentityController,
+  type AppleIdentityConfiguration,
+} from "@/client/logic/apple-identity/AppleIdentityController";
 import type { PassportAuthorizationController } from "@/client/logic/authorization/flow/PassportAuthorizationController";
 import { GoogleIdentityController } from "@/client/logic/google-identity/GoogleIdentityController";
 import { GoogleRedirectAuthorization } from "@/client/logic/google-identity/gia/GoogleRedirectAuthorization";
@@ -32,6 +36,23 @@ export type GoogleIdentityControllerPort = Pick<
   | "subscribe"
 >;
 
+export type AppleIdentityControllerPort = Pick<
+  AppleIdentityController,
+  | "focusICloud"
+  | "focusSignIn"
+  | "cancelSignIn"
+  | "cancelICloud"
+  | "connectICloud"
+  | "continueWithApple"
+  | "detachIdentity"
+  | "dispose"
+  | "getState"
+  | "replaceInvalidPassportFile"
+  | "replaceUndecryptablePassportFile"
+  | "reset"
+  | "subscribe"
+>;
+
 export type LocalIdentityControllerPort = Pick<
   LocalIdentityController,
   | "createPubkyRingMigration"
@@ -51,6 +72,9 @@ export type PassportCollaborators = {
     homegateBaseUrl: string,
     forAuthorization?: boolean,
   ) => GoogleIdentityControllerPort;
+  createAppleIdentityController: (
+    configuration: AppleIdentityConfiguration,
+  ) => AppleIdentityControllerPort;
   createLocalIdentityController: () => LocalIdentityControllerPort;
   IdentitySetup?: IdentitySetup;
 };
@@ -64,6 +88,7 @@ const DEFAULT_PASSPORT_COLLABORATORS: PassportCollaborators = {
       undefined,
       forAuthorization ? new GoogleRedirectAuthorization(googleClientId) : undefined,
     ),
+  createAppleIdentityController: (configuration) => new AppleIdentityController(configuration),
   createLocalIdentityController: () => new LocalIdentityController(),
 };
 

@@ -5,5 +5,7 @@ export function providerDisplayName(provider: IdentityProviderAccount["provider"
   switch (provider) {
     case "google":
       return "Google";
+    case "apple":
+      return "Apple";
   }
 }

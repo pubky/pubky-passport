@@ -1,7 +1,11 @@
 import { Fragment, useLayoutEffect, useRef, useState } from "react";
 
 import type { AuthorizationRequestReview } from "@/client/logic/authorization/request/ValidatedPubkyAuthRequest";
-import type { LocalIdentityMetadata } from "@/client/logic/local-identity/localIdentityModels";
+import {
+  identityProfile,
+  type LocalIdentityMetadata,
+} from "@/client/logic/local-identity/localIdentityModels";
+import { AppleLogo } from "@/client/ui/shared/brand/appleLogo";
 import { GoogleLogo } from "@/client/ui/shared/brand/googleLogo";
 import { shortPublicKey } from "@/client/ui/shared/formatPublicKey";
 import { CheckIcon, SettingsIcon, SquareUserRoundIcon, XIcon } from "@/client/ui/shared/icons";
@@ -51,8 +55,13 @@ function AuthorizationReview({
     encryptionPaths.some((other) => other !== path && scopeCoversPath(path, other)),
   );
   const hasBroadAccess = review.capabilities.some((capability) => capability.scope === "broad");
-  const account = identity?.googleAccount;
-  const identityName = account?.name ?? "Your Pubky";
+  const profile = identityProfile(identity);
+  const identityName = profile.name ?? "Your Pubky";
+  const providerBadge = identity?.googleAccount ? (
+    <GoogleLogo />
+  ) : identity?.appleAccount ? (
+    <AppleLogo />
+  ) : undefined;
   const requester = review.requesterName ?? review.callbackHost ?? "this service";
 
   const setEncryptionAllowed = (path: string, allowed: boolean) => {
@@ -146,8 +155,8 @@ function AuthorizationReview({
             <div className="flex min-h-10 items-center gap-2">
               {identity ? (
                 <IdentitySummary
-                  avatarSrc={account?.pictureUrl ?? undefined}
-                  badge={account ? <GoogleLogo /> : undefined}
+                  avatarSrc={profile.pictureUrl ?? undefined}
+                  badge={providerBadge}
                   detail={shortPublicKey(identity.publicIdentity.publicKeyZ32)}
                   detailClassName="uppercase"
                   name={identityName}

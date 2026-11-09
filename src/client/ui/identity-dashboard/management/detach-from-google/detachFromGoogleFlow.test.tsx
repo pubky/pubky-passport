@@ -63,7 +63,7 @@ describe("DetachFromGoogleFlow", () => {
       screen.queryByRole("button", { name: "Continue without visible backup" }),
     ).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "Try again" }));
+    await user.click(screen.getByRole("button", { name: "Continue with Google" }));
     expect(detachIdentity).toHaveBeenCalledTimes(2);
     expect(detachIdentity).toHaveBeenLastCalledWith(
       identity.publicIdentity,

@@ -99,11 +99,19 @@ const ESLINT_CONFIG = defineConfig([
   },
   {
     files: [`src/app/${sourceFiles}`],
-    ignores: [`src/app/${testFiles}`, "src/app/layout.tsx"],
+    ignores: [
+      `src/app/${testFiles}`,
+      "src/app/layout.tsx",
+      "src/app/dev/apple-live-check/page.tsx",
+    ],
     rules: { "no-restricted-imports": restrictedImports(serverEnvironmentImport, sdkImport) },
   },
   {
-    files: ["src/app/layout.tsx", "src/*.{js,jsx,mjs,cjs,ts,mts,cts,tsx}"],
+    files: [
+      "src/app/layout.tsx",
+      "src/app/dev/apple-live-check/page.tsx",
+      "src/*.{js,jsx,mjs,cjs,ts,mts,cts,tsx}",
+    ],
     ignores: ["src/*.{test,spec}.{js,jsx,mjs,cjs,ts,mts,cts,tsx}"],
     rules: { "no-restricted-imports": restrictedImports(sdkImport) },
   },

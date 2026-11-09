@@ -1,6 +1,7 @@
 import type { ComponentPropsWithoutRef } from "react";
 
 import type { IdentityProviderAccount } from "@/client/logic/local-identity/localIdentityModels";
+import { AppleLogo } from "@/client/ui/shared/brand/appleLogo";
 import { GoogleLogo } from "@/client/ui/shared/brand/googleLogo";
 import { IdentitySummary } from "@/client/ui/shared/identitySummary";
 import { cn } from "@/client/ui/shared/mergeClassNames";
@@ -9,7 +10,9 @@ type ProviderAccountCardProps = ComponentPropsWithoutRef<"div"> & {
   account: IdentityProviderAccount;
 };
 
-/** The sign-in account behind an identity, marked with its provider's logo. */
+/**
+ * The sign-in account behind an identity, marked with its provider's logo.
+ */
 function ProviderAccountCard({ account, className, ...props }: ProviderAccountCardProps) {
   return (
     <div
@@ -19,13 +22,32 @@ function ProviderAccountCard({ account, className, ...props }: ProviderAccountCa
       )}
       {...props}
     >
-      <IdentitySummary
-        avatarSrc={account.googleAccount.pictureUrl ?? undefined}
-        detail={account.googleAccount.email}
-        detailClassName="uppercase leading-4"
-        name={account.googleAccount.name}
-      />
-      <GoogleLogo className="size-4 shrink-0" />
+      {account.provider === "google" ? (
+        <>
+          <IdentitySummary
+            avatarSrc={account.googleAccount.pictureUrl ?? undefined}
+            detail={account.googleAccount.email}
+            detailClassName="uppercase leading-4"
+            name={account.googleAccount.name}
+          />
+          <GoogleLogo className="size-4 shrink-0" />
+        </>
+      ) : (
+        <>
+          {/* Apple sends the name only once and has no profile picture: without a name the
+              card shows the email alone, and without either it names the account type. */}
+          <IdentitySummary
+            detail={
+              account.appleAccount.name && account.appleAccount.email
+                ? account.appleAccount.email
+                : "Key stored in iCloud"
+            }
+            detailClassName="uppercase leading-4"
+            name={account.appleAccount.name ?? account.appleAccount.email ?? "Apple Account"}
+          />
+          <AppleLogo className="size-4 shrink-0" />
+        </>
+      )}
     </div>
   );
 }

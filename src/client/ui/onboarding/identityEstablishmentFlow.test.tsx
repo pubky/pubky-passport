@@ -64,24 +64,19 @@ describe("IdentityEstablishmentFlow", () => {
     shell.innerHTML = markup;
     const googleButton = within(shell).getByRole("button", { name: "Continue with Google" });
 
-    expect(within(shell).getByRole("heading", { name: "Quick & easy signing." })).toHaveTextContent(
-      "Quick & easy",
+    expect(within(shell).getByRole("heading", { name: "Quick access." })).toHaveTextContent(
+      "Quick",
     );
     expect(
-      within(shell).getByRole("heading", { name: "Quick & easy signing." }).lastElementChild,
-    ).toHaveClass("md:block");
+      within(shell).getByRole("heading", { name: "Quick access." }).lastElementChild,
+    ).toHaveClass("md:inline");
     expect(googleButton).toBeEnabled();
-    expect(googleButton.parentElement?.parentElement).toHaveClass(
-      "md:col-start-1",
-      "md:row-start-1",
+    expect(googleButton.parentElement).toHaveClass("relative", "w-full");
+    expect(within(shell).getByRole("button", { name: "How?" })).toHaveAttribute(
+      "aria-expanded",
+      "false",
     );
-    expect(
-      within(shell).getByRole("button", { name: "About signing in with Google" }),
-    ).toHaveAttribute("aria-expanded", "false");
-    expect(within(shell).getByRole("link", { name: "How?" })).toHaveAttribute(
-      "href",
-      "https://github.com/pubky/pubky-passport/blob/main/README.md",
-    );
+    expect(within(shell).queryByRole("link")).not.toBeInTheDocument();
     expect(MOCKS.constructGoogleIdentityController).not.toHaveBeenCalled();
     shell.remove();
   });
@@ -252,12 +247,22 @@ describe("IdentityEstablishmentFlow", () => {
     expect(screen.queryByRole("group", { name: "Error" })).not.toBeInTheDocument();
     const mobileActions = screen.getByRole("group", { name: "Mobile error actions" });
     const desktopActions = screen.getByRole("group", { name: "Desktop error actions" });
-    const mobileTryAgain = within(mobileActions).getByRole("button", { name: "Try again" });
+    const mobileTryAgain = within(mobileActions).getByRole("button", {
+      name: "Continue with Google",
+    });
     const mobileBack = within(mobileActions).getByRole("button", { name: "Back" });
     const desktopBack = within(desktopActions).getByRole("button", { name: "Back" });
-    const desktopTryAgain = within(desktopActions).getByRole("button", { name: "Try again" });
-    expect(within(mobileActions).getAllByRole("button")).toEqual([mobileTryAgain, mobileBack]);
-    expect(within(desktopActions).getAllByRole("button")).toEqual([desktopBack, desktopTryAgain]);
+    const desktopTryAgain = within(desktopActions).getByRole("button", {
+      name: "Continue with Google",
+    });
+    expect(within(mobileActions).getAllByRole("button", { name: /^(?!How )/u })).toEqual([
+      mobileTryAgain,
+      mobileBack,
+    ]);
+    expect(within(desktopActions).getAllByRole("button", { name: /^(?!How )/u })).toEqual([
+      desktopTryAgain,
+      desktopBack,
+    ]);
     expect(mobileActions).toHaveClass("mt-auto", "md:hidden");
     expect(desktopActions).toHaveClass("hidden", "md:grid");
     await userEvent.setup().click(mobileTryAgain);
@@ -311,7 +316,7 @@ describe("IdentityEstablishmentFlow", () => {
     expect(
       screen.queryByRole("button", { name: "Continue without visible backup" }),
     ).not.toBeInTheDocument();
-    await userEvent.setup().click(screen.getByRole("button", { name: "Try again" }));
+    await userEvent.setup().click(screen.getByRole("button", { name: "Continue with Google" }));
     expect(establishIdentity).toHaveBeenCalledTimes(2);
   });
 
@@ -363,7 +368,7 @@ describe("IdentityEstablishmentFlow", () => {
     expect(await screen.findByRole("heading", { name: "Setup interrupted." })).toBeInTheDocument();
     await userEvent.setup().click(
       within(screen.getByRole("group", { name: "Mobile error actions" })).getByRole("button", {
-        name: "Try again",
+        name: "Continue with Google",
       }),
     );
     expect(establishIdentity).toHaveBeenNthCalledWith(2);
@@ -403,7 +408,9 @@ describe("IdentityEstablishmentFlow", () => {
     ).toBeInTheDocument();
     const mobileActions = screen.getByRole("group", { name: "Mobile error actions" });
     const desktopActions = screen.getByRole("group", { name: "Desktop error actions" });
-    const mobileTryAgain = within(mobileActions).getByRole("button", { name: "Try again" });
+    const mobileTryAgain = within(mobileActions).getByRole("button", {
+      name: "Continue with Google",
+    });
     const mobileDelete = within(mobileActions).getByRole("button", {
       name: "Delete backup & create new pubky",
     });
@@ -411,35 +418,35 @@ describe("IdentityEstablishmentFlow", () => {
     const desktopDelete = within(desktopActions).getByRole("button", {
       name: "Delete & create new",
     });
-    const desktopTryAgain = within(desktopActions).getByRole("button", { name: "Try again" });
+    const desktopTryAgain = within(desktopActions).getByRole("button", {
+      name: "Continue with Google",
+    });
     const desktopBack = within(desktopActions).getByRole("button", { name: "Back" });
-    expect(within(mobileActions).getAllByRole("button")).toEqual([
+    expect(within(mobileActions).getAllByRole("button", { name: /^(?!How )/u })).toEqual([
       mobileTryAgain,
       mobileDelete,
       mobileBack,
     ]);
-    expect(within(desktopActions).getAllByRole("button")).toEqual([
+    expect(within(desktopActions).getAllByRole("button", { name: /^(?!How )/u })).toEqual([
+      desktopTryAgain,
       desktopBack,
       desktopDelete,
-      desktopTryAgain,
     ]);
     expect(mobileActions).toHaveClass("mt-auto", "md:hidden");
     expect(mobileActions.parentElement).toHaveClass("min-h-0", "flex-1");
-    expect(desktopActions).toHaveClass(
-      "hidden",
-      "md:grid",
-      "grid-cols-(--passport-error-actions-columns)",
-      "md:gap-x-6",
-    );
+    expect(desktopActions).toHaveClass("hidden", "md:grid", "grid-cols-[120px_1fr]", "md:gap-x-6");
     expect(mobileDelete).toHaveClass("bg-destructive-surface", "text-destructive-foreground");
     expect(desktopDelete).toHaveClass(
       "bg-destructive-surface",
       "text-destructive-foreground",
       "md:col-start-2",
+      "md:row-start-2",
+    );
+    expect(desktopTryAgain.parentElement?.parentElement).toHaveClass(
+      "md:col-span-2",
       "md:row-start-1",
     );
-    expect(desktopTryAgain).toHaveClass("md:col-start-3", "md:row-start-1");
-    expect(desktopBack).toHaveClass("md:col-start-1", "md:row-start-1");
+    expect(desktopBack).toHaveClass("md:col-start-1", "md:row-start-2");
     await user.click(mobileDelete);
 
     const confirmation = screen.getByRole("textbox", { name: "Type DELETE to confirm" });
@@ -592,14 +599,14 @@ describe("IdentityEstablishmentFlow", () => {
     const desktopActions = screen.getByRole("group", { name: "Desktop error actions" });
     expect(
       within(mobileActions)
-        .getAllByRole("button")
+        .getAllByRole("button", { name: /^(?!How )/u })
         .map((button) => button.textContent),
-    ).toEqual(["Try again", "Back"]);
+    ).toEqual(["Continue with Google", "Back"]);
     expect(
       within(desktopActions)
-        .getAllByRole("button")
+        .getAllByRole("button", { name: /^(?!How )/u })
         .map((button) => button.textContent),
-    ).toEqual(["Back", "Try again"]);
+    ).toEqual(["Continue with Google", "Back"]);
   });
 
   it("contains rejected operation details outside hook state and logs safe metadata", async () => {
@@ -671,7 +678,7 @@ describe("IdentityEstablishmentFlow", () => {
       .click(
         within(await screen.findByRole("group", { name: "Mobile error actions" })).getByRole(
           "button",
-          { name: "Try again" },
+          { name: "Continue with Google" },
         ),
       );
 
