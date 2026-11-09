@@ -1,6 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { getAppleEnvironment, getPublicEnvironment, getServerEnvironment } from "./environment";
+import {
+  getAppleEnvironment,
+  getPublicEnvironment,
+  getServerEnvironment,
+  isAppleLiveCheckEnabled,
+} from "./environment";
 
 describe("environment", () => {
   beforeEach(() => {
@@ -157,6 +162,16 @@ describe("environment", () => {
       expect(getAppleEnvironment()).toBeNull();
       vi.stubEnv("APPLE_LOGIN_ENABLED", undefined);
       expect(getAppleEnvironment()).toBeNull();
+    });
+
+    it("serves the live-check page only when asked and Apple login is on", () => {
+      expect(isAppleLiveCheckEnabled()).toBe(false);
+      vi.stubEnv("APPLE_LIVE_CHECK", "true");
+      expect(isAppleLiveCheckEnabled()).toBe(false);
+      stubApple();
+      expect(isAppleLiveCheckEnabled()).toBe(true);
+      vi.stubEnv("APPLE_LIVE_CHECK", undefined);
+      expect(isAppleLiveCheckEnabled()).toBe(false);
     });
 
     it("reads the settings with production as the default environment", () => {

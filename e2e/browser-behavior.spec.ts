@@ -60,7 +60,7 @@ function expectWithinOnePixel(actual: number, expected: number) {
 
 test("primary screens have no automated accessibility violations", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "Quick & easy signing." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Quick access." })).toBeVisible();
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
 
   await page.goto("/authorize");
@@ -68,7 +68,7 @@ test("primary screens have no automated accessibility violations", async ({ page
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
 });
 
-test("the sign-in title keeps its designed line break and accent color", async ({ page }) => {
+test("the sign-in title stays on one line with its accent color", async ({ page }) => {
   for (const viewport of [
     { width: 1280, height: 720 },
     { width: 375, height: 812 },
@@ -76,7 +76,7 @@ test("the sign-in title keeps its designed line break and accent color", async (
     await page.setViewportSize(viewport);
     await page.goto("/");
 
-    const heading = page.getByRole("heading", { name: "Quick & easy signing." });
+    const heading = page.getByRole("heading", { name: "Quick access." });
     await expect(heading).toBeVisible();
     const headingColor = await heading.evaluate((element) => getComputedStyle(element).color);
     const [titleBox, accentBox] = await heading.locator("span").evaluateAll((spans) =>
@@ -94,10 +94,10 @@ test("the sign-in title keeps its designed line break and accent color", async (
     expect(titleBox).toBeDefined();
     expect(accentBox).toBeDefined();
     expect(titleBox?.color).toBe(headingColor);
-    expect(accentBox?.display).toBe("block");
+    expect(accentBox?.display).toBe("inline");
     expect(accentBox?.color).toBe("rgb(200, 255, 0)");
-    expect(accentBox?.top).toBeGreaterThan(titleBox?.top ?? 0);
-    expect(Math.abs((accentBox?.left ?? 0) - (titleBox?.left ?? 0))).toBeLessThanOrEqual(1);
+    expect(Math.abs((accentBox?.top ?? 0) - (titleBox?.top ?? 0))).toBeLessThanOrEqual(1);
+    expect(accentBox?.left).toBeGreaterThan(titleBox?.left ?? 0);
   }
 });
 
@@ -106,7 +106,7 @@ test("the passport chrome does not overlap content in a short viewport", async (
   await page.goto("/");
 
   const logo = page.getByRole("img", { name: "Pubky", exact: true });
-  const heading = page.getByRole("heading", { name: "Quick & easy signing." });
+  const heading = page.getByRole("heading", { name: "Quick access." });
   const footer = page.locator("body > footer");
   const main = page.locator("main");
   await expect(heading).toBeVisible();

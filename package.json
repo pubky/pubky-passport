@@ -25,6 +25,7 @@
   },
   "dependencies": {
     "@fontsource-variable/inter-tight": "^5.3.0",
+    "@fontsource/google-sans": "^5.3.2",
     "@synonymdev/pubky": "0.17.1",
     "@tailwindcss/postcss": "^4.3.3",
     "@zxing/browser": "0.2.1",

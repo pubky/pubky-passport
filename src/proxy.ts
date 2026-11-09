@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 import { EARLY_AUTHORIZATION_LOCATION_SCRIPT } from "./libs/authorization/earlyAuthorizationLocation";
 import { EARLY_GOOGLE_IMPLICIT_RESPONSE_SCRIPT } from "./libs/authorization/earlyGoogleImplicitResponse";
 import { LOGGER, safeErrorLogFields } from "./libs/logger/logger";
-import { getPublicEnvironment } from "./server/environment";
+import { getAppleEnvironment, getPublicEnvironment } from "./server/environment";
 
 const EARLY_AUTHORIZATION_LOCATION_SCRIPT_SOURCE = `'sha256-${createHash("sha256")
   .update(EARLY_AUTHORIZATION_LOCATION_SCRIPT)
@@ -17,6 +17,13 @@ const EARLY_GOOGLE_IMPLICIT_RESPONSE_SCRIPT_SOURCE = `'sha256-${createHash("sha2
  * CSP's `https:` scheme source does not match `wss:`; `'self'` still covers same-origin WSS.
  */
 const AUTHORIZATION_RELAY_CONNECT_SOURCE = "https:";
+/**
+ * Added to every page while Apple login is on: client-side navigation keeps the first page's
+ * policy, so a visit that starts on a legal page and moves to sign-in needs it too. Apple's
+ * sign-in pages run in popups and answer with postMessage, which CSP does not govern, and no
+ * Apple script loads, so the CloudKit web API host is the only addition.
+ */
+const APPLE_CONNECT_SOURCES = ["https://api.apple-cloudkit.com"];
 
 export function proxy(request: NextRequest) {
   try {
@@ -28,6 +35,7 @@ export function proxy(request: NextRequest) {
       homegateOrigin: environment.homegateOrigin,
       homeserverConnectOrigins: environment.homeserverConnectOrigins,
       ...(request.nextUrl.pathname === "/authorize" ? { allowPubkyAuthRelays: true } : {}),
+      allowApple: getAppleEnvironment() !== null,
     });
     const requestHeaders = new Headers(request.headers);
     requestHeaders.set("x-nonce", nonce);
@@ -53,6 +61,7 @@ function createContentSecurityPolicy(input: {
   homegateOrigin: string;
   homeserverConnectOrigins: readonly string[];
   allowPubkyAuthRelays?: boolean;
+  allowApple?: boolean;
 }): string {
   const scriptSource = [
     "script-src 'self'",
@@ -76,6 +85,7 @@ function createContentSecurityPolicy(input: {
       "https://pkarr.pubky.app",
       "https://pkarr.pubky.org",
       ...(input.allowPubkyAuthRelays ? [AUTHORIZATION_RELAY_CONNECT_SOURCE] : []),
+      ...(input.allowApple ? APPLE_CONNECT_SOURCES : []),
     ].join(" "),
     "img-src 'self' data: https://lh3.googleusercontent.com",
     "style-src 'self' 'unsafe-inline'",

@@ -97,7 +97,7 @@ test("detachment requires both permissions using the shared screen", async ({
     fullPage: true,
   });
 
-  await page.getByRole("button", { name: "Try again" }).click();
+  await page.getByRole("button", { name: "Continue with Google" }).click();
   await expect(page.getByRole("heading", { name: "Drive access required." })).toBeVisible();
   expect(driveRequests).toEqual([]);
   await page.getByRole("button", { name: "Back", exact: true }).click();

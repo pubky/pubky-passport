@@ -1,4 +1,8 @@
-import type { LocalIdentityMetadata } from "@/client/logic/local-identity/localIdentityModels";
+import {
+  identityProfile,
+  type LocalIdentityMetadata,
+} from "@/client/logic/local-identity/localIdentityModels";
+import { AppleLogo } from "@/client/ui/shared/brand/appleLogo";
 import { GoogleLogo } from "@/client/ui/shared/brand/googleLogo";
 import { KeyRoundIcon, SettingsIcon, SquareUserRoundIcon } from "@/client/ui/shared/icons";
 import { PassportScreen } from "@/client/ui/shared/passportScreen";
@@ -16,7 +20,8 @@ function IdentityOverview({
   onSwitch: () => void;
 }) {
   const account = identity.googleAccount;
-  const name = account?.name ?? "Your Pubky";
+  const profile = identityProfile(identity);
+  const name = profile.name ?? "Your Pubky";
 
   return (
     <PassportScreen className="gap-6 md:gap-8">
@@ -24,7 +29,7 @@ function IdentityOverview({
         Your{" "}
       </DisplayHeading>
       <section className="flex w-full flex-col items-center gap-6 overflow-hidden rounded-2xl bg-card px-6 pb-6 pt-12 md:grid md:grid-cols-(--passport-overview-columns) md:grid-rows-(--passport-overview-rows) md:gap-x-6 md:gap-y-6 md:p-12">
-        <Avatar fallback={name} size="lg" src={account?.pictureUrl ?? undefined} />
+        <Avatar fallback={name} size="lg" src={profile.pictureUrl ?? undefined} />
         <div className="flex w-full flex-col items-center gap-3 text-center md:items-start md:self-start md:gap-0 md:text-left">
           <h2 className="w-69 max-w-full text-2xl font-bold leading-8">{name}</h2>
           <p className="w-69 max-w-full break-all text-xs font-medium uppercase leading-4 tracking-[0.1em] text-muted-foreground">
@@ -34,6 +39,11 @@ function IdentityOverview({
             <p className="flex h-10 w-full max-w-full items-center justify-center gap-2 px-4 py-2 text-sm font-bold leading-5 normal-case md:w-69 md:justify-start md:px-0">
               <GoogleLogo />
               {account.email}
+            </p>
+          ) : identity.appleAccount ? (
+            <p className="flex h-10 w-full max-w-full items-center justify-center gap-2 px-4 py-2 text-sm font-bold leading-5 normal-case md:w-69 md:justify-start md:px-0">
+              <AppleLogo className="shrink-0" />
+              <span className="min-w-0 truncate">{profile.email ?? "Key stored in iCloud"}</span>
             </p>
           ) : null}
         </div>

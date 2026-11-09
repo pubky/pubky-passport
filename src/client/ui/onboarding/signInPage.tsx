@@ -1,46 +1,43 @@
 import Image from "next/image";
-import type { ReactNode } from "react";
+import { type ReactNode, useRef } from "react";
 
-import { PASSPORT_README_URL } from "./google/continueWithGoogle";
+import { HowPassportWorks } from "./howPassportWorks";
 import { PassportScreen } from "@/client/ui/shared/passportScreen";
-import { DisplayHeading, LeadText } from "@/client/ui/shared/primitives/typography";
+import { DisplayHeading } from "@/client/ui/shared/primitives/typography";
 
 function SignInPage({ children }: { children: ReactNode }) {
+  const choices = useRef<HTMLDivElement>(null);
   return (
     <PassportScreen className="gap-6 md:gap-8">
       <section className="flex flex-col gap-6 md:gap-8">
         <div className="flex flex-col gap-6 md:gap-3">
-          <DisplayHeading
-            accent="signing."
-            aria-label="Quick & easy signing."
-            desktopAccentOnNewLine
-          >
-            Quick &amp; easy
+          <DisplayHeading accent="access." aria-label="Quick access." className="[&>span]:inline">
+            Quick
           </DisplayHeading>
-          <LeadText>
-            Use your Google account to sign in to the Pubky ecosystem. No seed phrase, no app, no
-            hassle.{" "}
-            <a
-              className="rounded-sm font-bold text-brand outline-none hover:underline hover:underline-offset-4 focus-visible:ring-3 focus-visible:ring-ring/50"
-              href={PASSPORT_README_URL}
-              rel="noopener noreferrer"
-              target="_blank"
-            >
-              How?
-            </a>
-          </LeadText>
+          <HowPassportWorks onContinue={() => choices.current?.focus()}>
+            Use your existing accounts to sign in to the Pubky ecosystem. No seed phrase, no app, no
+            hassle.
+          </HowPassportWorks>
         </div>
-        <div className="grid gap-6 md:grid-cols-(--passport-content-columns) md:gap-0">
+        <div className="flex flex-col gap-6 md:gap-8">
+          <div
+            aria-label="Available sign-in accounts"
+            className="flex flex-col gap-3 rounded-2xl outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+            ref={choices}
+            role="group"
+            tabIndex={-1}
+          >
+            {children}
+          </div>
           <Image
             alt=""
             aria-hidden="true"
-            className="mx-auto size-50 md:col-start-2 md:row-start-1 md:mt-2.5"
+            className="mx-auto size-50"
             height={200}
             priority
             src="/illustrations/cloud.png"
             width={200}
           />
-          <div className="flex flex-col gap-3 md:col-start-1 md:row-start-1">{children}</div>
         </div>
       </section>
     </PassportScreen>
