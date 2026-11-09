@@ -1,5 +1,6 @@
 import "client-only";
 
+import type { AppleAccount } from "@/libs/appleAccount";
 import type { GoogleAccountProfile } from "@/libs/googleAccountProfile";
 import type { PubkyPublicIdentity } from "@/client/logic/pubky/pubkyIdentityKey";
 
@@ -7,6 +8,7 @@ import type { PubkyPublicIdentity } from "@/client/logic/pubky/pubkyIdentityKey"
 export type LocalIdentityMetadata = Readonly<{
   publicIdentity: PubkyPublicIdentity;
   googleAccount?: GoogleAccountProfile;
+  appleAccount?: AppleAccount;
 }>;
 
 /** UI-safe local identity collection. Contains no secret key material. */

@@ -228,3 +228,51 @@ describe("WrappingKeyApiClient", () => {
     expect(JSON.stringify(warn.mock.calls)).not.toContain("SECRET-GOOGLE-ID-TOKEN");
   });
 });
+
+describe("WrappingKeyApiClient for Apple", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it.each([
+    [undefined, { appleIdToken: "apple-id-token" }],
+    ["2026-07", { appleIdToken: "apple-id-token", keyId: "2026-07" }],
+  ])("posts only the Apple ID token and key ID %s", async (keyId, expectedBody) => {
+    const wrappingKey = encodeBase64Url(new Uint8Array(32).fill(7));
+    let endpoint: RequestInfo | URL | undefined;
+    let requestBody: unknown;
+    const client = new WrappingKeyApiClient(async (input, init) => {
+      endpoint = input;
+      requestBody = await new Request("https://passport.pubky.app", init).json();
+      return Response.json({ wrappingKey, keyId: keyId ?? "current" });
+    }, "apple");
+
+    const result = await client.requestWrappingKey("apple-id-token", keyId);
+
+    expect(endpoint).toBe("/api/wrapping-key/apple");
+    expect(requestBody).toEqual(expectedBody);
+    expect(Result.isOk(result) && result.value).toEqual({
+      wrappingKey,
+      keyId: keyId ?? "current",
+    });
+  });
+
+  it.each([
+    ["invalid_apple_id_token", 401],
+    ["apple_verifier_unavailable", 503],
+    ["provider_disabled", 404],
+  ] as const)("returns the Apple route error %s", async (code, status) => {
+    const warn = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+    const client = new WrappingKeyApiClient(
+      async () => Response.json({ error: { code } }, { status }),
+      "apple",
+    );
+
+    const result = await client.requestWrappingKey("SECRET-APPLE-ID-TOKEN");
+
+    expect(Result.isError(result) && result.error).toMatchObject({ code, httpStatus: status });
+    expect(warn).toHaveBeenCalledWith(
+      "identity.apple.wrapping_key.failed",
+      expect.objectContaining({ code, stage: "error_response" }),
+    );
+    expect(JSON.stringify(warn.mock.calls)).not.toContain("SECRET-APPLE-ID-TOKEN");
+  });
+});
