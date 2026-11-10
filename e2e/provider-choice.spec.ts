@@ -110,7 +110,49 @@ async function expectTermsNotice(page: Page, lastButton: Locator): Promise<Locat
     const backBox = await back.boundingBox();
     expect(backBox?.y ?? 0).toBeGreaterThanOrEqual((noticeBox?.y ?? 0) + (noticeBox?.height ?? 0));
   }
+  await expectSignInFooter(page, notice);
   return notice;
+}
+
+/** The footer's own "powered by" paragraph (mobile only; md:hidden on desktop). */
+function footerBuiltBy(page: Page): Locator {
+  return page
+    .getByRole("contentinfo")
+    .locator("p", { hasText: "Pubky Passport is powered by the" });
+}
+
+/**
+ * Next to the notice the footer drops its "powered by" line (the notice already says it) and
+ * keeps Terms, Privacy and the Synonym badge, moved up into the space the line took.
+ */
+async function expectSignInFooter(page: Page, notice: Locator): Promise<void> {
+  const footer = page.getByRole("contentinfo");
+  await expect(footer).toBeVisible();
+  await expect(footerBuiltBy(page)).toHaveCount(1);
+  await expect(footerBuiltBy(page)).toBeHidden();
+  await expect(page.locator("p:visible", { hasText: "powered by the Pubky protocol" })).toHaveCount(
+    1,
+  );
+  for (const name of ["Terms of Service", "Privacy Policy"]) {
+    await expect(footer.getByRole("link", { name })).toBeVisible();
+  }
+  await expect(footer.getByRole("img", { name: "Synonym, a Tether company" })).toBeVisible();
+  const [noticeBox, footerBox, termsBox] = await Promise.all([
+    notice.boundingBox(),
+    footer.boundingBox(),
+    footer.getByRole("link", { name: "Terms of Service" }).boundingBox(),
+  ]);
+  expect(footerBox?.y ?? 0).toBeGreaterThanOrEqual((noticeBox?.y ?? 0) + (noticeBox?.height ?? 0));
+  // Nothing is left above the legal links but the footer's own padding (32px mobile, row on desktop).
+  expect((termsBox?.y ?? Infinity) - (footerBox?.y ?? 0)).toBeLessThanOrEqual(40);
+}
+
+/** Pages without the sign-in notice show the footer's line on mobile, as before. */
+async function expectFooterBuiltByShown(page: Page): Promise<void> {
+  await expect(footerBuiltBy(page)).toBeVisible();
+  await expect(footerBuiltBy(page)).toHaveText(
+    "Pubky Passport is powered by the Pubky protocol. Built by Synonym Software, S.A. DE C.V. ©2026.",
+  );
 }
 
 async function installGoogleIdentity(page: Page) {
@@ -336,10 +378,92 @@ test.describe("with Apple login on", () => {
     await installFakeApple(context);
     await installGoogleIdentity(page);
 
-    await page.goto(`${APPLE_ORIGIN}/`);
-    await page.getByRole("button", { name: "Switch" }).click();
-    await page.getByRole("button", { name: "Add identity" }).click();
-    await expectProviderChoice(page);
+    for (const viewport of [
+      { width: 1280, height: 800 },
+      { width: 390, height: 844 },
+      { width: 320, height: 640 },
+    ]) {
+      await page.setViewportSize(viewport);
+      await page.goto(`${APPLE_ORIGIN}/`);
+      await page.getByRole("button", { name: "Switch" }).click();
+      await page.getByRole("button", { name: "Add identity" }).click();
+      await expectProviderChoice(page);
+    }
+  });
+
+  test("the sign-in footer drops its powered-by line on /authorize and Use other identity at every width", async ({
+    context,
+    page,
+  }) => {
+    await installFakeApple(context);
+    await fakeGoogle(context);
+
+    for (const viewport of [
+      { width: 1280, height: 800 },
+      { width: 390, height: 844 },
+      { width: 320, height: 640 },
+    ]) {
+      await page.setViewportSize(viewport);
+      await page.goto(authorizeUrl(APPLE_ORIGIN));
+      await expectProviderChoice(page);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+        viewport.width,
+      );
+    }
+
+    await installGoogleIdentity(page);
+    for (const viewport of [
+      { width: 1280, height: 800 },
+      { width: 390, height: 844 },
+      { width: 320, height: 640 },
+    ]) {
+      await page.setViewportSize(viewport);
+      await page.goto(`${APPLE_ORIGIN}/terms-of-service`);
+      await page.goto(authorizeUrl(APPLE_ORIGIN));
+      await page.getByRole("button", { name: "Switch" }).click();
+      await page.getByRole("button", { name: "Use other identity" }).click();
+      await expectProviderChoice(page);
+    }
+  });
+
+  test("pages without the sign-in notice keep the footer's powered-by line", async ({
+    context,
+    page,
+  }) => {
+    await installFakeApple(context);
+    await fakeGoogle(context);
+    await installGoogleIdentity(page);
+
+    for (const viewport of [
+      { width: 390, height: 844 },
+      { width: 320, height: 640 },
+    ]) {
+      await page.setViewportSize(viewport);
+      await page.goto(`${APPLE_ORIGIN}/`);
+      await expect(page.getByText("Google User")).toBeVisible();
+      await expectFooterBuiltByShown(page);
+
+      await page.goto(`${APPLE_ORIGIN}/terms-of-service`);
+      await expect(
+        page.getByRole("heading", { level: 1, name: /Terms of Service/u }),
+      ).toBeVisible();
+      await expectFooterBuiltByShown(page);
+
+      await page.goto(`${APPLE_ORIGIN}/privacy-policy`);
+      await expect(page.getByRole("heading", { level: 1, name: /Privacy Policy/u })).toBeVisible();
+      await expectFooterBuiltByShown(page);
+
+      // The authorization review keeps it; leaving the sign-in brings it back without a reload.
+      await page.goto(authorizeUrl(APPLE_ORIGIN));
+      await expect(page.getByRole("heading", { name: "Sign in to Client" })).toBeVisible();
+      await expectFooterBuiltByShown(page);
+      await page.getByRole("button", { name: "Switch" }).click();
+      await page.getByRole("button", { name: "Use other identity" }).click();
+      await expectProviderChoice(page);
+      await page.getByRole("button", { name: "Back" }).click();
+      await expect(page.getByRole("button", { name: "Use other identity" })).toBeVisible();
+      await expectFooterBuiltByShown(page);
+    }
   });
 });
 

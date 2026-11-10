@@ -4,10 +4,14 @@ const LINK_CLASS_NAME =
 /**
  * The notice under the sign-in buttons. Continuing is the consent, so there is no checkbox. The
  * links open in a new tab so reading them does not lose a sign-in or an authorization in progress.
+ * While it is on the page the footer hides its own "powered by" line (see globals.css).
  */
 function SignInTermsNotice() {
   return (
-    <div className="flex flex-col gap-2 text-pretty text-xs font-medium leading-5 text-muted-foreground">
+    <div
+      className="flex flex-col gap-2 text-pretty text-xs font-medium leading-5 text-muted-foreground"
+      data-passport-sign-in-notice=""
+    >
       <p>
         By continuing, you agree to the Pubky Passport{" "}
         <a
