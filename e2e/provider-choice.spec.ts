@@ -61,7 +61,56 @@ async function expectProviderChoice(page: Page): Promise<{ apple: Locator; googl
   expect((appleBox?.x ?? 0) + (appleBox?.width ?? 0) - titleRight).toBeGreaterThanOrEqual(
     (appleBox?.width ?? 0) * 0.08,
   );
+  await expectTermsNotice(page, apple);
   return { apple, google };
+}
+
+const TERMS_CONSENT =
+  "By continuing, you agree to the Pubky Passport Terms of Service and Privacy Policy, and confirm you are over 18.";
+const TERMS_BUILT_BY =
+  "Pubky Passport is powered by the Pubky protocol. Built by Synonym Software, S.A. DE C.V.";
+
+/** The Terms/Privacy notice sits right under `lastButton`, as wide as it, above any Back. */
+async function expectTermsNotice(page: Page, lastButton: Locator): Promise<Locator> {
+  const consent = page.locator("p", { hasText: "By continuing, you agree" });
+  await expect(consent).toHaveCount(1);
+  await expect(consent).toHaveText(TERMS_CONSENT);
+  const notice = consent.locator("xpath=..");
+  await expect(notice.locator("p")).toHaveText([TERMS_CONSENT, TERMS_BUILT_BY]);
+  const links = notice.getByRole("link");
+  await expect(links).toHaveText(["Terms of Service", "Privacy Policy"]);
+  for (const [name, href] of [
+    ["Terms of Service", "/terms-of-service"],
+    ["Privacy Policy", "/privacy-policy"],
+  ] as const) {
+    const link = notice.getByRole("link", { name });
+    await expect(link).toHaveAttribute("href", href);
+    await expect(link).toHaveAttribute("target", "_blank");
+    await expect(link).toHaveAttribute("rel", "noopener noreferrer");
+    await expect(link).toHaveCSS("text-decoration-line", "underline");
+  }
+  await expect(page.getByRole("checkbox")).toHaveCount(0);
+  const [buttonBox, noticeBox] = await Promise.all([
+    lastButton.boundingBox(),
+    notice.boundingBox(),
+  ]);
+  expect(buttonBox).not.toBeNull();
+  expect(noticeBox).not.toBeNull();
+  // The help control sits outside the pill, so compare with the pill row's own box.
+  const row = await lastButton
+    .locator("xpath=..")
+    .evaluate((node) => node.getBoundingClientRect().toJSON() as DOMRect);
+  expect(Math.abs((noticeBox?.x ?? 0) - row.x)).toBeLessThanOrEqual(1);
+  expect(Math.abs((noticeBox?.width ?? 0) - row.width)).toBeLessThanOrEqual(1);
+  const gap = (noticeBox?.y ?? 0) - ((buttonBox?.y ?? 0) + (buttonBox?.height ?? 0));
+  expect(gap).toBeGreaterThanOrEqual(0);
+  expect(gap).toBeLessThanOrEqual(24);
+  const back = page.getByRole("button", { name: "Back" });
+  if ((await back.count()) > 0) {
+    const backBox = await back.boundingBox();
+    expect(backBox?.y ?? 0).toBeGreaterThanOrEqual((noticeBox?.y ?? 0) + (noticeBox?.height ?? 0));
+  }
+  return notice;
 }
 
 async function installGoogleIdentity(page: Page) {
@@ -156,6 +205,34 @@ test.describe("with Apple login on", () => {
 
     await page.getByRole("button", { name: "Back" }).click();
     await expect(page.getByRole("heading", { name: "Cancelled" })).toBeVisible();
+  });
+
+  test("the Terms and Privacy links open in a new tab and keep the authorization", async ({
+    context,
+    page,
+  }) => {
+    await installFakeApple(context);
+    const google = await fakeGoogle(context);
+    await page.goto(authorizeUrl(APPLE_ORIGIN));
+    const { apple } = await expectProviderChoice(page);
+    const notice = await expectTermsNotice(page, apple);
+
+    for (const [name, path, heading] of [
+      ["Terms of Service", "/terms-of-service", /Terms of Service/u],
+      ["Privacy Policy", "/privacy-policy", /Privacy Policy/u],
+    ] as const) {
+      const opened = context.waitForEvent("page");
+      await notice.getByRole("link", { name }).click();
+      const legal = await opened;
+      await legal.waitForLoadState();
+      expect(new URL(legal.url()).pathname).toBe(path);
+      await expect(legal.getByRole("heading", { level: 1, name: heading })).toBeVisible();
+      await legal.close();
+    }
+    expect(page.url()).toBe(`${APPLE_ORIGIN}/authorize`);
+    await expect(page.getByLabel("Signing in to client.example")).toBeVisible();
+    await expectProviderChoice(page);
+    expect(google).toHaveLength(0);
   });
 
   test("Continue with Google goes to Google in the same tab and resumes on its return", async ({
@@ -274,6 +351,27 @@ test.describe("with Apple login off", () => {
     await expect(page.getByRole("button", { name: "Continue with Apple" })).toHaveCount(0);
     await expect(page.getByText(CHOICE)).toHaveCount(0);
     await expect(page.getByRole("group", { name: CHOICE })).toHaveCount(0);
+    for (const viewport of [
+      { width: 1280, height: 800 },
+      { width: 390, height: 844 },
+      { width: 320, height: 640 },
+    ]) {
+      await page.setViewportSize(viewport);
+      await expectTermsNotice(page, page.getByRole("button", { name: "Continue with Google" }));
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+        viewport.width,
+      );
+    }
+  });
+
+  test("the dashboard's Add identity shows Google with the same notice", async ({ page }) => {
+    await installGoogleIdentity(page);
+
+    await page.goto("/");
+    await page.getByRole("button", { name: "Switch" }).click();
+    await page.getByRole("button", { name: "Add identity" }).click();
+    await expect(page.getByRole("button", { name: "Continue with Apple" })).toHaveCount(0);
+    await expectTermsNotice(page, page.getByRole("button", { name: "Continue with Google" }));
   });
 
   test("Use other identity goes straight to Google, as before", async ({ context, page }) => {

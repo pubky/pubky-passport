@@ -76,7 +76,15 @@ describe("IdentityEstablishmentFlow", () => {
       "aria-expanded",
       "false",
     );
-    expect(within(shell).queryByRole("link")).not.toBeInTheDocument();
+    // The only links are the Terms and Privacy notice's, opening in a new tab.
+    expect(
+      within(shell)
+        .getAllByRole("link")
+        .map((link) => [link.textContent, link.getAttribute("href"), link.getAttribute("target")]),
+    ).toEqual([
+      ["Terms of Service", "/terms-of-service", "_blank"],
+      ["Privacy Policy", "/privacy-policy", "_blank"],
+    ]);
     expect(MOCKS.constructGoogleIdentityController).not.toHaveBeenCalled();
     shell.remove();
   });

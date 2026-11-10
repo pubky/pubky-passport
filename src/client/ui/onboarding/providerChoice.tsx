@@ -1,7 +1,8 @@
 import { ContinueWithApple } from "./apple/continueWithApple";
 import { ContinueWithGoogle } from "./google/continueWithGoogle";
+import { SignInTermsNotice } from "./signInTermsNotice";
 
-/** Shared provider choice, in the same order on every screen. */
+/** Shared provider choice, in the same order on every screen, with the Terms notice under it. */
 function ProviderChoice({
   apple,
   onContinueWithGoogle,
@@ -9,15 +10,21 @@ function ProviderChoice({
   apple: { ready: boolean; onContinue: () => void } | null;
   onContinueWithGoogle: () => void;
 }) {
-  if (!apple) return <ContinueWithGoogle onContinue={onContinueWithGoogle} />;
   return (
-    <div
-      aria-label="Choose an account to sign in with"
-      className="flex flex-col gap-3"
-      role="group"
-    >
-      <ContinueWithGoogle onContinue={onContinueWithGoogle} />
-      <ContinueWithApple disabled={!apple.ready} onContinue={apple.onContinue} />
+    <div className="flex flex-col gap-4">
+      {apple ? (
+        <div
+          aria-label="Choose an account to sign in with"
+          className="flex flex-col gap-3"
+          role="group"
+        >
+          <ContinueWithGoogle onContinue={onContinueWithGoogle} />
+          <ContinueWithApple disabled={!apple.ready} onContinue={apple.onContinue} />
+        </div>
+      ) : (
+        <ContinueWithGoogle onContinue={onContinueWithGoogle} />
+      )}
+      <SignInTermsNotice />
     </div>
   );
 }
