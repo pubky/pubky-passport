@@ -83,7 +83,7 @@ function IdentityEstablishmentFlow({
         />
       );
     case "requesting-access":
-      return <GoogleAccessScreen fullWidthAction={forAuthorization} />;
+      return <GoogleAccessScreen />;
     case "failed": {
       return (
         <GoogleIdentityError
@@ -99,14 +99,14 @@ function IdentityEstablishmentFlow({
     case "working":
       return <IdentityProgress progress={view.progress} storageName="Google Drive" />;
     case "idle":
-      if (startsGoogleAutomatically) return <GoogleAccessScreen fullWidthAction />;
+      if (startsGoogleAutomatically) return <GoogleAccessScreen />;
       return (
         <SignInPage>
           <ProviderChoice
             apple={apple ? { ready: apple.ready, onContinue: apple.continueWithApple } : null}
             onContinueWithGoogle={google.establishIdentity}
           />
-          {onBack ? <BackButton className="md:mt-auto" onClick={onBack} /> : null}
+          {onBack ? <BackButton onClick={onBack} /> : null}
         </SignInPage>
       );
   }

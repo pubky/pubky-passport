@@ -37,8 +37,8 @@ function AppleIdentityError({
 
   return (
     <>
-      <PassportScreen className="gap-6 md:max-w-[558px] md:gap-8">
-        <div className="flex flex-col gap-6 md:gap-3">
+      <PassportScreen className="gap-6">
+        <div className="flex flex-col gap-6">
           <DisplayHeading accent="interrupted." aria-label="Setup interrupted.">
             Setup
           </DisplayHeading>
@@ -53,15 +53,15 @@ function AppleIdentityError({
           <IdentityErrorDetails error={error} />
           <div
             aria-label="Error actions"
-            className="mt-auto grid w-full grid-cols-1 gap-3 md:mt-0 md:grid-cols-[120px_1fr]"
+            className="mt-auto grid w-full grid-cols-1 gap-3"
             role="group"
           >
-            <div className="w-full md:col-span-2">
+            <div className="w-full">
               <ContinueWithApple autoFocus onContinue={onTryAgain} />
             </div>
             {replacement ? (
               <Button
-                className="w-full md:col-start-2 md:row-start-2"
+                className="w-full"
                 onClick={() => setConfirmationOpen(true)}
                 size="lg"
                 type="button"
@@ -71,7 +71,7 @@ function AppleIdentityError({
                 Delete &amp; create new
               </Button>
             ) : null}
-            <BackButton className="md:col-start-1 md:row-start-2" onClick={onBack} />
+            <BackButton onClick={onBack} />
           </div>
         </div>
       </PassportScreen>

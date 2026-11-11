@@ -27,8 +27,8 @@ function GoogleDrivePermissionPrompt({
   onTryAgain: () => void;
 }) {
   return (
-    <PassportScreen className="gap-6 md:max-w-[558px] md:gap-8">
-      <div className="flex flex-col gap-6 md:gap-3">
+    <PassportScreen className="gap-6">
+      <div className="flex flex-col gap-6">
         <DisplayHeading accent={mode === "optional" ? "optional." : "required."}>
           Drive access
         </DisplayHeading>

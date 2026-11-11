@@ -155,7 +155,7 @@ describe("IdentityDashboard", () => {
     expect(await screen.findByRole("heading", { name: "Your pubky." })).toBeInTheDocument();
     const name = screen.getByText("Satoshi Nakamoto");
     expect(name).toHaveClass("w-69", "text-2xl", "leading-8");
-    expect(name.parentElement).toHaveClass("gap-3", "md:gap-0");
+    expect(name.parentElement).toHaveClass("gap-3");
     expect(screen.getByText("identity")).toHaveClass("uppercase");
     expect(screen.getByText("satoshi@gmail.com")).toHaveClass(
       "w-full",
@@ -166,9 +166,6 @@ describe("IdentityDashboard", () => {
       "py-2",
       "font-bold",
       "leading-5",
-      "md:w-69",
-      "md:justify-start",
-      "md:px-0",
     );
     expect(screen.queryByRole("button", { name: "satoshi@gmail.com" })).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Quick access." })).not.toBeInTheDocument();

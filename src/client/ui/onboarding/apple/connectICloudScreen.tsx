@@ -28,17 +28,17 @@ function ConnectICloudScreen({
   ready: boolean;
 }) {
   return (
-    <PassportScreen className="gap-6 md:gap-8">
+    <PassportScreen className="gap-6">
       <p className="text-sm text-muted-foreground">
         Step 2 of 2: {purpose === "detach" ? "open iCloud" : "connect to iCloud"}
       </p>
-      <div className="flex flex-col gap-6 md:gap-3">
+      <div className="flex flex-col gap-6">
         <DisplayHeading
           accent={pending ? "window." : "One more step."}
           aria-label={
             pending ? "Finish in Apple's window." : "Signed in with Apple. One more step."
           }
-          className="text-4xl md:text-5xl"
+          className="text-4xl"
         >
           {pending ? "Finish in Apple’s" : "Signed in with Apple."}
         </DisplayHeading>

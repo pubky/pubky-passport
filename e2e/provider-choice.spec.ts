@@ -122,33 +122,31 @@ function footerBuiltBy(page: Page): Locator {
 }
 
 /**
- * Next to the notice the footer drops its "powered by" line (the notice already says it) and
- * keeps Terms, Privacy and the Synonym badge, moved up into the space the line took.
+ * Next to the notice the page ends with the Synonym badge right under it, and the footer is gone:
+ * the notice already links Terms and Privacy and says who built Passport.
  */
 async function expectSignInFooter(page: Page, notice: Locator): Promise<void> {
-  const footer = page.getByRole("contentinfo");
-  await expect(footer).toBeVisible();
-  await expect(footerBuiltBy(page)).toHaveCount(1);
+  await expect(page.getByRole("contentinfo")).toBeHidden();
   await expect(footerBuiltBy(page)).toBeHidden();
   await expect(page.locator("p:visible", { hasText: "powered by the Pubky protocol" })).toHaveCount(
     1,
   );
   for (const name of ["Terms of Service", "Privacy Policy"]) {
-    await expect(footer.getByRole("link", { name })).toBeVisible();
+    await expect(page.getByRole("link", { name })).toHaveCount(1);
   }
-  await expect(footer.getByRole("img", { name: "Synonym, a Tether company" })).toBeVisible();
-  const [noticeBox, footerBox, termsBox] = await Promise.all([
-    notice.boundingBox(),
-    footer.boundingBox(),
-    footer.getByRole("link", { name: "Terms of Service" }).boundingBox(),
-  ]);
-  expect(footerBox?.y ?? 0).toBeGreaterThanOrEqual((noticeBox?.y ?? 0) + (noticeBox?.height ?? 0));
-  // Nothing is left above the legal links but the footer's own padding (32px mobile, row on desktop).
-  expect((termsBox?.y ?? Infinity) - (footerBox?.y ?? 0)).toBeLessThanOrEqual(40);
+  const badge = page.getByRole("img", { name: "Synonym, a Tether company" });
+  await expect(badge).toHaveCount(1);
+  await expect(badge).toBeVisible();
+  const [noticeBox, badgeBox] = await Promise.all([notice.boundingBox(), badge.boundingBox()]);
+  const gap = (badgeBox?.y ?? 0) - ((noticeBox?.y ?? 0) + (noticeBox?.height ?? 0));
+  expect(gap).toBeGreaterThanOrEqual(8);
+  expect(gap).toBeLessThanOrEqual(24);
+  expect(Math.abs((badgeBox?.x ?? 0) - (noticeBox?.x ?? 0))).toBeLessThanOrEqual(1);
 }
 
-/** Pages without the sign-in notice show the footer's line on mobile, as before. */
+/** Pages without the sign-in notice show the footer, with its line on mobile, as before. */
 async function expectFooterBuiltByShown(page: Page): Promise<void> {
+  await expect(page.getByRole("contentinfo")).toBeVisible();
   await expect(footerBuiltBy(page)).toBeVisible();
   await expect(footerBuiltBy(page)).toHaveText(
     "Pubky Passport is powered by the Pubky protocol. Built by Synonym Software, S.A. DE C.V. ©2026.",
@@ -391,7 +389,7 @@ test.describe("with Apple login on", () => {
     }
   });
 
-  test("the sign-in footer drops its powered-by line on /authorize and Use other identity at every width", async ({
+  test("the sign-in screens end with the Synonym badge and no footer on /authorize and Use other identity at every width", async ({
     context,
     page,
   }) => {
@@ -426,7 +424,7 @@ test.describe("with Apple login on", () => {
     }
   });
 
-  test("pages without the sign-in notice keep the footer's powered-by line", async ({
+  test("pages without the sign-in notice keep the footer and its powered-by line", async ({
     context,
     page,
   }) => {

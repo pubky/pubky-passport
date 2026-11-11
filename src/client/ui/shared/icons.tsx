@@ -75,29 +75,6 @@ function CheckIcon(props: IconProps) {
   );
 }
 
-function CameraIcon(props: IconProps) {
-  return (
-    <Glyph height={props.size ?? 16} viewBox="0 0 21.5 17.5" width={props.size ?? 16} {...props}>
-      <path
-        d="M13.25.75h-5l-2.5 3h-3a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-9a2 2 0 0 0-2-2h-3l-2.5-3Z"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="1.5"
-      />
-      <circle
-        cx="10.75"
-        cy="9.75"
-        r="3"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="1.5"
-      />
-    </Glyph>
-  );
-}
-
 function CircleCheckIcon(props: IconProps) {
   const size = props.size ?? 20;
 
@@ -383,7 +360,6 @@ function XIcon(props: IconProps) {
 export {
   ArrowLeftIcon,
   ArrowRightIcon,
-  CameraIcon,
   CheckIcon,
   CircleCheckIcon,
   CircleInfoIcon,

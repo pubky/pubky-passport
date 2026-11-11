@@ -23,10 +23,9 @@ describe("DetachmentComplete", () => {
     ).toBeInTheDocument();
     expect(container.querySelector('img[src*="checkmark.png"]')?.parentElement).toHaveClass(
       "h-[296px]",
-      "md:h-56",
     );
     const done = screen.getByRole("button", { name: "Done" });
-    expect(done).toHaveClass("mt-auto", "md:mt-0");
+    expect(done).toHaveClass("mt-auto");
     await userEvent.setup().click(done);
     expect(onDone).toHaveBeenCalledOnce();
   });

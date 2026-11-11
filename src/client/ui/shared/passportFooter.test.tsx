@@ -9,15 +9,18 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { ProviderChoice } from "@/client/ui/onboarding/providerChoice";
 import { PassportFooter } from "./passportFooter";
 
-/** The globals.css rules that target the footer's "powered by" line, as written. */
-function builtByRules(): string {
+/** The globals.css rules that hide the footer, as written. */
+function footerRules(): string {
   const css = readFileSync(join(process.cwd(), "src", "app", "globals.css"), "utf8");
-  return (css.match(/[^{}/]*\[data-passport-footer-built-by\][^{}]*\{[^{}]*\}/gu) ?? []).join("\n");
+  return (css.match(/[^{}/]*\.passport-footer[^{}]*\{[^{}]*\}/gu) ?? []).join("\n");
 }
 
-/** The footer's own "Pubky Passport is powered by the Pubky protocol…" paragraph. */
-function footerBuiltByLine(): HTMLElement {
-  return within(screen.getByRole("contentinfo")).getByText(/^Pubky Passport is powered by the/u);
+function installFooterRules(): HTMLStyleElement {
+  const style = document.createElement("style");
+  style.dataset.testGlobals = "";
+  style.textContent = footerRules();
+  document.head.append(style);
+  return style;
 }
 
 afterEach(() => {
@@ -48,12 +51,10 @@ describe("PassportFooter", () => {
 });
 
 describe("PassportFooter next to the sign-in Terms notice", () => {
-  it("hides only its powered-by line while the notice is on the page, and shows it again after", () => {
-    const style = document.createElement("style");
-    style.dataset.testGlobals = "";
-    style.textContent = builtByRules();
-    document.head.append(style);
-    expect(style.textContent).toMatch(/display:\s*none/u);
+  it("is hidden while the notice is on the page, and shows again after", () => {
+    expect(installFooterRules().textContent).toMatch(
+      /body:has\(\[data-passport-sign-in-notice\]\)\s*\.passport-footer\s*\{\s*display:\s*none/u,
+    );
 
     const { rerender } = render(
       <>
@@ -63,40 +64,29 @@ describe("PassportFooter next to the sign-in Terms notice", () => {
         <PassportFooter />
       </>,
     );
-    const footer = screen.getByRole("contentinfo");
-    const line = footerBuiltByLine();
-    expect(line).toHaveTextContent(
-      "Pubky Passport is powered by the Pubky protocol. Built by Synonym Software, S.A. DE C.V. ©2026.",
-    );
-    expect(getComputedStyle(line).display).toBe("none");
-    // The rest of the footer stays: Terms, Privacy and the Synonym badge are not inside the line.
-    for (const name of ["Terms of Service", "Privacy Policy"]) {
-      const link = within(footer).getByRole("link", { name });
-      expect(line).not.toContainElement(link);
-      expect(getComputedStyle(link).display).not.toBe("none");
-    }
-    expect(line).not.toContainElement(
-      within(footer).getByRole("img", { name: "Synonym, a Tether company" }),
-    );
-    expect(getComputedStyle(footer).display).not.toBe("none");
+    // The notice brings its own Synonym badge, so the footer's Terms, Privacy and badge all go.
+    const footer = document.querySelector<HTMLElement>("body > div > footer.passport-footer");
+    expect(footer).not.toBeNull();
+    expect(getComputedStyle(footer!).display).toBe("none");
+    expect(
+      within(screen.getByRole("main")).getByRole("img", { name: "Synonym, a Tether company" }),
+    ).toBeInTheDocument();
 
-    // Any other page (no notice) keeps the line, without a reload.
+    // Any other page (no notice) shows the footer again, without a reload.
     rerender(
       <>
         <main />
         <PassportFooter />
       </>,
     );
-    expect(getComputedStyle(footerBuiltByLine()).display).not.toBe("none");
+    expect(getComputedStyle(screen.getByRole("contentinfo")).display).not.toBe("none");
   });
 
-  it("keeps the line on a page without the notice", () => {
-    const style = document.createElement("style");
-    style.dataset.testGlobals = "";
-    style.textContent = builtByRules();
-    document.head.append(style);
-
+  it("stays on a page without the notice", () => {
+    installFooterRules();
     render(<PassportFooter />);
-    expect(getComputedStyle(footerBuiltByLine()).display).not.toBe("none");
+    const footer = screen.getByRole("contentinfo");
+    expect(getComputedStyle(footer).display).not.toBe("none");
+    expect(within(footer).getByText(/^Pubky Passport is powered by the/u)).toBeInTheDocument();
   });
 });

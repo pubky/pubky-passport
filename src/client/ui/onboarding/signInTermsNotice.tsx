@@ -4,7 +4,8 @@ const LINK_CLASS_NAME =
 /**
  * The notice under the sign-in buttons. Continuing is the consent, so there is no checkbox. The
  * links open in a new tab so reading them does not lose a sign-in or an authorization in progress.
- * While it is on the page the footer hides its own "powered by" line (see globals.css).
+ * While it is on the page the footer is hidden (see globals.css): the notice and the Synonym badge
+ * under it already say what the footer would.
  */
 function SignInTermsNotice() {
   return (

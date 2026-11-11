@@ -10,7 +10,8 @@ import type { CodedFailure } from "@/libs/result";
 export const APPLE_AUTHORIZE_URL = "https://appleid.apple.com/auth/authorize";
 const APPLE_ORIGIN = "https://appleid.apple.com";
 const APPLE_SCOPES = "name email";
-const POPUP_FEATURES = "popup,width=520,height=680";
+/** 390px wide, the width of the Passport column it opens from. */
+const POPUP_FEATURES = "popup,width=390,height=700";
 const POPUP_CLOSED_POLL_MS = 300;
 const MAXIMUM_MESSAGE_CHARACTERS = 16 * 1024;
 /** Apple ID tokens live ten minutes; never rely on one for longer, whatever `exp` says. */

@@ -18,8 +18,8 @@ function ReviewDetachment({
   onRemove: () => void;
 }) {
   return (
-    <PassportScreen className="gap-6 md:gap-8">
-      <div className="flex flex-col gap-6 md:gap-3">
+    <PassportScreen className="gap-6">
+      <div className="flex flex-col gap-6">
         <DisplayHeading
           accent={`from ${providerName}.`}
           aria-label={`Detach from ${providerName}.`}
@@ -32,11 +32,11 @@ function ReviewDetachment({
       </div>
 
       <div className="rounded-md bg-destructive-surface px-4 py-3 text-sm font-medium leading-5 text-destructive-foreground">
-        Warning: Make sure you can sign in with your keychain or encrypted key before removing
+        Warning: Make sure you can sign in with your keychain or encrypted key before removing{" "}
         {providerName} access. This can’t be undone.
       </div>
 
-      <div className="relative flex h-[248px] w-full items-center justify-center md:-ml-[101px] md:h-56 md:w-[790px]">
+      <div className="relative flex h-[248px] w-full items-center justify-center">
         <Image
           alt=""
           aria-hidden="true"
@@ -57,7 +57,7 @@ function ReviewDetachment({
 
       <PassportNavigation
         back={<BackButton onClick={onBack} />}
-        className="-mt-6 md:mt-0"
+        className="-mt-6"
         confirm={
           <Button
             className="w-full"

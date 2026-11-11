@@ -87,7 +87,8 @@ describe("ICloudConnection", () => {
     );
 
     const pending = connection.connect();
-    expect(open).toHaveBeenCalledWith(SIGN_IN_URL, "_blank", expect.any(String));
+    // 390px wide, like the Passport column, so the window reads as a phone-sized sheet.
+    expect(open).toHaveBeenCalledWith(SIGN_IN_URL, "_blank", "popup,width=390,height=700");
     post({ ckSession: SESSION }, APPLE_ORIGIN, popup);
     const database = expectResultOk(await pending);
 

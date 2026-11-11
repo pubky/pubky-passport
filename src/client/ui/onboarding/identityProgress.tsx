@@ -24,11 +24,7 @@ function IdentityProgress({
 }) {
   const presentation = progressPresentation(progress, storageName);
   const heading = (
-    <DisplayHeading
-      accent="your pubky."
-      aria-label={`${presentation.heading} your pubky.`}
-      desktopAccentOnNewLine
-    >
+    <DisplayHeading accent="your pubky." aria-label={`${presentation.heading} your pubky.`}>
       {presentation.heading}
     </DisplayHeading>
   );
@@ -36,7 +32,7 @@ function IdentityProgress({
   if (presentation.heading === "Loading") {
     return (
       <PassportScreen>
-        <div className="flex flex-1 flex-col gap-6 md:gap-8">
+        <div className="flex flex-1 flex-col gap-6">
           {heading}
           <p aria-atomic="true" className="sr-only" role="status">
             Loading your Pubky.
@@ -53,7 +49,7 @@ function IdentityProgress({
 
   return (
     <PassportScreen>
-      <div className="flex flex-1 flex-col gap-6 md:gap-8">
+      <div className="flex flex-1 flex-col gap-6">
         {heading}
         <p aria-atomic="true" className="sr-only" role="status">
           {presentation.heading} your Pubky: {activeStep?.label}.

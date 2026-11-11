@@ -52,7 +52,7 @@ function AppleDetachment({
 
 function AppleLoginUnavailable({ onBack }: { onBack: () => void }) {
   return (
-    <PassportScreen className="gap-6 md:gap-8">
+    <PassportScreen className="gap-6">
       <DisplayHeading accent="unavailable." aria-label="Apple login unavailable.">
         Apple login{" "}
       </DisplayHeading>
@@ -60,7 +60,7 @@ function AppleLoginUnavailable({ onBack }: { onBack: () => void }) {
         Apple login is turned off on this Passport, so it cannot remove the key from iCloud right
         now. Your identity stays on this device.
       </LeadText>
-      <BackButton className="mt-auto md:mt-0" onClick={onBack} />
+      <BackButton className="mt-auto" onClick={onBack} />
     </PassportScreen>
   );
 }

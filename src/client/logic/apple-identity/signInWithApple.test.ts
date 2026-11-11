@@ -147,6 +147,7 @@ describe("SignInWithApple", () => {
     const { open, pending, respond, success, url } = start();
 
     expect(open).toHaveBeenCalledOnce();
+    expect(open).toHaveBeenCalledWith(expect.any(String), "_blank", "popup,width=390,height=700");
     expect(`${url.origin}${url.pathname}`).toBe(APPLE_AUTHORIZE_URL);
     expect(Object.fromEntries(url.searchParams)).toMatchObject({
       client_id: SERVICES_ID,

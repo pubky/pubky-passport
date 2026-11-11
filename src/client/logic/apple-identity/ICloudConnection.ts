@@ -62,7 +62,8 @@ export type ICloudConnectionError = CodedFailure<
 type Outcome = "signed-in" | ICloudConnectionError["code"];
 const CLOUDKIT_AUTH_ORIGIN = "https://cdn.apple-cloudkit.com";
 
-const POPUP_FEATURES = "popup,width=640,height=600";
+/** 390px wide, the width of the Passport column it opens from. */
+const POPUP_FEATURES = "popup,width=390,height=700";
 const POPUP_CLOSED_POLL_MS = 500;
 /** Gives the popup's last message time to arrive after the window closes itself. */
 const POPUP_CLOSED_GRACE_MS = 5_000;

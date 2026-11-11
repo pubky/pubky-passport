@@ -66,7 +66,7 @@ function DetachFromAppleFlow({
   }
   if (operation.status === "detaching") {
     return (
-      <PassportScreen className="gap-6 md:gap-8">
+      <PassportScreen className="gap-6">
         <DisplayHeading accent="access.">Removing Apple</DisplayHeading>
         <LeadText role="status">
           Passport is deleting its encrypted backup from iCloud. Keep this window open.

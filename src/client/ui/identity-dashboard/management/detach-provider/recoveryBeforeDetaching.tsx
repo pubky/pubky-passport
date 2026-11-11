@@ -23,20 +23,16 @@ function RecoveryBeforeDetaching({
 }) {
   return (
     <PassportScreen className="gap-8">
-      <div className="flex flex-col gap-6 md:gap-3">
-        <h1
-          aria-label="Backup your pubky first."
-          className="text-5xl font-bold leading-none md:text-6xl"
-        >
-          <span className="block md:inline">Backup your </span>
-          <span className="text-brand">pubky</span>
-          <br className="hidden md:block" /> first.
+      <div className="flex flex-col gap-6">
+        <h1 aria-label="Backup your pubky first." className="text-5xl font-bold leading-none">
+          <span className="block">Backup your </span>
+          <span className="text-brand">pubky</span> first.
         </h1>
         <LeadText>
           If you remove {providerName} as a way to access your pubky identity, you need a backup to
           restore account access.
         </LeadText>
-        <section className="flex flex-col gap-3 pt-6 md:mt-5 md:pt-0">
+        <section className="flex flex-col gap-3 pt-6">
           <p className="text-xs font-medium uppercase leading-4 tracking-[0.1em] text-muted-foreground">
             Choose backup method
           </p>
@@ -51,7 +47,7 @@ function RecoveryBeforeDetaching({
 
       <PassportNavigation
         back={<BackButton onClick={onBack} />}
-        className="mt-auto md:mt-0"
+        className="mt-auto"
         confirm={
           <Button className="w-full" onClick={onRecoveryConfirmed} size="lg" type="button">
             <CheckIcon />I backed up my pubky

@@ -100,7 +100,10 @@ describe("Terms and Privacy notice", () => {
       // Under the last button, and the provider group (if any) holds only the buttons.
       expect(precedes(buttons.at(-1)!, notice)).toBe(true);
       expect(notice.previousElementSibling).toContainElement(buttons.at(-1)!);
-      expect(notice.nextElementSibling).toBeNull();
+      // The Synonym badge follows the notice directly and ends the choice.
+      const badge = screen.getByRole("img", { name: "Synonym, a Tether company" });
+      expect(notice.nextElementSibling).toBe(badge);
+      expect(badge.nextElementSibling).toBeNull();
       expect(screen.getAllByText(/By continuing/u)).toHaveLength(1);
       if (appleEnabled) {
         const choice = screen.getByRole("group", { name: "Choose an account to sign in with" });

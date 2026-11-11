@@ -19,7 +19,7 @@ describe("IdentityProgress", () => {
       render(<IdentityProgress storageName="Google Drive" progress={progress} />);
 
       const heading = screen.getByRole("heading", { name: "Loading your pubky." });
-      expect(heading.parentElement).toHaveClass("gap-6", "md:gap-8");
+      expect(heading.parentElement).toHaveClass("gap-6");
       expect(screen.queryByRole("list")).not.toBeInTheDocument();
       expect(screen.getByRole("status")).toHaveTextContent("Loading your Pubky.");
       expect(screen.queryByRole("button")).not.toBeInTheDocument();
@@ -39,18 +39,11 @@ describe("IdentityProgress", () => {
       render(<IdentityProgress storageName="Google Drive" progress={progress} />);
 
       const heading = screen.getByRole("heading", { name: "Setting up your pubky." });
-      expect(heading.parentElement).toHaveClass("gap-6", "md:gap-8");
+      expect(heading.parentElement).toHaveClass("gap-6");
       const setupProgress = screen.getByRole("list", {
         name: "Pubky identity setup progress",
       });
-      expect(setupProgress).not.toHaveClass(
-        "rounded-lg",
-        "border",
-        "border-card",
-        "md:rounded-lg",
-        "md:border",
-        "md:border-card",
-      );
+      expect(setupProgress).not.toHaveClass("rounded-lg", "border", "border-card");
       expect(screen.getByText(activeLabel).closest("li")).toHaveAttribute("aria-current", "step");
       expect(within(setupProgress).getAllByRole("listitem")[0]).toHaveTextContent(
         "Check Google Drive for a backup (complete)",
@@ -71,7 +64,7 @@ describe("IdentityProgress", () => {
       const progressList = screen.getByRole("list", {
         name: "Pubky identity repair progress",
       });
-      expect(progressList).not.toHaveClass("border", "md:border");
+      expect(progressList).not.toHaveClass("border");
       expect(within(progressList).getAllByRole("listitem")[0]).toHaveTextContent(
         "Check Google Drive for a backup (complete)",
       );

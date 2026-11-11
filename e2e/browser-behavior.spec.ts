@@ -103,10 +103,11 @@ test("the sign-in title stays on one line with its accent color", async ({ page 
 
 test("the passport chrome does not overlap content in a short viewport", async ({ page }) => {
   await page.setViewportSize({ width: 1024, height: 400 });
-  await page.goto("/");
+  // The sign-in start page has no footer, so check a page that has both header and footer.
+  await page.goto("/authorize");
 
   const logo = page.getByRole("img", { name: "Pubky", exact: true });
-  const heading = page.getByRole("heading", { name: "Quick access." });
+  const heading = page.getByRole("heading", { name: "Authorize a service." });
   const footer = page.locator("body > footer");
   const main = page.locator("main");
   await expect(heading).toBeVisible();
@@ -147,7 +148,7 @@ test("camera denial is contained in an accessible dialog", async ({ page }) => {
     });
   });
   await page.goto("/authorize");
-  await page.getByRole("button", { name: /^Scan (?:authorization QR code|QR)$/ }).click();
+  await page.getByRole("button", { name: "Scan QR", exact: true }).click();
 
   const dialog = page.getByRole("dialog", { name: "Scan QR code" });
   await expect(dialog).toBeVisible();
@@ -198,7 +199,7 @@ test("identity selection synchronizes across tabs", async ({ context, page }) =>
   await otherTab.close();
 });
 
-test("the signed-in Google account row stays centered on mobile and left-aligned on desktop", async ({
+test("the signed-in Google account row stays centered in the 375px column at every width", async ({
   page,
 }) => {
   await seedLocalIdentity(page);
@@ -219,10 +220,12 @@ test("the signed-in Google account row stays centered on mobile and left-aligned
   await page.setViewportSize({ width: 1280, height: 720 });
   await page.evaluate(async () => document.fonts.ready);
 
+  // Same column as on a phone, centred on the page.
   const desktop = await measureAccountRow(accountRow);
-  expectWithinOnePixel(desktop.row.width, 276);
-  expectWithinOnePixel(desktop.contentLeft, desktop.row.x);
-  expect(desktop.contentCenter).toBeLessThan(desktop.rowCenter);
+  expectWithinOnePixel(desktop.row.x, (1280 - 375) / 2 + 48);
+  expectWithinOnePixel(desktop.row.width, 279);
+  expectWithinOnePixel(desktop.row.height, 40);
+  expectWithinOnePixel(desktop.contentCenter, desktop.rowCenter);
 });
 
 test("backup password guidance enforces the six-character minimum responsively", async ({

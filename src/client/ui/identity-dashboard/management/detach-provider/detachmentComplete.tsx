@@ -14,8 +14,8 @@ function DetachmentComplete({
   providerName: string;
 }) {
   return (
-    <PassportScreen className="gap-6 md:gap-8">
-      <div className="flex flex-col gap-6 md:gap-3">
+    <PassportScreen className="gap-6">
+      <div className="flex flex-col gap-6">
         <DisplayHeading
           accent={`from ${providerName}.`}
           aria-label={`Detached from ${providerName}.`}
@@ -27,7 +27,7 @@ function DetachmentComplete({
           only with your backup.
         </LeadText>
       </div>
-      <div className="flex h-[296px] items-center justify-center md:h-56">
+      <div className="flex h-[296px] items-center justify-center">
         <Image
           alt=""
           aria-hidden="true"
@@ -37,7 +37,7 @@ function DetachmentComplete({
           width={200}
         />
       </div>
-      <Button className="mt-auto w-full md:mt-0" onClick={onDone} size="lg" type="button">
+      <Button className="mt-auto w-full" onClick={onDone} size="lg" type="button">
         <CheckIcon />
         Done
       </Button>

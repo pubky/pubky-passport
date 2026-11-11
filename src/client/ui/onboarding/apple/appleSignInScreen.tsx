@@ -6,9 +6,9 @@ import { DisplayHeading, LeadText } from "@/client/ui/shared/primitives/typograp
 /** Shown while Apple's sign-in window is open. */
 function AppleSignInScreen({ onFocus, onCancel }: { onFocus: () => void; onCancel: () => void }) {
   return (
-    <PassportScreen className="gap-6 md:gap-8">
+    <PassportScreen className="gap-6">
       <p className="text-sm text-muted-foreground">Step 1 of 2: sign in with Apple</p>
-      <div className="flex flex-col gap-6 md:gap-3">
+      <div className="flex flex-col gap-6">
         <DisplayHeading accent="Apple." aria-label="Signing in with Apple.">
           Signing in with{" "}
         </DisplayHeading>

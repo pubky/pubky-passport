@@ -25,14 +25,14 @@ function IdentityComplete({
   storageName: string;
 }) {
   return (
-    <PassportScreen className="gap-0 md:pb-0">
-      <div className="flex flex-col gap-6 md:gap-3">
+    <PassportScreen className="gap-0">
+      <div className="flex flex-col gap-6">
         <DisplayHeading accent="complete." aria-label="Setup complete.">
           Setup
         </DisplayHeading>
         <LeadText>Stored backup in {storageName}.</LeadText>
       </div>
-      <div className="mt-6 flex min-h-0 flex-1 flex-col md:mt-8">
+      <div className="mt-6 flex min-h-0 flex-1 flex-col">
         {notice ? (
           <p
             className="mb-6 rounded-xl border border-amber-400/40 bg-amber-400/10 p-4 text-sm leading-5"
@@ -53,12 +53,12 @@ function IdentityComplete({
         <Image
           alt=""
           aria-hidden="true"
-          className="mx-auto mt-6 size-50 md:order-4 md:mt-8"
+          className="mx-auto mt-6 size-50"
           height={200}
           src="/illustrations/checkmark.png"
           width={200}
         />
-        <Button className="mt-auto w-full md:order-3 md:mt-6" onClick={onContinue} size="lg">
+        <Button className="mt-auto w-full" onClick={onContinue} size="lg">
           <ArrowRightIcon />
           Continue
         </Button>

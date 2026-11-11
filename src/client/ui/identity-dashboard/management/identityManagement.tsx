@@ -23,7 +23,6 @@ import {
 } from "@/client/ui/shared/icons";
 import { shortCopiedValue } from "@/client/ui/shared/formatPublicKey";
 import { BackButton } from "@/client/ui/shared/backButton";
-import { cn } from "@/client/ui/shared/mergeClassNames";
 import { PassportNavigation } from "@/client/ui/shared/passportNavigation";
 import { PassportScreen } from "@/client/ui/shared/passportScreen";
 import { Avatar } from "@/client/ui/shared/primitives/avatar";
@@ -144,14 +143,10 @@ function IdentityManagement({
   }, [identity.publicIdentity.publicKeyZ32, resolveHomeserver]);
 
   return (
-    <PassportScreen className="gap-6 md:max-w-[375px] md:px-6">
-      <header className="flex items-center gap-6">
-        <DisplayHeading
-          accent="identity."
-          aria-label="Manage identity."
-          className="md:text-5xl"
-          desktopAccentOnNewLine
-        >
+    <PassportScreen className="gap-6">
+      {/* At 320px the avatar does not fit beside the heading, so it wraps under it. */}
+      <header className="flex flex-wrap items-center gap-x-6 gap-y-4">
+        <DisplayHeading accent="identity." aria-label="Manage identity.">
           Manage
         </DisplayHeading>
         <Avatar
@@ -231,10 +226,7 @@ function IdentityManagement({
           </ManagementButton>
         ) : null}
       </div>
-      <PassportNavigation
-        back={<BackButton className="md:w-full" onClick={onBack} />}
-        className="mt-auto pt-8 md:grid-cols-1"
-      />
+      <PassportNavigation back={<BackButton onClick={onBack} />} className="mt-auto pt-8" />
     </PassportScreen>
   );
 }
@@ -268,9 +260,7 @@ function IdentityDetail({
         <p className="mb-1 text-xs font-medium uppercase leading-4 tracking-[0.1em] text-muted-foreground">
           {label}
         </p>
-        <p className={cn("break-all font-medium leading-6", onCopied && "md:text-sm md:leading-5")}>
-          {value}
-        </p>
+        <p className="break-all font-medium leading-6">{value}</p>
       </div>
       {onCopied ? (
         <IconButton

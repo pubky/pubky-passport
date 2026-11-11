@@ -8,9 +8,9 @@ import { DisplayHeading } from "@/client/ui/shared/primitives/typography";
 function SignInPage({ children }: { children: ReactNode }) {
   const choices = useRef<HTMLDivElement>(null);
   return (
-    <PassportScreen className="gap-6 md:gap-8">
-      <section className="flex flex-col gap-6 md:gap-8">
-        <div className="flex flex-col gap-6 md:gap-3">
+    <PassportScreen className="gap-6">
+      <section className="flex flex-col gap-6">
+        <div className="flex flex-col gap-6">
           <DisplayHeading accent="access." aria-label="Quick access." className="[&>span]:inline">
             Quick
           </DisplayHeading>
@@ -19,7 +19,7 @@ function SignInPage({ children }: { children: ReactNode }) {
             hassle.
           </HowPassportWorks>
         </div>
-        <div className="flex flex-col gap-6 md:gap-8">
+        <div className="flex flex-col gap-6">
           <div
             aria-label="Available sign-in accounts"
             className="flex flex-col gap-3 rounded-2xl outline-none focus-visible:ring-3 focus-visible:ring-ring/50"

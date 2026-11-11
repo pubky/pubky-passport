@@ -21,14 +21,11 @@ describe("RecoveryBeforeDetaching", () => {
     );
 
     expect(screen.getByRole("heading", { name: "Backup your pubky first." })).toBeInTheDocument();
-    expect(screen.getByText("Choose backup method").parentElement).toHaveClass("pt-6", "md:pt-0");
+    expect(screen.getByText("Choose backup method").parentElement).toHaveClass("pt-6");
     expect(screen.getByRole("button", { name: "Migrate to keychain" })).toHaveClass("h-15");
     expect(screen.getByRole("button", { name: "Download encrypted backup" })).toHaveClass("h-15");
     expect(screen.getByRole("button", { name: "I backed up my pubky" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Back" }).closest(".grid")).toHaveClass(
-      "mt-auto",
-      "md:mt-0",
-    );
+    expect(screen.getByRole("button", { name: "Back" }).closest(".grid")).toHaveClass("mt-auto");
   });
 
   it("supports returning and opening the recovery-file screen", async () => {

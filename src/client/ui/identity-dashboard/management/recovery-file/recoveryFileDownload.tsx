@@ -81,11 +81,8 @@ function RecoveryFileDownload({
 
   return (
     <PassportScreen>
-      <form
-        className="flex min-h-full flex-1 flex-col gap-6 md:grid md:grid-cols-(--passport-content-columns) md:grid-rows-[minmax(var(--passport-recovery-heading-min-height),auto)_minmax(var(--passport-recovery-body-min-height),auto)_auto] md:content-start md:gap-x-0 md:gap-y-8 md:pt-8.5"
-        onSubmit={submit}
-      >
-        <div className="flex flex-col gap-6 md:col-span-2 md:gap-3">
+      <form className="flex min-h-full flex-1 flex-col gap-6" onSubmit={submit}>
+        <div className="flex flex-col gap-6">
           <DisplayHeading accent="backup." aria-label="Encrypted backup.">
             Encrypted{" "}
           </DisplayHeading>
@@ -95,51 +92,40 @@ function RecoveryFileDownload({
           </LeadText>
         </div>
 
-        <div className="contents md:col-start-1 md:row-start-2 md:flex md:flex-col md:gap-2">
-          <div className="order-2 flex flex-col gap-2 md:contents">
-            <Label className="leading-5 md:leading-4" htmlFor="recovery-file-password">
-              Enter strong password
-            </Label>
-            <Input
-              aria-describedby="recovery-file-password-requirement"
-              aria-invalid={passwordTooShort || undefined}
-              autoComplete="new-password"
-              containerClassName="h-14 border-dashed md:h-15"
-              id="recovery-file-password"
-              maxLength={1024}
-              minLength={MINIMUM_RECOVERY_FILE_PASSWORD_CHARACTERS}
-              onInput={(event) => {
-                setPasswordLength(event.currentTarget.value.length);
-                setRecoveryFileFailed(false);
-              }}
-              ref={passwordInputRef}
-              required
-              type="password"
-            />
-            <FieldMessage
-              error={passwordTooShort || recoveryFileFailed}
-              id="recovery-file-password-requirement"
-            >
-              {recoveryFileFailed
-                ? "Could not create the recovery file. Please try again."
-                : `Minimum ${MINIMUM_RECOVERY_FILE_PASSWORD_CHARACTERS} characters.`}
-            </FieldMessage>
-          </div>
-          <Button
-            className="order-5 -mt-2 w-full md:order-[0] md:mt-4"
-            disabled={!validPassword || pending}
-            size="lg"
-            type="submit"
+        <div className="flex flex-col gap-2">
+          <Label className="leading-5" htmlFor="recovery-file-password">
+            Enter strong password
+          </Label>
+          <Input
+            aria-describedby="recovery-file-password-requirement"
+            aria-invalid={passwordTooShort || undefined}
+            autoComplete="new-password"
+            containerClassName="h-14 border-dashed"
+            id="recovery-file-password"
+            maxLength={1024}
+            minLength={MINIMUM_RECOVERY_FILE_PASSWORD_CHARACTERS}
+            onInput={(event) => {
+              setPasswordLength(event.currentTarget.value.length);
+              setRecoveryFileFailed(false);
+            }}
+            ref={passwordInputRef}
+            required
+            type="password"
+          />
+          <FieldMessage
+            error={passwordTooShort || recoveryFileFailed}
+            id="recovery-file-password-requirement"
           >
-            <DownloadRecoveryFileIcon />
-            {pending ? "Encrypting…" : "Download backup"}
-          </Button>
+            {recoveryFileFailed
+              ? "Could not create the recovery file. Please try again."
+              : `Minimum ${MINIMUM_RECOVERY_FILE_PASSWORD_CHARACTERS} characters.`}
+          </FieldMessage>
         </div>
 
         <Image
           alt=""
           aria-hidden="true"
-          className="order-3 mx-auto size-50 md:order-[0] md:col-start-2 md:row-start-2 md:mt-3"
+          className="mx-auto size-50"
           height={200}
           src="/illustrations/file.png"
           width={200}
@@ -147,8 +133,17 @@ function RecoveryFileDownload({
 
         <PassportNavigation
           back={<BackButton disabled={pending} onClick={onBack} />}
-          className="order-4 -mt-1 md:order-[0] md:col-span-2 md:row-start-3 md:mt-0"
+          className="-mt-1"
         />
+        <Button
+          className="-mt-2 w-full"
+          disabled={!validPassword || pending}
+          size="lg"
+          type="submit"
+        >
+          <DownloadRecoveryFileIcon />
+          {pending ? "Encrypting…" : "Download backup"}
+        </Button>
       </form>
     </PassportScreen>
   );
