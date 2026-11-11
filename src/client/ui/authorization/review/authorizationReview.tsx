@@ -94,8 +94,8 @@ function AuthorizationReview({
         {expectedSigner && isExpectedIdentity ? (
           <div className="flex flex-col gap-1 rounded-2xl border border-brand/30 bg-brand/10 p-4 text-sm leading-5">
             <strong className="font-bold text-foreground">
-              {account?.name
-                ? `${appName} asked to sign in as ${account.name} (${shortPublicKey(expectedSigner)})`
+              {profile.name
+                ? `${appName} asked to sign in as ${profile.name} (${shortPublicKey(expectedSigner)})`
                 : `${appName} asked to sign in as ${shortPublicKey(expectedSigner)}`}
             </strong>
             <span className="font-medium text-muted-foreground">
