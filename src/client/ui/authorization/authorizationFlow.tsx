@@ -8,10 +8,11 @@ import { preload } from "react-dom";
 import type { PassportAuthorizationViewState } from "@/client/logic/authorization/flow/PassportAuthorizationController";
 import type {
   LocalIdentityCatalog,
+  IdentityProviderAccount,
   LocalIdentityMetadata,
 } from "@/client/logic/local-identity/localIdentityModels";
 import { IdentityManagement } from "@/client/ui/identity-dashboard/management/identityManagement";
-import { DetachFromGoogleFlow } from "@/client/ui/identity-dashboard/management/detach-from-google/detachFromGoogleFlow";
+import { DetachFromProviderFlow } from "@/client/ui/identity-dashboard/management/detach-provider/detachFromProviderFlow";
 import { RecoveryFileDownload } from "@/client/ui/identity-dashboard/management/recovery-file/recoveryFileDownload";
 import { MigrateToPubkyRing } from "@/client/ui/identity-dashboard/management/migrate-to-pubky-ring/migrateToPubkyRing";
 import { IdentitySelectionFlow } from "@/client/ui/identity-catalog/selection/identitySelectionFlow";
@@ -104,7 +105,11 @@ type ActiveAuthorization = Extract<
 type AuthorizationIdentityView =
   | { view: "first-identity-setup" | "review" | "identity-selection" }
   | { view: "manage-identity" | "recovery-file" | "migrate-to-pubky-ring"; publicKeyZ32: string }
-  | { view: "detach-from-google"; googleSubject: string; identity: LocalIdentityMetadata };
+  | {
+      view: "detach-from-provider";
+      account: IdentityProviderAccount;
+      identity: LocalIdentityMetadata;
+    };
 
 function AuthorizationWithIdentity({
   authorization,
@@ -213,14 +218,8 @@ function ReadyAuthorizationWithIdentity({
             current.view === "identity-selection" ? current : { view: "review" },
           )
         }
-        onDetachFromGoogle={() => {
-          if (identity.googleAccount) {
-            setNavigation({
-              view: "detach-from-google",
-              googleSubject: identity.googleAccount.googleSubject,
-              identity,
-            });
-          }
+        onDetachFromProvider={(account) => {
+          setNavigation({ view: "detach-from-provider", account, identity });
         }}
         onDownloadRecoveryFile={() => setNavigation({ view: "recovery-file", publicKeyZ32 })}
         onRemoveLocalIdentity={() => {
@@ -255,12 +254,12 @@ function ReadyAuthorizationWithIdentity({
     );
   }
 
-  if (state.view === "detach-from-google") {
+  if (state.view === "detach-from-provider") {
     return (
-      <DetachFromGoogleFlow
+      <DetachFromProviderFlow
+        account={state.account}
         createRecoveryFile={actions.createRecoveryFile}
         createMigration={() => actions.createMigration(state.identity.publicIdentity.publicKeyZ32)}
-        googleSubject={state.googleSubject}
         identity={state.identity}
         onBack={() =>
           setNavigation({
@@ -327,7 +326,7 @@ function resolveAuthorizationIdentityView(
   catalog: LocalIdentityCatalog,
 ): AuthorizationIdentityView {
   // Detachment retains its pinned identity until its own completion screen is dismissed.
-  if (navigation.view === "detach-from-google") return navigation;
+  if (navigation.view === "detach-from-provider") return navigation;
   if (catalog.identities.length === 0) return { view: "first-identity-setup" };
   if (
     "publicKeyZ32" in navigation &&

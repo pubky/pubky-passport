@@ -9,26 +9,15 @@ import { PassportNavigation } from "./passportNavigation";
 describe("PassportNavigation", () => {
   afterEach(cleanup);
 
-  it("keeps a lone back action in the fixed left desktop column", () => {
-    render(<PassportNavigation back={<Button>Back</Button>} />);
+  it("stacks Back above Confirm in one full-width column at every width", () => {
+    render(<PassportNavigation back={<Button>Back</Button>} confirm={<Button>Confirm</Button>} />);
 
-    const slot = screen.getByRole("button", { name: "Back" }).parentElement;
-    expect(slot).toHaveClass("md:col-start-1");
-    expect(slot?.parentElement).toHaveClass(
-      "w-full",
-      "md:grid-cols-(--passport-navigation-columns)",
-    );
-    expect(slot?.parentElement).not.toHaveClass("mt-auto");
-  });
-
-  it("keeps a lone confirm action in the fixed right desktop column", () => {
-    render(<PassportNavigation confirm={<Button>Confirm</Button>} />);
-
-    const slot = screen.getByRole("button", { name: "Confirm" }).parentElement;
-    expect(slot).toHaveClass("md:col-start-3");
-    expect(slot?.parentElement).toHaveClass(
-      "w-full",
-      "md:grid-cols-(--passport-navigation-columns)",
-    );
+    const back = screen.getByRole("button", { name: "Back" }).parentElement;
+    const confirm = screen.getByRole("button", { name: "Confirm" }).parentElement;
+    expect(back?.parentElement).toBe(confirm?.parentElement);
+    expect(back?.parentElement).toHaveClass("grid", "w-full", "grid-cols-1");
+    expect(back?.parentElement?.className).not.toMatch(/md:/u);
+    expect(back?.nextElementSibling).toBe(confirm);
+    expect(back?.parentElement).not.toHaveClass("mt-auto");
   });
 });

@@ -55,25 +55,20 @@ describe("ManualAuthorization", () => {
     const input = screen.getByLabelText("Authorization link");
     expect(input).toHaveValue("");
     expect(input).toHaveAttribute("placeholder", "pubkyauth://");
-    expect(input.parentElement).toHaveClass("h-14", "md:h-15");
-    expect(screen.getByText("Authorization link")).toHaveClass("leading-5", "md:leading-4");
+    expect(input.parentElement).toHaveClass("h-14");
+    expect(screen.getByText("Authorization link")).toHaveClass("leading-5");
     expect(screen.getByRole("button", { name: "Continue" })).toBeDisabled();
     const scanButton = screen.getByRole("button", { name: "Scan QR" });
     expect(scanButton).toBeEnabled();
-    expect(scanButton).toHaveClass("w-full", "md:hidden");
-    const cameraButton = screen.getByRole("button", { name: "Scan authorization QR code" });
-    expect(cameraButton).toHaveClass("hidden", "md:inline-flex");
-    const cameraIcon = cameraButton.querySelector("svg");
-    expect(cameraIcon).toHaveAttribute("viewBox", "0 0 21.5 17.5");
-    expect(cameraIcon).toHaveStyle({ width: "20px", height: "20px" });
-    expect(cameraIcon?.parentElement).toHaveClass("size-5", "items-center", "justify-center");
-    expect(screen.getByRole("button", { name: "Paste authorization link" })).toHaveClass(
-      "size-6",
-      "md:size-8",
-    );
+    // One column at every width: the Scan QR button is the only scanner entry.
+    expect(scanButton).toHaveClass("w-full");
+    expect(scanButton.className).not.toMatch(/md:/u);
+    expect(screen.queryByRole("button", { name: "Scan authorization QR code" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Paste authorization link" })).toHaveClass("size-6");
     const back = screen.getByRole("button", { name: "Back" });
     const navigation = back.parentElement?.parentElement;
-    expect(navigation).toHaveClass("mt-auto", "md:mt-0", "md:pt-6");
+    expect(navigation).toHaveClass("mt-auto");
+    expect(navigation?.className).not.toMatch(/md:/u);
     expect(
       back.compareDocumentPosition(scanButton) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();

@@ -60,7 +60,7 @@ describe("GoogleImplicitAuthorization", () => {
     expect(globalThis.open).toHaveBeenCalledExactlyOnceWith(
       "about:blank",
       expect.stringMatching(/^pubky-passport-google-/u),
-      "popup,width=520,height=680",
+      "popup,width=390,height=700",
     );
     expect(popup.replace).toHaveBeenCalledOnce();
     popup.returnTo(

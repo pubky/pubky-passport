@@ -2,13 +2,15 @@ import type { Metadata } from "next";
 import { connection } from "next/server";
 import type { ReactNode } from "react";
 import "@fontsource-variable/inter-tight";
+import "@fontsource/google-sans/latin-500.css";
 import "./globals.css";
+import { AppleIdentityConfigurationProvider } from "@/client/ui/appleIdentityConfiguration";
 import { GoogleIdentityConfigurationProvider } from "@/client/ui/googleIdentityConfiguration";
 import { PassportLogo } from "@/client/ui/shared/brand/passportLogo";
 import { PassportFooter } from "@/client/ui/shared/passportFooter";
 import { Sonner } from "@/client/ui/shared/sonner";
 import { LOGGER, safeErrorLogFields } from "@/libs/logger/logger";
-import { getPublicEnvironment } from "@/server/environment";
+import { getAppleEnvironment, getPublicEnvironment } from "@/server/environment";
 import { ParserTimeScripts } from "./parserTimeScripts";
 
 export const metadata: Metadata = {
@@ -19,8 +21,10 @@ export const metadata: Metadata = {
 export default async function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   await connection();
   let config: ReturnType<typeof getPublicEnvironment>;
+  let apple: ReturnType<typeof getAppleEnvironment>;
   try {
     config = getPublicEnvironment();
+    apple = getAppleEnvironment();
   } catch (e) {
     LOGGER.error("layout.bootstrap.failed", {
       layer: "layout",
@@ -45,7 +49,9 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
           googleClientId={config.googleClientId}
           homegateBaseUrl={config.homegateBaseUrl}
         >
-          {children}
+          <AppleIdentityConfigurationProvider apple={apple}>
+            {children}
+          </AppleIdentityConfigurationProvider>
         </GoogleIdentityConfigurationProvider>
         <PassportFooter />
         <Sonner />

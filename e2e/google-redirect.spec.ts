@@ -93,15 +93,25 @@ for (const [format, entry] of [
 test("Google cancellation stays retryable without an automatic redirect loop", async ({
   context,
   page,
-}) => {
+}, testInfo) => {
   const requests = await google(context, { denied: true });
   await page.goto(ENTRY);
-  await expect(page.getByRole("button", { name: "Try again" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Continue with Google" })).toBeVisible();
+  const retry = page.getByRole("button", { name: "Continue with Google" });
+  expect((await retry.boundingBox())!.width).toBeGreaterThanOrEqual(300);
+  expect(
+    await retry
+      .locator("span")
+      .first()
+      .evaluate((title) => Number.parseFloat(getComputedStyle(title).fontSize)),
+  ).toBe(14);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: testInfo.outputPath("google-retry.png"), fullPage: true });
   expect(requests).toHaveLength(1);
   expect(context.pages()).toHaveLength(1);
-  await page.getByRole("button", { name: "Try again" }).click();
+  await page.getByRole("button", { name: "Continue with Google" }).click();
   await expect.poll(() => requests.length).toBe(2);
-  await expect(page.getByRole("button", { name: "Try again" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Continue with Google" })).toBeVisible();
   expect(requests[0]!.searchParams.get("state")).not.toBe(requests[1]!.searchParams.get("state"));
   await page.getByRole("button", { name: "Back", exact: true }).click();
   await expect(page).toHaveURL("https://client.example/cancel");
@@ -117,7 +127,7 @@ test("rejects a mismatched OAuth state without calling Google UserInfo", async (
     if (request.url().includes("/v1/userinfo")) profileRequests.push(request.url());
   });
   await page.goto(ENTRY);
-  await expect(page.getByRole("button", { name: "Try again" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Continue with Google" })).toBeVisible();
   expect(profileRequests).toEqual([]);
   expect(await page.evaluate((key) => sessionStorage.getItem(key), STORAGE_KEY)).toBeNull();
 });
@@ -135,7 +145,7 @@ test("blocked session storage produces a retryable error without leaving Passpor
     });
   });
   await page.goto(ENTRY);
-  await expect(page.getByRole("button", { name: "Try again" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Continue with Google" })).toBeVisible();
   expect(requests).toHaveLength(0);
   expect(new URL(page.url()).pathname).toBe("/authorize");
 });

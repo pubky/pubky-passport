@@ -5,7 +5,7 @@ const GOOGLE_PLAY_URL = "https://play.google.com/store/apps/details?id=to.pubky.
 
 function PubkyRingStoreBadges() {
   return (
-    <div className="flex items-center justify-center gap-4 md:justify-start">
+    <div className="flex items-center justify-center gap-4">
       <a
         aria-label="Download Pubky Ring on the App Store"
         href={APP_STORE_URL}
@@ -14,7 +14,7 @@ function PubkyRingStoreBadges() {
       >
         <Image
           alt="Download on the App Store"
-          className="h-8 w-24 md:h-10 md:w-[120px]"
+          className="h-8 w-24"
           height={40}
           src="/brand/app-store-badge.svg"
           width={120}
@@ -28,7 +28,7 @@ function PubkyRingStoreBadges() {
       >
         <Image
           alt="Get it on Google Play"
-          className="h-8 w-[108px] md:h-10 md:w-[135px]"
+          className="h-8 w-[108px]"
           height={40}
           src="/brand/google-play-badge.svg"
           width={135}

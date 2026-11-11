@@ -1,6 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { getPublicEnvironment, getServerEnvironment } from "./environment";
+import {
+  getAppleEnvironment,
+  getPublicEnvironment,
+  getServerEnvironment,
+  isAppleLiveCheckEnabled,
+} from "./environment";
 
 describe("environment", () => {
   beforeEach(() => {
@@ -135,5 +140,63 @@ describe("environment", () => {
     const environment = getServerEnvironment();
     expect(environment.secrets).toHaveLength(40);
     expect(environment.secrets.get("key-0")).toHaveLength(128);
+  });
+
+  describe("Apple", () => {
+    const APPLE = {
+      APPLE_SERVICES_ID: "app.pubky.passport.signin",
+      APPLE_CLOUDKIT_CONTAINER_ID: "iCloud.app.pubky.passport",
+      APPLE_CLOUDKIT_API_TOKEN: "0123456789abcdef0123456789abcdef",
+    };
+
+    function stubApple(overrides: Record<string, string | undefined> = {}) {
+      vi.stubEnv("APPLE_LOGIN_ENABLED", "true");
+      for (const [name, value] of Object.entries({ ...APPLE, ...overrides })) {
+        vi.stubEnv(name, value);
+      }
+    }
+
+    it("is off unless APPLE_LOGIN_ENABLED is true, even with settings", () => {
+      stubApple();
+      vi.stubEnv("APPLE_LOGIN_ENABLED", "1");
+      expect(getAppleEnvironment()).toBeNull();
+      vi.stubEnv("APPLE_LOGIN_ENABLED", undefined);
+      expect(getAppleEnvironment()).toBeNull();
+    });
+
+    it("serves the live-check page only when asked and Apple login is on", () => {
+      expect(isAppleLiveCheckEnabled()).toBe(false);
+      vi.stubEnv("APPLE_LIVE_CHECK", "true");
+      expect(isAppleLiveCheckEnabled()).toBe(false);
+      stubApple();
+      expect(isAppleLiveCheckEnabled()).toBe(true);
+      vi.stubEnv("APPLE_LIVE_CHECK", undefined);
+      expect(isAppleLiveCheckEnabled()).toBe(false);
+    });
+
+    it("reads the settings with production as the default environment", () => {
+      stubApple();
+      expect(getAppleEnvironment()).toEqual({
+        servicesId: APPLE.APPLE_SERVICES_ID,
+        cloudKitContainerId: APPLE.APPLE_CLOUDKIT_CONTAINER_ID,
+        cloudKitApiToken: APPLE.APPLE_CLOUDKIT_API_TOKEN,
+        cloudKitEnvironment: "production",
+      });
+      stubApple({ APPLE_CLOUDKIT_ENVIRONMENT: "development" });
+      expect(getAppleEnvironment()?.cloudKitEnvironment).toBe("development");
+    });
+
+    it.each([
+      ["APPLE_SERVICES_ID", undefined],
+      ["APPLE_SERVICES_ID", "bad id/with slash"],
+      ["APPLE_CLOUDKIT_CONTAINER_ID", "app.pubky.passport"],
+      ["APPLE_CLOUDKIT_CONTAINER_ID", undefined],
+      ["APPLE_CLOUDKIT_API_TOKEN", "short"],
+      ["APPLE_CLOUDKIT_API_TOKEN", "x".repeat(20) + "\"'"],
+      ["APPLE_CLOUDKIT_ENVIRONMENT", "staging"],
+    ])("fails closed when %s is %s", (name, value) => {
+      stubApple({ [name]: value });
+      expect(() => getAppleEnvironment()).toThrow(name);
+    });
   });
 });

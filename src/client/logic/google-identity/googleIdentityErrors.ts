@@ -1,37 +1,17 @@
 import type { CodedFailure } from "@/libs/result";
-import type { HomegateSignupTokenErrorCode } from "@/client/logic/homegate/HomegateClient";
-import type { GoogleWrappingKeyErrorCode } from "@/client/logic/wrapping-key/GoogleWrappingKeyApiClient";
+import type { IdentityLifecycleError } from "@/client/logic/identity-lifecycle/PassportFileIdentityLifecycle";
 import type { GoogleImplicitAuthorizationError } from "./gia/GoogleImplicitAuthorization";
 
 /** Failure produced by the lifecycle layer, before the controller strips diagnostics. */
 export type GoogleIdentityLifecycleError =
-  | {
-      code: "wrapping_key_failed";
-      detailCode: GoogleWrappingKeyErrorCode;
-      cause?: unknown;
-    }
-  | {
-      code: "homeserver_signup_token_failed";
-      detailCode: HomegateSignupTokenErrorCode;
-      cause?: unknown;
-    }
+  | IdentityLifecycleError
   | CodedFailure<
-      | "create_failed"
-      | "decrypt_failed"
-      | "publication_failed"
       | "drive_create_conflict"
       | "invalid_passport_file"
       | "invalid_passport_file_delete_failed"
       | "undecryptable_passport_file_delete_failed"
       | "drive_read_failed"
       | "drive_write_failed"
-      | "encrypt_failed"
-      | "identity_mismatch"
-      | "local_save_failed"
-      | "restore_failed"
-      | "signin_failed"
-      | "signup_failed"
-      | "unexpected_failure"
       | "google_account_mismatch"
       | "google_drive_cleanup_failed"
       | "google_detachment_permission_required"

@@ -3,7 +3,7 @@ import { type SubmitEvent, useCallback, useRef, useState } from "react";
 
 import { LOGGER, safeErrorLogFields } from "@/libs/logger/logger";
 import { validateManualAuthorizationInput } from "@/client/logic/authorization/entry/manualAuthorizationInput";
-import { ArrowRightIcon, CameraIcon, ClipboardPasteIcon, ScanIcon } from "@/client/ui/shared/icons";
+import { ArrowRightIcon, ClipboardPasteIcon, ScanIcon } from "@/client/ui/shared/icons";
 import { BackButton } from "@/client/ui/shared/backButton";
 import { PassportNavigation } from "@/client/ui/shared/passportNavigation";
 import { PassportScreen } from "@/client/ui/shared/passportScreen";
@@ -84,45 +84,34 @@ function ManualAuthorization({ onBack }: { onBack: () => void }) {
   return (
     <PassportScreen>
       <form className="flex min-h-0 flex-1 flex-col" onSubmit={submit}>
-        <div className="flex flex-col gap-6 md:gap-8">
-          <div className="flex flex-col gap-6 md:gap-3">
+        <div className="flex flex-col gap-6">
+          <div className="flex flex-col gap-6">
             <DisplayHeading accent="a service." aria-label="Authorize a service.">
               Authorize
             </DisplayHeading>
             <LeadText>Paste the authorization link from the app you want to connect.</LeadText>
           </div>
           <div className="flex flex-col gap-2">
-            <Label className="leading-5 md:leading-4" htmlFor="authorization-link">
+            <Label className="leading-5" htmlFor="authorization-link">
               Authorization link
             </Label>
             <Input
               action={
-                <div className="flex items-center gap-1">
-                  <IconButton
-                    aria-label="Scan authorization QR code"
-                    className="hidden size-8 p-0 md:inline-flex"
-                    onClick={() => setScannerOpen(true)}
-                    type="button"
-                    variant="ghost"
-                  >
-                    <CameraIcon size={20} />
-                  </IconButton>
-                  <IconButton
-                    aria-label="Paste authorization link"
-                    className="size-6 p-0 md:size-8"
-                    onClick={() => void paste()}
-                    type="button"
-                    variant="ghost"
-                  >
-                    <ClipboardPasteIcon size={20} />
-                  </IconButton>
-                </div>
+                <IconButton
+                  aria-label="Paste authorization link"
+                  className="size-6 p-0"
+                  onClick={() => void paste()}
+                  type="button"
+                  variant="ghost"
+                >
+                  <ClipboardPasteIcon size={20} />
+                </IconButton>
               }
               aria-describedby={error ? "authorization-link-error" : undefined}
               aria-invalid={Boolean(error)}
               autoCapitalize="none"
               autoComplete="off"
-              containerClassName="h-14 border-dashed bg-transparent md:h-15"
+              containerClassName="h-14 border-dashed bg-transparent"
               id="authorization-link"
               onInput={(event) => {
                 setHasAuthorization(event.currentTarget.value.trim().length > 0);
@@ -141,11 +130,11 @@ function ManualAuthorization({ onBack }: { onBack: () => void }) {
         </div>
         <PassportNavigation
           back={<BackButton onClick={onBack} />}
-          className="mt-auto md:mt-0 md:pt-6"
+          className="mt-auto"
           confirm={
             <div className="flex flex-col gap-4">
               <Button
-                className="w-full md:hidden"
+                className="w-full"
                 onClick={() => setScannerOpen(true)}
                 size="lg"
                 type="button"

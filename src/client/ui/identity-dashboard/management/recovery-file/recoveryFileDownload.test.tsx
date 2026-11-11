@@ -137,7 +137,7 @@ describe("RecoveryFileDownload", () => {
     expect(onBack).toHaveBeenCalledOnce();
   });
 
-  it("relocates the download action only in the mobile layout", () => {
+  it("puts the download action last, so focus order matches what is on screen", () => {
     render(
       <RecoveryFileDownload
         createRecoveryFile={vi.fn()}
@@ -153,11 +153,21 @@ describe("RecoveryFileDownload", () => {
     const illustration = document.querySelector("img");
     const navigation = back.parentElement?.parentElement;
 
-    expect(label).toHaveClass("leading-5", "md:leading-4");
-    expect(password.parentElement).toHaveClass("h-14", "md:h-15");
-    expect(illustration).toHaveClass("order-3", "md:order-[0]");
-    expect(navigation).toHaveClass("order-4", "-mt-1", "md:order-[0]", "md:mt-0");
-    expect(download).toHaveClass("order-5", "-mt-2", "md:order-[0]", "md:mt-4");
+    expect(label).toHaveClass("leading-5");
+    expect(password.parentElement).toHaveClass("h-14");
+    expect(navigation).toHaveClass("-mt-1");
+    expect(download).toHaveClass("-mt-2");
+    // DOM order is the visual order: password, illustration, Back, Download. No `order-*`.
+    const following = (a: Element, b: Element) =>
+      Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(following(password, illustration!)).toBe(true);
+    expect(following(illustration!, back)).toBe(true);
+    expect(following(back, download)).toBe(true);
+    expect(
+      [...document.querySelectorAll("*")].filter((node) =>
+        /(?:^|\s)order-/u.test(node.getAttribute("class") ?? ""),
+      ),
+    ).toEqual([]);
   });
 
   it("announces recovery-file failures without marking a valid password invalid", async () => {

@@ -6,6 +6,7 @@ import RootLayout from "./layout";
 const MOCKS = vi.hoisted(() => ({ connection: vi.fn() }));
 
 vi.mock("@fontsource-variable/inter-tight", () => ({}));
+vi.mock("@fontsource/google-sans/latin-500.css", () => ({}));
 vi.mock("./globals.css", () => ({}));
 vi.mock("next/server", () => ({ connection: MOCKS.connection }));
 

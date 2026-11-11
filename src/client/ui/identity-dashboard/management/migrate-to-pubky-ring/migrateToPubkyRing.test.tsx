@@ -45,8 +45,8 @@ describe("MigrateToPubkyRing", () => {
     );
 
     const heading = screen.getByRole("heading", { name: "Migrate to keychain." });
-    expect(heading.parentElement).toHaveClass("gap-6", "md:gap-3");
-    expect(heading.closest("main")).toHaveClass("gap-6", "md:gap-8");
+    expect(heading.parentElement).toHaveClass("gap-6");
+    expect(heading.closest("main")).toHaveClass("gap-6");
     expect(
       screen.getByRole("link", { name: "Download Pubky Ring on the App Store" }),
     ).toHaveAttribute("href", "https://apps.apple.com/us/app/pubky-ring/id6739356756");
@@ -59,8 +59,8 @@ describe("MigrateToPubkyRing", () => {
       screen.queryByRole("button", { name: "Continue with Pubky Ring" }),
     ).not.toBeInTheDocument();
     expect(screen.getByAltText("Pubky Ring")).toHaveClass("h-[30px]", "w-[137px]");
-    expect(screen.getByAltText("Download on the App Store")).toHaveClass("md:h-10", "md:w-[120px]");
-    expect(screen.getByAltText("Get it on Google Play")).toHaveClass("md:h-10", "md:w-[135px]");
+    expect(screen.getByAltText("Download on the App Store")).toHaveClass("h-8", "w-24");
+    expect(screen.getByAltText("Get it on Google Play")).toHaveClass("h-8", "w-[108px]");
     expect(
       screen.getByText(
         "Scan this QR with Pubky Ring to import and self-manage your pubky identity.",
@@ -71,11 +71,7 @@ describe("MigrateToPubkyRing", () => {
     expect(qrCode).toHaveClass("size-full");
     expect(qrCode.parentElement).toHaveClass("inset-[4.66%]");
     expect(qrCode.parentElement?.parentElement).toHaveClass("size-48");
-    expect(qrCode.parentElement?.parentElement?.parentElement).toHaveClass(
-      "rounded-2xl",
-      "md:flex-row",
-      "md:p-12",
-    );
+    expect(qrCode.parentElement?.parentElement?.parentElement).toHaveClass("rounded-2xl");
     expect(
       qrCode.parentElement?.parentElement?.querySelector('img[src="/brand/pubky-brand-mark.svg"]'),
     ).toHaveAttribute("width", "15");
