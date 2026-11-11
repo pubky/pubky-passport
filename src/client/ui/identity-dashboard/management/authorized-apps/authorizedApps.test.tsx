@@ -119,6 +119,24 @@ describe("AuthorizedApps", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
+  it("warns before revoking that shared encryption keys stay with the app", async () => {
+    renderApps({ listAuthorizedApps: async () => Result.ok([DEMO_APP, NOTES_APP]) });
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole("button", { name: /demo\.pubky\.app/ }));
+    await user.click(screen.getByRole("button", { name: "Revoke access" }));
+    const withKeys = screen.getByRole("dialog", { name: "Revoke access?" });
+    expect(within(withKeys).getByText(/can't be taken back/u)).toBeInTheDocument();
+    expect(within(withKeys).getByText(/no longer be able to read or write/u)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    await user.click(screen.getByRole("button", { name: /notes\.example/ }));
+    await user.click(screen.getByRole("button", { name: "Revoke access" }));
+    const withoutKeys = screen.getByRole("dialog", { name: "Revoke access?" });
+    expect(within(withoutKeys).queryByText(/can't be taken back/u)).not.toBeInTheDocument();
+    expect(within(withoutKeys).getByText(/no longer be able to access/u)).toBeInTheDocument();
+  });
+
   it("revokes an app only after confirmation and refreshes the list", async () => {
     const listAuthorizedApps = vi
       .fn<() => Promise<LocalIdentityAuthorizedAppsResult>>()

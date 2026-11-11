@@ -31,8 +31,12 @@ function AuthorizedAppDialog({
   const [pending, setPending] = useState(false);
   const [failed, setFailed] = useState(false);
   const cancelButton = useRef<HTMLButtonElement>(null);
-  const rows = app.capabilities.flatMap((capability, index) => {
-    const permission = parseAuthorizedAppPermission(capability);
+  const permissions = app.capabilities.map((capability) =>
+    parseAuthorizedAppPermission(capability),
+  );
+  // Revoking ends storage access, but encryption keys already shared stay with the app.
+  const sharedEncryptionKeys = permissions.some((permission) => permission.encrypt);
+  const rows = permissions.flatMap((permission, index) => {
     const labels = [
       ...(permission.read || permission.write ? [formatPermissionAccess(permission)] : []),
       ...(permission.encrypt ? ["Encrypt"] : []),
@@ -138,8 +142,19 @@ function AuthorizedAppDialog({
               <bdi className="break-all font-medium text-foreground" dir="ltr">
                 {app.clientId}
               </bdi>{" "}
-              will no longer be able to access your data. You can authorize it again later.
+              {sharedEncryptionKeys
+                ? "will no longer be able to read or write your data. You can authorize it again later."
+                : "will no longer be able to access your data. You can authorize it again later."}
             </p>
+            {sharedEncryptionKeys ? (
+              <p
+                className="text-sm leading-5 text-muted-foreground"
+                id="authorized-app-encryption-warning"
+              >
+                Encryption keys you shared can&apos;t be taken back. The app can still decrypt
+                content in those scopes, including future content.
+              </p>
+            ) : null}
           </div>
           {failed ? (
             <FieldMessage error>Could not revoke access. Please try again.</FieldMessage>

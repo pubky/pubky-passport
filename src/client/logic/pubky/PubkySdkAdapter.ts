@@ -453,7 +453,13 @@ export class PubkySdkAdapter {
         async (manager, sessionGrantId) => {
           // The session's own grant is removed by signout; it is never offered for revocation.
           if (grantId === sessionGrantId) return false;
-          await manager.revoke(grantId);
+          try {
+            await manager.revoke(grantId);
+          } catch (e) {
+            // A grant the homeserver no longer knows is already in the requested state. Only the
+            // revoke call gets this rule; a 404 from the root sign-in is a failure.
+            if (requestStatus(e) !== 404) throw e;
+          }
           return true;
         },
       );
@@ -461,8 +467,6 @@ export class PubkySdkAdapter {
         ? Result.ok()
         : failure("revoke_authorized_app", "input_validation", "invalid_grant_id");
     } catch (e) {
-      // A grant the homeserver no longer knows is already in the requested state.
-      if (requestStatus(e) === 404) return Result.ok();
       return failure("revoke_authorized_app", "sdk_grants", "revoke_failed", e);
     }
   }

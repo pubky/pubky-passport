@@ -190,18 +190,30 @@ describe("PubkySdkAdapter grant management", () => {
   it("treats a grant the homeserver no longer knows as revoked", async () => {
     const root = fakeRootSession("own-grant");
     vi.spyOn(Signer.prototype, "signin").mockResolvedValue(root.session);
-    GRANTS.revoke.mockRejectedValue(
-      Object.assign(new Error("Not Found"), {
-        name: "RequestError",
-        data: { reason: "Http", statusCode: 404 },
-      }),
-    );
+    GRANTS.revoke.mockRejectedValue(notFoundError());
     const pubky = new PubkySdkAdapter();
 
     try {
       const created = expectOk(await pubky.createIdentityKey());
       expectOk(await pubky.revokeAuthorizedApp(created.keyHandle, "grant-gone"));
       expect(root.signout).toHaveBeenCalledOnce();
+    } finally {
+      pubky.dispose();
+    }
+  });
+
+  it("returns a revoke failure when root sign-in returns 404", async () => {
+    vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+    const cause = notFoundError();
+    vi.spyOn(Signer.prototype, "signin").mockRejectedValue(cause);
+    const pubky = new PubkySdkAdapter();
+
+    try {
+      const created = expectOk(await pubky.createIdentityKey());
+      const result = await pubky.revokeAuthorizedApp(created.keyHandle, "grant-1");
+
+      expect(Result.isError(result) && result.error).toEqual({ code: "revoke_failed", cause });
+      expect(GRANTS.revoke).not.toHaveBeenCalled();
     } finally {
       pubky.dispose();
     }
@@ -241,6 +253,13 @@ describe("PubkySdkAdapter grant management", () => {
     expect(signin).not.toHaveBeenCalled();
   });
 });
+
+function notFoundError() {
+  return Object.assign(new Error("Not Found"), {
+    name: "RequestError",
+    data: { reason: "Http", statusCode: 404 },
+  });
+}
 
 function fakeRootSession(grantId: string) {
   const grantFree = vi.fn();
