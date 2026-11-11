@@ -21,6 +21,7 @@ import {
   type IdentityCatalogActions,
 } from "@/client/ui/identity-catalog/useIdentityCatalog";
 import { IdentityEstablishmentFlow } from "@/client/ui/onboarding/identityEstablishmentFlow";
+import { shortPublicKey } from "@/client/ui/shared/formatPublicKey";
 import { ArrowRightIcon } from "@/client/ui/shared/icons";
 import { BackButton } from "@/client/ui/shared/backButton";
 import { PassportNavigation } from "@/client/ui/shared/passportNavigation";
@@ -65,7 +66,11 @@ function AuthorizationFlow() {
           <DisplayHeading accent="failed." aria-label="Authorization failed.">
             Authorization
           </DisplayHeading>
-          <LeadText>Passport could not authorize this request with the selected identity.</LeadText>
+          <LeadText>
+            {authorization.expectedSigner
+              ? `This request is for ${shortPublicKey(authorization.expectedSigner)}. Approve it with that pubky.`
+              : "Passport could not authorize this request with the selected identity."}
+          </LeadText>
           <PassportNavigation back={<BackButton onClick={goHome} />} />
         </PassportScreen>
       );
@@ -267,9 +272,16 @@ function ReadyAuthorizationWithIdentity({
     );
   }
 
-  const activeIdentity = catalog.identities.find(
-    (identity) => identity.publicIdentity.publicKeyZ32 === catalog.activePublicKeyZ32,
-  );
+  // A request that names its pubky (`spk`) opens that identity when Passport holds it.
+  const expectedSigner = authorization.review.expectedSigner;
+  const activeIdentity =
+    (expectedSigner &&
+      catalog.identities.find(
+        (identity) => identity.publicIdentity.publicKeyZ32 === expectedSigner,
+      )) ||
+    catalog.identities.find(
+      (identity) => identity.publicIdentity.publicKeyZ32 === catalog.activePublicKeyZ32,
+    );
   return (
     <AuthorizationReview
       encryptionConsent={{

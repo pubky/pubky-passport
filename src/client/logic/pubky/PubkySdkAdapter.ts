@@ -40,7 +40,8 @@ export type PubkyRecoveryFileResult = ResultType<
   Uint8Array,
   CodedFailure<PubkyRecoveryFileErrorCode>
 >;
-type PubkyAuthApprovalErrorCode = "approval_failed" | "key_unavailable" | "request_rejected";
+type PubkyAuthApprovalErrorCode =
+  "approval_failed" | "expected_signer_mismatch" | "key_unavailable" | "request_rejected";
 export type PubkyAuthApprovalResult = ResultType<void, CodedFailure<PubkyAuthApprovalErrorCode>>;
 
 type Signer = ReturnType<Pubky["signer"]>;
@@ -49,6 +50,8 @@ type PublicKeyParseResult<ErrorCode extends string> = ResultType<
   CodedFailure<ErrorCode>
 >;
 const PASSPORT_CLIENT_ID = "passport.pubky.app";
+/** Message of the SDK signer's refusal of a sign-in request for another key. */
+const EXPECTED_SIGNER_REFUSAL = "this sign-in request is for a different key";
 
 /**
  * Owns one SDK keypair while handing an identity to Pubky Ring.
@@ -355,7 +358,12 @@ export class PubkySdkAdapter {
 
       return Result.ok();
     } catch (e) {
-      return failure("approve_auth_request", "sdk_approval", "approval_failed", e);
+      return failure(
+        "approve_auth_request",
+        "sdk_approval",
+        isExpectedSignerRefusal(e) ? "expected_signer_mismatch" : "approval_failed",
+        e,
+      );
     }
   }
 
@@ -517,6 +525,27 @@ function isPubkyAuthRequestUrl(value: string): boolean {
   } catch {
     return false;
   }
+}
+
+/**
+ * The SDK signer refuses a grant sign-in whose `spk` names another key before it signs or
+ * sends anything.
+ */
+function isExpectedSignerRefusal(error: unknown): boolean {
+  try {
+    return (
+      safePubkySdkErrorName(error) === "AuthenticationError" &&
+      typeof (error as { message?: unknown }).message === "string" &&
+      isExpectedSignerRefusalMessage((error as { message: string }).message)
+    );
+  } catch {
+    return false;
+  }
+}
+
+/** The SDK prefixes its error chain ("Authentication error: ...: <reason>"); match the reason only. */
+function isExpectedSignerRefusalMessage(message: string): boolean {
+  return message === EXPECTED_SIGNER_REFUSAL || message.endsWith(`: ${EXPECTED_SIGNER_REFUSAL}`);
 }
 
 function authenticatedIdentityFromSession(

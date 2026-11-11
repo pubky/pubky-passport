@@ -63,6 +63,13 @@ function AuthorizationReview({
     <AppleLogo />
   ) : undefined;
   const requester = review.requesterName ?? review.callbackHost ?? "this service";
+  // `spk`: the app chose the pubky. Approval uses that pubky or nothing, and the SDK signer
+  // refuses any other key.
+  const expectedSigner = review.expectedSigner;
+  const isExpectedIdentity =
+    expectedSigner !== undefined && identity?.publicIdentity.publicKeyZ32 === expectedSigner;
+  const canAuthorize = identity !== undefined && (!expectedSigner || isExpectedIdentity);
+  const appName = review.requesterName ?? review.callbackHost ?? "This app";
 
   const setEncryptionAllowed = (path: string, allowed: boolean) => {
     if (busy || approvalStarted.current) return;
@@ -84,6 +91,26 @@ function AuthorizationReview({
         >
           Sign in to
         </DisplayHeading>
+        {expectedSigner && isExpectedIdentity ? (
+          <div className="flex flex-col gap-1 rounded-2xl border border-brand/30 bg-brand/10 p-4 text-sm leading-5">
+            <strong className="font-bold text-foreground">
+              {profile.name
+                ? `${appName} asked to sign in as ${profile.name} (${shortPublicKey(expectedSigner)})`
+                : `${appName} asked to sign in as ${shortPublicKey(expectedSigner)}`}
+            </strong>
+            <span className="font-medium text-muted-foreground">
+              The app chose this pubky. To use a different one, start a new sign-in from the app.
+            </span>
+          </div>
+        ) : null}
+        {expectedSigner && !isExpectedIdentity ? (
+          <p
+            className="rounded-2xl border border-destructive/30 bg-destructive/10 p-4 text-sm font-medium leading-5 text-foreground"
+            role="alert"
+          >
+            This request is for {shortPublicKey(expectedSigner)}, which isn&apos;t in this Passport.
+          </p>
+        ) : null}
         {hasBroadAccess ? (
           <p
             className="rounded-2xl border border-destructive/30 bg-destructive/10 p-4 text-sm font-medium leading-5 text-foreground"
@@ -166,7 +193,9 @@ function AuthorizationReview({
                 </span>
               )}
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div
+              className={isExpectedIdentity ? "grid grid-cols-1 gap-3" : "grid grid-cols-2 gap-3"}
+            >
               <Button
                 className="min-w-0"
                 disabled={busy || !identity}
@@ -178,17 +207,19 @@ function AuthorizationReview({
                 <SettingsIcon />
                 Manage
               </Button>
-              <Button
-                className="min-w-0"
-                disabled={busy}
-                onClick={onSwitch}
-                size="sm"
-                type="button"
-                variant="secondary"
-              >
-                <SquareUserRoundIcon />
-                Switch
-              </Button>
+              {isExpectedIdentity ? null : (
+                <Button
+                  className="min-w-0"
+                  disabled={busy}
+                  onClick={onSwitch}
+                  size="sm"
+                  type="button"
+                  variant="secondary"
+                >
+                  <SquareUserRoundIcon />
+                  Switch
+                </Button>
+              )}
             </div>
           </div>
         </section>
@@ -226,9 +257,9 @@ function AuthorizationReview({
           confirm={
             <Button
               className="w-full"
-              disabled={busy || !identity}
+              disabled={busy || !canAuthorize}
               onClick={() => {
-                if (busy || approvalStarted.current || !identity) return;
+                if (busy || approvalStarted.current || !canAuthorize) return;
                 approvalStarted.current = true;
                 setSubmitted(true);
                 onAuthorize(

@@ -127,6 +127,60 @@ describe("parseEncodedPubkyAuthRequest", () => {
     expect(result.value).not.toHaveProperty("clientId");
   });
 
+  it.each([
+    grantRequest("chat.example"),
+    SIGNED_APPROVAL_REQUEST,
+    SIGNED_APPROVAL_REQUEST.replace("&af=v1", "").replace(":rwe", ":rw"),
+  ])("reads the expected signer of a grant sign-in without changing anything else", (request) => {
+    const namedRequest = `${request}&spk=${"y".repeat(52)}`;
+    const plain = parseEncodedPubkyAuthRequest(encodeRequest(request));
+    const named = parseEncodedPubkyAuthRequest(encodeRequest(namedRequest));
+
+    if (Result.isError(plain)) throw new Error(plain.error.code);
+    if (Result.isError(named)) throw new Error(named.error.code);
+    expect(plain.value).not.toHaveProperty("expectedSigner");
+    expect(named.value).toEqual({
+      ...plain.value,
+      expectedSigner: "y".repeat(52),
+      sensitivePubkyAuthUrl: namedRequest,
+    });
+    expect(Result.isOk(validateEncodedPubkyAuthRequest(encodeRequest(namedRequest)))).toBe(true);
+  });
+
+  it.each([
+    "",
+    "short",
+    "y".repeat(51),
+    "y".repeat(53),
+    "Y".repeat(52),
+    `${"y".repeat(51)}b`,
+    `${"y".repeat(51)}0`,
+    `pubky${"y".repeat(52)}`,
+    `pk:${"y".repeat(52)}`,
+    ` ${"y".repeat(52)}`,
+    `${"y".repeat(52)}\n`,
+    "%ZZ",
+  ])("rejects a malformed expected signer: %s", (hint) => {
+    expectError(
+      encodeRequest(`${grantRequest("chat.example")}&spk=${encodeURIComponent(hint)}`),
+      "invalid_expected_signer",
+    );
+  });
+
+  it.each(["spk", "s%70k"])("rejects a repeated expected signer: %s", (name) => {
+    expectError(
+      encodeRequest(`${SIGNED_APPROVAL_REQUEST}&spk=${"y".repeat(52)}&${name}=${"y".repeat(51)}o`),
+      "duplicate_parameter",
+    );
+  });
+
+  it.each([VALID_REQUEST, VALID_REQUEST.replace("//signin?", "///?")])(
+    "rejects an expected signer on cookie requests",
+    (request) => {
+      expectError(encodeRequest(`${request}&spk=${"y".repeat(52)}`), "unsupported_parameter");
+    },
+  );
+
   it("parses HPKE signed approvals without requiring a shared secret", () => {
     const result = parseEncodedPubkyAuthRequest(encodeRequest(SIGNED_APPROVAL_REQUEST));
 
