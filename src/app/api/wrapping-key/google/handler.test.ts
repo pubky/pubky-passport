@@ -167,15 +167,13 @@ describe("POST /api/wrapping-key/google", () => {
   });
 });
 
-async function postHandler(
-  issueGoogleWrappingKey: GoogleWrappingKeyIssuer["issueGoogleWrappingKey"],
-) {
-  return handlerWithFactory(() => issuer(issueGoogleWrappingKey));
+async function postHandler(issueWrappingKey: GoogleWrappingKeyIssuer["issueWrappingKey"]) {
+  return handlerWithFactory(() => issuer(issueWrappingKey));
 }
 
 async function handlerWithFactory(
   factory: () => {
-    issueGoogleWrappingKey: GoogleWrappingKeyIssuer["issueGoogleWrappingKey"];
+    issueWrappingKey: GoogleWrappingKeyIssuer["issueWrappingKey"];
   },
 ) {
   vi.resetModules();
@@ -192,8 +190,8 @@ async function handlerWithFactory(
   return (await import("./handler")).googleWrappingKeyPost;
 }
 
-function issuer(issueGoogleWrappingKey: GoogleWrappingKeyIssuer["issueGoogleWrappingKey"]) {
-  return { issueGoogleWrappingKey };
+function issuer(issueWrappingKey: GoogleWrappingKeyIssuer["issueWrappingKey"]) {
+  return { issueWrappingKey };
 }
 
 function jsonRequest(body: unknown): Request {

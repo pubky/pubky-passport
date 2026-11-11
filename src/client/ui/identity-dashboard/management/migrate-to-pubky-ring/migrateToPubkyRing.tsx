@@ -126,26 +126,26 @@ function MigrateToPubkyRing({
   const exportFailed = state.status === "failed";
 
   return (
-    <PassportScreen className="gap-6 md:gap-8">
-      <div className="flex flex-col gap-6 md:gap-3">
+    <PassportScreen className="gap-6">
+      <div className="flex flex-col gap-6">
         <DisplayHeading accent="keychain." aria-label="Migrate to keychain.">
           Migrate to
         </DisplayHeading>
         <LeadText>Install a supported keychain app to self-manage your pubky identity.</LeadText>
       </div>
 
-      <section className="flex w-full flex-col gap-6 rounded-2xl bg-card p-6 md:flex-row md:p-12">
-        <div className="flex min-w-0 flex-1 flex-col gap-6 md:justify-center">
-          <div className="flex justify-center md:justify-start">
+      <section className="flex w-full flex-col gap-6 rounded-2xl bg-card p-6">
+        <div className="flex min-w-0 flex-1 flex-col gap-6">
+          <div className="flex justify-center">
             <PubkyRingLogo />
           </div>
           <PubkyRingStoreBadges />
-          <p className="hidden text-sm font-medium leading-5 text-muted-foreground md:block">
+          <p className="hidden text-center text-sm font-medium leading-5 text-muted-foreground md:block">
             Scan this QR with Pubky Ring to import and self-manage your pubky identity.
           </p>
 
           {exportFailed ? (
-            <p className="text-center text-sm text-muted-foreground md:text-left">
+            <p className="text-center text-sm text-muted-foreground">
               The active Pubky could not be exported.
             </p>
           ) : null}
@@ -177,7 +177,7 @@ function MigrateToPubkyRing({
           </div>
         </div>
         {state.status === "ready" && state.mode === "desktop" ? (
-          <PubkyRingQrCode className="size-48 shrink-0" migration={state.migration} />
+          <PubkyRingQrCode className="size-48 shrink-0 self-center" migration={state.migration} />
         ) : null}
       </section>
 

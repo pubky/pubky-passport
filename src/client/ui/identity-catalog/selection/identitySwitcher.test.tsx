@@ -60,44 +60,16 @@ describe("IdentitySwitcher", () => {
     expect(onSelect).toHaveBeenCalledWith("firstidentity1234");
     const back = screen.getByRole("button", { name: "Back" });
     const addIdentity = screen.getByRole("button", { name: "Add identity" });
-    expect([back, addIdentity]).toEqual(
+    // Add identity above Back, which sits at the bottom of the column, at every width.
+    expect([addIdentity, back]).toEqual(
       screen
         .getAllByRole("button")
         .filter((button) => ["Back", "Add identity"].includes(button.textContent ?? "")),
     );
-    expect(back.parentElement).toHaveClass("mt-auto", "md:mt-0");
+    expect(back).toHaveClass("mt-auto");
+    expect(back.className).not.toMatch(/md:/u);
     await userEvent.setup().click(back);
     expect(onBack).toHaveBeenCalledOnce();
-  });
-
-  it("keeps mobile focus order aligned with the visual action order", () => {
-    vi.stubGlobal(
-      "matchMedia",
-      vi.fn(
-        () =>
-          ({
-            matches: false,
-            addEventListener: vi.fn(),
-            removeEventListener: vi.fn(),
-          }) as unknown as MediaQueryList,
-      ),
-    );
-    render(
-      <IdentitySwitcher
-        activePublicKeyZ32="secondidentity5678"
-        identities={IDENTITIES}
-        onAddIdentity={vi.fn()}
-        onBack={vi.fn()}
-        onSelect={vi.fn()}
-      />,
-    );
-
-    expect(
-      screen
-        .getAllByRole("button")
-        .filter((button) => ["Back", "Add identity"].includes(button.textContent ?? ""))
-        .map((button) => button.textContent),
-    ).toEqual(["Add identity", "Back"]);
   });
 
   it("shows the shortened Pubky when an identity has no Google account", () => {

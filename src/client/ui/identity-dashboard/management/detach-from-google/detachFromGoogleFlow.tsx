@@ -8,10 +8,10 @@ import type { PubkyRingMigration } from "@/client/logic/pubky/PubkySdkAdapter";
 import { RecoveryFileDownload } from "@/client/ui/identity-dashboard/management/recovery-file/recoveryFileDownload";
 import { MigrateToPubkyRing } from "@/client/ui/identity-dashboard/management/migrate-to-pubky-ring/migrateToPubkyRing";
 import { GoogleDrivePermissionPrompt } from "@/client/ui/googleDrivePermissionPrompt";
-import { RecoveryBeforeDetaching } from "./recoveryBeforeDetaching";
+import { DetachmentComplete } from "@/client/ui/identity-dashboard/management/detach-provider/detachmentComplete";
+import { RecoveryBeforeDetaching } from "@/client/ui/identity-dashboard/management/detach-provider/recoveryBeforeDetaching";
+import { ReviewDetachment } from "@/client/ui/identity-dashboard/management/detach-provider/reviewDetachment";
 import { ConfirmGoogleDetachment } from "./confirmGoogleDetachment";
-import { GoogleDetachmentComplete } from "./googleDetachmentComplete";
-import { ReviewGoogleDetachment } from "./reviewGoogleDetachment";
 import { useDetachFromGoogle } from "./useDetachFromGoogle";
 
 type DetachFromGoogleView =
@@ -45,7 +45,8 @@ function DetachFromGoogleFlow({
   preload("/illustrations/red-line.svg", { as: "image" });
   if (state.view === "review") preload("/illustrations/checkmark.png", { as: "image" });
 
-  if (operation.state.status === "complete") return <GoogleDetachmentComplete onDone={onDone} />;
+  if (operation.state.status === "complete")
+    return <DetachmentComplete onDone={onDone} providerName="Google" />;
 
   switch (state.view) {
     case "recovery-file":
@@ -82,7 +83,8 @@ function DetachFromGoogleFlow({
         operation.state.status === "detaching";
       return (
         <>
-          <ReviewGoogleDetachment
+          <ReviewDetachment
+            providerName="Google"
             onBack={() => setState({ view: "recovery-options" })}
             onRemove={() => setState({ view: "review", confirmation: "open" })}
           />
@@ -109,6 +111,7 @@ function DetachFromGoogleFlow({
     case "recovery-options":
       return (
         <RecoveryBeforeDetaching
+          providerName="Google"
           onBack={onBack}
           onRecoveryConfirmed={() => setState({ view: "review", confirmation: "closed" })}
           onDownloadRecoveryFile={() => setState({ view: "recovery-file" })}

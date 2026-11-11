@@ -13,7 +13,7 @@ function BackButton({
 }) {
   return (
     <Button
-      className={cn("w-full md:w-[120px]", className)}
+      className={cn("w-full", className)}
       disabled={disabled}
       onClick={onClick}
       size="lg"

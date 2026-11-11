@@ -1,10 +1,12 @@
 import Image from "next/image";
 
-function BrandEndorsement() {
+import { cn } from "@/client/ui/shared/mergeClassNames";
+
+function BrandEndorsement({ className }: { className?: string }) {
   return (
     <Image
       alt="Synonym, a Tether company"
-      className="shrink-0"
+      className={cn("shrink-0", className)}
       height={24}
       src="/brand/brand-endorsement.svg"
       width={215}

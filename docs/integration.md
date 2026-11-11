@@ -37,6 +37,44 @@ Legacy authorization URLs contain a relay secret. Signed-approval URLs carry an 
 public key instead. Keep authorization URLs in the browser, encode them exactly once, and never
 log them or send them to analytics.
 
+## What happens in Passport
+
+Your app does not choose how the person signs in to Passport; it only opens `/authorize`. What
+the person sees depends on what this browser already has:
+
+- **An identity in this browser:** Passport goes straight to the review of your request. The
+  identity card offers **Switch** (other identities in this browser, or **Use other identity**)
+  and **Manage**.
+- **No identity, Apple login off:** Passport starts Google at once, in the same tab.
+- **No identity, Apple login on:** Passport shows **Quick access.** with
+  **Continue with Google** and **Continue with Apple**, and starts the one the person clicks.
+
+Either way the person ends on the review of your request and approves with an explicit click.
+
+### How Passport keeps the identity
+
+The Pubky secret key is created in the browser, registered with a homeserver, and kept in the
+browser's local storage. The provider account only identifies the person and stores an encrypted
+backup; it never sees the key.
+
+| Step              | Google                                                         | Apple                                                                                    |
+| ----------------- | -------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| Sign-in           | Google's sign-in page, which also asks for Drive access        | **Continue with Apple**, then iCloud in the same window; a second click if handoff fails |
+| Encrypted backup  | `passport.json` in the app-data area of Google Drive           | One `PassportFile` record in the private iCloud database (CloudKit), per origin          |
+| Visible copy      | Optional, in a "Pubky Passport" Drive folder                   | None; the person can download a recovery file                                            |
+| Wrapping key from | Passport's server, for a valid Google ID token                 | Passport's server, for a valid Apple ID token                                            |
+| Signup            | Homegate verifies the Google ID token and issues a signup code | Homegate verifies the Apple ID token and issues a signup code                            |
+
+The file is encrypted with AES-256-GCM in the browser. Passport's server derives the wrapping key
+with HKDF from its own secret and the verified account (`<provider>:<issuer>\n<subject>`) and
+never sees the file. Unlocking needs both the file, which only the provider account can fetch,
+and the wrapping key, which only Passport's server can derive after that account signs in. So
+Passport alone cannot unlock the file, and the provider never holds the wrapping key; the provider
+is still trusted, since it could sign in as the person and get both. On a new device, the same account restores the same identity.
+
+None of this reaches your app: you get a Pubky `Session` for the identity the person approved,
+not a Google or Apple account.
+
 ## Scoped encryption consent
 
 Storage access and encryption keys are separate permissions:
@@ -336,10 +374,15 @@ A `success` message means the approval reached the relay; keep waiting for the S
 
 ## Same-tab navigation
 
-During authorization, Passport now starts Google automatically when an identity must be created
-or restored. Google opens in the current Passport tab/window, including when Passport itself
-was opened as a popup. There is no second Google button or nested popup. Existing local
-identities still go straight to capability review; Google sign-in does not grant app permissions
+Your app opens Passport without naming a provider; the person picks one in Passport. During
+authorization, when an identity must be created or restored and Google is the only provider,
+Passport starts Google automatically. Where Apple login is on, Passport first shows
+**Continue with Google** and **Continue with Apple**, and starts the one the person clicks.
+Google opens in the current Passport tab/window, including when Passport itself was opened as a
+popup; there is no second Google button or nested Google popup. Apple's two steps normally reuse
+one window opened from the Continue with Apple click. If that window closes before handoff, the
+second-step screen explains iCloud and offers Continue with Apple again. Existing local identities
+still go straight to capability review; signing in with a provider does not grant app permissions
 without that review. Standalone dashboard sign-in and management retain their popup behavior.
 
 The Google round trip uses the existing origin-root callback URI. Passport temporarily saves
@@ -368,9 +411,10 @@ size. Passport does not resize its window. Opening apps may choose their own dim
 authorization review adapts to the available viewport.
 
 The signing identity card offers **Manage** and **Switch**. Manage opens identity details and
-Backup, Keychain, Log out, and Detach from Google actions inside the pending authorization.
+Backup, Keychain, Log out, and Detach (from Google or Apple) actions inside the pending authorization.
 Back returns to the original review with its encryption choices preserved, without approving the app. Logging out removes the local
-identity and returns to identity selection or setup.
+identity and returns to identity selection or setup. Switch lists the identities in this browser
+and **Use other identity**, which shows the same provider choice as a first sign-in.
 
 ## Integration checklist
 

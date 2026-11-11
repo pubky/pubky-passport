@@ -1,6 +1,6 @@
 import Image from "next/image";
 
-import { RotateCcwIcon } from "@/client/ui/shared/icons";
+import { ContinueWithGoogle } from "@/client/ui/onboarding/google/continueWithGoogle";
 import { BackButton } from "@/client/ui/shared/backButton";
 import { PassportScreen } from "@/client/ui/shared/passportScreen";
 import { Button } from "@/client/ui/shared/primitives/button";
@@ -27,8 +27,8 @@ function GoogleDrivePermissionPrompt({
   onTryAgain: () => void;
 }) {
   return (
-    <PassportScreen className="gap-6 md:max-w-[558px] md:gap-8">
-      <div className="flex flex-col gap-6 md:gap-3">
+    <PassportScreen className="gap-6">
+      <div className="flex flex-col gap-6">
         <DisplayHeading accent={mode === "optional" ? "optional." : "required."}>
           Drive access
         </DisplayHeading>
@@ -37,19 +37,14 @@ function GoogleDrivePermissionPrompt({
 
       <GooglePermissionGuide />
 
-      <div className="mt-auto flex w-full flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <BackButton onClick={onBack} />
-        <div className="flex flex-col gap-3 md:flex-row">
-          {mode === "optional" && onContinue ? (
-            <Button onClick={onContinue} size="lg" type="button" variant="secondary">
-              Continue without visible backup
-            </Button>
-          ) : null}
-          <Button onClick={onTryAgain} size="lg" type="button">
-            <RotateCcwIcon />
-            Try again
+      <div className="mt-auto flex w-full flex-col gap-3">
+        <ContinueWithGoogle onContinue={onTryAgain} />
+        {mode === "optional" && onContinue ? (
+          <Button onClick={onContinue} size="lg" type="button" variant="secondary">
+            Continue without visible backup
           </Button>
-        </div>
+        ) : null}
+        <BackButton onClick={onBack} />
       </div>
     </PassportScreen>
   );

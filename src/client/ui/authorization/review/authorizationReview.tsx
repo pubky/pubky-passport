@@ -1,7 +1,11 @@
 import { Fragment, useLayoutEffect, useRef, useState } from "react";
 
 import type { AuthorizationRequestReview } from "@/client/logic/authorization/request/ValidatedPubkyAuthRequest";
-import type { LocalIdentityMetadata } from "@/client/logic/local-identity/localIdentityModels";
+import {
+  identityProfile,
+  type LocalIdentityMetadata,
+} from "@/client/logic/local-identity/localIdentityModels";
+import { AppleLogo } from "@/client/ui/shared/brand/appleLogo";
 import { GoogleLogo } from "@/client/ui/shared/brand/googleLogo";
 import { shortPublicKey } from "@/client/ui/shared/formatPublicKey";
 import { CheckIcon, SettingsIcon, SquareUserRoundIcon, XIcon } from "@/client/ui/shared/icons";
@@ -51,8 +55,13 @@ function AuthorizationReview({
     encryptionPaths.some((other) => other !== path && scopeCoversPath(path, other)),
   );
   const hasBroadAccess = review.capabilities.some((capability) => capability.scope === "broad");
-  const account = identity?.googleAccount;
-  const identityName = account?.name ?? "Your Pubky";
+  const profile = identityProfile(identity);
+  const identityName = profile.name ?? "Your Pubky";
+  const providerBadge = identity?.googleAccount ? (
+    <GoogleLogo />
+  ) : identity?.appleAccount ? (
+    <AppleLogo />
+  ) : undefined;
   const requester = review.requesterName ?? review.callbackHost ?? "this service";
 
   const setEncryptionAllowed = (path: string, allowed: boolean) => {
@@ -67,12 +76,11 @@ function AuthorizationReview({
   };
 
   return (
-    <PassportScreen className="md:max-w-[375px] md:px-6 md:pb-10 md:pt-3">
+    <PassportScreen>
       <div className="flex flex-1 flex-col gap-6">
         <DisplayHeading
           accent={<FittedRequester>{requester}</FittedRequester>}
           aria-label={`Sign in to ${requester}`}
-          className="md:text-5xl md:[&>span]:block"
         >
           Sign in to
         </DisplayHeading>
@@ -146,8 +154,8 @@ function AuthorizationReview({
             <div className="flex min-h-10 items-center gap-2">
               {identity ? (
                 <IdentitySummary
-                  avatarSrc={account?.pictureUrl ?? undefined}
-                  badge={account ? <GoogleLogo /> : undefined}
+                  avatarSrc={profile.pictureUrl ?? undefined}
+                  badge={providerBadge}
                   detail={shortPublicKey(identity.publicIdentity.publicKeyZ32)}
                   detailClassName="uppercase"
                   name={identityName}
@@ -214,7 +222,7 @@ function AuthorizationReview({
               Cancel
             </Button>
           }
-          className="mt-auto md:mt-auto md:grid-cols-1 md:gap-4 [&>div]:md:col-start-1"
+          className="mt-auto"
           confirm={
             <Button
               className="w-full"
@@ -247,7 +255,7 @@ function FittedRequester({ children }: { children: string }) {
 
   useLayoutEffect(() => {
     const requester = requesterRef.current;
-    const container = requester ? nearestBlockContainer(requester) : null;
+    const container = requester?.parentElement ?? null;
     if (!requester || !container) return;
 
     const fit = () => {
@@ -255,12 +263,8 @@ function FittedRequester({ children }: { children: string }) {
       requester.style.whiteSpace = "nowrap";
 
       const availableWidth = container.clientWidth;
-      // `scrollWidth` is 0 while the requester itself is inline (desktop); the bounding box then
-      // carries the single-line text width.
-      const requiredWidth = Math.max(
-        requester.scrollWidth,
-        requester.getBoundingClientRect().width,
-      );
+      // With wrapping off, `scrollWidth` is the single-line text width.
+      const requiredWidth = requester.scrollWidth;
       if (availableWidth <= 0 || requiredWidth <= availableWidth) return;
 
       const baseFontSize = Number.parseFloat(window.getComputedStyle(requester).fontSize);
@@ -288,22 +292,10 @@ function FittedRequester({ children }: { children: string }) {
   }, [children]);
 
   return (
-    <bdi className="block break-words md:inline" ref={requesterRef}>
+    <bdi className="block break-words" ref={requesterRef}>
       {children}
     </bdi>
   );
-}
-
-/**
- * The accent wrapper is `display: inline` on desktop, where `clientWidth` is always 0, so the
- * requester is fitted against the nearest block-level ancestor (the heading) instead.
- */
-function nearestBlockContainer(element: HTMLElement): HTMLElement | null {
-  let container = element.parentElement;
-  while (container && window.getComputedStyle(container).display === "inline") {
-    container = container.parentElement;
-  }
-  return container;
 }
 
 function authorizationButtonLabel(

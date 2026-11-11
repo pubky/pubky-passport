@@ -3,6 +3,7 @@ import "client-only";
 import { Result, type Result as ResultType } from "better-result";
 
 import { decodeBase64Url, encodeBase64Url, isCanonicalBase64Url } from "@/libs/encoding/base64Url";
+import { isAppleAccount, type AppleAccount } from "@/libs/appleAccount";
 import { isGoogleAccountProfile, type GoogleAccountProfile } from "@/libs/googleAccountProfile";
 import { isRecord } from "@/libs/typeGuards";
 import { LOGGER, safeErrorLogFields } from "@/libs/logger/logger";
@@ -20,6 +21,7 @@ type StoredLocalIdentity = {
   v: 1;
   publicKeyZ32: string;
   googleAccount?: GoogleAccountProfile;
+  appleAccount?: AppleAccount;
   secretKey: string;
 };
 
@@ -72,7 +74,9 @@ export class LocalStorageIdentityRepository {
   ): LocalIdentityResult<LocalIdentityMetadata> {
     if (
       !isPubkyPublicIdentity(identity.publicIdentity) ||
-      (identity.googleAccount !== undefined && !isGoogleAccountProfile(identity.googleAccount))
+      (identity.googleAccount !== undefined && !isGoogleAccountProfile(identity.googleAccount)) ||
+      (identity.appleAccount !== undefined && !isAppleAccount(identity.appleAccount)) ||
+      (identity.googleAccount !== undefined && identity.appleAccount !== undefined)
     ) {
       return invalidIdentity("save");
     }
@@ -94,6 +98,7 @@ export class LocalStorageIdentityRepository {
       v: 1,
       publicKeyZ32: identity.publicIdentity.publicKeyZ32,
       ...(identity.googleAccount ? { googleAccount: { ...identity.googleAccount } } : {}),
+      ...(identity.appleAccount ? { appleAccount: { ...identity.appleAccount } } : {}),
       secretKey: encodeBase64Url(secretKey.bytes),
     };
 
@@ -283,16 +288,19 @@ function parseStoredIdentity(value: string): StoredLocalIdentity | null {
 function isStoredIdentity(value: unknown): value is StoredLocalIdentity {
   return (
     isRecord(value) &&
-    hasExactKeys(
-      value,
-      value.googleAccount === undefined
-        ? ["v", "publicKeyZ32", "secretKey"]
-        : ["v", "publicKeyZ32", "googleAccount", "secretKey"],
-    ) &&
+    hasExactKeys(value, [
+      "v",
+      "publicKeyZ32",
+      ...(value.googleAccount === undefined ? [] : ["googleAccount"]),
+      ...(value.appleAccount === undefined ? [] : ["appleAccount"]),
+      "secretKey",
+    ]) &&
     value.v === 1 &&
     isPubkyPublicKey(value.publicKeyZ32) &&
     isEncodedSecretKey(value.secretKey) &&
-    (value.googleAccount === undefined || isGoogleAccountProfile(value.googleAccount))
+    (value.googleAccount === undefined || isGoogleAccountProfile(value.googleAccount)) &&
+    (value.appleAccount === undefined || isAppleAccount(value.appleAccount)) &&
+    (value.googleAccount === undefined || value.appleAccount === undefined)
   );
 }
 
@@ -303,6 +311,7 @@ function isEncodedSecretKey(value: unknown): value is string {
 function toMetadata(identity: StoredLocalIdentity): LocalIdentityMetadata {
   return Object.freeze({
     publicIdentity: Object.freeze({ publicKeyZ32: identity.publicKeyZ32 }),
+    ...(identity.appleAccount ? { appleAccount: Object.freeze({ ...identity.appleAccount }) } : {}),
     ...(identity.googleAccount
       ? { googleAccount: Object.freeze({ ...identity.googleAccount }) }
       : {}),

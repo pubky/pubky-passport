@@ -73,7 +73,7 @@ function AuthorizationQrScanner({ onClose, onScan }: AuthorizationQrScannerProps
     <Dialog
       aria-describedby="authorization-qr-description"
       aria-labelledby="authorization-qr-title"
-      className="m-auto w-[calc(100%-3rem)] max-w-md rounded-2xl border border-border bg-card p-0 text-foreground backdrop:bg-black/75"
+      className="m-auto w-[calc(100%-3rem)] max-w-[375px] rounded-2xl border border-border bg-card p-0 text-foreground backdrop:bg-black/75"
       onOpenChange={(open) => {
         if (!open) onClose();
       }}

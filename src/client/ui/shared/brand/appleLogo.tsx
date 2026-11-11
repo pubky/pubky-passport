@@ -1,9 +1,41 @@
-function AppleLogo() {
+import type { ComponentPropsWithoutRef } from "react";
+
+import Image from "next/image";
+
+/**
+ * Apple's own logo file for a custom Sign in with Apple button, unchanged: "Logo - SIWA -
+ * Left-aligned - Black - Small.svg" from the Sign in with Apple logo files in Apple Design
+ * Resources (developer.apple.com/design/resources). The file is 24 by 44 with Apple's padding
+ * built in, so the button shows it at its full height: not cropped, no padding added.
+ */
+function AppleSignInLogo() {
   return (
-    <svg aria-hidden="true" fill="currentColor" viewBox="0 0 24 24">
-      <path d="M17.05 12.54c-.03-3.16 2.58-4.68 2.7-4.75a5.8 5.8 0 0 0-4.57-2.47c-1.92-.2-3.78 1.15-4.76 1.15-1 0-2.5-1.13-4.13-1.1a6.06 6.06 0 0 0-5.1 3.1c-2.21 3.82-.56 9.44 1.55 12.53 1.06 1.52 2.3 3.21 3.93 3.15 1.6-.07 2.2-1.01 4.13-1.01 1.91 0 2.48 1.01 4.15.97 1.72-.03 2.8-1.52 3.81-3.05a12.5 12.5 0 0 0 1.75-3.56 5.46 5.46 0 0 1-3.46-4.96ZM13.93 3.28A5.5 5.5 0 0 0 15.19-.67a5.62 5.62 0 0 0-3.63 1.88 5.25 5.25 0 0 0-1.3 3.8 4.65 4.65 0 0 0 3.67-1.73Z" />
+    <Image
+      alt=""
+      aria-hidden="true"
+      className="h-full w-auto shrink-0"
+      height={44}
+      priority
+      src="/brand/sign-in-with-apple/logo-left-aligned-black-small.svg"
+      width={24}
+    />
+  );
+}
+
+/**
+ * The small Apple badge on an Apple identity, the counterpart of the Google "G" badge: the glyph
+ * from Apple's logo file above, path unchanged, framed in a square 16px box so it keeps its
+ * aspect ratio. Solid white, as Passport's surfaces are dark.
+ */
+function AppleLogo(props: ComponentPropsWithoutRef<"svg">) {
+  return (
+    <svg aria-hidden="true" height="16" viewBox="4.558 13.4 15 15" width="16" {...props}>
+      <path
+        d="M12.2337427,16.9879688 C12.8896607,16.9879688 13.7118677,16.5445313 14.2014966,15.9532812 C14.6449341,15.4174609 14.968274,14.6691602 14.968274,13.9208594 C14.968274,13.8192383 14.9590357,13.7176172 14.9405591,13.6344727 C14.2107349,13.6621875 13.3330982,14.1241016 12.8065162,14.7430664 C12.3907935,15.2142188 12.012024,15.9532812 12.012024,16.7108203 C12.012024,16.8216797 12.0305005,16.9325391 12.0397388,16.9694922 C12.0859302,16.9787305 12.1598365,16.9879688 12.2337427,16.9879688 Z M9.92417241,28.1662891 C10.8202857,28.1662891 11.2175318,27.5658008 12.3353638,27.5658008 C13.4716724,27.5658008 13.721106,28.1478125 14.7188404,28.1478125 C15.6980982,28.1478125 16.3540162,27.2424609 16.972981,26.3555859 C17.6658521,25.339375 17.9522388,24.3416406 17.9707154,24.2954492 C17.9060474,24.2769727 16.0306763,23.5101953 16.0306763,21.3576758 C16.0306763,19.491543 17.5088013,18.6508594 17.5919459,18.5861914 C16.612688,17.1819727 15.1253248,17.1450195 14.7188404,17.1450195 C13.6194849,17.1450195 12.7233716,17.8101758 12.1598365,17.8101758 C11.5501099,17.8101758 10.7463794,17.1819727 9.79483648,17.1819727 C7.98413335,17.1819727 6.14571538,18.6785742 6.14571538,21.5054883 C6.14571538,23.2607617 6.8293482,25.1176563 7.67003179,26.3186328 C8.39061773,27.3348438 9.01882085,28.1662891 9.92417241,28.1662891 Z"
+        fill="#FFFFFF"
+      />
     </svg>
   );
 }
 
-export { AppleLogo };
+export { AppleLogo, AppleSignInLogo };

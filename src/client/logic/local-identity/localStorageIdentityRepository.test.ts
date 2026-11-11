@@ -18,6 +18,7 @@ const FIRST_IDENTITY = { publicKeyZ32: FIRST_KEY };
 const SECOND_IDENTITY = { publicKeyZ32: SECOND_KEY };
 const IDENTITY_PREFIX = "pubky-passport/local-identities/v1/identity/";
 const ACTIVE_IDENTITY_KEY = "pubky-passport/local-identities/v1/active";
+const APPLE = { appleSubject: "apple-subject", email: "jane@example.com", name: null };
 
 describe("LocalStorageIdentityRepository", () => {
   beforeEach(() => vi.stubGlobal("localStorage", new MemoryStorage()));
@@ -284,6 +285,105 @@ describe("LocalStorageIdentityRepository", () => {
       ),
       { code: "invalid_secret_key" },
     );
+  });
+
+  it("round-trips an Apple Account with the identity", () => {
+    const repository = new LocalStorageIdentityRepository();
+    const appleAccount = {
+      appleSubject: "001234.apple.subject",
+      email: "abc123@privaterelay.appleid.com",
+      name: "Jane Appleseed",
+    };
+
+    const saved = expectResultOk(
+      repository.save({ publicIdentity: FIRST_IDENTITY, appleAccount }, secret(1)),
+    );
+
+    expect(saved).toEqual({ publicIdentity: FIRST_IDENTITY, appleAccount });
+    expect(expectResultOk(new LocalStorageIdentityRepository().list())).toEqual({
+      activePublicKeyZ32: FIRST_KEY,
+      identities: [{ publicIdentity: FIRST_IDENTITY, appleAccount }],
+    });
+    const read = expectResultOk(new LocalStorageIdentityRepository().read(FIRST_KEY));
+    expect(read.identity).toEqual({ publicIdentity: FIRST_IDENTITY, appleAccount });
+    expect(read.secretKey.bytes).toEqual(new Uint8Array(32).fill(1));
+    expect(Object.isFrozen(read.identity.appleAccount)).toBe(true);
+    expect(JSON.parse(localStorage.getItem(`${IDENTITY_PREFIX}${FIRST_KEY}`) ?? "{}")).toEqual({
+      v: 1,
+      publicKeyZ32: FIRST_KEY,
+      appleAccount,
+      secretKey: expect.any(String),
+    });
+  });
+
+  it("refuses an identity with both a Google and an Apple Account", () => {
+    vi.spyOn(LOGGER, "info").mockImplementation(() => undefined);
+    expectResultError(
+      new LocalStorageIdentityRepository().save(
+        {
+          publicIdentity: FIRST_IDENTITY,
+          googleAccount: {
+            googleSubject: "google-subject",
+            email: "person@example.com",
+            name: "Person",
+            pictureUrl: null,
+          },
+          appleAccount: { appleSubject: "apple-subject", email: null, name: null },
+        },
+        secret(1),
+      ),
+      { code: "invalid_identity" },
+    );
+    expect(localStorage.length).toBe(0);
+  });
+
+  it.each([
+    ["an extra key", { ...APPLE, picture: "https://example.com/a.png" }],
+    ["no email key", { appleSubject: "apple-subject", name: null }],
+    ["an empty subject", { ...APPLE, appleSubject: "" }],
+    ["a whitespace subject", { ...APPLE, appleSubject: "   " }],
+    ["a padded subject", { ...APPLE, appleSubject: " apple-subject " }],
+    ["a non-string subject", { ...APPLE, appleSubject: 42 }],
+    ["an oversized subject", { ...APPLE, appleSubject: "x".repeat(256) }],
+    ["an email without @", { ...APPLE, email: "jane" }],
+    ["an oversized email", { ...APPLE, email: `${"x".repeat(320)}@a` }],
+    ["an empty name", { ...APPLE, name: "" }],
+    ["an oversized name", { ...APPLE, name: "x".repeat(513) }],
+    ["a non-string name", { ...APPLE, name: { firstName: "Jane" } }],
+  ])("treats a stored Apple Account with %s as an invalid store", (_name, appleAccount) => {
+    vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+    localStorage.setItem(
+      `${IDENTITY_PREFIX}${FIRST_KEY}`,
+      JSON.stringify({
+        v: 1,
+        publicKeyZ32: FIRST_KEY,
+        appleAccount,
+        secretKey: "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE",
+      }),
+    );
+
+    expectResultError(new LocalStorageIdentityRepository().list(), { code: "invalid_store" });
+  });
+
+  it("treats a stored record with both provider accounts as an invalid store", () => {
+    vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+    localStorage.setItem(
+      `${IDENTITY_PREFIX}${FIRST_KEY}`,
+      JSON.stringify({
+        v: 1,
+        publicKeyZ32: FIRST_KEY,
+        googleAccount: {
+          googleSubject: "google-subject",
+          email: "person@example.com",
+          name: "Person",
+          pictureUrl: null,
+        },
+        appleAccount: APPLE,
+        secretKey: "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE",
+      }),
+    );
+
+    expectResultError(new LocalStorageIdentityRepository().list(), { code: "invalid_store" });
   });
 
   it("maps storage exceptions without logging their contents", () => {

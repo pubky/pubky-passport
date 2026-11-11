@@ -1,6 +1,7 @@
 import "client-only";
 
-const POPUP_FEATURES = "popup,width=520,height=680";
+/** 390px wide, the width of the Passport column it opens from. */
+const POPUP_FEATURES = "popup,width=390,height=700";
 
 /** Encapsulates access to the cross-origin popup used for browser authorization. */
 export class AuthorizationPopup {
