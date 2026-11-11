@@ -60,7 +60,11 @@ async function expectColumn(page: Page, viewportWidth: number) {
     const left = box.left + parseFloat(style.paddingLeft);
     const right = box.right - parseFloat(style.paddingRight);
     const overflowing = [...element.querySelectorAll<HTMLElement>("*")]
-      .filter((node) => !node.closest("dialog, .sr-only") && node.getClientRects().length > 0)
+      // A spinning icon's rotated box is wider than the icon itself.
+      .filter(
+        (node) =>
+          !node.closest("dialog, .sr-only, .animate-spin") && node.getClientRects().length > 0,
+      )
       .map((node) => ({ node, rect: node.getBoundingClientRect() }))
       .filter(({ rect }) => rect.width > 0 && (rect.left < left - 0.5 || rect.right > right + 0.5))
       .map(({ node, rect }) => `${node.tagName}.${node.className} ${rect.left}-${rect.right}`);

@@ -14,7 +14,7 @@ import { PassportNavigation } from "@/client/ui/shared/passportNavigation";
 import { PassportScreen } from "@/client/ui/shared/passportScreen";
 import { Button } from "@/client/ui/shared/primitives/button";
 import { DisplayHeading } from "@/client/ui/shared/primitives/typography";
-import { PermissionList, PermissionRow } from "./permissionList";
+import { formatPermissionAccess, PermissionList, PermissionRow } from "./permissionList";
 
 function AuthorizationReview({
   encryptionConsent,
@@ -128,7 +128,10 @@ function AuthorizationReview({
             review.capabilities.map((capability, index) => (
               <Fragment key={`${capability.path}:${index}`}>
                 {capability.read || capability.write ? (
-                  <PermissionRow access={formatAccess(capability)} path={capability.path} />
+                  <PermissionRow
+                    access={formatPermissionAccess(capability)}
+                    path={capability.path}
+                  />
                 ) : null}
                 {capability.encrypt &&
                 review.capabilities.findIndex(
@@ -368,12 +371,6 @@ function describeAuthorizationEffect(
 /** A directory key can derive every descendant's key; a file key covers only that file. */
 function scopeCoversPath(scope: string, path: string): boolean {
   return scope === path || (scope.endsWith("/") && path.startsWith(scope));
-}
-
-function formatAccess(capability: AuthorizationRequestReview["capabilities"][number]): string {
-  if (capability.read && capability.write) return "Read,write";
-  if (capability.write) return "Write";
-  return "Read";
 }
 
 export { AuthorizationReview };
