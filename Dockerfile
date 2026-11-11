@@ -1,18 +1,18 @@
 # syntax=docker/dockerfile:1
 
-# Install the security-patched Node release directly: the official 24.22.1
-# Docker tags currently contain an empty multi-platform index.
+# Install the security-patched Node release from the official tarball
+# with pinned SHA-256 checksums.
 # Debian slim supports sharp and the @synonymdev/pubky native server package.
 FROM debian:bookworm-slim AS base
-ENV NODE_VERSION=24.22.1 \
+ENV NODE_VERSION=24.22.3 \
     PNPM_HOME=/pnpm \
     PATH=/pnpm:$PATH
 # Pin each official release archive's SHA-256. Use the actual image architecture,
 # independent of caller-supplied build arguments (including TARGETARCH).
 RUN set -eux; \
     case "$(dpkg --print-architecture)" in \
-      amd64) node_arch=x64; node_sha256=6c172a9ab6718f7b801fb5a7bd486af2ee5e32758086a04b84fcce2aa77095e6 ;; \
-      arm64) node_arch=arm64; node_sha256=dbabf7a1cbf947e6059ffad2c27b80041db97dea1e553b62afdee7f13fca336e ;; \
+      amd64) node_arch=x64; node_sha256=4f2b175a6d53a5c617a80dba2676238a0688cef28c6da4eba35c7d844e66fcfb ;; \
+      arm64) node_arch=arm64; node_sha256=6e51a2ada00f0011cc266f65d98922b403d7ad88f809ca2aa615a5fe1ce6e86c ;; \
       *) echo "Unsupported architecture" >&2; exit 1 ;; \
     esac; \
     apt-get update; \
