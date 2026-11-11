@@ -536,11 +536,16 @@ function isExpectedSignerRefusal(error: unknown): boolean {
     return (
       safePubkySdkErrorName(error) === "AuthenticationError" &&
       typeof (error as { message?: unknown }).message === "string" &&
-      (error as { message: string }).message.includes(EXPECTED_SIGNER_REFUSAL)
+      isExpectedSignerRefusalMessage((error as { message: string }).message)
     );
   } catch {
     return false;
   }
+}
+
+/** The SDK prefixes its error chain ("Authentication error: ...: <reason>"); match the reason only. */
+function isExpectedSignerRefusalMessage(message: string): boolean {
+  return message === EXPECTED_SIGNER_REFUSAL || message.endsWith(`: ${EXPECTED_SIGNER_REFUSAL}`);
 }
 
 function authenticatedIdentityFromSession(
