@@ -27,6 +27,8 @@ const EXPECTED_COPY: Record<GoogleIdentityViewError["code"], string> = {
   google_detachment_permission_required:
     "Passport needs both Google Drive permissions to delete your encrypted identity and visible recovery copies before removing Google access.",
   homeserver_signup_token_failed: "Passport could not obtain a homeserver invitation.",
+  homeserver_not_found:
+    "This pubky has no homeserver, so Passport cannot sign in with it. Nothing was saved.",
   identity_already_linked:
     "This pubky was connected to another account meanwhile. Go back to see its sign-in account.",
   identity_linked_meanwhile:

@@ -30,6 +30,8 @@ function googleIdentityErrorMessage(code: GoogleIdentityViewError["code"]): stri
       return "Passport could not read this pubky in this browser. Go back and check it is still there.";
     case "local_link_failed":
       return "Your encrypted backup is in Google Drive, but Passport could not update this browser. Try again.";
+    case "homeserver_not_found":
+      return "This pubky has no homeserver, so Passport cannot sign in with it. Nothing was saved.";
     case "restore_failed":
       return "Passport could not restore the Pubky identity from the encrypted file.";
     case "signin_failed":

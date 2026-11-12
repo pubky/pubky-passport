@@ -4,7 +4,9 @@ import { Result, type Result as ResultType } from "better-result";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { expectResultOk } from "@test-utils/resultAssertions";
+import { encodeBase64Url } from "@/libs/encoding/base64Url";
 import { LOGGER } from "@/libs/logger/logger";
+import { PassportFileWebCrypto } from "@/client/logic/passport-file/PassportFileWebCrypto";
 import type { LocalIdentityMetadata } from "@/client/logic/local-identity/localIdentityModels";
 import { GoogleIdentityLifecycle } from "./GoogleIdentityLifecycle";
 
@@ -109,11 +111,13 @@ describe("Google attach", () => {
     });
     expect(MOCKS.requestWrappingKey).toHaveBeenCalledWith("google-id-token", undefined);
     expect(MOCKS.read).toHaveBeenCalledWith(PUBKY);
+    // Marked as attached, so a later restore never signs this pubky up on Passport's homeserver.
     expect(MOCKS.encryptSecretKeyBytes).toHaveBeenCalledWith(
       exportedSecret,
       "w".repeat(43),
       "https://passport.pubky.app",
       "current",
+      { attached: true },
     );
     expect(MOCKS.createPassportFile).toHaveBeenCalledExactlyOnceWith(ENVELOPE);
     expect(MOCKS.createVisibleRecoveryCopy).toHaveBeenCalledWith(
@@ -137,6 +141,41 @@ describe("Google attach", () => {
     expect(MOCKS.save).not.toHaveBeenCalled();
     expect(MOCKS.deletePassportFile).not.toHaveBeenCalled();
     expect(MOCKS.deleteInvalidPassportFile).not.toHaveBeenCalled();
+  });
+
+  it("writes a file marked attached, which a later restore never signs up", async () => {
+    const crypto = new PassportFileWebCrypto();
+    MOCKS.requestWrappingKey.mockResolvedValue(
+      Result.ok({ wrappingKey: encodeBase64Url(new Uint8Array(32).fill(3)), keyId: "current" }),
+    );
+    MOCKS.encryptSecretKeyBytes.mockImplementation(
+      (...args: Parameters<PassportFileWebCrypto["encryptSecretKeyBytes"]>) =>
+        crypto.encryptSecretKeyBytes(...args),
+    );
+    MOCKS.decryptSecretKeyBytes.mockImplementation(
+      (...args: Parameters<PassportFileWebCrypto["decryptSecretKeyBytes"]>) =>
+        crypto.decryptSecretKeyBytes(...args),
+    );
+
+    const attached = await createSubject().attachIdentity(CREDENTIALS, { publicKeyZ32: PUBKY });
+    expect(expectResultOk(attached).attachment).toBe("created");
+    const written = MOCKS.createPassportFile.mock.calls[0]?.[0];
+    expect(written).toMatchObject({ v: 1, keyId: "current", attached: true });
+
+    // Another device: Drive holds that file, sign-in fails and the record cannot be found.
+    MOCKS.readPassportFile.mockResolvedValue(
+      Result.ok({ status: "found", envelope: written, reference: REFERENCE }),
+    );
+    MOCKS.signin.mockResolvedValue(Result.err({ code: "signin_failed" }));
+    MOCKS.resolveHomeserver.mockResolvedValue(Result.ok(null));
+    const restored = await createSubject().establishIdentity(CREDENTIALS, () => undefined);
+
+    expectError(restored, "homeserver_not_found");
+    expect(MOCKS.decryptSecretKeyBytes).toHaveBeenCalledOnce();
+    expect(MOCKS.requestSignupToken).not.toHaveBeenCalled();
+    expect(MOCKS.signup).not.toHaveBeenCalled();
+    expect(MOCKS.publishHomeserver).not.toHaveBeenCalled();
+    expect(MOCKS.save).not.toHaveBeenCalled();
   });
 
   it("skips the visible copy without that permission", async () => {

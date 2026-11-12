@@ -93,6 +93,7 @@ describe("Apple attach", () => {
     };
     expect(expectResultOk(result)).toEqual({ attachment: "created", appleAccount });
     expect(MOCKS.requestWrappingKey).toHaveBeenCalledWith("apple-id-token", undefined);
+    expect(MOCKS.encryptSecretKeyBytes.mock.calls[0]?.[4]).toEqual({ attached: true });
     expect(MOCKS.createPassportFile).toHaveBeenCalledExactlyOnceWith(ENVELOPE);
     expect(MOCKS.linkProviderAccount).toHaveBeenCalledWith(PUBKY, { appleAccount });
     expect(MOCKS.requestAppleSignupToken).not.toHaveBeenCalled();

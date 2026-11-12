@@ -64,6 +64,7 @@ export type IdentityLifecycleError =
       | "create_failed"
       | "decrypt_failed"
       | "encrypt_failed"
+      | "homeserver_not_found"
       | "identity_already_linked"
       | "identity_linked_meanwhile"
       | "identity_mismatch"
@@ -297,7 +298,9 @@ export abstract class PassportFileIdentityLifecycle {
 
   /**
    * Restores one identity and signs in normally before attempting PKDNS and
-   * homeserver repair for an interrupted setup.
+   * homeserver repair for an interrupted setup. An attached identity lives on a homeserver
+   * Passport did not choose, so it is never repaired: without a record it is
+   * `homeserver_not_found`, like an import.
    */
   protected async restoreIdentity(input: {
     account: LocalIdentityAccount;
@@ -335,6 +338,10 @@ export abstract class PassportFileIdentityLifecycle {
       }
       if (homeserver.value !== null) {
         return Result.err({ code: "signin_failed", cause: signedIn.error });
+      }
+      if (input.envelope.attached === true) {
+        LOGGER.warn(`identity.${this.provider}.restore.failed`, { code: "homeserver_not_found" });
+        return Result.err({ code: "homeserver_not_found" });
       }
 
       report({ flow: "repair", step: "signing_up" });
@@ -521,8 +528,9 @@ export abstract class PassportFileIdentityLifecycle {
   }
 
   /**
-   * Encrypts this browser's key for the identity exactly as a new setup encrypts a new key. The
-   * stored key must derive the expected pubky, so a damaged record can never be uploaded.
+   * Encrypts this browser's key for the identity as a new setup encrypts a new key, marked
+   * `attached` so restore never signs it up on Passport's homeserver. The stored key must derive
+   * the expected pubky, so a damaged record can never be uploaded.
    */
   private async wrapLocalKey(
     publicIdentity: PubkyPublicIdentity,
@@ -556,6 +564,7 @@ export abstract class PassportFileIdentityLifecycle {
           wrappingKey.value.wrappingKey,
           this.passportOrigin,
           wrappingKey.value.keyId,
+          { attached: true },
         )
         .finally(() => {
           secretKey.value.bytes.fill(0);

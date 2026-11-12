@@ -18,6 +18,12 @@ export type PassportFileEnvelope = {
   ct: string;
   /** Normalized Passport origin authenticated during encryption. */
   url: string;
+  /**
+   * Set when the key came from an identity Passport did not create (imported, then attached).
+   * Authenticated during encryption, so it cannot be added or removed without failing decryption.
+   * Restore never signs such an identity up on Passport's homeserver.
+   */
+  attached?: true;
 };
 
 /** Only distinctions that change production behavior are exposed. */
@@ -39,6 +45,7 @@ const PASSPORT_FILE_ENVELOPE_SCHEMA = z
     iv: z.string().refine((value) => isFixedLengthBase64Url(value, AES_GCM_IV_BYTES)),
     ct: z.string().refine((value) => isFixedLengthBase64Url(value, AES_GCM_CIPHERTEXT_BYTES)),
     url: z.string(),
+    attached: z.literal(true).optional(),
   })
   .strict();
 
@@ -88,9 +95,11 @@ export function parsePassportFileEnvelope(input: unknown): PassportFileParseResu
     return Result.err<never, PassportFileParseError>({ code: "invalid_file" });
   }
 
+  const { attached, ...fields } = parsed.data;
   return Result.ok({
-    ...parsed.data,
+    ...fields,
     url: origin.value,
+    ...(attached === true ? { attached } : {}),
   });
 }
 
@@ -107,6 +116,7 @@ export function serializePassportFileEnvelope(input: unknown): string | null {
     iv: parsed.value.iv,
     ct: parsed.value.ct,
     url: parsed.value.url,
+    ...(parsed.value.attached === true ? { attached: true } : {}),
   });
 }
 
