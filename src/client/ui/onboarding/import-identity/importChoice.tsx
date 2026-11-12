@@ -22,9 +22,7 @@ function ImportChoice({
         <DisplayHeading accent="pubky." aria-label="Import pubky.">
           Import
         </DisplayHeading>
-        <LeadText>
-          Use the recovery phrase or recovery file of a pubky you already have to sign in.
-        </LeadText>
+        <LeadText>Use your pubky recovery phrase or file to restore and sign in.</LeadText>
       </div>
       <div aria-label="Import with" className="flex flex-col gap-3" role="group">
         <ImportOption
