@@ -58,6 +58,7 @@ describe("LocalIdentityController", () => {
       remove: vi.fn(() => Result.ok()),
       subscribe: vi.fn(() => () => undefined),
       read: vi.fn(),
+      saveIfAbsent: vi.fn(),
     };
     const controller = new LocalIdentityController(repository);
 
@@ -335,5 +336,6 @@ function storedIdentityRepository(secretBytes: Uint8Array) {
         } satisfies PubkySecretKeyMaterial,
       }),
     ),
+    saveIfAbsent: vi.fn(),
   };
 }

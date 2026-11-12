@@ -72,6 +72,29 @@ export class LocalStorageIdentityRepository {
     identity: LocalIdentityMetadata,
     secretKey: PubkySecretKeyMaterial,
   ): LocalIdentityResult<LocalIdentityMetadata> {
+    const saved = this.write(identity, secretKey, false);
+    if (Result.isError(saved)) return Result.err(saved.error);
+    return saved.value ? Result.ok(saved.value) : storageUnavailable("write");
+  }
+
+  /**
+   * Saves an identity only when none with its public key is stored yet. An existing record (and
+   * its Google or Apple link) is left untouched and reported as `"already-stored"`.
+   */
+  saveIfAbsent(
+    identity: LocalIdentityMetadata,
+    secretKey: PubkySecretKeyMaterial,
+  ): LocalIdentityResult<"saved" | "already-stored"> {
+    const saved = this.write(identity, secretKey, true);
+    if (Result.isError(saved)) return Result.err(saved.error);
+    return Result.ok(saved.value ? "saved" : "already-stored");
+  }
+
+  private write(
+    identity: LocalIdentityMetadata,
+    secretKey: PubkySecretKeyMaterial,
+    onlyIfAbsent: boolean,
+  ): LocalIdentityResult<LocalIdentityMetadata | null> {
     if (
       !isPubkyPublicIdentity(identity.publicIdentity) ||
       (identity.googleAccount !== undefined && !isGoogleAccountProfile(identity.googleAccount)) ||
@@ -108,6 +131,7 @@ export class LocalStorageIdentityRepository {
 
     try {
       previousIdentity = storage.getItem(storedKey);
+      if (onlyIfAbsent && previousIdentity !== null) return Result.ok(null);
       previousActive = storage.getItem(ACTIVE_IDENTITY_KEY);
       storage.setItem(storedKey, JSON.stringify(stored));
       storage.setItem(ACTIVE_IDENTITY_KEY, stored.publicKeyZ32);

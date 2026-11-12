@@ -57,6 +57,7 @@ export type LocalIdentityControllerPort = Pick<
   LocalIdentityController,
   | "createPubkyRingMigration"
   | "createRecoveryFile"
+  | "importIdentity"
   | "listAuthorizedApps"
   | "listIdentities"
   | "removeIdentity"

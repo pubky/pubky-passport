@@ -417,6 +417,46 @@ describe("LocalStorageIdentityRepository", () => {
     });
     expect(JSON.stringify(warning.mock.calls)).not.toContain("sensitive browser policy details");
   });
+
+  describe("saveIfAbsent", () => {
+    it("saves a new identity and makes it active", () => {
+      const repository = new LocalStorageIdentityRepository();
+      save(repository, SECOND_IDENTITY, 2);
+
+      expect(
+        expectResultOk(repository.saveIfAbsent({ publicIdentity: FIRST_IDENTITY }, secret(1))),
+      ).toBe("saved");
+      expect(localStorage.getItem(ACTIVE_IDENTITY_KEY)).toBe(FIRST_KEY);
+      expect(expectResultOk(repository.read(FIRST_KEY)).secretKey.bytes).toEqual(
+        new Uint8Array(32).fill(1),
+      );
+    });
+
+    it("leaves an existing record and the active identity untouched", () => {
+      const repository = new LocalStorageIdentityRepository();
+      expectResultOk(
+        repository.save({ publicIdentity: FIRST_IDENTITY, appleAccount: APPLE }, secret(1)),
+      );
+      save(repository, SECOND_IDENTITY, 2);
+      const before = localStorage.getItem(`${IDENTITY_PREFIX}${FIRST_KEY}`);
+
+      expect(
+        expectResultOk(repository.saveIfAbsent({ publicIdentity: FIRST_IDENTITY }, secret(9))),
+      ).toBe("already-stored");
+      expect(localStorage.getItem(`${IDENTITY_PREFIX}${FIRST_KEY}`)).toBe(before);
+      expect(localStorage.getItem(ACTIVE_IDENTITY_KEY)).toBe(SECOND_KEY);
+    });
+
+    it("validates like save", () => {
+      expectResultError(
+        new LocalStorageIdentityRepository().saveIfAbsent(
+          { publicIdentity: FIRST_IDENTITY },
+          { bytes: new Uint8Array(31), format: PUBKY_SECRET_KEY_FORMAT },
+        ),
+        { code: "invalid_secret_key" },
+      );
+    });
+  });
 });
 
 function save(
