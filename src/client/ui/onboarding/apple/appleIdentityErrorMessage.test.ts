@@ -1,17 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { googleIdentityErrorMessage } from "@/client/ui/googleIdentityErrorMessage";
-import { importErrorMessage } from "@/client/ui/onboarding/import-identity/importErrorMessage";
 import { appleIdentityErrorMessage } from "./appleIdentityErrorMessage";
 
 describe("appleIdentityErrorMessage", () => {
-  it("uses the import's copy when a restored identity has no homeserver", () => {
-    const copy = importErrorMessage("homeserver_not_found");
-
-    expect(copy).toBe(
-      "This pubky has no homeserver, so Passport cannot sign in with it. Nothing was saved.",
+  it("says the iCloud backup is unchanged when a restored identity has no homeserver record", () => {
+    expect(appleIdentityErrorMessage("homeserver_not_found")).toBe(
+      "Passport couldn't find this pubky's homeserver record. Your backup in iCloud is unchanged. Open the app that manages this pubky so it republishes its homeserver, then try again.",
     );
-    expect(appleIdentityErrorMessage("homeserver_not_found")).toBe(copy);
-    expect(googleIdentityErrorMessage("homeserver_not_found")).toBe(copy);
   });
 });

@@ -31,7 +31,8 @@ function googleIdentityErrorMessage(code: GoogleIdentityViewError["code"]): stri
     case "local_link_failed":
       return "Your encrypted backup is in Google Drive, but Passport could not update this browser. Try again.";
     case "homeserver_not_found":
-      return "This pubky has no homeserver, so Passport cannot sign in with it. Nothing was saved.";
+      // Only a restore returns this (attach never does): the backup itself is fine.
+      return "Passport couldn't find this pubky's homeserver record. Your backup in Google Drive is unchanged. Open the app that manages this pubky so it republishes its homeserver, then try again.";
     case "restore_failed":
       return "Passport could not restore the Pubky identity from the encrypted file.";
     case "signin_failed":

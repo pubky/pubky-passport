@@ -28,7 +28,7 @@ const EXPECTED_COPY: Record<GoogleIdentityViewError["code"], string> = {
     "Passport needs both Google Drive permissions to delete your encrypted identity and visible recovery copies before removing Google access.",
   homeserver_signup_token_failed: "Passport could not obtain a homeserver invitation.",
   homeserver_not_found:
-    "This pubky has no homeserver, so Passport cannot sign in with it. Nothing was saved.",
+    "Passport couldn't find this pubky's homeserver record. Your backup in Google Drive is unchanged. Open the app that manages this pubky so it republishes its homeserver, then try again.",
   identity_already_linked:
     "This pubky was connected to another account meanwhile. Go back to see its sign-in account.",
   identity_linked_meanwhile:
