@@ -9,10 +9,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PassportAuthorizationViewState } from "@/client/logic/authorization/flow/PassportAuthorizationController";
 import type { PubkyPublicIdentity } from "@/client/logic/pubky/pubkyIdentityKey";
 import type { LocalIdentityCatalog } from "@/client/logic/local-identity/localIdentityModels";
+import {
+  fakeAppleIdentityController,
+  TEST_APPLE_CONFIGURATION,
+} from "@test-utils/fakeAppleIdentityController";
 import { mockGoogleIdentityController } from "@test-utils/mockGoogleIdentityController";
 import { fakeLocalIdentityController } from "@test-utils/fakeLocalIdentityController";
 import { fakePassportAuthorizationController } from "@test-utils/fakePassportAuthorizationController";
 import { withPassportTestProviders } from "@test-utils/googleIdentityConfiguration";
+import { AppleIdentityConfigurationProvider } from "@/client/ui/appleIdentityConfiguration";
 import { AuthorizationFlow } from "./authorizationFlow";
 
 const MOCKS = {
@@ -864,6 +869,75 @@ describe("AuthorizationFlow", () => {
 
     expect(MOCKS.cancel).toHaveBeenCalledOnce();
   });
+
+  describe.each([
+    { apple: "off", configuration: null },
+    { apple: "on", configuration: TEST_APPLE_CONFIGURATION },
+  ] as const)(
+    "with the real sign-in screens and Apple login $apple",
+    ({ apple, configuration }) => {
+      function renderSignIn() {
+        const establishIdentity = vi.fn(() => new Promise<never>(() => undefined));
+        const appleController = fakeAppleIdentityController().controller;
+        render(
+          <StrictMode>
+            <AppleIdentityConfigurationProvider apple={configuration}>
+              {withPassportTestProviders(<AuthorizationFlow />, {
+                ...authorizationCollaborators(),
+                createGoogleIdentityController: () =>
+                  mockGoogleIdentityController({ establishIdentity }),
+                createAppleIdentityController: () => appleController,
+              })}
+            </AppleIdentityConfigurationProvider>
+          </StrictMode>,
+        );
+        return { appleController, establishIdentity };
+      }
+
+      async function expectProviderChoice() {
+        const google = await screen.findByRole("button", { name: "Continue with Google" });
+        expect(screen.queryAllByRole("button", { name: "Continue with Apple" })).toHaveLength(
+          apple === "on" ? 1 : 0,
+        );
+        expect(screen.getByRole("button", { name: "Import it" })).toBeInTheDocument();
+        expect(
+          screen.queryByRole("heading", { name: "Requesting Google access." }),
+        ).not.toBeInTheDocument();
+        return google;
+      }
+
+      it("shows the provider choice and import link on first-identity setup", async () => {
+        const user = userEvent.setup();
+        MOCKS.catalog = { activePublicKeyZ32: null, identities: [] };
+        const { appleController, establishIdentity } = renderSignIn();
+
+        await expectProviderChoice();
+        await act(async () => {
+          await new Promise((resolve) => setTimeout(resolve, 0));
+        });
+        expect(establishIdentity).not.toHaveBeenCalled();
+        expect(appleController.continueWithApple).not.toHaveBeenCalled();
+
+        await user.click(screen.getByRole("button", { name: "Import it" }));
+        expect(await screen.findByRole("heading", { name: "Import pubky." })).toBeInTheDocument();
+        expect(establishIdentity).not.toHaveBeenCalled();
+      });
+
+      it("shows the same choice from Use other identity and starts Google only on the click", async () => {
+        const user = userEvent.setup();
+        const { establishIdentity } = renderSignIn();
+        await screen.findByRole("heading", { name: "Sign in to requesting.app" });
+        await user.click(screen.getByRole("button", { name: "Switch" }));
+        await user.click(screen.getByRole("button", { name: /use other identity/iu }));
+
+        const google = await expectProviderChoice();
+        expect(establishIdentity).not.toHaveBeenCalled();
+        await waitFor(() => expect(google).toBeEnabled());
+        await user.click(google);
+        expect(establishIdentity).toHaveBeenCalledOnce();
+      });
+    },
+  );
 
   it("cancels authorization when leaving an unavailable identity catalog", async () => {
     const user = userEvent.setup();

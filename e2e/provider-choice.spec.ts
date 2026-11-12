@@ -509,28 +509,43 @@ test.describe("with Apple login off", () => {
     await expectTermsNotice(page, page.getByRole("button", { name: "Continue with Google" }));
   });
 
-  test("Use other identity goes straight to Google, as before", async ({ context, page }) => {
+  test("Use other identity shows Google and waits for the click", async ({ context, page }) => {
     const google = await fakeGoogle(context);
+    const popups = countPopups(page);
     await installGoogleIdentity(page);
 
     await page.goto(authorizeUrl(""));
     await page.getByRole("button", { name: "Switch" }).click();
     await page.getByRole("button", { name: "Use other identity" }).click();
 
-    await expect(page).toHaveURL(/^https:\/\/accounts\.google\.com\//u);
-    expect(google).toHaveLength(1);
+    await expectTermsNotice(page, page.getByRole("button", { name: "Continue with Google" }));
+    await expect(page.getByRole("button", { name: "Continue with Apple" })).toHaveCount(0);
+    expect(new URL(page.url()).pathname).toBe("/authorize");
+    expect(google).toHaveLength(0);
+    expect(popups.count).toBe(0);
   });
 
-  test("an authorization without an identity goes straight to Google", async ({
+  test("an authorization without an identity shows Google and waits for the click", async ({
     context,
     page,
   }) => {
     const google = await fakeGoogle(context);
+    await context.route("https://client.example/cancel", (route) =>
+      route.fulfill({ contentType: "text/html", body: "<!doctype html><h1>Cancelled</h1>" }),
+    );
+    const popups = countPopups(page);
 
     await page.goto(authorizeUrl(""));
 
-    await expect(page).toHaveURL(/^https:\/\/accounts\.google\.com\//u);
-    expect(google).toHaveLength(1);
+    await expect(page.getByLabel("Signing in to client.example")).toBeVisible();
+    await expectTermsNotice(page, page.getByRole("button", { name: "Continue with Google" }));
+    await expect(page.getByRole("button", { name: "Continue with Apple" })).toHaveCount(0);
+    expect(new URL(page.url()).pathname).toBe("/authorize");
+    expect(google).toHaveLength(0);
+    expect(popups.count).toBe(0);
+
+    await page.getByRole("button", { name: "Back" }).click();
+    await expect(page.getByRole("heading", { name: "Cancelled" })).toBeVisible();
   });
 });
 

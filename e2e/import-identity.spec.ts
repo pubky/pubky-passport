@@ -194,6 +194,27 @@ test("the import link sits above the Terms notice on every provider choice, Appl
   await expectQuietLink(page);
 });
 
+test("with Apple off, /authorize shows the choice with the import link instead of starting Google", async ({
+  page,
+}) => {
+  await installNetwork(page);
+  const google: string[] = [];
+  page.on("request", (request) => {
+    if (request.url().startsWith("https://accounts.google.com/")) google.push(request.url());
+  });
+  page.on("popup", (popup) => google.push(popup.url()));
+  await page.goto(AUTHORIZE_URL);
+  await expect(page.getByRole("button", { name: "Continue with Apple" })).toHaveCount(0);
+  await expectQuietLink(page);
+  expect(new URL(page.url()).pathname).toBe("/authorize");
+
+  await page.getByRole("button", { name: LINK }).click();
+  await expect(page.getByRole("heading", { name: "Import pubky." })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Recovery phrase/u })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Recovery file/u })).toBeVisible();
+  expect(google).toEqual([]);
+});
+
 test("Add identity and Use other identity offer the link too", async ({ page }) => {
   await seedIdentities(page, [OTHER]);
   await installNetwork(page);
@@ -203,10 +224,12 @@ test("Add identity and Use other identity offer the link too", async ({ page }) 
     await page.getByRole("button", { name: "Add identity" }).click();
     await expectQuietLink(page);
   }
-  await page.goto(`${APPLE_ORIGIN}${AUTHORIZE_URL}`);
-  await page.getByRole("button", { name: "Switch" }).click();
-  await page.getByRole("button", { name: "Use other identity" }).click();
-  await expectQuietLink(page);
+  for (const origin of ["", APPLE_ORIGIN]) {
+    await page.goto(`${origin}${AUTHORIZE_URL}`);
+    await page.getByRole("button", { name: "Switch" }).click();
+    await page.getByRole("button", { name: "Use other identity" }).click();
+    await expectQuietLink(page);
+  }
 });
 
 test("recovery file on the start page: wrong file, wrong password, no homeserver", async ({

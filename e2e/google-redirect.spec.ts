@@ -61,7 +61,7 @@ for (const [format, entry] of [
   ["legacy", ENTRY],
   ["signed encryption", SIGNED_ENTRY],
 ] as const) {
-  test(`automatically signs in in the same tab and restores the ${format} request`, async ({
+  test(`signs in in the same tab after the click and restores the ${format} request`, async ({
     context,
     page,
   }) => {
@@ -73,6 +73,7 @@ for (const [format, entry] of [
       };
     });
     await page.goto(entry);
+    await page.getByRole("button", { name: "Continue with Google" }).click();
     await expect(page.getByRole("heading", { name: "Drive access optional." })).toBeVisible();
     await expect(page.getByLabel("Signing in to client.example")).toBeVisible();
     expect(requests).toHaveLength(1);
@@ -96,7 +97,8 @@ test("Google cancellation stays retryable without an automatic redirect loop", a
 }, testInfo) => {
   const requests = await google(context, { denied: true });
   await page.goto(ENTRY);
-  await expect(page.getByRole("button", { name: "Continue with Google" })).toBeVisible();
+  await page.getByRole("button", { name: "Continue with Google" }).click();
+  await expect(page.getByRole("heading", { name: /^Google access\s*denied\.$/u })).toBeVisible();
   const retry = page.getByRole("button", { name: "Continue with Google" });
   expect((await retry.boundingBox())!.width).toBeGreaterThanOrEqual(300);
   expect(
@@ -127,7 +129,8 @@ test("rejects a mismatched OAuth state without calling Google UserInfo", async (
     if (request.url().includes("/v1/userinfo")) profileRequests.push(request.url());
   });
   await page.goto(ENTRY);
-  await expect(page.getByRole("button", { name: "Continue with Google" })).toBeVisible();
+  await page.getByRole("button", { name: "Continue with Google" }).click();
+  await expect(page.getByRole("heading", { name: "Setup interrupted." })).toBeVisible();
   expect(profileRequests).toEqual([]);
   expect(await page.evaluate((key) => sessionStorage.getItem(key), STORAGE_KEY)).toBeNull();
 });
@@ -145,7 +148,8 @@ test("blocked session storage produces a retryable error without leaving Passpor
     });
   });
   await page.goto(ENTRY);
-  await expect(page.getByRole("button", { name: "Continue with Google" })).toBeVisible();
+  await page.getByRole("button", { name: "Continue with Google" }).click();
+  await expect(page.getByRole("heading", { name: "Setup interrupted." })).toBeVisible();
   expect(requests).toHaveLength(0);
   expect(new URL(page.url()).pathname).toBe("/authorize");
 });
@@ -166,6 +170,7 @@ test("a single Passport popup navigates through Google without a nested popup", 
   }, ENTRY);
   await page.getByRole("button", { name: "Open Passport" }).click();
   const popup = await popupPromise;
+  await popup.getByRole("button", { name: "Continue with Google" }).click();
   await expect(popup.getByRole("heading", { name: "Drive access optional." })).toBeVisible();
   expect(context.pages()).toHaveLength(2);
   await popup.getByRole("button", { name: "Back", exact: true }).click();
@@ -180,6 +185,7 @@ test("two sign-ins in the same tab retain each request's callback", async ({ con
   for (const host of ["client.example", "second.client.example"]) {
     const request = REQUEST.replace("https%3A%2F%2Fclient.example", `https%3A%2F%2F${host}`);
     await page.goto(`/authorize#d=${encodeURIComponent(request)}`);
+    await page.getByRole("button", { name: "Continue with Google" }).click();
     await expect(page.getByRole("heading", { name: "Drive access optional." })).toBeVisible();
     await expect(page.getByLabel(`Signing in to ${host}`)).toBeVisible();
     await page.getByRole("button", { name: "Back", exact: true }).click();
@@ -206,6 +212,7 @@ for (const popup of [false, true]) {
       await page.evaluate((entry) => window.open(entry, "passport"), ENTRY);
       callbackPage = await opened;
     } else await page.goto(ENTRY);
+    await callbackPage.getByRole("button", { name: "Continue with Google" }).click();
     await expect(callbackPage.getByRole("heading", { name: "Sign-in interrupted" })).toBeVisible();
     await expect(callbackPage.getByText(/Return to the app where you started/)).toBeVisible();
     await expect(callbackPage.getByRole("button", { name: "Go to Passport home" })).toBeVisible();

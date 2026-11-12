@@ -103,6 +103,10 @@ describe("import link on the provider choice", () => {
     ["Add identity, Apple off", { apple: null, onBack: vi.fn() }],
     ["Add identity, Apple on", { apple: TEST_APPLE_CONFIGURATION, onBack: vi.fn() }],
     [
+      "/authorize and Use other identity, Apple off",
+      { apple: null, forAuthorization: true, onBack: vi.fn() },
+    ],
+    [
       "/authorize and Use other identity, Apple on",
       { apple: TEST_APPLE_CONFIGURATION, forAuthorization: true, onBack: vi.fn() },
     ],
@@ -136,12 +140,6 @@ describe("import link on the provider choice", () => {
       if (back) expect(precedes(link, back)).toBe(true);
     },
   );
-
-  it("does not appear while /authorize starts Google directly (Apple off)", async () => {
-    const { establishIdentity } = renderFlow({ forAuthorization: true, onBack: vi.fn() });
-    await vi.waitFor(() => expect(establishIdentity).toHaveBeenCalled());
-    expect(screen.queryByRole("button", { name: LINK })).toBeNull();
-  });
 
   it("opens the import choice and comes back to the provider choice", async () => {
     const user = userEvent.setup();

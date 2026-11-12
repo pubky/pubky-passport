@@ -45,9 +45,9 @@ the person sees depends on what this browser already has:
 - **An identity in this browser:** Passport goes straight to the review of your request. The
   identity card offers **Switch** (other identities in this browser, or **Use other identity**)
   and **Manage**.
-- **No identity, Apple login off:** Passport starts Google at once, in the same tab.
-- **No identity, Apple login on:** Passport shows **Quick access.** with
-  **Continue with Google** and **Continue with Apple**, and starts the one the person clicks.
+- **No identity:** Passport shows **Quick access.** with **Continue with Google** (and
+  **Continue with Apple** where Apple login is on) and **Already have a pubky? Import it**, and
+  starts only what the person clicks.
 
 Either way the person ends on the review of your request and approves with an explicit click.
 
@@ -375,9 +375,9 @@ A `success` message means the approval reached the relay; keep waiting for the S
 ## Same-tab navigation
 
 Your app opens Passport without naming a provider; the person picks one in Passport. During
-authorization, when an identity must be created or restored and Google is the only provider,
-Passport starts Google automatically. Where Apple login is on, Passport first shows
-**Continue with Google** and **Continue with Apple**, and starts the one the person clicks.
+authorization, when an identity must be created or restored, Passport shows
+**Continue with Google** (and **Continue with Apple** where Apple login is on) and starts only
+the one the person clicks.
 Google opens in the current Passport tab/window, including when Passport itself was opened as a
 popup; there is no second Google button or nested Google popup. Apple's two steps normally reuse
 one window opened from the Continue with Apple click. If that window closes before handoff, the
