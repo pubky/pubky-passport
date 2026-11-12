@@ -107,8 +107,8 @@ describe("import link on the provider choice", () => {
 
       // Not a third provider: no pill, no fill, not in the provider group.
       expect(link.className).not.toMatch(/rounded-full|bg-|h-15|border /u);
-      expect(link).toHaveClass("text-brand");
-      expect(link.className).not.toMatch(/underline/u);
+      expect(link).toHaveClass("text-brand", "hover:underline", "focus-visible:underline");
+      expect(link).not.toHaveClass("underline");
       expect(link.parentElement).toHaveClass("text-sm", "text-muted-foreground");
       const providerGroup = screen.queryByRole("group", {
         name: "Choose an account to sign in with",

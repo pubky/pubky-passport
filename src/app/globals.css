@@ -127,7 +127,14 @@ body:has([data-passport-sign-in-notice]) .passport-footer {
     color: var(--brand);
     font-weight: 600;
     text-decoration-line: none;
+    text-underline-offset: 4px;
     outline: none;
+  }
+
+  /* No underline at rest; hover and keyboard focus add one, so links are not marked by colour alone. */
+  .legal-document a:hover,
+  .legal-document a:focus-visible {
+    text-decoration-line: underline;
   }
 
   .legal-document a:focus-visible {

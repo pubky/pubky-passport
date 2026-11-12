@@ -1,5 +1,5 @@
 const LINK_CLASS_NAME =
-  "whitespace-nowrap rounded-sm font-semibold text-brand outline-none focus-visible:ring-3 focus-visible:ring-ring/50";
+  "whitespace-nowrap rounded-sm font-semibold text-brand underline-offset-4 hover:underline focus-visible:underline outline-none focus-visible:ring-3 focus-visible:ring-ring/50";
 
 /**
  * The notice under the sign-in buttons, one paragraph: the consent, then the footer's own "powered

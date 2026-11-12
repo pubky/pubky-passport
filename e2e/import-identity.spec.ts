@@ -130,6 +130,9 @@ async function expectQuietLink(page: Page) {
   expect(questionBox!.height).toBeLessThanOrEqual(24);
   expect(linkBox!.height).toBeLessThanOrEqual(24);
   expect(linkBox!.height).toBeLessThan(pillBox!.height / 2);
+  // At rest: no pointer over the link and no focus on it (Back from the import choice leaves both).
+  await page.mouse.move(0, 0);
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
   const style = await link.evaluate((node) => {
     const computed = getComputedStyle(node);
     return {

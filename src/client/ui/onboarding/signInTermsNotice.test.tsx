@@ -35,9 +35,9 @@ function expectTermsNotice(scope: HTMLElement) {
   for (const link of links) {
     expect(link).toHaveAttribute("target", "_blank");
     expect(link).toHaveAttribute("rel", "noopener noreferrer");
-    // Links are green text only, without an underline.
-    expect(link).toHaveClass("text-brand");
-    expect(link.className).not.toMatch(/underline/u);
+    // Green text without an underline at rest; hover and keyboard focus add one.
+    expect(link).toHaveClass("text-brand", "hover:underline", "focus-visible:underline");
+    expect(link).not.toHaveClass("underline");
   }
   // Continuing is the consent: no checkbox.
   expect(within(scope).queryByRole("checkbox")).toBeNull();

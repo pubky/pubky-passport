@@ -57,7 +57,7 @@ function ConnectICloudScreen({
           </FieldMessage>
           {notice === "icloud_web_access_disabled" ? (
             <a
-              className="font-medium text-brand"
+              className="font-medium text-brand underline-offset-4 hover:underline focus-visible:underline"
               href="https://support.apple.com/kb/HT212523"
               target="_blank"
               rel="noreferrer"

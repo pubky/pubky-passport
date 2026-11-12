@@ -127,6 +127,9 @@ async function expectTermsNotice(page: Page, lastButton: Locator): Promise<Locat
   await expect(notice.locator("p")).toHaveCount(1);
   const links = notice.getByRole("link");
   await expect(links).toHaveText(["Terms of Service", "Privacy Policy", "Pubky protocol"]);
+  // At rest: no pointer over a link and no focused link (an earlier click may leave either).
+  await page.mouse.move(0, 0);
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
   for (const [name, href] of [
     ["Terms of Service", "/terms-of-service"],
     ["Privacy Policy", "/privacy-policy"],
@@ -137,6 +140,14 @@ async function expectTermsNotice(page: Page, lastButton: Locator): Promise<Locat
     await expect(link).toHaveAttribute("target", "_blank");
     await expect(link).toHaveAttribute("rel", "noopener noreferrer");
     await expect(link).toHaveCSS("text-decoration-line", "none");
+  }
+  // Hover adds an underline, so the links are not marked by colour alone (devices that can hover).
+  if (await page.evaluate(() => matchMedia("(hover: hover)").matches)) {
+    const terms = notice.getByRole("link", { name: "Terms of Service" });
+    await terms.hover();
+    await expect(terms).toHaveCSS("text-decoration-line", "underline");
+    await page.mouse.move(0, 0);
+    await expect(terms).toHaveCSS("text-decoration-line", "none");
   }
   await expect(page.getByRole("checkbox")).toHaveCount(0);
   const [buttonBox, noticeBox] = await Promise.all([
