@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { preload } from "react-dom";
 
 import { isGoogleRedirectReturn } from "@/client/logic/google-identity/gia/googleRedirectBootstrap";
@@ -12,8 +12,22 @@ import { IdentityComplete } from "./identityComplete";
 import { IdentityProgress } from "./identityProgress";
 import { useGoogleIdentityEstablishment } from "./google/useGoogleIdentityEstablishment";
 import { BackButton } from "@/client/ui/shared/backButton";
+import { LoadingScreen } from "@/client/ui/shared/loadingScreen";
+import { ImportIdentityLink } from "./import-identity/importIdentityLink";
+import { ImportUnavailable } from "./import-identity/importUnavailable";
 import { ProviderChoice } from "./providerChoice";
 import { SignInPage } from "./signInPage";
+
+// Loaded on demand: the BIP39 wordlist and the import screens are not needed to sign in. A chunk
+// that fails to load (offline, or an old tab after a deploy) shows a way back, not a crashed page.
+const ImportIdentityFlow = lazy(async () => {
+  try {
+    const { ImportIdentityFlow } = await import("./import-identity/importIdentityFlow");
+    return { default: ImportIdentityFlow };
+  } catch {
+    return { default: ImportUnavailable };
+  }
+});
 
 function IdentityEstablishmentFlow({
   forAuthorization = false,
@@ -25,6 +39,7 @@ function IdentityEstablishmentFlow({
   onComplete: () => void;
 }) {
   const google = useGoogleIdentityEstablishment(forAuthorization);
+  const [importing, setImporting] = useState(false);
   const apple = useAppleIdentity();
   const appleEnabled = apple !== null;
   // With only Google, an authorization starts Google at once, as before Apple. With Apple too,
@@ -100,12 +115,20 @@ function IdentityEstablishmentFlow({
       return <IdentityProgress progress={view.progress} storageName="Google Drive" />;
     case "idle":
       if (startsGoogleAutomatically) return <GoogleAccessScreen />;
+      if (importing) {
+        return (
+          <Suspense fallback={<LoadingScreen label="Loading" />}>
+            <ImportIdentityFlow onBack={() => setImporting(false)} onComplete={onComplete} />
+          </Suspense>
+        );
+      }
       return (
         <SignInPage>
           <ProviderChoice
             apple={apple ? { ready: apple.ready, onContinue: apple.continueWithApple } : null}
             onContinueWithGoogle={google.establishIdentity}
           />
+          <ImportIdentityLink onImport={() => setImporting(true)} />
           {onBack ? <BackButton onClick={onBack} /> : null}
         </SignInPage>
       );
