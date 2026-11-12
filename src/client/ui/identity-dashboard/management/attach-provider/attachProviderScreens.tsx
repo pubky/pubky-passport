@@ -104,6 +104,9 @@ function AttachError({
   provider: ProviderName;
 }) {
   const accountInUse = error.code === "provider_account_in_use";
+  // These two happen after the backup was stored, so something did change.
+  const backupStored =
+    error.code === "local_link_failed" || error.code === "identity_linked_meanwhile";
   return (
     <PassportScreen className="gap-6">
       <div className="flex flex-col gap-6">
@@ -122,9 +125,11 @@ function AttachError({
             {accountNotice}
           </p>
         ) : null}
-        <p className="text-sm leading-5 text-muted-foreground">
-          Nothing was changed. This pubky stays in this browser only.
-        </p>
+        {backupStored ? null : (
+          <p className="text-sm leading-5 text-muted-foreground">
+            Nothing was changed. This pubky stays in this browser only.
+          </p>
+        )}
       </div>
       <div className="flex min-h-0 flex-1 flex-col gap-6">
         {accountInUse ? null : <IdentityErrorDetails error={error} />}

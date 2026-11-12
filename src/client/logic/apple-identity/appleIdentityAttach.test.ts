@@ -137,7 +137,7 @@ describe("Apple attach", () => {
     MOCKS.createPassportFile.mockResolvedValue(Result.err({ code: "create_conflict" }));
     result = await createSubject().attachIdentity(CREDENTIALS, STORE, { publicKeyZ32: PUBKY });
     expect(Result.isError(result) && result.error.code).toBe("icloud_create_conflict");
-    expect(MOCKS.createPassportFile).toHaveBeenCalledTimes(2);
+    expect(MOCKS.createPassportFile).toHaveBeenCalledOnce();
 
     MOCKS.createPassportFile.mockResolvedValue(Result.err({ code: "quota_exceeded" }));
     result = await createSubject().attachIdentity(CREDENTIALS, STORE, { publicKeyZ32: PUBKY });

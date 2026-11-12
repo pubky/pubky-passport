@@ -38,6 +38,11 @@ function AttachProviderFlow({
   const apple = useAppleIdentity();
   const attachWithGoogle = () =>
     google.run("attach", (controller) => controller.attachIdentity(publicIdentity));
+  // A retry may use another Google account, so it must not stay pinned to the last one.
+  const retryWithGoogle = () => {
+    google.reset();
+    attachWithGoogle();
+  };
 
   preload("/illustrations/checkmark.png", { as: "image" });
 
@@ -74,7 +79,7 @@ function AttachProviderFlow({
           <GoogleDrivePermissionPrompt
             mode="required"
             onBack={google.reset}
-            onTryAgain={attachWithGoogle}
+            onTryAgain={retryWithGoogle}
           />
         );
       }
@@ -83,7 +88,7 @@ function AttachProviderFlow({
           error={state.error}
           message={googleIdentityErrorMessage(state.error.code)}
           onBack={google.reset}
-          onTryAgain={attachWithGoogle}
+          onTryAgain={retryWithGoogle}
           provider="Google"
         />
       );
@@ -143,6 +148,11 @@ function AppleAttachment({
         <AttachComplete
           account={{ provider: "apple", appleAccount: state.identity.appleAccount }}
           attachment={state.identity.attachment}
+          notice={
+            state.identity.attachment === "created"
+              ? "Apple sign-in restores this pubky only together with the iCloud you just connected in Apple’s window. Keep your recovery file or phrase too."
+              : undefined
+          }
           onDone={onDone}
           publicIdentity={publicIdentity}
           storageName="iCloud"

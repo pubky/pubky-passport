@@ -105,6 +105,25 @@ describe("LocalStorageIdentityRepository.linkProviderAccount", () => {
     expect(localStorage.getItem(RECORD)).toBe(linked);
   });
 
+  it("refuses an account another identity here already uses", () => {
+    saveBrowserOnly();
+    saveBrowserOnly(OTHER_KEY);
+    const repository = new LocalStorageIdentityRepository();
+    expectResultOk(repository.linkProviderAccount(OTHER_KEY, { appleAccount: APPLE }));
+
+    expectResultError(repository.linkProviderAccount(KEY, { appleAccount: APPLE }), {
+      code: "provider_in_use",
+    });
+    expect(JSON.parse(localStorage.getItem(RECORD)!)).not.toHaveProperty("appleAccount");
+    expect(
+      expectResultOk(
+        repository.linkProviderAccount(KEY, {
+          appleAccount: { ...APPLE, appleSubject: "another-apple-subject" },
+        }),
+      ),
+    ).toBe("linked");
+  });
+
   it("never overwrites a record that changed between its read and the write", () => {
     saveBrowserOnly();
     const changedElsewhere = JSON.stringify({

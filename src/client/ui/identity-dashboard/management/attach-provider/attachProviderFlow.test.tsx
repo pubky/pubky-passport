@@ -156,6 +156,34 @@ describe("AttachProviderFlow", () => {
     expect(screen.getByRole("heading", { name: "Connect an account." })).toBeInTheDocument();
   });
 
+  it("lets Try again use another Google account", async () => {
+    const user = userEvent.setup();
+    const attachIdentity = vi.fn<AttachGoogle>(async () =>
+      Result.err({ code: "provider_account_in_use" as const }),
+    );
+    const { google } = renderAttach({ attachIdentity });
+    await user.click(screen.getByRole("button", { name: "Continue with Google" }));
+    await screen.findByRole("heading", { name: "Account in use." });
+
+    await user.click(screen.getByRole("button", { name: "Continue with Google" }));
+
+    expect(google.reset).toHaveBeenCalledOnce();
+    expect(attachIdentity).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not claim nothing changed once the backup was stored", async () => {
+    const user = userEvent.setup();
+    const attachIdentity = vi.fn<AttachGoogle>(async () =>
+      Result.err({ code: "local_link_failed" as const }),
+    );
+    renderAttach({ attachIdentity });
+
+    await user.click(screen.getByRole("button", { name: "Continue with Google" }));
+
+    expect(await screen.findByText(/backup is in Google Drive/u)).toBeInTheDocument();
+    expect(screen.queryByText(/Nothing was changed/u)).toBeNull();
+  });
+
   it("shows other failures with their code, a retry and Back", async () => {
     const user = userEvent.setup();
     const attachIdentity = vi.fn<AttachGoogle>(async () =>
@@ -229,6 +257,7 @@ describe("AttachProviderFlow", () => {
     );
     expect(screen.getByRole("heading", { name: "Connected to Apple." })).toBeInTheDocument();
     expect(screen.getByText("Stored backup in iCloud.")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent(/only together with the iCloud/u);
     await user.click(screen.getByRole("button", { name: "Done" }));
     expect(onDone).toHaveBeenCalledOnce();
   });

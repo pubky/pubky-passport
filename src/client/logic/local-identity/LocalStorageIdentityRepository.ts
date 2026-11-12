@@ -30,6 +30,7 @@ export type LocalIdentityErrorCode =
   | "invalid_secret_key"
   | "invalid_store"
   | "provider_conflict"
+  | "provider_in_use"
   | "storage_unavailable";
 
 /** The Google or Apple account to link to an identity that has none. */
@@ -164,7 +165,8 @@ export class LocalStorageIdentityRepository {
   /**
    * Links a Google or Apple account to a stored identity that has none, keeping its key as it is.
    * The same account linked already is `"already-linked"`; any other account is
-   * `provider_conflict`. A record that changed between the read and the write is not overwritten.
+   * `provider_conflict`, and an account another identity here already uses is `provider_in_use`.
+   * A record that changed between the read and the write is not overwritten.
    */
   linkProviderAccount(
     publicKeyZ32: string,
@@ -206,6 +208,23 @@ export class LocalStorageIdentityRepository {
         code: "provider_conflict",
       });
       return Result.err({ code: "provider_conflict" });
+    }
+
+    const others = readAllIdentities(storage);
+    if (Result.isError(others)) return Result.err(others.error);
+    const usedElsewhere = others.value.some(
+      (other) =>
+        other.publicKeyZ32 !== publicKeyZ32 &&
+        (google
+          ? other.googleAccount?.googleSubject === google.googleSubject
+          : other.appleAccount?.appleSubject === apple?.appleSubject),
+    );
+    if (usedElsewhere) {
+      LOGGER.info("identity.local_store.failed", {
+        operation: "link_provider",
+        code: "provider_in_use",
+      });
+      return Result.err({ code: "provider_in_use" });
     }
 
     const linked: StoredLocalIdentity = {

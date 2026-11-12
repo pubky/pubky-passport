@@ -65,6 +65,10 @@ function appleIdentityErrorMessage(code: AppleIdentityViewError["code"]): string
       return "This Apple Account already holds another pubky. Passport keeps one pubky per account. Detach that pubky from Apple first, or use a different Apple Account.";
     case "identity_already_linked":
       return "This pubky was connected to another account meanwhile. Go back to see its sign-in account.";
+    case "identity_linked_meanwhile":
+      return "Another tab connected an account at the same time. The encrypted backup is in iCloud, but this browser was not updated.";
+    case "local_identity_unavailable":
+      return "Passport could not read this pubky in this browser. Go back and check it is still there.";
     case "local_link_failed":
       return "Your encrypted backup is in iCloud, but Passport could not update this browser. Try again.";
     case "restore_failed":

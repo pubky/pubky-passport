@@ -222,7 +222,7 @@ describe("Google attach", () => {
 
     const result = await createSubject().attachIdentity(CREDENTIALS, { publicKeyZ32: PUBKY });
 
-    expectError(result, "local_link_failed");
+    expectError(result, "local_identity_unavailable");
     expect(MOCKS.readPassportFile).not.toHaveBeenCalled();
   });
 
@@ -263,14 +263,42 @@ describe("Google attach", () => {
     expect(MOCKS.linkProviderAccount).not.toHaveBeenCalled();
   });
 
-  it("gives up after a second create_conflict", async () => {
+  it("never writes a second file when the read after a conflict still finds none", async () => {
     MOCKS.createPassportFile.mockResolvedValue(Result.err({ code: "create_conflict" }));
 
     const result = await createSubject().attachIdentity(CREDENTIALS, { publicKeyZ32: PUBKY });
 
     expectError(result, "drive_create_conflict");
-    expect(MOCKS.createPassportFile).toHaveBeenCalledTimes(2);
+    expect(MOCKS.readPassportFile).toHaveBeenCalledTimes(2);
+    expect(MOCKS.createPassportFile).toHaveBeenCalledOnce();
     expect(MOCKS.linkProviderAccount).not.toHaveBeenCalled();
+  });
+
+  it("runs under a per-pubky Web Lock when the browser has one", async () => {
+    const names: string[] = [];
+    vi.stubGlobal("navigator", {
+      locks: {
+        request: async (name: string, callback: () => Promise<unknown>) => {
+          names.push(name);
+          return callback();
+        },
+      },
+    });
+    try {
+      const result = await createSubject().attachIdentity(CREDENTIALS, { publicKeyZ32: PUBKY });
+      expect(expectResultOk(result).attachment).toBe("created");
+      expect(names).toEqual([`pubky-passport:attach:${PUBKY}`]);
+
+      vi.stubGlobal("navigator", {
+        locks: { request: async () => Promise.reject(new Error("lock unavailable")) },
+      });
+      expectError(
+        await createSubject().attachIdentity(CREDENTIALS, { publicKeyZ32: PUBKY }),
+        "unexpected_failure",
+      );
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it("stops on a damaged Drive file and offers no replacement", async () => {
@@ -327,12 +355,24 @@ describe("Google attach", () => {
     expect(MOCKS.deletePassportFile).not.toHaveBeenCalled();
   });
 
-  it("maps a local provider conflict to identity_already_linked", async () => {
-    MOCKS.linkProviderAccount.mockReturnValue(Result.err({ code: "provider_conflict" }));
+  it.each(["provider_conflict", "provider_in_use"])(
+    "reports %s at link time as identity_linked_meanwhile",
+    async (code) => {
+      MOCKS.linkProviderAccount.mockReturnValue(Result.err({ code }));
+
+      const result = await createSubject().attachIdentity(CREDENTIALS, { publicKeyZ32: PUBKY });
+
+      expectError(result, "identity_linked_meanwhile");
+    },
+  );
+
+  it("reports a stored key that cannot be read before any write", async () => {
+    MOCKS.read.mockReturnValue(Result.err({ code: "invalid_store" }));
 
     const result = await createSubject().attachIdentity(CREDENTIALS, { publicKeyZ32: PUBKY });
 
-    expectError(result, "identity_already_linked");
+    expectError(result, "local_identity_unavailable");
+    expect(MOCKS.createPassportFile).not.toHaveBeenCalled();
   });
 
   it("maps Drive read and write failures", async () => {

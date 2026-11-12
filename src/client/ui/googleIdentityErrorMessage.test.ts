@@ -29,7 +29,11 @@ const EXPECTED_COPY: Record<GoogleIdentityViewError["code"], string> = {
   homeserver_signup_token_failed: "Passport could not obtain a homeserver invitation.",
   identity_already_linked:
     "This pubky was connected to another account meanwhile. Go back to see its sign-in account.",
+  identity_linked_meanwhile:
+    "Another tab connected an account at the same time. The encrypted backup is in Google Drive, but this browser was not updated.",
   identity_mismatch: "The restored Pubky identity did not match the activated homeserver identity.",
+  local_identity_unavailable:
+    "Passport could not read this pubky in this browser. Go back and check it is still there.",
   local_link_failed:
     "Your encrypted backup is in Google Drive, but Passport could not update this browser. Try again.",
   provider_account_in_use:
