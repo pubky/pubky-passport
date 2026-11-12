@@ -14,12 +14,13 @@ type GoogleIdentityOperation = (
   controller: GoogleIdentityControllerPort,
 ) => Promise<Result<unknown, GoogleIdentityViewError>>;
 type GoogleIdentityOperationName =
+  | "attach"
   | "detach"
   | "establish"
   | "replace-invalid-file"
   | "replace-undecryptable-file"
   | "continue-without-visible-backup";
-type GoogleIdentityScreen = "establishment" | "detachment";
+type GoogleIdentityScreen = "attachment" | "establishment" | "detachment";
 
 const IDLE_STATE: GoogleIdentityViewState = { status: "idle" };
 const OPERATION_FAILED_STATE: GoogleIdentityViewState = {

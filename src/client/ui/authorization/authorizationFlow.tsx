@@ -12,6 +12,7 @@ import type {
   LocalIdentityMetadata,
 } from "@/client/logic/local-identity/localIdentityModels";
 import { IdentityManagement } from "@/client/ui/identity-dashboard/management/identityManagement";
+import { AttachProviderFlow } from "@/client/ui/identity-dashboard/management/attach-provider/attachProviderFlow";
 import { DetachFromProviderFlow } from "@/client/ui/identity-dashboard/management/detach-provider/detachFromProviderFlow";
 import { RecoveryFileDownload } from "@/client/ui/identity-dashboard/management/recovery-file/recoveryFileDownload";
 import { MigrateToPubkyRing } from "@/client/ui/identity-dashboard/management/migrate-to-pubky-ring/migrateToPubkyRing";
@@ -104,7 +105,10 @@ type ActiveAuthorization = Extract<
 /** `first-identity-setup` stays until the setup screen reports completion, not when the catalog fills. */
 type AuthorizationIdentityView =
   | { view: "first-identity-setup" | "review" | "identity-selection" }
-  | { view: "manage-identity" | "recovery-file" | "migrate-to-pubky-ring"; publicKeyZ32: string }
+  | {
+      view: "manage-identity" | "attach-to-provider" | "recovery-file" | "migrate-to-pubky-ring";
+      publicKeyZ32: string;
+    }
   | {
       view: "detach-from-provider";
       account: IdentityProviderAccount;
@@ -214,6 +218,7 @@ function ReadyAuthorizationWithIdentity({
       <IdentityManagement
         identity={identity}
         listAuthorizedApps={() => actions.listAuthorizedApps(publicKeyZ32)}
+        onAttachToProvider={() => setNavigation({ view: "attach-to-provider", publicKeyZ32 })}
         onBack={() =>
           setNavigation((current) =>
             current.view === "identity-selection" ? current : { view: "review" },
@@ -234,6 +239,15 @@ function ReadyAuthorizationWithIdentity({
         revokeAuthorizedApp={(grantId) => actions.revokeAuthorizedApp(publicKeyZ32, grantId)}
       />
     );
+  }
+
+  if (state.view === "attach-to-provider") {
+    const identity = catalog.identities.find(
+      (candidate) => candidate.publicIdentity.publicKeyZ32 === state.publicKeyZ32,
+    );
+    if (!identity) return null;
+    const back = () => setNavigation({ view: "manage-identity", publicKeyZ32: state.publicKeyZ32 });
+    return <AttachProviderFlow identity={identity} onBack={back} onDone={back} />;
   }
 
   if (state.view === "recovery-file") {
