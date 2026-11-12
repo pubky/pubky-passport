@@ -9,7 +9,7 @@ import type {
   GoogleImplicitAuthorizationResult,
 } from "./GoogleImplicitAuthorization";
 
-/** Shared validation for popup and same-tab responses; tokens never enter storage or UI state. */
+/** Validates a popup response; tokens never enter storage or UI state. */
 export async function resolveGoogleCredentials(
   capture: unknown,
   state: string,

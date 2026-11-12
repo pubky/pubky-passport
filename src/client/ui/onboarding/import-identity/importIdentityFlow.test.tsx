@@ -32,13 +32,11 @@ type ImportIdentity = (
 
 function renderFlow({
   apple = null,
-  forAuthorization = false,
   importIdentity = vi.fn<ImportIdentity>(async () => Result.err({ code: "import_failed" })),
   onBack,
   onComplete = vi.fn(),
 }: {
   apple?: typeof TEST_APPLE_CONFIGURATION | null;
-  forAuthorization?: boolean;
   importIdentity?: ImportIdentity;
   onBack?: () => void;
   onComplete?: () => void;
@@ -48,11 +46,7 @@ function renderFlow({
   const view = render(
     withPassportTestProviders(
       <AppleIdentityConfigurationProvider apple={apple}>
-        <IdentityEstablishmentFlow
-          forAuthorization={forAuthorization}
-          onBack={onBack}
-          onComplete={onComplete}
-        />
+        <IdentityEstablishmentFlow onBack={onBack} onComplete={onComplete} />
       </AppleIdentityConfigurationProvider>,
       {
         createAppleIdentityController: () => fake.controller,
@@ -102,14 +96,6 @@ describe("import link on the provider choice", () => {
     ["start page, Apple on", { apple: TEST_APPLE_CONFIGURATION }],
     ["Add identity, Apple off", { apple: null, onBack: vi.fn() }],
     ["Add identity, Apple on", { apple: TEST_APPLE_CONFIGURATION, onBack: vi.fn() }],
-    [
-      "/authorize and Use other identity, Apple off",
-      { apple: null, forAuthorization: true, onBack: vi.fn() },
-    ],
-    [
-      "/authorize and Use other identity, Apple on",
-      { apple: TEST_APPLE_CONFIGURATION, forAuthorization: true, onBack: vi.fn() },
-    ],
   ] as const)(
     "is a one-line text link above the notice and badge (%s)",
     async (_label, options) => {

@@ -1,7 +1,6 @@
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { preload } from "react-dom";
 
-import { isGoogleRedirectReturn } from "@/client/logic/google-identity/gia/googleRedirectBootstrap";
 import { useAppleIdentity, type AppleIdentityHandle } from "@/client/ui/useAppleIdentity";
 import { AppleIdentityError } from "./apple/appleIdentityError";
 import { AppleSignInScreen } from "./apple/appleSignInScreen";
@@ -30,34 +29,16 @@ const ImportIdentityFlow = lazy(async () => {
 });
 
 function IdentityEstablishmentFlow({
-  forAuthorization = false,
   onBack,
   onComplete,
 }: {
-  forAuthorization?: boolean | undefined;
   onBack?: (() => void) | undefined;
   onComplete: () => void;
 }) {
-  const google = useGoogleIdentityEstablishment(forAuthorization);
+  const google = useGoogleIdentityEstablishment();
   const [importing, setImporting] = useState(false);
   const apple = useAppleIdentity();
   // Nothing starts on its own, /authorize included: the person picks a provider or the import.
-  // Only a Google redirect that is already under way resumes on its return.
-  const resumesGoogleRedirect = forAuthorization && isGoogleRedirectReturn();
-  const automaticallyStarted = useRef(false);
-  useEffect(() => {
-    if (!resumesGoogleRedirect || automaticallyStarted.current) return;
-    let active = true;
-    // Wait through StrictMode's setup/cleanup probe before resuming once.
-    queueMicrotask(() => {
-      if (!active || automaticallyStarted.current) return;
-      automaticallyStarted.current = true;
-      google.establishIdentity();
-    });
-    return () => {
-      active = false;
-    };
-  }, [resumesGoogleRedirect, google]);
   const view = google.view;
   const appleState = apple?.state;
   const restored =
@@ -102,7 +83,7 @@ function IdentityEstablishmentFlow({
       return (
         <GoogleIdentityError
           error={view.error}
-          onBack={resumesGoogleRedirect && onBack ? onBack : google.back}
+          onBack={google.back}
           onReplaceInvalidFile={google.replaceInvalidPassportFile}
           onReplaceUndecryptableFile={google.replaceUndecryptablePassportFile}
           onTryAgain={google.establishIdentity}
@@ -113,7 +94,6 @@ function IdentityEstablishmentFlow({
     case "working":
       return <IdentityProgress progress={view.progress} storageName="Google Drive" />;
     case "idle":
-      if (resumesGoogleRedirect) return <GoogleAccessScreen />;
       if (importing) {
         return (
           <Suspense fallback={<LoadingScreen label="Loading" />}>

@@ -8,11 +8,9 @@ import {
 } from "@/client/logic/apple-identity/AppleIdentityController";
 import type { PassportAuthorizationController } from "@/client/logic/authorization/flow/PassportAuthorizationController";
 import { GoogleIdentityController } from "@/client/logic/google-identity/GoogleIdentityController";
-import { GoogleRedirectAuthorization } from "@/client/logic/google-identity/gia/GoogleRedirectAuthorization";
 import { LocalIdentityController } from "@/client/logic/local-identity/LocalIdentityController";
 
 export type IdentitySetup = (props: {
-  forAuthorization?: boolean | undefined;
   onBack?: (() => void) | undefined;
   onComplete: () => void;
 }) => ReactNode;
@@ -75,7 +73,6 @@ export type PassportCollaborators = {
   createGoogleIdentityController: (
     googleClientId: string,
     homegateBaseUrl: string,
-    forAuthorization?: boolean,
   ) => GoogleIdentityControllerPort;
   createAppleIdentityController: (
     configuration: AppleIdentityConfiguration,
@@ -85,14 +82,8 @@ export type PassportCollaborators = {
 };
 
 const DEFAULT_PASSPORT_COLLABORATORS: PassportCollaborators = {
-  createGoogleIdentityController: (googleClientId, homegateBaseUrl, forAuthorization) =>
-    new GoogleIdentityController(
-      googleClientId,
-      homegateBaseUrl,
-      undefined,
-      undefined,
-      forAuthorization ? new GoogleRedirectAuthorization(googleClientId) : undefined,
-    ),
+  createGoogleIdentityController: (googleClientId, homegateBaseUrl) =>
+    new GoogleIdentityController(googleClientId, homegateBaseUrl),
   createAppleIdentityController: (configuration) => new AppleIdentityController(configuration),
   createLocalIdentityController: () => new LocalIdentityController(),
 };

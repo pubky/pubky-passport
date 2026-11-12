@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 
 import { Result } from "better-result";
-import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { StrictMode, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -13,7 +13,10 @@ import {
   fakeAppleIdentityController,
   TEST_APPLE_CONFIGURATION,
 } from "@test-utils/fakeAppleIdentityController";
-import { mockGoogleIdentityController } from "@test-utils/mockGoogleIdentityController";
+import {
+  mockGoogleIdentityController,
+  type MockGoogleIdentityController,
+} from "@test-utils/mockGoogleIdentityController";
 import { fakeLocalIdentityController } from "@test-utils/fakeLocalIdentityController";
 import { fakePassportAuthorizationController } from "@test-utils/fakePassportAuthorizationController";
 import { withPassportTestProviders } from "@test-utils/googleIdentityConfiguration";
@@ -38,18 +41,15 @@ const MOCKS = {
 };
 
 function IdentitySetupStub({
-  forAuthorization,
   onBack,
   onComplete,
 }: {
-  forAuthorization?: boolean | undefined;
   onBack?: (() => void) | undefined;
   onComplete: () => void;
 }) {
   return (
     <main>
       <h1>Add identity</h1>
-      {forAuthorization ? <p>Authorization identity setup</p> : null}
       <button
         onClick={() => {
           MOCKS.catalogListener?.();
@@ -807,7 +807,6 @@ describe("AuthorizationFlow", () => {
     await user.click(screen.getByRole("button", { name: /use other identity/iu }));
 
     expect(screen.getByRole("heading", { name: "Add identity" })).toBeInTheDocument();
-    expect(screen.getByText("Authorization identity setup")).toBeInTheDocument();
     expect(screen.getAllByLabelText("Signing in to requesting.app")).toHaveLength(1);
     await user.click(screen.getByRole("button", { name: "Complete identity setup" }));
     expect(screen.getByRole("heading", { name: "Sign in to requesting.app" })).toBeInTheDocument();
@@ -876,8 +875,11 @@ describe("AuthorizationFlow", () => {
   ] as const)(
     "with the real sign-in screens and Apple login $apple",
     ({ apple, configuration }) => {
-      function renderSignIn() {
-        const establishIdentity = vi.fn(() => new Promise<never>(() => undefined));
+      function renderSignIn(
+        establishIdentity: MockGoogleIdentityController["establishIdentity"] = vi.fn(
+          () => new Promise<never>(() => undefined),
+        ),
+      ) {
         const appleController = fakeAppleIdentityController().controller;
         render(
           <StrictMode>
@@ -921,6 +923,29 @@ describe("AuthorizationFlow", () => {
         await user.click(screen.getByRole("button", { name: "Import it" }));
         expect(await screen.findByRole("heading", { name: "Import pubky." })).toBeInTheDocument();
         expect(establishIdentity).not.toHaveBeenCalled();
+      });
+
+      it("goes back from a Google error to the choice without cancelling the request", async () => {
+        const user = userEvent.setup();
+        MOCKS.catalog = { activePublicKeyZ32: null, identities: [] };
+        const establishIdentity = vi.fn(async () => Result.err({ code: "signin_failed" as const }));
+        renderSignIn(establishIdentity);
+
+        const google = await expectProviderChoice();
+        await waitFor(() => expect(google).toBeEnabled());
+        await user.click(google);
+        expect(
+          await screen.findByRole("heading", { name: "Setup interrupted." }),
+        ).toBeInTheDocument();
+        await user.click(
+          within(screen.getByRole("group", { name: "Error actions" })).getByRole("button", {
+            name: "Back",
+          }),
+        );
+
+        await expectProviderChoice();
+        expect(establishIdentity).toHaveBeenCalledOnce();
+        expect(MOCKS.cancel).not.toHaveBeenCalled();
       });
 
       it("shows the same choice from Use other identity and starts Google only on the click", async () => {

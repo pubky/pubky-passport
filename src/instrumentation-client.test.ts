@@ -59,6 +59,18 @@ describe("instrumentation-client authorization entry", () => {
     expect(window.location.hash).toBe("");
   });
 
+  it.each(["/", "/authorize"])(
+    "removes an older build's pending Google redirect from session storage on %s",
+    async (path) => {
+      const key = "pubky-passport/google-redirect/v1";
+      window.sessionStorage.setItem(key, JSON.stringify({ requestUrl: validRequest() }));
+      window.history.replaceState({}, "", path);
+      await import("./instrumentation-client");
+
+      expect(window.sessionStorage.getItem(key)).toBeNull();
+    },
+  );
+
   it("rejects an early capture whose short deadline already passed", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date(0));

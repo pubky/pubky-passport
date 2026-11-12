@@ -56,9 +56,8 @@ identity in the browser.
 
 **Continue with Google** opens Google's sign-in, which also asks for Drive access: the app-data
 permission is required, the permission for files Passport creates (the visible copy) is
-optional. During an app sign-in Google opens in the same tab and Passport returns to the request
-afterwards; on Passport's own pages it opens in a popup. Google's profile (name, email, picture)
-is stored only in the browser.
+optional. It opens in a popup from that click, on Passport's own pages and during an app
+sign-in alike. Google's profile (name, email, picture) is stored only in the browser.
 
 ### Apple
 

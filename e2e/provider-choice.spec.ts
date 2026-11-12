@@ -10,6 +10,7 @@ const REQUEST = `pubkyauth://signin?caps=/pub/example.app/:rw&relay=https://rela
 const STORAGE_ROOT = "pubky-passport/local-identities/v1";
 const GOOGLE_KEY = "tkrq8zmwb8a3m9k15csu3q17qmfgqnp9dskbrg9uq1rydpyxp7qy";
 const CHOICE = "Choose an account to sign in with";
+const GOOGLE_ACCESS_CANARY = "choice-access-canary";
 
 function authorizeUrl(origin: string, extraFragment = ""): string {
   return `${origin}/authorize#d=${encodeURIComponent(REQUEST)}${extraFragment}`;
@@ -23,6 +24,53 @@ async function fakeGoogle(context: BrowserContext): Promise<URL[]> {
     await route.fulfill({ contentType: "text/html", body: "<!doctype html><h1>Google</h1>" });
   });
   return requests;
+}
+
+/** Google answers by sending its popup back to Passport's root with tokens in the fragment. */
+async function answeringGoogle(context: BrowserContext): Promise<URL[]> {
+  const requests: URL[] = [];
+  await context.route("https://accounts.google.com/o/oauth2/v2/auth**", async (route) => {
+    const request = new URL(route.request().url());
+    requests.push(request);
+    const response = new URL(request.searchParams.get("redirect_uri")!);
+    const claims = Buffer.from(
+      JSON.stringify({ sub: "google-choice-user", nonce: request.searchParams.get("nonce") }),
+    ).toString("base64url");
+    response.hash = new URLSearchParams({
+      state: request.searchParams.get("state")!,
+      access_token: GOOGLE_ACCESS_CANARY,
+      id_token: `header.${claims}.signature`,
+      scope: "openid email profile https://www.googleapis.com/auth/drive.appdata",
+      expires_in: "3600",
+    }).toString();
+    await route.fulfill({
+      contentType: "text/html",
+      body: `<!doctype html><script>location.replace(${JSON.stringify(response.href)})</script>`,
+    });
+  });
+  await context.route("https://openidconnect.googleapis.com/v1/userinfo", (route) =>
+    route.fulfill({
+      json: { sub: "google-choice-user", email: "test@example.com", name: "Test" },
+    }),
+  );
+  await context.route("https://www.googleapis.com/drive/v3/files**", (route) =>
+    route.fulfill({ json: { files: [] } }),
+  );
+  return requests;
+}
+
+/** Neither Google's token nor the request secret is kept in storage or history. */
+async function expectNothingKept(page: Page): Promise<void> {
+  const kept = await page.evaluate(() =>
+    JSON.stringify([
+      Object.entries(localStorage),
+      Object.entries(sessionStorage),
+      history.state,
+      location.href,
+    ]),
+  );
+  expect(kept).not.toContain(GOOGLE_ACCESS_CANARY);
+  expect(kept).not.toContain(SECRET);
 }
 
 /** Counts windows Passport opens, so a test can prove nothing opened without a click. */
@@ -288,54 +336,35 @@ test.describe("with Apple login on", () => {
     expect(google).toHaveLength(0);
   });
 
-  test("Continue with Google goes to Google in the same tab and resumes on its return", async ({
+  test("Continue with Google opens Google's popup from the click and setup carries on", async ({
     context,
     page,
   }) => {
     await installFakeApple(context);
-    const requests: URL[] = [];
-    // Google answers by redirecting back to Passport's root with tokens in the fragment.
-    await context.route("https://accounts.google.com/o/oauth2/v2/auth**", async (route) => {
-      const request = new URL(route.request().url());
-      requests.push(request);
-      const response = new URL(request.searchParams.get("redirect_uri")!);
-      const claims = Buffer.from(
-        JSON.stringify({ sub: "google-choice-user", nonce: request.searchParams.get("nonce") }),
-      ).toString("base64url");
-      response.hash = new URLSearchParams({
-        state: request.searchParams.get("state")!,
-        access_token: "choice-access-canary",
-        id_token: `header.${claims}.signature`,
-        scope: "openid email profile https://www.googleapis.com/auth/drive.appdata",
-        expires_in: "3600",
-      }).toString();
-      await route.fulfill({
-        contentType: "text/html",
-        body: `<!doctype html><script>location.replace(${JSON.stringify(response.href)})</script>`,
-      });
-    });
-    await context.route("https://openidconnect.googleapis.com/v1/userinfo", (route) =>
-      route.fulfill({
-        json: { sub: "google-choice-user", email: "test@example.com", name: "Test" },
-      }),
-    );
-    await context.route("https://www.googleapis.com/drive/v3/files**", (route) =>
-      route.fulfill({ json: { files: [] } }),
-    );
+    const requests = await answeringGoogle(context);
     const popups = countPopups(page);
 
     await page.goto(authorizeUrl(APPLE_ORIGIN));
     const { google: continueWithGoogle } = await expectProviderChoice(page);
     expect(requests).toHaveLength(0);
+    const popup = page.waitForEvent("popup");
     await continueWithGoogle.click();
+    await popup;
 
-    // Back from Google, setup carries on without showing the choice again.
+    // The Passport tab never leaves /authorize; setup carries on there once the popup answers.
     await expect(page.getByRole("heading", { name: "Drive access optional." })).toBeVisible();
     await expect(page.getByLabel("Signing in to client.example")).toBeVisible();
     await expect(page.getByRole("group", { name: CHOICE })).toHaveCount(0);
+    expect(page.url()).toBe(`${APPLE_ORIGIN}/authorize`);
     expect(requests).toHaveLength(1);
     expect(requests[0]!.href).not.toContain(SECRET);
-    expect(popups.count).toBe(0);
+    expect(popups.count).toBe(1);
+    await expectNothingKept(page);
+
+    // Back leaves setup for the choice; the request stays open.
+    await page.getByRole("button", { name: "Back", exact: true }).click();
+    await expectProviderChoice(page);
+    expect(page.url()).toBe(`${APPLE_ORIGIN}/authorize`);
   });
 
   test("Continue with Apple opens Apple's window from the click, then reuses it for iCloud", async ({
@@ -523,6 +552,40 @@ test.describe("with Apple login off", () => {
     expect(new URL(page.url()).pathname).toBe("/authorize");
     expect(google).toHaveLength(0);
     expect(popups.count).toBe(0);
+
+    // Google opens only as a popup from the click; this tab stays on /authorize.
+    const popup = page.waitForEvent("popup");
+    await page.getByRole("button", { name: "Continue with Google" }).click();
+    await expect((await popup).getByRole("heading", { name: "Google" })).toBeVisible();
+    expect(new URL(page.url()).pathname).toBe("/authorize");
+    expect(google).toHaveLength(1);
+    expect(popups.count).toBe(1);
+  });
+
+  test("Passport opened as a popup opens Google as its own popup from the click", async ({
+    context,
+    page,
+  }) => {
+    const requests = await answeringGoogle(context);
+    await page.goto("/");
+    const passportPopup = page.waitForEvent("popup");
+    // The app opens Passport; Passport then opens Google only from the person's click.
+    await page.evaluate(
+      (url) => window.open(url, "passport", "popup,width=520,height=760"),
+      authorizeUrl(""),
+    );
+    const passport = await passportPopup;
+    const continueWithGoogle = passport.getByRole("button", { name: "Continue with Google" });
+    await expect(continueWithGoogle).toBeEnabled();
+    expect(requests).toHaveLength(0);
+
+    const googlePopup = passport.waitForEvent("popup");
+    await continueWithGoogle.click();
+    await googlePopup;
+    await expect(passport.getByRole("heading", { name: "Drive access optional." })).toBeVisible();
+    expect(new URL(passport.url()).pathname).toBe("/authorize");
+    expect(requests).toHaveLength(1);
+    await expectNothingKept(passport);
   });
 
   test("an authorization without an identity shows Google and waits for the click", async ({

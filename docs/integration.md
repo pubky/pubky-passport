@@ -47,7 +47,8 @@ the person sees depends on what this browser already has:
   and **Manage**.
 - **No identity:** Passport shows **Quick access.** with **Continue with Google** (and
   **Continue with Apple** where Apple login is on) and **Already have a pubky? Import it**, and
-  starts only what the person clicks.
+  starts only what the person clicks. Google opens in a popup from that click, also when
+  Passport itself runs in a popup; Passport never sends its own tab to Google.
 
 Either way the person ends on the review of your request and approves with an explicit click.
 
@@ -373,25 +374,6 @@ A `success` message means the approval reached the relay; keep waiting for the S
 - Do not embed Passport in an iframe; it sends `frame-ancestors 'none'`.
 
 ## Same-tab navigation
-
-Your app opens Passport without naming a provider; the person picks one in Passport. During
-authorization, when an identity must be created or restored, Passport shows
-**Continue with Google** (and **Continue with Apple** where Apple login is on) and starts only
-the one the person clicks.
-Google opens in the current Passport tab/window, including when Passport itself was opened as a
-popup; there is no second Google button or nested Google popup. Apple's two steps normally reuse
-one window opened from the Continue with Apple click. If that window closes before handoff, the
-second-step screen explains iCloud and offers Continue with Apple again. Existing local identities
-still go straight to capability review; signing in with a provider does not grant app permissions
-without that review. Standalone dashboard sign-in and management retain their popup behavior.
-
-The Google round trip uses the existing origin-root callback URI. Passport temporarily saves
-the validated Pubky request, OAuth state/nonce, and continuation in `sessionStorage` with a
-five-minute expiry. It consumes that metadata on return and keeps Google tokens only in memory,
-scrubbing the response fragment before hydration. After identity setup, it returns to
-`/authorize#d=…` for the existing scrubbed review and relay approval. Missing, expired, or blocked
-storage fails closed. OAuth denial is retryable; Back returns through the original cancel
-callback. Reloading after the callback has been consumed requires starting authorization again.
 
 Passport also works without a popup. Before navigating the current page to Passport, save the
 pending flow with `flow.saveLocal()` in `sessionStorage`. Passport returns by navigating to your

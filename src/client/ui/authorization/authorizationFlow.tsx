@@ -36,10 +36,6 @@ import { AuthorizationReview } from "./review/authorizationReview";
 import { InvalidAuthorization } from "./invalidAuthorization";
 import { ManualAuthorization } from "./manual-entry/manualAuthorization";
 import { usePassportAuthorization, type AuthorizationController } from "./usePassportAuthorization";
-import {
-  isGoogleRedirectReturn,
-  returnToAuthorization,
-} from "@/client/logic/google-identity/gia/googleRedirectBootstrap";
 
 const AUTHORIZATION_LOADING_HEIGHT =
   "min-h-[calc(100svh-var(--passport-header-height)-var(--passport-context-band-height))]";
@@ -60,7 +56,7 @@ function AuthorizationFlow() {
     case "manual-entry":
       return <ManualAuthorization onBack={goHome} />;
     case "invalid":
-      return <InvalidAuthorization onBack={goHome} interrupted={isGoogleRedirectReturn()} />;
+      return <InvalidAuthorization onBack={goHome} />;
     case "failed":
       return (
         <PassportScreen className="gap-6">
@@ -171,10 +167,7 @@ function ReadyAuthorizationWithIdentity({
   const { IdentitySetup } = usePassportCollaborators();
   const Setup = IdentitySetup ?? IdentityEstablishmentFlow;
   const [navigation, setNavigation] = useState<AuthorizationIdentityView>(() => ({
-    view:
-      catalog.identities.length === 0 || isGoogleRedirectReturn()
-        ? "first-identity-setup"
-        : "review",
+    view: catalog.identities.length === 0 ? "first-identity-setup" : "review",
   }));
   // Consent belongs to the pending request, including while switching or managing identities.
   const [declinedEncryptionPaths, setDeclinedEncryptionPaths] = useState<readonly string[]>([]);
@@ -183,15 +176,10 @@ function ReadyAuthorizationWithIdentity({
   if (state.view === "first-identity-setup") {
     return (
       <Setup
-        forAuthorization
         onBack={() => {
           void passportAuthorizationController.cancel();
         }}
-        onComplete={() => {
-          // The root callback has a narrower CSP; grant approval belongs on /authorize.
-          if (isGoogleRedirectReturn()) returnToAuthorization();
-          else setNavigation({ view: "review" });
-        }}
+        onComplete={() => setNavigation({ view: "review" })}
       />
     );
   }

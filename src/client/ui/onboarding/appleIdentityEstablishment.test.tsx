@@ -17,11 +17,9 @@ const PUBKY = "o1gg96ewuojmopcjbz8895478wdtxtzzber7aezq6ror5a91j7dy";
 
 function renderFlow({
   apple = TEST_APPLE_CONFIGURATION,
-  forAuthorization = false,
   onComplete = vi.fn(),
 }: {
   apple?: typeof TEST_APPLE_CONFIGURATION | null;
-  forAuthorization?: boolean;
   onComplete?: () => void;
 } = {}) {
   const fake = fakeAppleIdentityController();
@@ -31,7 +29,7 @@ function renderFlow({
   render(
     withPassportTestProviders(
       <AppleIdentityConfigurationProvider apple={apple}>
-        <IdentityEstablishmentFlow forAuthorization={forAuthorization} onComplete={onComplete} />
+        <IdentityEstablishmentFlow onComplete={onComplete} />
       </AppleIdentityConfigurationProvider>,
       {
         createAppleIdentityController,
@@ -229,12 +227,5 @@ describe("Apple onboarding", () => {
     );
     expect(screen.getByText("jane@icloud.com")).toBeInTheDocument();
     expect(screen.getByText("Key stored in iCloud")).toBeInTheDocument();
-  });
-
-  it("lets an authorization choose instead of starting Google automatically", () => {
-    const { createGoogleIdentityController } = renderFlow({ forAuthorization: true });
-    expect(screen.getByRole("button", { name: "Continue with Apple" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Continue with Google" })).toBeInTheDocument();
-    expect(createGoogleIdentityController).not.toHaveBeenCalled();
   });
 });

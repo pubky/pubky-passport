@@ -52,22 +52,16 @@ function precedes(first: Element, second: Element): boolean {
 
 function renderFlow({
   apple,
-  forAuthorization = false,
   onBack,
 }: {
   apple: typeof TEST_APPLE_CONFIGURATION | null;
-  forAuthorization?: boolean;
   onBack?: () => void;
 }) {
   const fake = fakeAppleIdentityController();
   return render(
     withPassportTestProviders(
       <AppleIdentityConfigurationProvider apple={apple}>
-        <IdentityEstablishmentFlow
-          forAuthorization={forAuthorization}
-          onBack={onBack}
-          onComplete={vi.fn()}
-        />
+        <IdentityEstablishmentFlow onBack={onBack} onComplete={vi.fn()} />
       </AppleIdentityConfigurationProvider>,
       {
         createAppleIdentityController: () => fake.controller,
@@ -133,20 +127,4 @@ describe("Terms and Privacy notice", () => {
       );
     },
   );
-
-  it("renders in the authorization sign-in (/authorize, Use other identity) with Apple on", async () => {
-    const { container } = renderFlow({
-      apple: TEST_APPLE_CONFIGURATION,
-      forAuthorization: true,
-      onBack: vi.fn(),
-    });
-    await screen.findByRole("button", { name: "Continue with Apple" });
-    const notice = expectTermsNotice(container);
-    expect(precedes(screen.getByRole("button", { name: "Continue with Apple" }), notice)).toBe(
-      true,
-    );
-    const back = screen.getByRole("button", { name: "Back" });
-    expect(precedes(screen.getByRole("button", { name: "Import it" }), back)).toBe(true);
-    expect(precedes(back, notice)).toBe(true);
-  });
 });
