@@ -25,6 +25,7 @@ export type AuthorizationControllerPort = Pick<
 
 export type GoogleIdentityControllerPort = Pick<
   GoogleIdentityController,
+  | "attachIdentity"
   | "detachIdentity"
   | "dispose"
   | "establishIdentity"
@@ -38,6 +39,7 @@ export type GoogleIdentityControllerPort = Pick<
 
 export type AppleIdentityControllerPort = Pick<
   AppleIdentityController,
+  | "attachIdentity"
   | "focusICloud"
   | "focusSignIn"
   | "cancelSignIn"

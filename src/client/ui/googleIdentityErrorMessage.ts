@@ -20,6 +20,12 @@ function googleIdentityErrorMessage(code: GoogleIdentityViewError["code"]): stri
       return "Passport created an identity, but could not encrypt it for Google Drive.";
     case "identity_mismatch":
       return "The restored Pubky identity did not match the activated homeserver identity.";
+    case "provider_account_in_use":
+      return "This Google account already holds another pubky. Passport keeps one pubky per account. Detach that pubky from Google first, or use a different Google account.";
+    case "identity_already_linked":
+      return "This pubky was connected to another account meanwhile. Go back to see its sign-in account.";
+    case "local_link_failed":
+      return "Your encrypted backup is in Google Drive, but Passport could not update this browser. Try again.";
     case "restore_failed":
       return "Passport could not restore the Pubky identity from the encrypted file.";
     case "signin_failed":

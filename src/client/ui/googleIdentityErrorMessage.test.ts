@@ -27,7 +27,13 @@ const EXPECTED_COPY: Record<GoogleIdentityViewError["code"], string> = {
   google_detachment_permission_required:
     "Passport needs both Google Drive permissions to delete your encrypted identity and visible recovery copies before removing Google access.",
   homeserver_signup_token_failed: "Passport could not obtain a homeserver invitation.",
+  identity_already_linked:
+    "This pubky was connected to another account meanwhile. Go back to see its sign-in account.",
   identity_mismatch: "The restored Pubky identity did not match the activated homeserver identity.",
+  local_link_failed:
+    "Your encrypted backup is in Google Drive, but Passport could not update this browser. Try again.",
+  provider_account_in_use:
+    "This Google account already holds another pubky. Passport keeps one pubky per account. Detach that pubky from Google first, or use a different Google account.",
   invalid_passport_file:
     "Passport found your encrypted identity file in Google Drive, but it is damaged and cannot be restored.",
   invalid_passport_file_delete_failed:

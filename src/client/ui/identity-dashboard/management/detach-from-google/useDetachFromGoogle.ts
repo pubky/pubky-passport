@@ -55,6 +55,8 @@ function toDetachmentState(state: GoogleIdentityViewState): DetachFromGoogleOper
     case "idle":
     case "establishing":
     case "established":
+    case "attaching":
+    case "attached":
       return { status: "ready" };
   }
 }

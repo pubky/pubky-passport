@@ -12,6 +12,7 @@ import type {
   HomeserverSignupDetails,
 } from "@/client/logic/homegate/HomegateClient";
 import type { PassportFileEnvelope } from "@/client/logic/passport-file/passportFileEnvelope";
+import type { PassportFileStore } from "@/client/logic/passport-file/passportFileStore";
 import { PassportFileWebCrypto } from "@/client/logic/passport-file/PassportFileWebCrypto";
 import {
   PUBKY_SECRET_KEY_FORMAT,
@@ -63,8 +64,11 @@ export type IdentityLifecycleError =
       | "create_failed"
       | "decrypt_failed"
       | "encrypt_failed"
+      | "identity_already_linked"
       | "identity_mismatch"
+      | "local_link_failed"
       | "local_save_failed"
+      | "provider_account_in_use"
       | "publication_failed"
       | "restore_failed"
       | "signin_failed"
@@ -76,6 +80,9 @@ export type StepResult<Success = void, Failure = IdentityLifecycleError> = Resul
   Success,
   Failure
 >;
+
+/** How an attach ended: a new Passport file was written, or the account already held this pubky. */
+export type IdentityAttachment = "created" | "linked";
 
 type SignupTokenRequest = () => Promise<StepResult<HomeserverSignupDetails>>;
 
@@ -105,6 +112,8 @@ export type PassportFileIdentityLifecycleDependencies = {
   >;
   crypto?: Pick<PassportFileWebCrypto, "encryptSecretKeyBytes" | "decryptSecretKeyBytes">;
   repository?: Pick<LocalStorageIdentityRepository, "save" | "remove">;
+  /** Reads and links identities already in this browser; defaults to the same storage. */
+  identities?: Pick<LocalStorageIdentityRepository, "list" | "read" | "linkProviderAccount">;
   wrappingKeys?: Pick<WrappingKeyApiClient, "requestWrappingKey">;
 };
 
@@ -127,6 +136,7 @@ export abstract class PassportFileIdentityLifecycle {
   protected readonly wrappingKeys: NonNullable<
     PassportFileIdentityLifecycleDependencies["wrappingKeys"]
   >;
+  private readonly identities: NonNullable<PassportFileIdentityLifecycleDependencies["identities"]>;
   /** Browser fetch bound to this lifecycle's abort signal and network timeout. */
   protected readonly fetch: typeof fetch;
   private readonly requests = new AbortController();
@@ -152,7 +162,9 @@ export abstract class PassportFileIdentityLifecycle {
       return fetchImpl(request, { ...init, signal: AbortSignal.any(signals) });
     };
     this.pubky = dependencies.pubky ?? new PubkySdkAdapter();
-    this.repository = dependencies.repository ?? new LocalStorageIdentityRepository();
+    const localStorageRepository = new LocalStorageIdentityRepository();
+    this.repository = dependencies.repository ?? localStorageRepository;
+    this.identities = dependencies.identities ?? localStorageRepository;
     try {
       this.wrappingKeys =
         dependencies.wrappingKeys ?? new WrappingKeyApiClient(this.fetch, provider);
@@ -334,6 +346,179 @@ export abstract class PassportFileIdentityLifecycle {
         this.disposeIdentityKey(restored.value, "restored_key_dispose");
       }
     }
+  }
+
+  /**
+   * Gives an identity that is only in this browser the provider's normal backup. The provider
+   * file decides: missing, this identity's own key is wrapped and stored as a new file; found
+   * with the same pubky, only the local link is added; found with another pubky, nothing is
+   * written or deleted. A file that appears while creating one (`create_conflict`) is read again
+   * once. The homeserver is never touched: the account already exists.
+   */
+  protected async attachToPassportFile<
+    Reference,
+    StoreFailure extends { code: string },
+    StoreError,
+  >(input: {
+    account: LocalIdentityAccount;
+    publicIdentity: PubkyPublicIdentity;
+    idToken: string;
+    store: PassportFileStore<Reference, StoreFailure>;
+    readFailure: (error: StoreFailure) => StoreError;
+    writeFailure: (error: StoreFailure) => StoreError;
+    onCreated?: (envelope: PassportFileEnvelope) => void;
+  }): Promise<StepResult<IdentityAttachment, IdentityLifecycleError | StoreError>> {
+    const event = `identity.${this.provider}.attach`;
+    LOGGER.info(`${event}.started`);
+    const local = this.checkAttachable(input.publicIdentity, input.account);
+    if (Result.isError(local)) return Result.err(local.error);
+
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const storedFile = await input.store.readPassportFile();
+      if (Result.isError(storedFile)) return Result.err(input.readFailure(storedFile.error));
+
+      if (storedFile.value.status === "found") {
+        const owner = await this.passportFileOwner(input.idToken, storedFile.value.envelope);
+        if (Result.isError(owner)) return Result.err(owner.error);
+        if (owner.value !== input.publicIdentity.publicKeyZ32) {
+          LOGGER.warn(`${event}.failed`, { code: "provider_account_in_use" });
+          return Result.err({ code: "provider_account_in_use" });
+        }
+        return this.linkAccount(input.publicIdentity, input.account, "linked");
+      }
+
+      const envelope = await this.wrapLocalKey(input.publicIdentity, input.idToken);
+      if (Result.isError(envelope)) return Result.err(envelope.error);
+      LOGGER.info(`${event}.write.started`);
+      const written = await input.store.createPassportFile(envelope.value);
+      if (Result.isError(written)) {
+        // Another tab or device wrote a file meanwhile: decide again from what is there now.
+        if (written.error.code === "create_conflict" && attempt === 0) continue;
+        return Result.err(input.writeFailure(written.error));
+      }
+      LOGGER.info(`${event}.write.completed`);
+      input.onCreated?.(envelope.value);
+      return this.linkAccount(input.publicIdentity, input.account, "created");
+    }
+    // Unreachable: the second attempt always returns.
+    return Result.err({ code: "unexpected_failure" });
+  }
+
+  /**
+   * The identity must still be in this browser without a sign-in account, and no other identity
+   * here may already use this account: Passport keeps one pubky per account.
+   */
+  private checkAttachable(
+    publicIdentity: PubkyPublicIdentity,
+    account: LocalIdentityAccount,
+  ): StepResult {
+    const catalog = this.identities.list();
+    if (Result.isError(catalog))
+      return Result.err({ code: "local_link_failed", cause: catalog.error });
+    const subject = accountSubject(account);
+    let found = false;
+    for (const identity of catalog.value.identities) {
+      const linked = identity.googleAccount
+        ? `google:${identity.googleAccount.googleSubject}`
+        : identity.appleAccount
+          ? `apple:${identity.appleAccount.appleSubject}`
+          : undefined;
+      if (identity.publicIdentity.publicKeyZ32 === publicIdentity.publicKeyZ32) {
+        found = true;
+        if (linked !== undefined && linked !== subject) {
+          return Result.err({ code: "identity_already_linked" });
+        }
+      } else if (linked === subject) {
+        LOGGER.warn(`identity.${this.provider}.attach.failed`, {
+          code: "provider_account_in_use",
+          stage: "local",
+        });
+        return Result.err({ code: "provider_account_in_use" });
+      }
+    }
+    return found ? Result.ok() : Result.err({ code: "local_link_failed" });
+  }
+
+  /** Decrypts a found file only to learn which pubky it holds; the key is released at once. */
+  private async passportFileOwner(
+    idToken: string,
+    envelope: PassportFileEnvelope,
+  ): Promise<StepResult<string>> {
+    const wrappingKey = await this.requestWrappingKey(idToken, envelope);
+    if (Result.isError(wrappingKey)) return Result.err(wrappingKey.error);
+    const restored = await this.restoreKey(envelope, wrappingKey.value.wrappingKey);
+    if (Result.isError(restored)) return Result.err(restored.error);
+    const owner = restored.value.publicIdentity.publicKeyZ32;
+    this.disposeIdentityKey(restored.value, "restored_key_dispose");
+    return Result.ok(owner);
+  }
+
+  /**
+   * Encrypts this browser's key for the identity exactly as a new setup encrypts a new key. The
+   * stored key must derive the expected pubky, so a damaged record can never be uploaded.
+   */
+  private async wrapLocalKey(
+    publicIdentity: PubkyPublicIdentity,
+    idToken: string,
+  ): Promise<StepResult<PassportFileEnvelope>> {
+    const event = `identity.${this.provider}.attach`;
+    const wrappingKey = await this.requestWrappingKey(idToken);
+    if (Result.isError(wrappingKey)) return Result.err(wrappingKey.error);
+
+    const stored = this.identities.read(publicIdentity.publicKeyZ32);
+    if (Result.isError(stored))
+      return Result.err({ code: "local_link_failed", cause: stored.error });
+    // The adapter consumes and clears these bytes.
+    const restored = await this.pubky.restoreIdentityKey(stored.value.secretKey);
+    if (Result.isError(restored))
+      return Result.err({ code: "restore_failed", cause: restored.error });
+    try {
+      if (restored.value.publicIdentity.publicKeyZ32 !== publicIdentity.publicKeyZ32) {
+        LOGGER.warn(`${event}.failed`, { code: "identity_mismatch", stage: "local_key" });
+        return Result.err({ code: "identity_mismatch" });
+      }
+      const secretKey = await this.pubky.exportSecretKey(restored.value.keyHandle);
+      if (Result.isError(secretKey)) {
+        return Result.err({ code: "encrypt_failed", cause: secretKey.error });
+      }
+      LOGGER.info(`${event}.encrypt.started`);
+      const encrypted = await this.crypto
+        .encryptSecretKeyBytes(
+          secretKey.value.bytes,
+          wrappingKey.value.wrappingKey,
+          this.passportOrigin,
+          wrappingKey.value.keyId,
+        )
+        .finally(() => {
+          secretKey.value.bytes.fill(0);
+        });
+      if (Result.isError(encrypted)) {
+        return Result.err({ code: "encrypt_failed", cause: encrypted.error });
+      }
+      LOGGER.info(`${event}.encrypt.completed`);
+      return Result.ok(encrypted.value);
+    } finally {
+      this.disposeIdentityKey(restored.value, "restored_key_dispose");
+    }
+  }
+
+  private linkAccount(
+    publicIdentity: PubkyPublicIdentity,
+    account: LocalIdentityAccount,
+    attachment: IdentityAttachment,
+  ): StepResult<IdentityAttachment> {
+    const linked = this.identities.linkProviderAccount(publicIdentity.publicKeyZ32, account);
+    if (Result.isError(linked)) {
+      return Result.err({
+        code:
+          linked.error.code === "provider_conflict"
+            ? "identity_already_linked"
+            : "local_link_failed",
+        cause: linked.error,
+      });
+    }
+    LOGGER.info(`identity.${this.provider}.attach.completed`, { attachment });
+    return Result.ok(attachment);
   }
 
   /** Decrypts exactly 32 secret bytes; the Pubky adapter consumes and clears them during restoration. */
@@ -546,4 +731,10 @@ export abstract class PassportFileIdentityLifecycle {
       secretKey.value.bytes.fill(0);
     }
   }
+}
+
+function accountSubject(account: LocalIdentityAccount): string {
+  return "googleAccount" in account
+    ? `google:${account.googleAccount.googleSubject}`
+    : `apple:${account.appleAccount.appleSubject}`;
 }

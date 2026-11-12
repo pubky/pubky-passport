@@ -159,6 +159,7 @@ describe("successful Google redirect through capability review", () => {
               establishIdentity,
               abortRequests: vi.fn(),
               dispose: vi.fn(),
+              attachIdentity: vi.fn(),
               detachIdentity: vi.fn(),
               replaceInvalidPassportFile: vi.fn(),
               replaceUndecryptablePassportFile: vi.fn(),

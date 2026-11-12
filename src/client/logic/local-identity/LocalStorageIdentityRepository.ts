@@ -26,7 +26,15 @@ type StoredLocalIdentity = {
 };
 
 export type LocalIdentityErrorCode =
-  "invalid_identity" | "invalid_secret_key" | "invalid_store" | "storage_unavailable";
+  | "invalid_identity"
+  | "invalid_secret_key"
+  | "invalid_store"
+  | "provider_conflict"
+  | "storage_unavailable";
+
+/** The Google or Apple account to link to an identity that has none. */
+export type LocalIdentityProviderLink =
+  { googleAccount: GoogleAccountProfile } | { appleAccount: AppleAccount };
 
 export type LocalIdentityResult<Success> = ResultType<
   Success,
@@ -149,6 +157,79 @@ export class LocalStorageIdentityRepository {
         );
         notifySameTab();
       }
+      return storageUnavailable("write", e);
+    }
+  }
+
+  /**
+   * Links a Google or Apple account to a stored identity that has none, keeping its key as it is.
+   * The same account linked already is `"already-linked"`; any other account is
+   * `provider_conflict`. A record that changed between the read and the write is not overwritten.
+   */
+  linkProviderAccount(
+    publicKeyZ32: string,
+    link: LocalIdentityProviderLink,
+  ): LocalIdentityResult<"linked" | "already-linked"> {
+    const google = "googleAccount" in link ? link.googleAccount : undefined;
+    const apple = "appleAccount" in link ? link.appleAccount : undefined;
+    if (
+      (google === undefined) === (apple === undefined) ||
+      (google !== undefined && !isGoogleAccountProfile(google)) ||
+      (apple !== undefined && !isAppleAccount(apple))
+    ) {
+      return invalidIdentity("link_provider");
+    }
+
+    const storageResult = getLocalStorage("write");
+    if (Result.isError(storageResult)) return Result.err(storageResult.error);
+    const storage = storageResult.value;
+    if (!isPubkyPublicKey(publicKeyZ32)) return invalidIdentity("link_provider");
+    const storedKey = identityStorageKey(publicKeyZ32);
+
+    let previous: string | null;
+    try {
+      previous = storage.getItem(storedKey);
+    } catch (e) {
+      return storageUnavailable("read", e);
+    }
+    if (previous === null) return invalidIdentity("link_provider");
+    const stored = parseStoredIdentity(previous);
+    if (!stored || stored.publicKeyZ32 !== publicKeyZ32) return invalidStore();
+
+    if (stored.googleAccount || stored.appleAccount) {
+      const sameAccount = google
+        ? stored.googleAccount?.googleSubject === google.googleSubject
+        : stored.appleAccount?.appleSubject === apple?.appleSubject;
+      if (sameAccount) return Result.ok("already-linked");
+      LOGGER.info("identity.local_store.failed", {
+        operation: "link_provider",
+        code: "provider_conflict",
+      });
+      return Result.err({ code: "provider_conflict" });
+    }
+
+    const linked: StoredLocalIdentity = {
+      v: 1,
+      publicKeyZ32: stored.publicKeyZ32,
+      ...(google ? { googleAccount: { ...google } } : {}),
+      ...(apple ? { appleAccount: { ...apple } } : {}),
+      secretKey: stored.secretKey,
+    };
+    try {
+      // Another tab may have changed the record since it was read: never overwrite that change.
+      if (storage.getItem(storedKey) !== previous) {
+        LOGGER.info("identity.local_store.failed", {
+          operation: "link_provider",
+          code: "provider_conflict",
+        });
+        return Result.err({ code: "provider_conflict" });
+      }
+      storage.setItem(storedKey, JSON.stringify(linked));
+      notifySameTab();
+      return Result.ok("linked");
+    } catch (e) {
+      restoreStorageValues(storage, [[storedKey, previous]], "save_rollback");
+      notifySameTab();
       return storageUnavailable("write", e);
     }
   }

@@ -71,6 +71,8 @@ function toEstablishmentView(state: GoogleIdentityViewState): GoogleIdentityEsta
             mode: "restored",
           };
     case "idle":
+    case "attaching":
+    case "attached":
     case "detaching":
     case "detached":
       return { status: "idle" };

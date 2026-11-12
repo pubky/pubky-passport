@@ -9,6 +9,7 @@ import { AuthorizationPopup } from "./gia/AuthorizationPopup";
 import { GoogleIdentityController, type GoogleIdentityViewState } from "./GoogleIdentityController";
 
 const MOCKS = {
+  attachIdentity: vi.fn(),
   detachIdentity: vi.fn(),
   abortRequests: vi.fn(),
   disposeAuthorization: vi.fn(),
@@ -358,6 +359,7 @@ describe("GoogleIdentityController", () => {
       undefined,
       () => ({
         abortRequests: MOCKS.abortRequests,
+        attachIdentity: MOCKS.attachIdentity,
         detachIdentity: MOCKS.detachIdentity,
         dispose: MOCKS.disposeLifecycle,
         establishIdentity: MOCKS.establishIdentity,
@@ -527,6 +529,65 @@ describe("GoogleIdentityController", () => {
       { status: "detaching" },
       { status: "detached" },
     ]);
+  });
+
+  it("attaches with Google's popup and publishes only safe fields", async () => {
+    MOCKS.attachIdentity.mockResolvedValue(
+      Result.ok({ attachment: "created", visibleRecoveryCopyStatus: "created" }),
+    );
+    const controller = createController();
+    const states = recordStates(controller);
+
+    const result = await controller.attachIdentity(PUBLIC_IDENTITY);
+
+    const attached = {
+      attachment: "created",
+      googleAccount: GOOGLE_ACCOUNT,
+      publicIdentity: PUBLIC_IDENTITY,
+      visibleRecoveryCopyStatus: "created",
+    };
+    expect(Result.isOk(result) && result.value).toEqual(attached);
+    expect(window.open).toHaveBeenCalledOnce();
+    expect(MOCKS.attachIdentity).toHaveBeenCalledWith(CREDENTIALS, PUBLIC_IDENTITY);
+    expect(MOCKS.establishIdentity).not.toHaveBeenCalled();
+    expect(states).toEqual([
+      { status: "requesting-authorization" },
+      { status: "attaching" },
+      { status: "attached", identity: attached },
+    ]);
+    expect(JSON.stringify(states)).not.toContain(CREDENTIALS.googleIdToken);
+  });
+
+  it("attaches with the popup even when the screen also has Google's redirect", async () => {
+    MOCKS.attachIdentity.mockResolvedValue(
+      Result.ok({ attachment: "linked", visibleRecoveryCopyStatus: "skipped" }),
+    );
+    const redirect = {
+      request: vi.fn(),
+      dispose: vi.fn(),
+      takeContinuation: vi.fn(),
+    };
+    const controller = createController(redirect);
+
+    expect(Result.isOk(await controller.attachIdentity(PUBLIC_IDENTITY))).toBe(true);
+    expect(window.open).toHaveBeenCalledOnce();
+    expect(redirect.request).not.toHaveBeenCalled();
+  });
+
+  it("publishes a refused attach without causes", async () => {
+    vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+    MOCKS.attachIdentity.mockResolvedValue(
+      Result.err({ code: "provider_account_in_use", cause: new Error("secret detail") }),
+    );
+    const controller = createController();
+
+    const result = await controller.attachIdentity(PUBLIC_IDENTITY);
+
+    expectResultError(result, { code: "provider_account_in_use" });
+    expect(controller.getState()).toEqual({
+      status: "failed",
+      error: { code: "provider_account_in_use" },
+    });
   });
 
   it("contains state listener details without failing establishment", async () => {
@@ -890,6 +951,7 @@ function createController(
     }),
     () => ({
       abortRequests: MOCKS.abortRequests,
+      attachIdentity: MOCKS.attachIdentity,
       detachIdentity: MOCKS.detachIdentity,
       dispose: MOCKS.disposeLifecycle,
       establishIdentity: MOCKS.establishIdentity,

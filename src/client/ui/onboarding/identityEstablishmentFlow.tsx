@@ -138,6 +138,8 @@ function IdentityEstablishmentFlow({
 function isAppleFlowActive(apple: AppleIdentityHandle): boolean {
   switch (apple.state.status) {
     case "idle":
+    case "attaching":
+    case "attached":
     case "detaching":
     case "detached":
       return false;
@@ -197,6 +199,8 @@ function AppleEstablishment({
         />
       );
     case "idle":
+    case "attaching":
+    case "attached":
     case "detaching":
     case "detached":
       return null;

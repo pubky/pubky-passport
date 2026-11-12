@@ -35,12 +35,23 @@ type EstablishedGoogleIdentity =
       publicIdentity: PubkyPublicIdentity;
     };
 
+/** Safe details of an identity that now has Google's backup. */
+export type AttachedGoogleIdentity = Readonly<{
+  /** `created`: a new Drive file; `linked`: Drive already held this pubky. */
+  attachment: "created" | "linked";
+  googleAccount: GoogleAccountProfile;
+  publicIdentity: PubkyPublicIdentity;
+  visibleRecoveryCopyStatus: "created" | "unconfirmed" | "skipped";
+}>;
+
 /** Render-safe states published while Passport creates, restores, or detaches a Google-backed identity. */
 export type GoogleIdentityViewState =
   | { status: "idle" }
   | { status: "requesting-authorization" }
   | { status: "establishing"; progress: GoogleIdentityProgress }
   | { status: "established"; identity: EstablishedGoogleIdentity }
+  | { status: "attaching" }
+  | { status: "attached"; identity: AttachedGoogleIdentity }
   | { status: "detaching" }
   | { status: "detached" }
   | { status: "failed"; error: GoogleIdentityViewError };
@@ -52,12 +63,18 @@ export type EstablishGoogleIdentityResult = ResultType<
 
 export type DetachGoogleIdentityResult = ResultType<void, GoogleIdentityViewError>;
 
+export type AttachGoogleIdentityResult = ResultType<
+  AttachedGoogleIdentity,
+  GoogleIdentityViewError
+>;
+
 type GoogleAuthorization = Pick<GoogleImplicitAuthorization, "request" | "dispose">;
 type Lifecycle = Pick<
   GoogleIdentityLifecycle,
   | "establishIdentity"
   | "replaceInvalidPassportFile"
   | "replaceUndecryptablePassportFile"
+  | "attachIdentity"
   | "detachIdentity"
   | "abortRequests"
   | "dispose"
@@ -68,7 +85,7 @@ type EstablishmentOptions = {
   allowWithoutVisibleBackup?: boolean;
   credentials?: GoogleIdentityCredentials | undefined;
 };
-type GoogleIdentityOperation = EstablishmentOperation | "detach";
+type GoogleIdentityOperation = EstablishmentOperation | "attach" | "detach";
 type OperationWork<Success> = (
   credentials: GoogleIdentityCredentials,
   lifecycle: Lifecycle,
@@ -209,6 +226,34 @@ export class GoogleIdentityController {
         return lifecycle.detachIdentity(credentials, publicIdentity, expectedGoogleSubject);
       },
       () => ({ status: "detached" }),
+    );
+  }
+
+  /**
+   * Gives an identity that is only in this browser Google's backup: signs in with Google, then
+   * stores it in that account's Drive unless Drive already holds another pubky. Always uses the
+   * popup, like detaching, so the identity being managed stays on screen.
+   * The promise settles with a Result and does not intentionally reject.
+   */
+  async attachIdentity(publicIdentity: PubkyPublicIdentity): Promise<AttachGoogleIdentityResult> {
+    return this.runOperation(
+      "attach",
+      undefined,
+      async (credentials, lifecycle) => {
+        this.publish({ status: "attaching" });
+        const attached = await lifecycle.attachIdentity(credentials, publicIdentity);
+        if (Result.isError(attached)) return Result.err(attached.error);
+        // Name every field so nothing new on the lifecycle result reaches UI state unreviewed.
+        return Result.ok(
+          Object.freeze({
+            attachment: attached.value.attachment,
+            googleAccount: credentials.googleAccount,
+            publicIdentity,
+            visibleRecoveryCopyStatus: attached.value.visibleRecoveryCopyStatus,
+          }),
+        );
+      },
+      (identity) => ({ status: "attached", identity }),
     );
   }
 
@@ -399,8 +444,11 @@ export class GoogleIdentityController {
   ): Promise<ResultType<GoogleIdentityCredentials, GoogleIdentityError>> {
     // Opened before the first await so it still belongs to the user's click. Safari blocks a
     // popup opened after the lazy imports below on a cold page, then allows it on "Try again".
-    const popup = this.redirectAuthorization ? undefined : AuthorizationPopup.openPending();
-    if (!popup && !this.redirectAuthorization) {
+    // Attaching and detaching manage an identity already on screen, so they always use the popup.
+    const redirect =
+      operation === "attach" || operation === "detach" ? undefined : this.redirectAuthorization;
+    const popup = redirect ? undefined : AuthorizationPopup.openPending();
+    if (!popup && !redirect) {
       LOGGER.warn("identity.google.authorization.failed", {
         operation: "request_credentials",
         code: "google_authorization_popup_failed_to_open",
@@ -436,8 +484,8 @@ export class GoogleIdentityController {
     const googleSubject = expectedGoogleSubject ?? this.googleSubject;
     try {
       const credentials: GoogleImplicitAuthorizationResult<GoogleIdentityCredentials> =
-        this.redirectAuthorization && operation !== "detach"
-          ? await this.redirectAuthorization.request({
+        redirect && operation !== "detach" && operation !== "attach"
+          ? await redirect.request({
               operation,
               allowWithoutVisibleBackup,
               ...(googleSubject ? { googleSubject } : {}),
