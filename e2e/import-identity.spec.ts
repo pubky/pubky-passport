@@ -125,9 +125,9 @@ async function expectQuietLink(page: Page) {
     question.boundingBox(),
   ]);
   expect(linkBox && noticeBox && pillBox && questionBox).toBeTruthy();
-  // Above the Terms notice, as two lines of small text, far smaller than a provider pill.
+  // Above the Terms notice, as one line of small text, far smaller than a provider pill.
   expect(linkBox!.y + linkBox!.height).toBeLessThanOrEqual(noticeBox!.y);
-  expect(linkBox!.y).toBeGreaterThan(questionBox!.y + 10);
+  expect(questionBox!.height).toBeLessThanOrEqual(24);
   expect(linkBox!.height).toBeLessThanOrEqual(24);
   expect(linkBox!.height).toBeLessThan(pillBox!.height / 2);
   const style = await link.evaluate((node) => {

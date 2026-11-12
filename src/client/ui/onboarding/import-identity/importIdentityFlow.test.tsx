@@ -107,14 +107,13 @@ describe("import link on the provider choice", () => {
       { apple: TEST_APPLE_CONFIGURATION, forAuthorization: true, onBack: vi.fn() },
     ],
   ] as const)(
-    "is a two-line text link above the notice and badge (%s)",
+    "is a one-line text link above the notice and badge (%s)",
     async (_label, options) => {
       renderFlow(options);
       const link = await screen.findByRole("button", { name: LINK });
       expect(screen.getAllByRole("button", { name: LINK })).toHaveLength(1);
-      expect(link.parentElement).toHaveTextContent(`Already have a pubky?${LINK}`);
-      // Two lines: the question, a line break, then the link.
-      expect(link.previousElementSibling?.tagName).toBe("BR");
+      expect(link.parentElement).toHaveTextContent(`Already have a pubky? ${LINK}`);
+      expect(link.parentElement!.querySelector("br")).toBeNull();
 
       // Not a third provider: no pill, no fill, not in the provider group.
       expect(link.className).not.toMatch(/rounded-full|bg-|h-15|border /u);
