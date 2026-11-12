@@ -32,7 +32,7 @@ it("shows a way back instead of crashing when the import screens fail to load", 
     ),
   );
 
-  await user.click(screen.getByRole("button", { name: "Use a recovery phrase or file" }));
+  await user.click(screen.getByRole("button", { name: "Import it" }));
   expect(await screen.findByRole("heading", { name: "Import unavailable." })).toBeVisible();
   await user.click(screen.getByRole("button", { name: "Back" }));
   expect(await screen.findByRole("button", { name: "Continue with Google" })).toBeVisible();

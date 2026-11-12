@@ -127,8 +127,8 @@ function IdentityEstablishmentFlow({
           <ProviderChoice
             apple={apple ? { ready: apple.ready, onContinue: apple.continueWithApple } : null}
             onContinueWithGoogle={google.establishIdentity}
+            secondary={<ImportIdentityLink onImport={() => setImporting(true)} />}
           />
-          <ImportIdentityLink onImport={() => setImporting(true)} />
           {onBack ? <BackButton onClick={onBack} /> : null}
         </SignInPage>
       );

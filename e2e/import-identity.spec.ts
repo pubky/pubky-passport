@@ -8,7 +8,7 @@ import { APPLE_PORT } from "../playwright.config";
 
 const APPLE_ORIGIN = `http://127.0.0.1:${APPLE_PORT}`;
 const STORAGE_ROOT = "pubky-passport/local-identities/v1";
-const LINK = "Use a recovery phrase or file";
+const LINK = "Import it";
 const PASSWORD = "e2e-recovery-password";
 
 /** Public BIP39 test vectors, never real phrases. Keys from pubky.app's derivation. */
@@ -116,15 +116,18 @@ async function expectQuietLink(page: Page) {
   const link = page.getByRole("button", { name: LINK });
   await expect(link).toBeVisible();
   await expect(link).toHaveCount(1);
-  const badge = page.getByRole("main").getByRole("img", { name: "Synonym, a Tether company" });
-  const [linkBox, badgeBox, pillBox] = await Promise.all([
+  const notice = page.locator("[data-passport-sign-in-notice]");
+  const question = page.locator("[data-passport-import-identity]");
+  const [linkBox, noticeBox, pillBox, questionBox] = await Promise.all([
     link.boundingBox(),
-    badge.boundingBox(),
+    notice.boundingBox(),
     page.getByRole("button", { name: "Continue with Google" }).boundingBox(),
+    question.boundingBox(),
   ]);
-  expect(linkBox && badgeBox && pillBox).toBeTruthy();
-  // Under the notice and badge, as one line of small text, far smaller than a provider pill.
-  expect(linkBox!.y).toBeGreaterThanOrEqual(badgeBox!.y + badgeBox!.height);
+  expect(linkBox && noticeBox && pillBox && questionBox).toBeTruthy();
+  // Above the Terms notice, as two lines of small text, far smaller than a provider pill.
+  expect(linkBox!.y + linkBox!.height).toBeLessThanOrEqual(noticeBox!.y);
+  expect(linkBox!.y).toBeGreaterThan(questionBox!.y + 10);
   expect(linkBox!.height).toBeLessThanOrEqual(24);
   expect(linkBox!.height).toBeLessThan(pillBox!.height / 2);
   const style = await link.evaluate((node) => {
@@ -174,7 +177,7 @@ async function pastePhrase(page: Page, phrase: string) {
   await expect(last).toHaveValue(words[11]!);
 }
 
-test("the import link sits quietly under every provider choice, Apple off and on", async ({
+test("the import link sits above the Terms notice on every provider choice, Apple off and on", async ({
   page,
 }) => {
   await installNetwork(page);

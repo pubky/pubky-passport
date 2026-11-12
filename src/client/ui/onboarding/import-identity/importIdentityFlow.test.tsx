@@ -23,7 +23,7 @@ import { IdentityEstablishmentFlow } from "../identityEstablishmentFlow";
 const PHRASE = "legal winner thank year wave sausage worth useful legal winner thank yellow";
 const WORDS = PHRASE.split(" ");
 const PUBLIC_KEY = "a53kaica1hg81a3znuj6szbw469h84jpwsg8gifuxgmpujfx8k3y";
-const LINK = "Use a recovery phrase or file";
+const LINK = "Import it";
 
 type ImportIdentity = (
   source: LocalIdentityImportSource,
@@ -106,31 +106,36 @@ describe("import link on the provider choice", () => {
       "/authorize and Use other identity, Apple on",
       { apple: TEST_APPLE_CONFIGURATION, forAuthorization: true, onBack: vi.fn() },
     ],
-  ] as const)("is a plain text link under the notice and badge (%s)", async (_label, options) => {
-    renderFlow(options);
-    const link = await screen.findByRole("button", { name: LINK });
-    expect(screen.getAllByRole("button", { name: LINK })).toHaveLength(1);
-    expect(link.parentElement).toHaveTextContent(`Already have a pubky? ${LINK}`);
+  ] as const)(
+    "is a two-line text link above the notice and badge (%s)",
+    async (_label, options) => {
+      renderFlow(options);
+      const link = await screen.findByRole("button", { name: LINK });
+      expect(screen.getAllByRole("button", { name: LINK })).toHaveLength(1);
+      expect(link.parentElement).toHaveTextContent(`Already have a pubky?${LINK}`);
+      // Two lines: the question, a line break, then the link.
+      expect(link.previousElementSibling?.tagName).toBe("BR");
 
-    // Not a third provider: no pill, no fill, not in the provider group.
-    expect(link.className).not.toMatch(/rounded-full|bg-|h-15|border /u);
-    expect(link).toHaveClass("underline", "text-brand");
-    expect(link.parentElement).toHaveClass("text-sm", "text-muted-foreground");
-    const providerGroup = screen.queryByRole("group", {
-      name: "Choose an account to sign in with",
-    });
-    if (providerGroup) expect(providerGroup).not.toContainElement(link);
+      // Not a third provider: no pill, no fill, not in the provider group.
+      expect(link.className).not.toMatch(/rounded-full|bg-|h-15|border /u);
+      expect(link).toHaveClass("underline", "text-brand");
+      expect(link.parentElement).toHaveClass("text-sm", "text-muted-foreground");
+      const providerGroup = screen.queryByRole("group", {
+        name: "Choose an account to sign in with",
+      });
+      if (providerGroup) expect(providerGroup).not.toContainElement(link);
 
-    // Buttons, notice and badge keep their order; the link follows them and precedes Back.
-    const notice = document.querySelector("[data-passport-sign-in-notice]")!;
-    const badge = screen.getByRole("img", { name: "Synonym, a Tether company" });
-    const lastProvider = screen.getAllByRole("button", { name: /^Continue with/u }).at(-1)!;
-    expect(precedes(lastProvider, notice)).toBe(true);
-    expect(notice.nextElementSibling).toBe(badge);
-    expect(precedes(badge, link)).toBe(true);
-    const back = screen.queryByRole("button", { name: "Back" });
-    if (back) expect(precedes(link, back)).toBe(true);
-  });
+      // Buttons, then the link, then the notice and badge; Back stays last.
+      const notice = document.querySelector("[data-passport-sign-in-notice]")!;
+      const badge = screen.getByRole("img", { name: "Synonym, a Tether company" });
+      const lastProvider = screen.getAllByRole("button", { name: /^Continue with/u }).at(-1)!;
+      expect(precedes(lastProvider, link)).toBe(true);
+      expect(precedes(link, notice)).toBe(true);
+      expect(notice.nextElementSibling).toBe(badge);
+      const back = screen.queryByRole("button", { name: "Back" });
+      if (back) expect(precedes(link, back)).toBe(true);
+    },
+  );
 
   it("does not appear while /authorize starts Google directly (Apple off)", async () => {
     const { establishIdentity } = renderFlow({ forAuthorization: true, onBack: vi.fn() });

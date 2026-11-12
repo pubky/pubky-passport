@@ -1,17 +1,18 @@
 /**
- * The quiet way in for someone who already has a pubky: a text link under the provider choice,
- * deliberately less prominent than the Continue with Google/Apple pills.
+ * The quiet way in for someone who already has a pubky: two lines of small text between the
+ * provider buttons and the Terms notice, deliberately less prominent than the provider pills.
  */
 function ImportIdentityLink({ onImport }: { onImport: () => void }) {
   return (
     <p className="text-sm leading-5 text-muted-foreground" data-passport-import-identity="">
-      Already have a pubky?{" "}
+      Already have a pubky?
+      <br />
       <button
         className="cursor-pointer rounded-sm font-semibold text-brand underline decoration-brand/40 underline-offset-4 outline-none hover:decoration-brand focus-visible:ring-3 focus-visible:ring-ring/50"
         onClick={onImport}
         type="button"
       >
-        Use a recovery phrase or file
+        Import it
       </button>
     </p>
   );
