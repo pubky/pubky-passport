@@ -120,6 +120,10 @@ Register `https://localhost:3000` with the Google OAuth client.
 | `APPLE_CLOUDKIT_ENVIRONMENT`            | `production` (default) or `development`                    |
 | `APPLE_LIVE_CHECK`                      | `true` serves `/dev/apple-live-check`; never in production |
 
+Pages other than `/authorize` connect only to the homeservers in
+`PUBKY_HOMESERVER_CONNECT_ORIGINS`, so removing an origin stops them from importing or restoring
+identities on that homeserver.
+
 To rotate the server secret, deploy the new key alongside the retained keys, then make its ID
 current. Keep an old key for as long as files bearing its ID must remain usable; files contain key
 IDs, never secrets.
