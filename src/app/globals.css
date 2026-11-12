@@ -126,14 +126,8 @@ body:has([data-passport-sign-in-notice]) .passport-footer {
     border-radius: calc(var(--radius) - 4px);
     color: var(--brand);
     font-weight: 600;
-    text-decoration-line: underline;
-    text-decoration-color: color-mix(in oklab, var(--brand) 40%, transparent);
-    text-underline-offset: 4px;
+    text-decoration-line: none;
     outline: none;
-  }
-
-  .legal-document a:hover {
-    text-decoration-color: var(--brand);
   }
 
   .legal-document a:focus-visible {

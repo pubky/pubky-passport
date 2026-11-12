@@ -16,27 +16,30 @@ import { ProviderChoice } from "./providerChoice";
 const CONSENT =
   "By continuing, you agree to the Pubky Passport Terms of Service and Privacy Policy, and confirm you are over 18.";
 const BUILT_BY =
-  "Pubky Passport is powered by the Pubky protocol. Built by Synonym Software, S.A. DE C.V.";
+  "Pubky Passport is powered by the Pubky protocol. Built by Synonym Software, S.A. DE C.V. ©2026.";
+const NOTICE = `${CONSENT} ${BUILT_BY}`;
 
-/** The notice's two paragraphs and links, checked exactly. */
+/** The notice's one paragraph and its links, checked exactly. */
 function expectTermsNotice(scope: HTMLElement) {
   const consent = within(scope).getByText(
-    (_, node) => node?.tagName === "P" && node.textContent === CONSENT,
+    (_, node) => node?.tagName === "P" && node.textContent === NOTICE,
   );
   const notice = consent.parentElement!;
-  expect([...notice.querySelectorAll("p")].map((p) => p.textContent)).toEqual([CONSENT, BUILT_BY]);
+  expect([...notice.querySelectorAll("p")].map((p) => p.textContent)).toEqual([NOTICE]);
   const links = within(notice).getAllByRole("link");
   expect(links.map((link) => [link.textContent, link.getAttribute("href")])).toEqual([
     ["Terms of Service", "/terms-of-service"],
     ["Privacy Policy", "/privacy-policy"],
+    ["Pubky protocol", "https://pubky.org/"],
   ]);
   for (const link of links) {
     expect(link).toHaveAttribute("target", "_blank");
     expect(link).toHaveAttribute("rel", "noopener noreferrer");
-    expect(link).toHaveClass("underline");
+    // Links are green text only, without an underline.
+    expect(link).toHaveClass("text-brand");
+    expect(link.className).not.toMatch(/underline/u);
   }
-  // "Pubky protocol" stays plain text, and continuing is the consent: no checkbox.
-  expect(within(notice).queryByRole("link", { name: /Pubky protocol/u })).toBeNull();
+  // Continuing is the consent: no checkbox.
   expect(within(scope).queryByRole("checkbox")).toBeNull();
   expect(notice).toHaveClass("text-muted-foreground");
   return notice;

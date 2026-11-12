@@ -68,26 +68,27 @@ async function expectProviderChoice(page: Page): Promise<{ apple: Locator; googl
 const TERMS_CONSENT =
   "By continuing, you agree to the Pubky Passport Terms of Service and Privacy Policy, and confirm you are over 18.";
 const TERMS_BUILT_BY =
-  "Pubky Passport is powered by the Pubky protocol. Built by Synonym Software, S.A. DE C.V.";
+  "Pubky Passport is powered by the Pubky protocol. Built by Synonym Software, S.A. DE C.V. ©2026.";
 
 /** The Terms/Privacy notice sits right under `lastButton` (or the import link under it), as wide as it, above any Back. */
 async function expectTermsNotice(page: Page, lastButton: Locator): Promise<Locator> {
   const consent = page.locator("p", { hasText: "By continuing, you agree" });
   await expect(consent).toHaveCount(1);
-  await expect(consent).toHaveText(TERMS_CONSENT);
+  await expect(consent).toHaveText(`${TERMS_CONSENT} ${TERMS_BUILT_BY}`);
   const notice = consent.locator("xpath=..");
-  await expect(notice.locator("p")).toHaveText([TERMS_CONSENT, TERMS_BUILT_BY]);
+  await expect(notice.locator("p")).toHaveCount(1);
   const links = notice.getByRole("link");
-  await expect(links).toHaveText(["Terms of Service", "Privacy Policy"]);
+  await expect(links).toHaveText(["Terms of Service", "Privacy Policy", "Pubky protocol"]);
   for (const [name, href] of [
     ["Terms of Service", "/terms-of-service"],
     ["Privacy Policy", "/privacy-policy"],
+    ["Pubky protocol", "https://pubky.org/"],
   ] as const) {
     const link = notice.getByRole("link", { name });
     await expect(link).toHaveAttribute("href", href);
     await expect(link).toHaveAttribute("target", "_blank");
     await expect(link).toHaveAttribute("rel", "noopener noreferrer");
-    await expect(link).toHaveCSS("text-decoration-line", "underline");
+    await expect(link).toHaveCSS("text-decoration-line", "none");
   }
   await expect(page.getByRole("checkbox")).toHaveCount(0);
   const [buttonBox, noticeBox] = await Promise.all([

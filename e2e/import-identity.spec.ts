@@ -142,7 +142,7 @@ async function expectQuietLink(page: Page) {
   expect(style.background).toBe("rgba(0, 0, 0, 0)");
   expect(style.fontSize).toBe("14px");
   expect(style.radius).toBeLessThan(8);
-  expect(style.underline).toBe("underline");
+  expect(style.underline).toBe("none");
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
     page.viewportSize()!.width,
   );

@@ -73,7 +73,7 @@ describe("IdentityEstablishmentFlow", () => {
       "aria-expanded",
       "false",
     );
-    // The only links are the Terms and Privacy notice's, opening in a new tab.
+    // The only links are the notice's (Terms, Privacy, Pubky protocol), opening in a new tab.
     expect(
       within(shell)
         .getAllByRole("link")
@@ -81,6 +81,7 @@ describe("IdentityEstablishmentFlow", () => {
     ).toEqual([
       ["Terms of Service", "/terms-of-service", "_blank"],
       ["Privacy Policy", "/privacy-policy", "_blank"],
+      ["Pubky protocol", "https://pubky.org/", "_blank"],
     ]);
     expect(MOCKS.constructGoogleIdentityController).not.toHaveBeenCalled();
     shell.remove();
