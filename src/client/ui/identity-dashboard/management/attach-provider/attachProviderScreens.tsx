@@ -17,6 +17,15 @@ import { ProviderAccountCard } from "@/client/ui/shared/providerAccountCard";
 
 type ProviderName = "Google" | "Apple";
 
+const MAY_HAVE_STORED: ReadonlySet<string> = new Set([
+  "local_link_failed",
+  "identity_linked_meanwhile",
+  "drive_create_conflict",
+  "drive_write_failed",
+  "icloud_create_conflict",
+  "icloud_write_failed",
+]);
+
 function PubkyCard({ publicIdentity }: { publicIdentity: PubkyPublicIdentity }) {
   return (
     <div className="min-h-[84px] rounded-xl border border-brand/32 p-[15px] shadow-xl">
@@ -104,9 +113,9 @@ function AttachError({
   provider: ProviderName;
 }) {
   const accountInUse = error.code === "provider_account_in_use";
-  // These two happen after the backup was stored, so something did change.
-  const backupStored =
-    error.code === "local_link_failed" || error.code === "identity_linked_meanwhile";
+  // After these the backup is, or may be, stored: a failed or conflicting upload can still have
+  // written the file. Only the other failures leave nothing changed for sure.
+  const backupMayBeStored = MAY_HAVE_STORED.has(error.code);
   return (
     <PassportScreen className="gap-6">
       <div className="flex flex-col gap-6">
@@ -125,7 +134,7 @@ function AttachError({
             {accountNotice}
           </p>
         ) : null}
-        {backupStored ? null : (
+        {backupMayBeStored ? null : (
           <p className="text-sm leading-5 text-muted-foreground">
             Nothing was changed. This pubky stays in this browser only.
           </p>

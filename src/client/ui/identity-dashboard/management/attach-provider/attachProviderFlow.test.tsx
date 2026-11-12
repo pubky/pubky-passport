@@ -184,6 +184,19 @@ describe("AttachProviderFlow", () => {
     expect(screen.queryByText(/Nothing was changed/u)).toBeNull();
   });
 
+  it("does not claim nothing changed after an upload that may have gone through", async () => {
+    const user = userEvent.setup();
+    const attachIdentity = vi.fn<AttachGoogle>(async () =>
+      Result.err({ code: "drive_create_conflict" as const }),
+    );
+    renderAttach({ attachIdentity });
+
+    await user.click(screen.getByRole("button", { name: "Continue with Google" }));
+
+    expect(await screen.findByText("drive_create_conflict")).toBeInTheDocument();
+    expect(screen.queryByText(/Nothing was changed/u)).toBeNull();
+  });
+
   it("shows other failures with their code, a retry and Back", async () => {
     const user = userEvent.setup();
     const attachIdentity = vi.fn<AttachGoogle>(async () =>
