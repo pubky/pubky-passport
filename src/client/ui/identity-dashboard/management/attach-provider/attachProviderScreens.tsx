@@ -46,6 +46,8 @@ function attachFailureEffect(code: AttachErrorCode): AttachFailureEffect {
     case "identity_already_linked":
     case "local_identity_unavailable":
       return "unchanged";
+    // Raised before anything is written. This list also holds codes attach cannot produce today:
+    // review it whenever an attach path changes.
     case "apple_account_mismatch":
     case "apple_session_expired":
     case "apple_sign_in_cancelled":

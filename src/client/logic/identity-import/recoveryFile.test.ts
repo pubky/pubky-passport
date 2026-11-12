@@ -8,8 +8,9 @@ import { PubkySdkAdapter } from "@/client/logic/pubky/PubkySdkAdapter";
 import { hasRecoveryFileShape, MAXIMUM_RECOVERY_FILE_BYTES } from "./recoveryFile";
 
 /**
- * Fixed bytes from `createRecoveryFile` of the pinned SDK (the call pubky.app makes) for the
- * secret of the "legal winner … yellow" phrase vector. The legacy file is the same file with the
+ * Fixed bytes written once by the pinned SDK's `createRecoveryFile` (the SDK function pubky.app
+ * also uses) for the secret of the "legal winner … yellow" phrase vector. Not an export from
+ * pubky.app or Ring itself. The legacy file is the same file with the
  * older `pkarr.org/recovery` spec line, which the SDK still reads.
  */
 const FIXTURES = [

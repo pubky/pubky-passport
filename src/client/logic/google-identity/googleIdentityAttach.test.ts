@@ -266,10 +266,13 @@ describe("Google attach", () => {
   });
 
   it("reports our own upload as created when the read after create_conflict finds it", async () => {
+    const written = { ...ENVELOPE, attached: true as const };
+    MOCKS.encryptSecretKeyBytes.mockResolvedValue(Result.ok(written));
     MOCKS.readPassportFile
       .mockResolvedValueOnce(Result.ok({ status: "missing" }))
       .mockResolvedValueOnce(
-        Result.ok({ status: "found", envelope: { ...ENVELOPE }, reference: REFERENCE }),
+        // Read back from Drive: equal, but a separate parsed object.
+        Result.ok({ status: "found", envelope: { ...written }, reference: REFERENCE }),
       );
     MOCKS.createPassportFile.mockResolvedValue(Result.err({ code: "create_conflict" }));
 
@@ -281,7 +284,7 @@ describe("Google attach", () => {
     });
     expect(MOCKS.createPassportFile).toHaveBeenCalledOnce();
     expect(MOCKS.createVisibleRecoveryCopy).toHaveBeenCalledExactlyOnceWith(
-      ENVELOPE,
+      written,
       { publicKeyZ32: PUBKY },
       expect.any(AbortSignal),
     );

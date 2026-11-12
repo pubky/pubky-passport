@@ -19,9 +19,10 @@ export type PassportFileEnvelope = {
   /** Normalized Passport origin authenticated during encryption. */
   url: string;
   /**
-   * Set when the key came from an identity Passport did not create (imported, then attached).
-   * Authenticated during encryption, so it cannot be added or removed without failing decryption.
-   * Restore never signs such an identity up on Passport's homeserver.
+   * Set on files written by attach, which stores an identity that is already in this browser
+   * (usually imported, so its homeserver may not be Passport's). Authenticated during encryption,
+   * so it cannot be added or removed without failing decryption. Restore never signs such an
+   * identity up on Passport's homeserver or republishes its record.
    */
   attached?: true;
 };

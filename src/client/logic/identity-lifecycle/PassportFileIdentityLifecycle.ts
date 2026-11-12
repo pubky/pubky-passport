@@ -301,8 +301,8 @@ export abstract class PassportFileIdentityLifecycle {
 
   /**
    * Restores one identity and signs in normally before attempting PKDNS and
-   * homeserver repair for an interrupted setup. An attached identity lives on a homeserver
-   * Passport did not choose, so it is never repaired: without a record it is
+   * homeserver repair for an interrupted setup. A file written by attach may hold a pubky on a
+   * homeserver Passport did not choose, so it is never repaired: without a record it is
    * `homeserver_not_found`, like an import.
    */
   protected async restoreIdentity(input: {

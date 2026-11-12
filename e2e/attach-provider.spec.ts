@@ -123,11 +123,13 @@ test.describe("attach with Google", () => {
     await expectAccessibleAndFitting(page);
     await page.screenshot({ path: testInfo.outputPath("attach-success.png"), fullPage: true });
 
-    // The Drive file and the visible copy hold an envelope for this origin, never the key.
+    // The Drive file and the visible copy hold an envelope for this origin, never the key. It is
+    // marked attached, so a later restore never signs this pubky up on Passport's homeserver.
     const file = passportFile(google);
     expect(file?.name).toBe("passport.json");
     const envelope = JSON.parse(file?.content ?? "{}") as Record<string, unknown>;
-    expect(Object.keys(envelope).sort()).toEqual(["ct", "iv", "keyId", "url", "v"]);
+    expect(Object.keys(envelope).sort()).toEqual(["attached", "ct", "iv", "keyId", "url", "v"]);
+    expect(envelope.attached).toBe(true);
     expect(envelope.url).toBe(HTTPS_ORIGIN);
     const copy = [...google.files.values()].find(
       (candidate) => candidate.name === `${FIRST.publicKeyZ32}.json`,

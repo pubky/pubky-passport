@@ -35,6 +35,12 @@ const LEGACY_ENVELOPE = {
   ...TEST_ENVELOPE,
   ct: "YZy1I_a6WzFnql8rW2A94EJrgz38Sqd1LV_KjVe2Qd3_X1ZbmXbQTVLibwUu-bAs",
 };
+/** The same inputs written by attach: pins the attached additional data, so stored files keep decrypting. */
+const ATTACHED_ENVELOPE = {
+  ...TEST_ENVELOPE,
+  ct: "YZy1I_a6WzFnql8rW2A94EJrgz38Sqd1LV_KjVe2Qd3NrRNkT68Vp2hyXgz1xMSv",
+  attached: true as const,
+};
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -255,6 +261,14 @@ describe("PassportFileWebCrypto", () => {
   it("still decrypts a file written before the attached marker existed", async () => {
     const secretKey = expectResultOk(
       await decrypt(createCrypto(), LEGACY_ENVELOPE, WRAPPING_KEY, "https://passport.pubky.app"),
+    );
+
+    expect(secretKey).toEqual(SECRET_KEY_BYTES);
+  });
+
+  it("still decrypts a file written by attach", async () => {
+    const secretKey = expectResultOk(
+      await decrypt(createCrypto(), ATTACHED_ENVELOPE, WRAPPING_KEY, "https://passport.pubky.app"),
     );
 
     expect(secretKey).toEqual(SECRET_KEY_BYTES);

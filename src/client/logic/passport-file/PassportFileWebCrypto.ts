@@ -38,15 +38,16 @@ const AES_GCM_DERIVATION_INFO = TEXT_ENCODER.encode("passport-file:aes-gcm:v1");
  *
  * The wrapping key is expanded with HKDF-SHA-256 into a non-extractable
  * AES-256-GCM key. The envelope version, normalized Passport origin, key id and
- * the `attached` marker (only when set) are authenticated as additional data. Operational failures retain their original
- * causes, while logs expose only safe classifications and never key material.
+ * the `attached` marker (only when set) are authenticated as additional data.
+ * Operational failures retain their original causes, while logs expose only safe
+ * classifications and never key material.
  */
 export class PassportFileWebCrypto {
   /**
    * Encrypts exactly 32 secret bytes with a fresh 96-bit IV and returns a
    * normalized v1 envelope. The caller retains ownership of the input bytes and
-   * must clear them after this operation settles. `attached` marks a key Passport
-   * did not create; see {@link PassportFileEnvelope.attached}.
+   * must clear them after this operation settles. `attached` marks a file written by
+   * attach; see {@link PassportFileEnvelope.attached}.
    */
   async encryptSecretKeyBytes(
     secretKeyBytes: Uint8Array,

@@ -274,9 +274,9 @@ export class PubkySdkAdapter {
 
   /**
    * Decrypts a recovery file (`pubky.org/recovery`, as written by {@link createRecoveryFile}, or
-   * the legacy `pkarr.org/recovery`) and registers its key. A file without the recovery header is `invalid_recovery_file`; a wrong
-   * passphrase or damaged ciphertext is `recovery_file_undecryptable`. The caller's file bytes are
-   * cleared either way.
+   * the legacy `pkarr.org/recovery`) and registers its key. A file without a recovery header is
+   * `invalid_recovery_file`; a wrong passphrase or damaged ciphertext is
+   * `recovery_file_undecryptable`. The caller's file bytes are cleared either way.
    */
   importRecoveryFile(recoveryFile: Uint8Array, passphrase: string): PubkyRecoveryFileImportResult {
     try {
