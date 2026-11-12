@@ -109,15 +109,19 @@ async function expectTermsNotice(page: Page, lastButton: Locator): Promise<Locat
     expect(importBox.y).toBeGreaterThanOrEqual((buttonBox?.y ?? 0) + (buttonBox?.height ?? 0));
     expect(importBox.height).toBeLessThanOrEqual(24);
   }
-  const above = importBox ?? buttonBox;
+  // Next to the import link, Back sits between it and the notice; elsewhere it stays under the notice.
+  const back = page.getByRole("button", { name: "Back", exact: true });
+  const backBox = (await back.count()) > 0 ? await back.boundingBox() : null;
+  const backAbove = importBox !== null && backBox !== null;
+  if (backAbove) {
+    expect(backBox.y).toBeGreaterThanOrEqual(importBox.y + importBox.height);
+  } else if (backBox) {
+    expect(backBox.y).toBeGreaterThanOrEqual((noticeBox?.y ?? 0) + (noticeBox?.height ?? 0));
+  }
+  const above = backAbove ? backBox : (importBox ?? buttonBox);
   const gap = (noticeBox?.y ?? 0) - ((above?.y ?? 0) + (above?.height ?? 0));
   expect(gap).toBeGreaterThanOrEqual(0);
   expect(gap).toBeLessThanOrEqual(24);
-  const back = page.getByRole("button", { name: "Back" });
-  if ((await back.count()) > 0) {
-    const backBox = await back.boundingBox();
-    expect(backBox?.y ?? 0).toBeGreaterThanOrEqual((noticeBox?.y ?? 0) + (noticeBox?.height ?? 0));
-  }
   await expectSignInFooter(page, notice);
   return notice;
 }

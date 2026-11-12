@@ -7,7 +7,7 @@ import { SignInTermsNotice } from "./signInTermsNotice";
 
 /**
  * Shared provider choice, in the same order on every screen, with the Terms notice and the Synonym
- * badge under it. `secondary` (the import link) sits between the buttons and the notice. The page footer steps aside while the notice is shown (see globals.css).
+ * badge under it. `secondary` (the import link, then Back when shown) sits between the buttons and the notice. The page footer steps aside while the notice is shown (see globals.css).
  */
 function ProviderChoice({
   apple,

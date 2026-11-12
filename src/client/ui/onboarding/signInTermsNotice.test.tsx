@@ -113,7 +113,7 @@ describe("Terms and Privacy notice", () => {
   );
 
   it.each([true, false])(
-    "renders on the start page and Add identity, once, above Back (Apple=%s)",
+    "renders on the start page and Add identity, once, under Back (Apple=%s)",
     async (appleEnabled) => {
       const { container } = renderFlow({
         apple: appleEnabled ? TEST_APPLE_CONFIGURATION : null,
@@ -122,7 +122,9 @@ describe("Terms and Privacy notice", () => {
       await screen.findByRole("button", { name: "Continue with Google" });
       const notice = expectTermsNotice(container);
       expect(screen.getAllByText(/By continuing/u)).toHaveLength(1);
-      expect(precedes(notice, screen.getByRole("button", { name: "Back" }))).toBe(true);
+      const back = screen.getByRole("button", { name: "Back" });
+      expect(precedes(screen.getByRole("button", { name: "Import it" }), back)).toBe(true);
+      expect(precedes(back, notice)).toBe(true);
       expect(screen.queryAllByRole("button", { name: "Continue with Apple" }).length > 0).toBe(
         appleEnabled,
       );
@@ -140,6 +142,8 @@ describe("Terms and Privacy notice", () => {
     expect(precedes(screen.getByRole("button", { name: "Continue with Apple" }), notice)).toBe(
       true,
     );
-    expect(precedes(notice, screen.getByRole("button", { name: "Back" }))).toBe(true);
+    const back = screen.getByRole("button", { name: "Back" });
+    expect(precedes(screen.getByRole("button", { name: "Import it" }), back)).toBe(true);
+    expect(precedes(back, notice)).toBe(true);
   });
 });
