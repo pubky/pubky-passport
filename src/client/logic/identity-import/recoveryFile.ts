@@ -6,20 +6,27 @@ export const RECOVERY_FILE_EXTENSION = ".pkarr";
 /** The SDK writes 91 bytes; anything far larger is not a recovery file. */
 export const MAXIMUM_RECOVERY_FILE_BYTES = 1024;
 
-/** The spec line every recovery file starts with, followed by a newline. */
-const RECOVERY_FILE_SPEC_LINE = "pubky.org/recovery\n";
+/**
+ * The spec lines a recovery file starts with, followed by a newline: the current one and the
+ * legacy one older backups carry. The SDK accepts both.
+ */
+const RECOVERY_FILE_SPEC_LINES = ["pubky.org/recovery\n", "pkarr.org/recovery\n"] as const;
 
-/** True when the bytes start with the recovery spec line and fit the size limit. */
+/** True when the bytes start with a recovery spec line and fit the size limit. */
 export function hasRecoveryFileShape(recoveryFile: Uint8Array): boolean {
   if (
     !(recoveryFile instanceof Uint8Array) ||
-    recoveryFile.byteLength <= RECOVERY_FILE_SPEC_LINE.length ||
     recoveryFile.byteLength > MAXIMUM_RECOVERY_FILE_BYTES
   ) {
     return false;
   }
-  for (let index = 0; index < RECOVERY_FILE_SPEC_LINE.length; index += 1) {
-    if (recoveryFile[index] !== RECOVERY_FILE_SPEC_LINE.charCodeAt(index)) return false;
+  return RECOVERY_FILE_SPEC_LINES.some((specLine) => startsWithSpecLine(recoveryFile, specLine));
+}
+
+function startsWithSpecLine(recoveryFile: Uint8Array, specLine: string): boolean {
+  if (recoveryFile.byteLength <= specLine.length) return false;
+  for (let index = 0; index < specLine.length; index += 1) {
+    if (recoveryFile[index] !== specLine.charCodeAt(index)) return false;
   }
   return true;
 }

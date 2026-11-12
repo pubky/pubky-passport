@@ -11,7 +11,10 @@ import type {
   HomegateSignupTokenErrorCode,
   HomeserverSignupDetails,
 } from "@/client/logic/homegate/HomegateClient";
-import type { PassportFileEnvelope } from "@/client/logic/passport-file/passportFileEnvelope";
+import {
+  serializePassportFileEnvelope,
+  type PassportFileEnvelope,
+} from "@/client/logic/passport-file/passportFileEnvelope";
 import type { PassportFileStore } from "@/client/logic/passport-file/passportFileStore";
 import { PassportFileWebCrypto } from "@/client/logic/passport-file/PassportFileWebCrypto";
 import {
@@ -413,6 +416,7 @@ export abstract class PassportFileIdentityLifecycle {
     if (Result.isError(local)) return Result.err(local.error);
 
     let conflict: StoreFailure | undefined;
+    let ours: PassportFileEnvelope | undefined;
     for (let attempt = 0; attempt < 2; attempt += 1) {
       const storedFile = await input.store.readPassportFile();
       if (Result.isError(storedFile)) {
@@ -434,6 +438,11 @@ export abstract class PassportFileIdentityLifecycle {
           LOGGER.warn(`${event}.failed`, { code: "provider_account_in_use" });
           return Result.err({ code: "provider_account_in_use" });
         }
+        // Each write uses a fresh IV, so the same envelope after a conflict is our own upload.
+        if (ours && isSameEnvelope(storedFile.value.envelope, ours)) {
+          input.onCreated?.(ours);
+          return this.linkAccount(input.publicIdentity, input.account, "created");
+        }
         return this.linkAccount(input.publicIdentity, input.account, "linked");
       }
       // A conflict means a file appeared, or that our own new file is not listed yet. Writing
@@ -448,8 +457,10 @@ export abstract class PassportFileIdentityLifecycle {
         if (written.error.code !== "create_conflict") {
           return Result.err(input.writeFailure(written.error));
         }
-        // Another tab or device wrote a file meanwhile: decide again from what is there now.
+        // Another tab or device wrote a file meanwhile, or ours is not listed yet: decide again
+        // from what is there now.
         conflict = written.error;
+        ours = envelope.value;
         continue;
       }
       LOGGER.info(`${event}.write.completed`);
@@ -808,6 +819,11 @@ export abstract class PassportFileIdentityLifecycle {
       secretKey.value.bytes.fill(0);
     }
   }
+}
+
+function isSameEnvelope(a: PassportFileEnvelope, b: PassportFileEnvelope): boolean {
+  const serialized = serializePassportFileEnvelope(a);
+  return serialized !== null && serialized === serializePassportFileEnvelope(b);
 }
 
 function accountSubject(account: LocalIdentityAccount): string {

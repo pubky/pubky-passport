@@ -77,6 +77,8 @@ function RecoveryFileImport({
     if (!ready) return;
     setPending(true);
     edited();
+    // A problem from an earlier read must not hide what this attempt reports.
+    setFileProblem(null);
     try {
       let bytes: Uint8Array;
       try {
@@ -110,6 +112,7 @@ function RecoveryFileImport({
     : failure
       ? importErrorMessage(failure)
       : null;
+  const passwordInvalid = fileProblem === null && failure === "recovery_file_undecryptable";
 
   return (
     <PassportScreen className="gap-6">
@@ -166,6 +169,8 @@ function RecoveryFileImport({
           Enter password
         </Label>
         <Input
+          aria-describedby={passwordInvalid ? "import-recovery-file-message" : undefined}
+          aria-invalid={passwordInvalid || undefined}
           autoComplete="current-password"
           containerClassName="h-14 border-dashed"
           disabled={pending}
@@ -186,7 +191,11 @@ function RecoveryFileImport({
           type="password"
           value={password}
         />
-        {message ? <FieldMessage error>{message}</FieldMessage> : null}
+        {message ? (
+          <FieldMessage error id="import-recovery-file-message">
+            {message}
+          </FieldMessage>
+        ) : null}
       </div>
 
       {recoveredPubky ? <RecoveredPubky pending={pending} publicKeyZ32={recoveredPubky} /> : null}

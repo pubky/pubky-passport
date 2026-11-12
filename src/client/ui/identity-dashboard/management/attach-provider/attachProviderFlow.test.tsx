@@ -11,6 +11,8 @@ import {
 } from "@test-utils/fakeAppleIdentityController";
 import { withPassportTestProviders } from "@test-utils/googleIdentityConfiguration";
 import { mockGoogleIdentityController } from "@test-utils/mockGoogleIdentityController";
+import type { AppleIdentityViewError } from "@/client/logic/apple-identity/AppleIdentityController";
+import type { GoogleIdentityViewError } from "@/client/logic/google-identity/googleIdentityErrors";
 import type { GoogleIdentityControllerPort } from "@/client/ui/passportCollaborators";
 import { AppleIdentityConfigurationProvider } from "@/client/ui/appleIdentityConfiguration";
 import { AttachProviderFlow } from "./attachProviderFlow";
@@ -26,6 +28,31 @@ const GOOGLE_ACCOUNT = {
 const APPLE_ACCOUNT = { appleSubject: "001234.abc", email: "jane@example.com", name: "Jane" };
 
 type AttachGoogle = GoogleIdentityControllerPort["attachIdentity"];
+type Failure =
+  | { provider: "Google"; code: GoogleIdentityViewError["code"] }
+  | { provider: "Apple"; code: AppleIdentityViewError["code"] };
+
+/** After these the backup is, or may be, stored. */
+const MAY_HAVE_STORED = [
+  { provider: "Google", code: "drive_write_failed" },
+  { provider: "Google", code: "identity_linked_meanwhile" },
+  { provider: "Google", code: "unexpected_failure" },
+  { provider: "Apple", code: "icloud_create_conflict" },
+  { provider: "Apple", code: "icloud_write_failed" },
+  { provider: "Apple", code: "local_link_failed" },
+] as const satisfies readonly Failure[];
+/** Nothing was written, but the pubky is not, or may no longer be, only in this browser. */
+const NOT_BROWSER_ONLY = [
+  { provider: "Google", code: "identity_already_linked" },
+  { provider: "Apple", code: "identity_already_linked" },
+  { provider: "Google", code: "local_identity_unavailable" },
+  { provider: "Apple", code: "local_identity_unavailable" },
+] as const satisfies readonly Failure[];
+const BROWSER_ONLY = [
+  { provider: "Google", code: "wrapping_key_failed" },
+  { provider: "Apple", code: "icloud_quota_exceeded" },
+  { provider: "Apple", code: "icloud_account_mismatch" },
+] as const satisfies readonly Failure[];
 
 function renderAttach({
   apple = TEST_APPLE_CONFIGURATION,
@@ -197,6 +224,33 @@ describe("AttachProviderFlow", () => {
     expect(screen.queryByText(/Nothing was changed/u)).toBeNull();
   });
 
+  it.each(MAY_HAVE_STORED)(
+    "does not claim nothing changed after $provider $code",
+    async (failure) => {
+      await showFailure(failure);
+      expect(screen.queryByText(/Nothing was changed/u)).toBeNull();
+    },
+  );
+
+  it.each(NOT_BROWSER_ONLY)(
+    "says nothing changed but not browser-only after $provider $code",
+    async (failure) => {
+      await showFailure(failure);
+      expect(screen.getByText("Nothing was changed.")).toBeVisible();
+      expect(screen.queryByText(/stays in this browser only/u)).toBeNull();
+    },
+  );
+
+  it.each(BROWSER_ONLY)(
+    "says the pubky stays browser-only after $provider $code",
+    async (failure) => {
+      await showFailure(failure);
+      expect(
+        screen.getByText("Nothing was changed. This pubky stays in this browser only."),
+      ).toBeVisible();
+    },
+  );
+
   it("shows other failures with their code, a retry and Back", async () => {
     const user = userEvent.setup();
     const attachIdentity = vi.fn<AttachGoogle>(async () =>
@@ -305,3 +359,15 @@ describe("AttachProviderFlow", () => {
     expect(screen.getByRole("heading", { name: "Connect an account." })).toBeInTheDocument();
   });
 });
+
+async function showFailure(failure: Failure): Promise<void> {
+  if (failure.provider === "Google") {
+    const attachIdentity = vi.fn<AttachGoogle>(async () => Result.err({ code: failure.code }));
+    renderAttach({ attachIdentity });
+    await userEvent.setup().click(screen.getByRole("button", { name: "Continue with Google" }));
+  } else {
+    const { appleFake } = renderAttach();
+    act(() => appleFake.emit({ status: "failed", error: { code: failure.code } }));
+  }
+  expect(await screen.findByText(failure.code)).toBeInTheDocument();
+}

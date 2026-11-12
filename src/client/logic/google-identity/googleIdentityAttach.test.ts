@@ -265,11 +265,36 @@ describe("Google attach", () => {
     expect(MOCKS.readPassportFile).not.toHaveBeenCalled();
   });
 
-  it("reads again after create_conflict and links a file that holds this pubky", async () => {
+  it("reports our own upload as created when the read after create_conflict finds it", async () => {
     MOCKS.readPassportFile
       .mockResolvedValueOnce(Result.ok({ status: "missing" }))
       .mockResolvedValueOnce(
-        Result.ok({ status: "found", envelope: ENVELOPE, reference: REFERENCE }),
+        Result.ok({ status: "found", envelope: { ...ENVELOPE }, reference: REFERENCE }),
+      );
+    MOCKS.createPassportFile.mockResolvedValue(Result.err({ code: "create_conflict" }));
+
+    const result = await createSubject().attachIdentity(CREDENTIALS, { publicKeyZ32: PUBKY });
+
+    expect(expectResultOk(result)).toEqual({
+      attachment: "created",
+      visibleRecoveryCopyStatus: "created",
+    });
+    expect(MOCKS.createPassportFile).toHaveBeenCalledOnce();
+    expect(MOCKS.createVisibleRecoveryCopy).toHaveBeenCalledExactlyOnceWith(
+      ENVELOPE,
+      { publicKeyZ32: PUBKY },
+      expect.any(AbortSignal),
+    );
+    expect(MOCKS.linkProviderAccount).toHaveBeenCalledOnce();
+  });
+
+  it("reads again after create_conflict and links a file that holds this pubky", async () => {
+    // Another tab's file: same pubky, but its own IV and ciphertext.
+    const otherUpload = { ...ENVELOPE, iv: "c".repeat(16), ct: "d".repeat(64) };
+    MOCKS.readPassportFile
+      .mockResolvedValueOnce(Result.ok({ status: "missing" }))
+      .mockResolvedValueOnce(
+        Result.ok({ status: "found", envelope: otherUpload, reference: REFERENCE }),
       );
     MOCKS.createPassportFile.mockResolvedValue(Result.err({ code: "create_conflict" }));
 

@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 
-import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Result } from "better-result";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -438,11 +438,21 @@ describe("recovery file import", () => {
     );
     await user.type(screen.getByLabelText("Enter password"), "secret-password{Enter}");
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(message);
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(message);
     expect(screen.getByRole("button", { name: "Restore" })).toBeEnabled();
     if (code === "import_failed") expect(screen.getByText(PUBLIC_KEY)).toBeVisible();
-    await user.type(screen.getByLabelText("Enter password"), "x");
+    const password = screen.getByLabelText("Enter password");
+    if (code === "recovery_file_undecryptable") {
+      expect(password).toHaveAttribute("aria-invalid", "true");
+      expect(password).toHaveAccessibleDescription(message);
+    } else {
+      expect(password).not.toHaveAttribute("aria-invalid");
+      expect(password).not.toHaveAttribute("aria-describedby");
+    }
+    await user.type(password, "x");
     expect(screen.queryByRole("alert")).toBeNull();
+    expect(password).not.toHaveAttribute("aria-invalid");
   });
 
   it("reports a file the browser cannot read", async () => {
@@ -460,6 +470,28 @@ describe("recovery file import", () => {
       "Could not read this file. Please select it again.",
     );
     expect(importIdentity).not.toHaveBeenCalled();
+  });
+
+  it("shows what the next attempt reports once the file reads again", async () => {
+    const user = userEvent.setup();
+    const importIdentity = vi.fn(async () =>
+      Result.err({ code: "recovery_file_undecryptable" as const }),
+    );
+    renderFlow({ importIdentity });
+    await openFile(user);
+    const file = recoveryFile();
+    vi.spyOn(file, "arrayBuffer").mockRejectedValueOnce(new Error("gone"));
+    await user.upload(document.querySelector<HTMLInputElement>("input[type=file]")!, file);
+    await user.type(screen.getByLabelText("Enter password"), "secret-password");
+    await user.click(screen.getByRole("button", { name: "Restore" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Could not read this file.");
+
+    await user.click(screen.getByRole("button", { name: "Restore" }));
+
+    await waitFor(() =>
+      expect(screen.getByRole("alert")).toHaveTextContent("Invalid password or corrupted file."),
+    );
+    expect(importIdentity).toHaveBeenCalledOnce();
   });
 
   it("goes back to the choice, and from there to the providers", async () => {
