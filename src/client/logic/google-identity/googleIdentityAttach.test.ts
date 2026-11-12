@@ -274,6 +274,42 @@ describe("Google attach", () => {
     expect(MOCKS.linkProviderAccount).not.toHaveBeenCalled();
   });
 
+  it("reports the conflict when reading again fails, since our file may be stored", async () => {
+    MOCKS.readPassportFile
+      .mockResolvedValueOnce(Result.ok({ status: "missing" }))
+      .mockResolvedValueOnce(Result.err({ code: "duplicate_files" }));
+    MOCKS.createPassportFile.mockResolvedValue(Result.err({ code: "create_conflict" }));
+    expectError(
+      await createSubject().attachIdentity(CREDENTIALS, { publicKeyZ32: PUBKY }),
+      "drive_create_conflict",
+    );
+
+    MOCKS.readPassportFile
+      .mockResolvedValueOnce(Result.ok({ status: "missing" }))
+      .mockResolvedValueOnce(
+        Result.ok({ status: "found", envelope: ENVELOPE, reference: REFERENCE }),
+      );
+    MOCKS.decryptSecretKeyBytes.mockResolvedValueOnce(Result.err({ code: "decrypt_failed" }));
+    expectError(
+      await createSubject().attachIdentity(CREDENTIALS, { publicKeyZ32: PUBKY }),
+      "drive_create_conflict",
+    );
+    expect(MOCKS.createPassportFile).toHaveBeenCalledTimes(2);
+    expect(MOCKS.deletePassportFile).not.toHaveBeenCalled();
+  });
+
+  it("reports an unconfirmed visible copy without failing the attach", async () => {
+    MOCKS.createVisibleRecoveryCopy.mockResolvedValue(Result.err({ code: "forbidden" }));
+
+    const result = await createSubject().attachIdentity(CREDENTIALS, { publicKeyZ32: PUBKY });
+
+    expect(expectResultOk(result)).toEqual({
+      attachment: "created",
+      visibleRecoveryCopyStatus: "unconfirmed",
+    });
+    expect(MOCKS.linkProviderAccount).toHaveBeenCalledOnce();
+  });
+
   it("runs under a per-pubky Web Lock when the browser has one", async () => {
     const names: string[] = [];
     vi.stubGlobal("navigator", {

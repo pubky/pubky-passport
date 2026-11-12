@@ -408,11 +408,21 @@ export abstract class PassportFileIdentityLifecycle {
     let conflict: StoreFailure | undefined;
     for (let attempt = 0; attempt < 2; attempt += 1) {
       const storedFile = await input.store.readPassportFile();
-      if (Result.isError(storedFile)) return Result.err(input.readFailure(storedFile.error));
+      if (Result.isError(storedFile)) {
+        return Result.err(
+          conflict
+            ? this.afterConflict(input, conflict, storedFile.error.code)
+            : input.readFailure(storedFile.error),
+        );
+      }
 
       if (storedFile.value.status === "found") {
         const owner = await this.passportFileOwner(input.idToken, storedFile.value.envelope);
-        if (Result.isError(owner)) return Result.err(owner.error);
+        if (Result.isError(owner)) {
+          return Result.err(
+            conflict ? this.afterConflict(input, conflict, owner.error.code) : owner.error,
+          );
+        }
         if (owner.value !== input.publicIdentity.publicKeyZ32) {
           LOGGER.warn(`${event}.failed`, { code: "provider_account_in_use" });
           return Result.err({ code: "provider_account_in_use" });
@@ -441,6 +451,23 @@ export abstract class PassportFileIdentityLifecycle {
     }
     // Not reached: the second pass always returns.
     return Result.err({ code: "unexpected_failure" });
+  }
+
+  /**
+   * After a create conflict our own file may already be stored, so a failure while reading again
+   * reports the conflict: the screen then never claims that nothing changed.
+   */
+  private afterConflict<Reference, StoreFailure extends { code: string }, StoreError>(
+    input: AttachInput<Reference, StoreFailure, StoreError>,
+    conflict: StoreFailure,
+    rereadCode: string,
+  ): StoreError {
+    LOGGER.warn(`identity.${this.provider}.attach.failed`, {
+      code: "create_conflict",
+      stage: "reread",
+      rereadCode,
+    });
+    return input.writeFailure(conflict);
   }
 
   /**
