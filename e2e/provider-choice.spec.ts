@@ -70,7 +70,7 @@ const TERMS_CONSENT =
 const TERMS_BUILT_BY =
   "Pubky Passport is powered by the Pubky protocol. Built by Synonym Software, S.A. DE C.V.";
 
-/** The Terms/Privacy notice sits right under `lastButton`, as wide as it, above any Back. */
+/** The Terms/Privacy notice sits right under `lastButton` (or the import link under it), as wide as it, above any Back. */
 async function expectTermsNotice(page: Page, lastButton: Locator): Promise<Locator> {
   const consent = page.locator("p", { hasText: "By continuing, you agree" });
   await expect(consent).toHaveCount(1);
@@ -102,7 +102,15 @@ async function expectTermsNotice(page: Page, lastButton: Locator): Promise<Locat
     .evaluate((node) => node.getBoundingClientRect().toJSON() as DOMRect);
   expect(Math.abs((noticeBox?.x ?? 0) - row.x)).toBeLessThanOrEqual(1);
   expect(Math.abs((noticeBox?.width ?? 0) - row.width)).toBeLessThanOrEqual(1);
-  const gap = (noticeBox?.y ?? 0) - ((buttonBox?.y ?? 0) + (buttonBox?.height ?? 0));
+  // The one-line import link, when shown, sits between the buttons and the notice.
+  const importLine = page.locator("[data-passport-import-identity]");
+  const importBox = (await importLine.count()) > 0 ? await importLine.boundingBox() : null;
+  if (importBox) {
+    expect(importBox.y).toBeGreaterThanOrEqual((buttonBox?.y ?? 0) + (buttonBox?.height ?? 0));
+    expect(importBox.height).toBeLessThanOrEqual(24);
+  }
+  const above = importBox ?? buttonBox;
+  const gap = (noticeBox?.y ?? 0) - ((above?.y ?? 0) + (above?.height ?? 0));
   expect(gap).toBeGreaterThanOrEqual(0);
   expect(gap).toBeLessThanOrEqual(24);
   const back = page.getByRole("button", { name: "Back" });
