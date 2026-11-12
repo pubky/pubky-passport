@@ -10,8 +10,15 @@ export const HTTPS_ORIGIN = "https://passport.e2e.test";
 export async function serveOverHttps(context: BrowserContext, target: string): Promise<void> {
   await context.route(`${HTTPS_ORIGIN}/**`, async (route) => {
     const url = new URL(route.request().url());
-    const response = await route.fetch({ url: `${target}${url.pathname}${url.search}` });
-    await route.fulfill({ response });
+    try {
+      const response = await route.fetch({ url: `${target}${url.pathname}${url.search}` });
+      // Read the body first: a popup that navigates away can dispose the response meanwhile.
+      const body = await response.body();
+      await route.fulfill({ status: response.status(), headers: response.headers(), body });
+    } catch {
+      // The page or popup that made this request is gone; nothing waits for the answer.
+      await route.abort().catch(() => undefined);
+    }
   });
 }
 
