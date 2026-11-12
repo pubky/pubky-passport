@@ -353,6 +353,8 @@ describe("Google attach", () => {
 
     expectError(result, "local_link_failed");
     expect(MOCKS.deletePassportFile).not.toHaveBeenCalled();
+    // No visible copy for an attach that did not finish.
+    expect(MOCKS.createVisibleRecoveryCopy).not.toHaveBeenCalled();
   });
 
   it.each(["provider_conflict", "provider_in_use"])(

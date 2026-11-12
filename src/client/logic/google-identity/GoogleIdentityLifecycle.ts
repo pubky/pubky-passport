@@ -240,7 +240,7 @@ export class GoogleIdentityLifecycle extends PassportFileIdentityLifecycle {
   ): Promise<AttachGoogleIdentityResult> {
     try {
       const store = this.createDriveStore(credentials.driveAccessToken, this.fetch);
-      let visibleCopy: Promise<boolean> | undefined;
+      let created: PassportFileEnvelope | undefined;
       const attached = await this.attachToPassportFile({
         account: { googleAccount: credentials.googleAccount },
         publicIdentity,
@@ -255,16 +255,20 @@ export class GoogleIdentityLifecycle extends PassportFileIdentityLifecycle {
           cause: error,
         }),
         onCreated: (envelope) => {
-          if (!credentials.visibleBackupPermissionGranted) return;
-          LOGGER.info("identity.google.visible_recovery_copy.started");
-          visibleCopy = this.createVisibleRecoveryCopy(
-            this.createVisibleRecoveryCopies(credentials.driveAccessToken, this.fetch),
-            envelope,
-            publicIdentity,
-          );
+          created = envelope;
         },
       });
       if (Result.isError(attached)) return Result.err(attached.error);
+      // Only once this browser is linked: a failed attach leaves no visible copy behind.
+      let visibleCopy: Promise<boolean> | undefined;
+      if (created && credentials.visibleBackupPermissionGranted) {
+        LOGGER.info("identity.google.visible_recovery_copy.started");
+        visibleCopy = this.createVisibleRecoveryCopy(
+          this.createVisibleRecoveryCopies(credentials.driveAccessToken, this.fetch),
+          created,
+          publicIdentity,
+        );
+      }
       return Result.ok({
         attachment: attached.value,
         visibleRecoveryCopyStatus: await this.settleVisibleRecoveryCopy(visibleCopy),
