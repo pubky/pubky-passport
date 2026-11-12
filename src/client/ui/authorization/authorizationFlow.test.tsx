@@ -24,6 +24,7 @@ const MOCKS = {
   catalogListener: undefined as (() => void) | undefined,
   dispose: vi.fn(),
   remove: vi.fn(),
+  attach: vi.fn(),
   detach: vi.fn(),
   createRecoveryFile: vi.fn(),
   createMigration: vi.fn(),
@@ -115,7 +116,7 @@ function wrapFlow(children: ReactNode) {
   return withPassportTestProviders(children, {
     ...authorizationCollaborators(),
     createGoogleIdentityController: () =>
-      mockGoogleIdentityController({ detachIdentity: MOCKS.detach }),
+      mockGoogleIdentityController({ attachIdentity: MOCKS.attach, detachIdentity: MOCKS.detach }),
     IdentitySetup: IdentitySetupStub,
   });
 }
@@ -749,6 +750,48 @@ describe("AuthorizationFlow", () => {
       expect(MOCKS.approve).not.toHaveBeenCalled();
     },
   );
+
+  it("attaches a browser-only identity and returns to Manage without authorizing", async () => {
+    const user = userEvent.setup();
+    const browserOnly = { publicIdentity: { publicKeyZ32: "browser-only-key" } };
+    MOCKS.catalog = {
+      activePublicKeyZ32: browserOnly.publicIdentity.publicKeyZ32,
+      identities: [browserOnly, SECOND],
+    };
+    MOCKS.attach.mockImplementation(async (publicIdentity: PubkyPublicIdentity) => {
+      // As in the real flow, the catalog then lists the account with the identity.
+      MOCKS.catalog = {
+        activePublicKeyZ32: publicIdentity.publicKeyZ32,
+        identities: [{ publicIdentity, googleAccount: FIRST.googleAccount }, SECOND],
+      };
+      MOCKS.catalogListener?.();
+      return Result.ok({
+        attachment: "created" as const,
+        googleAccount: FIRST.googleAccount,
+        publicIdentity,
+        visibleRecoveryCopyStatus: "created" as const,
+      });
+    });
+    renderFlow();
+
+    await user.click(await screen.findByRole("button", { name: "Manage" }));
+    await user.click(screen.getByRole("button", { name: "Connect Google" }));
+    expect(screen.getByRole("heading", { name: "Connect an account." })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Continue with Google" }));
+
+    expect(
+      await screen.findByRole("heading", { name: "Connected to Google." }),
+    ).toBeInTheDocument();
+    expect(MOCKS.attach).toHaveBeenCalledExactlyOnceWith(browserOnly.publicIdentity);
+    expect(screen.getByLabelText("Signing in to requesting.app")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Done" }));
+
+    expect(screen.getByRole("heading", { name: "Manage identity." })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Detach from Google" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Signing in to requesting.app")).toBeInTheDocument();
+    expect(MOCKS.approve).not.toHaveBeenCalled();
+    expect(MOCKS.cancel).not.toHaveBeenCalled();
+  });
 
   it("adds an identity through the normal sign-in flow without losing the review", async () => {
     const user = userEvent.setup();

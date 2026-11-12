@@ -15,11 +15,21 @@ export async function serveOverHttps(context: BrowserContext, target: string): P
       // Read the body first: a popup that navigates away can dispose the response meanwhile.
       const body = await response.body();
       await route.fulfill({ status: response.status(), headers: response.headers(), body });
-    } catch {
-      // The page or popup that made this request is gone; nothing waits for the answer.
+    } catch (error) {
       await route.abort().catch(() => undefined);
+      // Only a page or popup that is gone may lose its answer; any other failure is real.
+      if (!isClosedTargetFailure(route, error)) throw error;
     }
   });
+}
+
+function isClosedTargetFailure(route: Route, error: unknown): boolean {
+  if (error instanceof Error && /has been closed|Target closed/i.test(error.message)) return true;
+  try {
+    return route.request().frame().page().isClosed();
+  } catch {
+    return false;
+  }
 }
 
 export const GOOGLE_SUBJECT = "google-attach-subject";
