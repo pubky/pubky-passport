@@ -18,6 +18,8 @@ export function fakeLocalIdentityController(
     createRecoveryFile:
       overrides.createRecoveryFile ??
       (async () => Result.err({ code: "recovery_file_failed" as const })),
+    importIdentity:
+      overrides.importIdentity ?? (async () => Result.err({ code: "import_failed" as const })),
     listAuthorizedApps: overrides.listAuthorizedApps ?? (async () => Result.ok([])),
     listIdentities:
       overrides.listIdentities ??

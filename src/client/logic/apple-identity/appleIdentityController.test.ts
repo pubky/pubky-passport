@@ -48,6 +48,9 @@ function setup(overrides: Partial<AppleIdentityControllerDependencies> = {}) {
     establishIdentity: vi.fn(async () => Result.ok(established)),
     replaceInvalidPassportFile: vi.fn(async () => Result.ok(established)),
     replaceUndecryptablePassportFile: vi.fn(async () => Result.ok(established)),
+    attachIdentity: vi.fn(async () =>
+      Result.ok({ attachment: "created" as const, appleAccount: established.appleAccount }),
+    ),
     detachIdentity: vi.fn(async () => Result.ok(undefined)),
     abortRequests: vi.fn(),
     dispose: vi.fn(),
@@ -302,6 +305,59 @@ describe("AppleIdentityController", () => {
       SUBJECT,
     );
     expect(controller.getState()).toEqual({ status: "detached" });
+  });
+
+  it("attaches after both steps and publishes only safe fields", async () => {
+    const { controller, lifecycle, store, states } = setup();
+    await controller.attachIdentity(PUBLIC_IDENTITY);
+    expectResultOk(await controller.connectICloud());
+    expect(lifecycle.attachIdentity).toHaveBeenCalledWith(
+      expect.objectContaining({ appleSubject: SUBJECT }),
+      store,
+      PUBLIC_IDENTITY,
+    );
+    expect(lifecycle.establishIdentity).not.toHaveBeenCalled();
+    expect(controller.getState()).toEqual({
+      status: "attached",
+      identity: {
+        attachment: "created",
+        appleAccount: APPLE_ACCOUNT,
+        publicIdentity: PUBLIC_IDENTITY,
+      },
+    });
+    expect(states.map((state) => state.status)).toContain("attaching");
+    expect(JSON.stringify(states)).not.toContain(ID_TOKEN);
+  });
+
+  it("names the signed-in Apple Account when it already holds another pubky", async () => {
+    vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+    const { controller, lifecycle } = setup();
+    lifecycle.attachIdentity.mockResolvedValueOnce(
+      Result.err({ code: "provider_account_in_use" }) as never,
+    );
+    await controller.attachIdentity(PUBLIC_IDENTITY);
+    await controller.connectICloud();
+    expect(controller.getState()).toEqual({
+      status: "failed",
+      error: { code: "provider_account_in_use" },
+      appleEmail: EMAIL,
+    });
+  });
+
+  it("does not attach when the controller is disposed during the attach", async () => {
+    const { controller, lifecycle } = setup();
+    let settle!: (value: never) => void;
+    lifecycle.attachIdentity.mockReturnValueOnce(
+      new Promise((resolve) => {
+        settle = resolve;
+      }) as never,
+    );
+    await controller.attachIdentity(PUBLIC_IDENTITY);
+    const connecting = controller.connectICloud();
+    await vi.waitFor(() => expect(lifecycle.attachIdentity).toHaveBeenCalled());
+    controller.dispose();
+    settle(Result.ok({ attachment: "created", appleAccount: APPLE_ACCOUNT }) as never);
+    expectResultError(await connecting, { code: "cancelled" });
   });
 
   it("reuses a live session to replace a damaged file without new popups", async () => {

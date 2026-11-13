@@ -9,17 +9,14 @@ import { PassportCollaboratorsProvider } from "@/client/ui/passportCollaborators
 import { IdentitySelectionFlow } from "./identitySelectionFlow";
 
 function IdentitySetupStub({
-  forAuthorization,
   onBack,
   onComplete,
 }: {
-  forAuthorization?: boolean | undefined;
   onBack?: (() => void) | undefined;
   onComplete: () => void;
 }) {
   return (
     <>
-      {forAuthorization ? <p>Authorization identity setup</p> : null}
       <button onClick={onComplete} type="button">
         Complete identity setup
       </button>
@@ -75,7 +72,7 @@ describe("IdentitySelectionFlow", () => {
     expect(onIdentitySelected).toHaveBeenCalledOnce();
   });
 
-  it("uses the authorization variant when adding an identity", async () => {
+  it("labels adding an identity Use other identity for an authorization", async () => {
     render(
       <PassportCollaboratorsProvider value={{ IdentitySetup: IdentitySetupStub }}>
         <IdentitySelectionFlow
@@ -90,7 +87,7 @@ describe("IdentitySelectionFlow", () => {
 
     await userEvent.setup().click(screen.getByRole("button", { name: "Use other identity" }));
 
-    expect(screen.getByText("Authorization identity setup")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Complete identity setup" })).toBeInTheDocument();
   });
 
   it("returns to identity selection when identity setup is cancelled", async () => {

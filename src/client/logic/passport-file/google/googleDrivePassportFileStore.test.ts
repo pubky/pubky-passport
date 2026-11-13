@@ -41,6 +41,7 @@ type FetchCall = {
     shape: "none" | "multipart-passport-file" | "other";
     hasPassportMetadata: boolean;
     hasEnvelope: boolean;
+    hasAttachedEnvelope: boolean;
     normalizedEnvelopeUrl: string | null;
     hasForbiddenSecretField: boolean;
   };
@@ -179,6 +180,8 @@ function sanitizeFetchCall(
         bodyText === null ? "none" : isMultipartPassportFile ? "multipart-passport-file" : "other",
       hasPassportMetadata: isMultipartPassportFile,
       hasEnvelope: bodyText?.includes(JSON.stringify(ENVELOPE)) === true,
+      hasAttachedEnvelope:
+        bodyText?.includes(JSON.stringify({ ...ENVELOPE, attached: true })) === true,
       normalizedEnvelopeUrl:
         bodyText?.includes('"url":"https://passport.pubky.app"') === true
           ? "https://passport.pubky.app"
@@ -781,6 +784,25 @@ describe("GoogleDrivePassportFileStore", () => {
 
     expect(expectCall(calls, 1).body.normalizedEnvelopeUrl).toBe("https://passport.pubky.app");
     expectSanitizedCalls(calls);
+  });
+
+  it("round-trips the attached marker through the Drive file", async () => {
+    const attached: PassportFileEnvelope = { ...ENVELOPE, attached: true };
+    const created = { id: "created", name: "passport.json", version: "1" };
+    const upload = createStore(successfulCreateResponses(created));
+    await expectSuccess(upload.store.createPassportFile(attached), undefined);
+    expect(expectCall(upload.calls, 1).body.hasAttachedEnvelope).toBe(true);
+
+    const { store } = createStore([
+      jsonResponse({ files: [LISTED_FILE] }),
+      textResponse(JSON.stringify(attached)),
+      jsonResponse(EXACT_FILE),
+    ]);
+    await expectSuccess(store.readPassportFile(), {
+      status: "found",
+      envelope: attached,
+      reference: REFERENCE,
+    });
   });
 
   it("rejects invalid outbound envelopes without writing", async () => {

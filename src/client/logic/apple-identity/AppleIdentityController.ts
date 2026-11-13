@@ -50,6 +50,14 @@ export type EstablishedAppleIdentity = Readonly<{
   publicIdentity: PubkyPublicIdentity;
 }>;
 
+/** Safe details of an identity that now has Apple's backup. */
+export type AttachedAppleIdentity = Readonly<{
+  /** `created`: a new iCloud record; `linked`: iCloud already held this pubky. */
+  attachment: "created" | "linked";
+  appleAccount: AppleAccount;
+  publicIdentity: PubkyPublicIdentity;
+}>;
+
 /** Render-safe states of the two-step Apple flow. No token ever enters these states. */
 export type AppleIdentityViewState =
   | { status: "idle" }
@@ -62,6 +70,8 @@ export type AppleIdentityViewState =
   | { status: "connecting-icloud" }
   | { status: "establishing"; progress: IdentityProgress }
   | { status: "established"; identity: EstablishedAppleIdentity }
+  | { status: "attaching" }
+  | { status: "attached"; identity: AttachedAppleIdentity }
   | { status: "detaching" }
   | { status: "detached" }
   | {
@@ -73,6 +83,7 @@ export type AppleIdentityViewState =
 
 type Operation =
   | { kind: "establish" | "replace_invalid_passport_file" | "replace_undecryptable_passport_file" }
+  | { kind: "attach"; publicIdentity: PubkyPublicIdentity }
   | { kind: "detach"; publicIdentity: PubkyPublicIdentity; expectedAppleSubject: string };
 
 type Connection = Pick<ICloudConnection, "prepare" | "connect" | "dispose"> &
@@ -83,6 +94,7 @@ type Lifecycle = Pick<
   | "establishIdentity"
   | "replaceInvalidPassportFile"
   | "replaceUndecryptablePassportFile"
+  | "attachIdentity"
   | "detachIdentity"
   | "abortRequests"
   | "dispose"
@@ -106,6 +118,7 @@ const ACCOUNT_FAILURES: ReadonlySet<AppleIdentityError["code"]> = new Set([
   "apple_account_mismatch",
   "icloud_account_mismatch",
   "icloud_record_missing",
+  "provider_account_in_use",
 ]);
 const CREDENTIAL_EXPIRY_MARGIN_MS = 30_000;
 
@@ -160,6 +173,13 @@ export class AppleIdentityController {
   /** Step 1 for a new or returning user. Opens the Apple popup synchronously. */
   continueWithApple(): Promise<ResultType<void, AppleIdentityViewError>> {
     return this.startWithApple({ kind: "establish" });
+  }
+
+  /** Step 1 of giving an identity that is only in this browser Apple's backup. */
+  attachIdentity(
+    publicIdentity: PubkyPublicIdentity,
+  ): Promise<ResultType<void, AppleIdentityViewError>> {
+    return this.startWithApple({ kind: "attach", publicIdentity });
   }
 
   /** Step 1 of detaching: the Apple Account must be the one the identity was saved with. */
@@ -389,7 +409,9 @@ export class AppleIdentityController {
     this.publish(
       operation.kind === "detach"
         ? { status: "detaching" }
-        : { status: "establishing", progress: { flow: "lookup", step: "checking" } },
+        : operation.kind === "attach"
+          ? { status: "attaching" }
+          : { status: "establishing", progress: { flow: "lookup", step: "checking" } },
     );
     const lifecycle = await this.ensureLifecycle();
     if (this.disposed) return Result.err({ code: "cancelled" });
@@ -408,6 +430,21 @@ export class AppleIdentityController {
       if (this.disposed) return Result.err({ code: "cancelled" });
       if (Result.isError(detached)) return this.fail(detached.error);
       this.publish({ status: "detached" });
+      return Result.ok();
+    }
+
+    if (operation.kind === "attach") {
+      const attached = await lifecycle.attachIdentity(credentials, store, operation.publicIdentity);
+      if (this.disposed) return Result.err({ code: "cancelled" });
+      if (Result.isError(attached)) return this.fail(attached.error);
+      this.publish({
+        status: "attached",
+        identity: Object.freeze({
+          attachment: attached.value.attachment,
+          appleAccount: attached.value.appleAccount,
+          publicIdentity: operation.publicIdentity,
+        }),
+      });
       return Result.ok();
     }
 

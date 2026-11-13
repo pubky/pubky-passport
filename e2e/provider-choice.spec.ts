@@ -10,6 +10,7 @@ const REQUEST = `pubkyauth://signin?caps=/pub/example.app/:rw&relay=https://rela
 const STORAGE_ROOT = "pubky-passport/local-identities/v1";
 const GOOGLE_KEY = "tkrq8zmwb8a3m9k15csu3q17qmfgqnp9dskbrg9uq1rydpyxp7qy";
 const CHOICE = "Choose an account to sign in with";
+const GOOGLE_ACCESS_CANARY = "choice-access-canary";
 
 function authorizeUrl(origin: string, extraFragment = ""): string {
   return `${origin}/authorize#d=${encodeURIComponent(REQUEST)}${extraFragment}`;
@@ -23,6 +24,53 @@ async function fakeGoogle(context: BrowserContext): Promise<URL[]> {
     await route.fulfill({ contentType: "text/html", body: "<!doctype html><h1>Google</h1>" });
   });
   return requests;
+}
+
+/** Google answers by sending its popup back to Passport's root with tokens in the fragment. */
+async function answeringGoogle(context: BrowserContext): Promise<URL[]> {
+  const requests: URL[] = [];
+  await context.route("https://accounts.google.com/o/oauth2/v2/auth**", async (route) => {
+    const request = new URL(route.request().url());
+    requests.push(request);
+    const response = new URL(request.searchParams.get("redirect_uri")!);
+    const claims = Buffer.from(
+      JSON.stringify({ sub: "google-choice-user", nonce: request.searchParams.get("nonce") }),
+    ).toString("base64url");
+    response.hash = new URLSearchParams({
+      state: request.searchParams.get("state")!,
+      access_token: GOOGLE_ACCESS_CANARY,
+      id_token: `header.${claims}.signature`,
+      scope: "openid email profile https://www.googleapis.com/auth/drive.appdata",
+      expires_in: "3600",
+    }).toString();
+    await route.fulfill({
+      contentType: "text/html",
+      body: `<!doctype html><script>location.replace(${JSON.stringify(response.href)})</script>`,
+    });
+  });
+  await context.route("https://openidconnect.googleapis.com/v1/userinfo", (route) =>
+    route.fulfill({
+      json: { sub: "google-choice-user", email: "test@example.com", name: "Test" },
+    }),
+  );
+  await context.route("https://www.googleapis.com/drive/v3/files**", (route) =>
+    route.fulfill({ json: { files: [] } }),
+  );
+  return requests;
+}
+
+/** Neither Google's token nor the request secret is kept in storage or history. */
+async function expectNothingKept(page: Page): Promise<void> {
+  const kept = await page.evaluate(() =>
+    JSON.stringify([
+      Object.entries(localStorage),
+      Object.entries(sessionStorage),
+      history.state,
+      location.href,
+    ]),
+  );
+  expect(kept).not.toContain(GOOGLE_ACCESS_CANARY);
+  expect(kept).not.toContain(SECRET);
 }
 
 /** Counts windows Passport opens, so a test can prove nothing opened without a click. */
@@ -68,26 +116,38 @@ async function expectProviderChoice(page: Page): Promise<{ apple: Locator; googl
 const TERMS_CONSENT =
   "By continuing, you agree to the Pubky Passport Terms of Service and Privacy Policy, and confirm you are over 18.";
 const TERMS_BUILT_BY =
-  "Pubky Passport is powered by the Pubky protocol. Built by Synonym Software, S.A. DE C.V.";
+  "Pubky Passport is powered by the Pubky protocol. Built by Synonym Software, S.A. DE C.V. ©2026.";
 
-/** The Terms/Privacy notice sits right under `lastButton`, as wide as it, above any Back. */
+/** The Terms/Privacy notice sits right under `lastButton` (or the import link under it), as wide as it, above any Back. */
 async function expectTermsNotice(page: Page, lastButton: Locator): Promise<Locator> {
   const consent = page.locator("p", { hasText: "By continuing, you agree" });
   await expect(consent).toHaveCount(1);
-  await expect(consent).toHaveText(TERMS_CONSENT);
+  await expect(consent).toHaveText(`${TERMS_CONSENT} ${TERMS_BUILT_BY}`);
   const notice = consent.locator("xpath=..");
-  await expect(notice.locator("p")).toHaveText([TERMS_CONSENT, TERMS_BUILT_BY]);
+  await expect(notice.locator("p")).toHaveCount(1);
   const links = notice.getByRole("link");
-  await expect(links).toHaveText(["Terms of Service", "Privacy Policy"]);
+  await expect(links).toHaveText(["Terms of Service", "Privacy Policy", "Pubky protocol"]);
+  // At rest: no pointer over a link and no focused link (an earlier click may leave either).
+  await page.mouse.move(0, 0);
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
   for (const [name, href] of [
     ["Terms of Service", "/terms-of-service"],
     ["Privacy Policy", "/privacy-policy"],
+    ["Pubky protocol", "https://pubky.org/"],
   ] as const) {
     const link = notice.getByRole("link", { name });
     await expect(link).toHaveAttribute("href", href);
     await expect(link).toHaveAttribute("target", "_blank");
     await expect(link).toHaveAttribute("rel", "noopener noreferrer");
-    await expect(link).toHaveCSS("text-decoration-line", "underline");
+    await expect(link).toHaveCSS("text-decoration-line", "none");
+  }
+  // Hover adds an underline, so the links are not marked by colour alone (devices that can hover).
+  if (await page.evaluate(() => matchMedia("(hover: hover)").matches)) {
+    const terms = notice.getByRole("link", { name: "Terms of Service" });
+    await terms.hover();
+    await expect(terms).toHaveCSS("text-decoration-line", "underline");
+    await page.mouse.move(0, 0);
+    await expect(terms).toHaveCSS("text-decoration-line", "none");
   }
   await expect(page.getByRole("checkbox")).toHaveCount(0);
   const [buttonBox, noticeBox] = await Promise.all([
@@ -102,14 +162,26 @@ async function expectTermsNotice(page: Page, lastButton: Locator): Promise<Locat
     .evaluate((node) => node.getBoundingClientRect().toJSON() as DOMRect);
   expect(Math.abs((noticeBox?.x ?? 0) - row.x)).toBeLessThanOrEqual(1);
   expect(Math.abs((noticeBox?.width ?? 0) - row.width)).toBeLessThanOrEqual(1);
-  const gap = (noticeBox?.y ?? 0) - ((buttonBox?.y ?? 0) + (buttonBox?.height ?? 0));
+  // The one-line import link, when shown, sits between the buttons and the notice.
+  const importLine = page.locator("[data-passport-import-identity]");
+  const importBox = (await importLine.count()) > 0 ? await importLine.boundingBox() : null;
+  if (importBox) {
+    expect(importBox.y).toBeGreaterThanOrEqual((buttonBox?.y ?? 0) + (buttonBox?.height ?? 0));
+    expect(importBox.height).toBeLessThanOrEqual(24);
+  }
+  // Next to the import link, Back sits between it and the notice; elsewhere it stays under the notice.
+  const back = page.getByRole("button", { name: "Back", exact: true });
+  const backBox = (await back.count()) > 0 ? await back.boundingBox() : null;
+  const backAbove = importBox !== null && backBox !== null;
+  if (backAbove) {
+    expect(backBox.y).toBeGreaterThanOrEqual(importBox.y + importBox.height);
+  } else if (backBox) {
+    expect(backBox.y).toBeGreaterThanOrEqual((noticeBox?.y ?? 0) + (noticeBox?.height ?? 0));
+  }
+  const above = backAbove ? backBox : (importBox ?? buttonBox);
+  const gap = (noticeBox?.y ?? 0) - ((above?.y ?? 0) + (above?.height ?? 0));
   expect(gap).toBeGreaterThanOrEqual(0);
   expect(gap).toBeLessThanOrEqual(24);
-  const back = page.getByRole("button", { name: "Back" });
-  if ((await back.count()) > 0) {
-    const backBox = await back.boundingBox();
-    expect(backBox?.y ?? 0).toBeGreaterThanOrEqual((noticeBox?.y ?? 0) + (noticeBox?.height ?? 0));
-  }
   await expectSignInFooter(page, notice);
   return notice;
 }
@@ -275,54 +347,35 @@ test.describe("with Apple login on", () => {
     expect(google).toHaveLength(0);
   });
 
-  test("Continue with Google goes to Google in the same tab and resumes on its return", async ({
+  test("Continue with Google opens Google's popup from the click and setup carries on", async ({
     context,
     page,
   }) => {
     await installFakeApple(context);
-    const requests: URL[] = [];
-    // Google answers by redirecting back to Passport's root with tokens in the fragment.
-    await context.route("https://accounts.google.com/o/oauth2/v2/auth**", async (route) => {
-      const request = new URL(route.request().url());
-      requests.push(request);
-      const response = new URL(request.searchParams.get("redirect_uri")!);
-      const claims = Buffer.from(
-        JSON.stringify({ sub: "google-choice-user", nonce: request.searchParams.get("nonce") }),
-      ).toString("base64url");
-      response.hash = new URLSearchParams({
-        state: request.searchParams.get("state")!,
-        access_token: "choice-access-canary",
-        id_token: `header.${claims}.signature`,
-        scope: "openid email profile https://www.googleapis.com/auth/drive.appdata",
-        expires_in: "3600",
-      }).toString();
-      await route.fulfill({
-        contentType: "text/html",
-        body: `<!doctype html><script>location.replace(${JSON.stringify(response.href)})</script>`,
-      });
-    });
-    await context.route("https://openidconnect.googleapis.com/v1/userinfo", (route) =>
-      route.fulfill({
-        json: { sub: "google-choice-user", email: "test@example.com", name: "Test" },
-      }),
-    );
-    await context.route("https://www.googleapis.com/drive/v3/files**", (route) =>
-      route.fulfill({ json: { files: [] } }),
-    );
+    const requests = await answeringGoogle(context);
     const popups = countPopups(page);
 
     await page.goto(authorizeUrl(APPLE_ORIGIN));
     const { google: continueWithGoogle } = await expectProviderChoice(page);
     expect(requests).toHaveLength(0);
+    const popup = page.waitForEvent("popup");
     await continueWithGoogle.click();
+    await popup;
 
-    // Back from Google, setup carries on without showing the choice again.
+    // The Passport tab never leaves /authorize; setup carries on there once the popup answers.
     await expect(page.getByRole("heading", { name: "Drive access optional." })).toBeVisible();
     await expect(page.getByLabel("Signing in to client.example")).toBeVisible();
     await expect(page.getByRole("group", { name: CHOICE })).toHaveCount(0);
+    expect(page.url()).toBe(`${APPLE_ORIGIN}/authorize`);
     expect(requests).toHaveLength(1);
     expect(requests[0]!.href).not.toContain(SECRET);
-    expect(popups.count).toBe(0);
+    expect(popups.count).toBe(1);
+    await expectNothingKept(page);
+
+    // Back leaves setup for the choice; the request stays open.
+    await page.getByRole("button", { name: "Back", exact: true }).click();
+    await expectProviderChoice(page);
+    expect(page.url()).toBe(`${APPLE_ORIGIN}/authorize`);
   });
 
   test("Continue with Apple opens Apple's window from the click, then reuses it for iCloud", async ({
@@ -496,28 +549,77 @@ test.describe("with Apple login off", () => {
     await expectTermsNotice(page, page.getByRole("button", { name: "Continue with Google" }));
   });
 
-  test("Use other identity goes straight to Google, as before", async ({ context, page }) => {
+  test("Use other identity shows Google and waits for the click", async ({ context, page }) => {
     const google = await fakeGoogle(context);
+    const popups = countPopups(page);
     await installGoogleIdentity(page);
 
     await page.goto(authorizeUrl(""));
     await page.getByRole("button", { name: "Switch" }).click();
     await page.getByRole("button", { name: "Use other identity" }).click();
 
-    await expect(page).toHaveURL(/^https:\/\/accounts\.google\.com\//u);
+    await expectTermsNotice(page, page.getByRole("button", { name: "Continue with Google" }));
+    await expect(page.getByRole("button", { name: "Continue with Apple" })).toHaveCount(0);
+    expect(new URL(page.url()).pathname).toBe("/authorize");
+    expect(google).toHaveLength(0);
+    expect(popups.count).toBe(0);
+
+    // Google opens only as a popup from the click; this tab stays on /authorize.
+    const popup = page.waitForEvent("popup");
+    await page.getByRole("button", { name: "Continue with Google" }).click();
+    await expect((await popup).getByRole("heading", { name: "Google" })).toBeVisible();
+    expect(new URL(page.url()).pathname).toBe("/authorize");
     expect(google).toHaveLength(1);
+    expect(popups.count).toBe(1);
   });
 
-  test("an authorization without an identity goes straight to Google", async ({
+  test("Passport opened as a popup opens Google as its own popup from the click", async ({
+    context,
+    page,
+  }) => {
+    const requests = await answeringGoogle(context);
+    await page.goto("/");
+    const passportPopup = page.waitForEvent("popup");
+    // The app opens Passport; Passport then opens Google only from the person's click.
+    await page.evaluate(
+      (url) => window.open(url, "passport", "popup,width=520,height=760"),
+      authorizeUrl(""),
+    );
+    const passport = await passportPopup;
+    const continueWithGoogle = passport.getByRole("button", { name: "Continue with Google" });
+    await expect(continueWithGoogle).toBeEnabled();
+    expect(requests).toHaveLength(0);
+
+    const googlePopup = passport.waitForEvent("popup");
+    await continueWithGoogle.click();
+    await googlePopup;
+    await expect(passport.getByRole("heading", { name: "Drive access optional." })).toBeVisible();
+    expect(new URL(passport.url()).pathname).toBe("/authorize");
+    expect(requests).toHaveLength(1);
+    await expectNothingKept(passport);
+  });
+
+  test("an authorization without an identity shows Google and waits for the click", async ({
     context,
     page,
   }) => {
     const google = await fakeGoogle(context);
+    await context.route("https://client.example/cancel", (route) =>
+      route.fulfill({ contentType: "text/html", body: "<!doctype html><h1>Cancelled</h1>" }),
+    );
+    const popups = countPopups(page);
 
     await page.goto(authorizeUrl(""));
 
-    await expect(page).toHaveURL(/^https:\/\/accounts\.google\.com\//u);
-    expect(google).toHaveLength(1);
+    await expect(page.getByLabel("Signing in to client.example")).toBeVisible();
+    await expectTermsNotice(page, page.getByRole("button", { name: "Continue with Google" }));
+    await expect(page.getByRole("button", { name: "Continue with Apple" })).toHaveCount(0);
+    expect(new URL(page.url()).pathname).toBe("/authorize");
+    expect(google).toHaveLength(0);
+    expect(popups.count).toBe(0);
+
+    await page.getByRole("button", { name: "Back" }).click();
+    await expect(page.getByRole("heading", { name: "Cancelled" })).toBeVisible();
   });
 });
 

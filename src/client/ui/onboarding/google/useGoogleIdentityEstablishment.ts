@@ -26,8 +26,8 @@ type GoogleIdentityEstablishmentView =
       mode: "restored";
     };
 
-function useGoogleIdentityEstablishment(forAuthorization = false) {
-  const google = useGoogleIdentityStore("establishment", forAuthorization);
+function useGoogleIdentityEstablishment() {
+  const google = useGoogleIdentityStore("establishment");
 
   return {
     back: google.reset,
@@ -71,6 +71,8 @@ function toEstablishmentView(state: GoogleIdentityViewState): GoogleIdentityEsta
             mode: "restored",
           };
     case "idle":
+    case "attaching":
+    case "attached":
     case "detaching":
     case "detached":
       return { status: "idle" };

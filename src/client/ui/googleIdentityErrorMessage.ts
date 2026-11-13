@@ -20,6 +20,19 @@ function googleIdentityErrorMessage(code: GoogleIdentityViewError["code"]): stri
       return "Passport created an identity, but could not encrypt it for Google Drive.";
     case "identity_mismatch":
       return "The restored Pubky identity did not match the activated homeserver identity.";
+    case "provider_account_in_use":
+      return "This Google Account already holds another pubky. Passport keeps one pubky per account. Detach that pubky from Google first, or use a different Google Account.";
+    case "identity_already_linked":
+      return "In the meantime, this pubky was connected to another account. Go back to see which one.";
+    case "identity_linked_meanwhile":
+      return "Another tab connected an account at the same time. The backup is in Google Drive, but this browser was not updated.";
+    case "local_identity_unavailable":
+      return "Passport could not read this pubky in this browser. Go back and check that it is still there.";
+    case "local_link_failed":
+      return "Your backup is in Google Drive, but Passport could not update this browser. Please try again.";
+    case "homeserver_not_found":
+      // Only a restore returns this (attach never does): the backup itself is fine.
+      return "Passport could not find this pubky's homeserver record. Your backup in Google Drive is unchanged. Open the app that manages this pubky so it republishes its homeserver, then try again.";
     case "restore_failed":
       return "Passport could not restore the Pubky identity from the encrypted file.";
     case "signin_failed":
@@ -47,7 +60,7 @@ function googleIdentityErrorMessage(code: GoogleIdentityViewError["code"]): stri
     case "google_detachment_permission_required":
       return "Passport needs both Google Drive permissions to delete your encrypted identity and visible recovery copies before removing Google access.";
     case "visible_backup_permission_missing":
-      return "Passport can continue, but it will not create a visible recovery copy in Google Drive unless you grant the second permission.";
+      return "Passport can continue, but it will not save a copy of your recovery file in Google Drive unless you also allow the second permission.";
     case "google_authorization_popup_closed":
       return "The Google authorization window was closed before access was granted.";
     case "google_authorization_popup_failed_to_open":

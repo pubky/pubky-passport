@@ -26,13 +26,7 @@ function IdentitySelectionFlow({
   const [selectionFailed, setSelectionFailed] = useState(false);
 
   if (view === "add-identity") {
-    return (
-      <Setup
-        forAuthorization={forAuthorization}
-        onBack={() => setView("selection")}
-        onComplete={onIdentitySelected}
-      />
-    );
+    return <Setup onBack={() => setView("selection")} onComplete={onIdentitySelected} />;
   }
 
   return (

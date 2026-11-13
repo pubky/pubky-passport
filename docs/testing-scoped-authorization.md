@@ -28,7 +28,7 @@ against the original request. See
 [the SDK contract and upstream source references](integration.md#scoped-encryption-consent).
 These checks exercise the released SDK, including its public selective-approval API.
 
-The browser suite tests review, Google redirect continuation, and SDK relay delivery
+The browser suite tests review, Google sign-in from /authorize, and SDK relay delivery
 in Chromium, Firefox, WebKit, and mobile Chromium. Google, Drive, Homegate, and relay responses
 are fixtures. To rerun just the encryption approval cases after building:
 

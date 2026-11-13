@@ -13,6 +13,7 @@ import { Result, type Result as ResultType } from "better-result";
 
 import { LOGGER, safeErrorLogFields } from "@/libs/logger/logger";
 import type { CodedFailure } from "@/libs/result";
+import { hasRecoveryFileShape } from "@/client/logic/identity-import/recoveryFile";
 import { browserPassportSessionLedger, type PassportSessionLedger } from "./passportSessionLedger";
 import {
   PUBKY_SECRET_KEY_BYTES,
@@ -48,6 +49,12 @@ type PubkyRecoveryFileErrorCode =
 export type PubkyRecoveryFileResult = ResultType<
   Uint8Array,
   CodedFailure<PubkyRecoveryFileErrorCode>
+>;
+type PubkyRecoveryFileImportErrorCode =
+  "invalid_recovery_file" | "key_unavailable" | "recovery_file_undecryptable";
+export type PubkyRecoveryFileImportResult = ResultType<
+  PubkyIdentityKey,
+  CodedFailure<PubkyRecoveryFileImportErrorCode>
 >;
 type PubkyAuthApprovalErrorCode =
   "approval_failed" | "expected_signer_mismatch" | "key_unavailable" | "request_rejected";
@@ -262,6 +269,43 @@ export class PubkySdkAdapter {
     } finally {
       clearSecretKey(secretKey, "create_recovery_file");
       cleanup("create_recovery_file", "keypair_free", () => keypair?.free());
+    }
+  }
+
+  /**
+   * Decrypts a recovery file (`pubky.org/recovery`, as written by {@link createRecoveryFile}, or
+   * the legacy `pkarr.org/recovery`) and registers its key. A file without a recovery header is
+   * `invalid_recovery_file`; a wrong passphrase or damaged ciphertext is
+   * `recovery_file_undecryptable`. The caller's file bytes are cleared either way.
+   */
+  importRecoveryFile(recoveryFile: Uint8Array, passphrase: string): PubkyRecoveryFileImportResult {
+    try {
+      if (this.disposed) {
+        return failure("import_recovery_file", "adapter_state", "key_unavailable");
+      }
+      if (!hasRecoveryFileShape(recoveryFile)) {
+        return failure("import_recovery_file", "input_validation", "invalid_recovery_file");
+      }
+      if (passphrase.length === 0) {
+        return failure("import_recovery_file", "input_validation", "recovery_file_undecryptable");
+      }
+      let keypair: Keypair;
+      try {
+        keypair = Keypair.fromRecoveryFile(recoveryFile, passphrase);
+      } catch (e) {
+        return failure(
+          "import_recovery_file",
+          "sdk_recovery_file",
+          "recovery_file_undecryptable",
+          e,
+        );
+      }
+      const registered = this.registerKeypair("import_recovery_file", keypair);
+      return Result.isError(registered)
+        ? failure("import_recovery_file", "sdk_public_identity", "invalid_recovery_file")
+        : Result.ok(registered.value);
+    } finally {
+      cleanup("import_recovery_file", "recovery_file_clear", () => recoveryFile.fill(0));
     }
   }
 
@@ -544,7 +588,7 @@ export class PubkySdkAdapter {
   }
 
   private registerKeypair(
-    operation: "create_identity_key" | "restore_identity_key",
+    operation: "create_identity_key" | "import_recovery_file" | "restore_identity_key",
     keypair: Keypair,
   ): PubkyIdentityKeysResult<PubkyIdentityKey> {
     const identity = publicIdentity(operation, keypair);
@@ -916,6 +960,7 @@ type PubkyOperation =
   | "dispose_adapter"
   | "dispose_identity_key"
   | "export_secret_key"
+  | "import_recovery_file"
   | "list_authorized_apps"
   | "publish_homeserver"
   | "resolve_homeserver"
@@ -952,6 +997,7 @@ type PubkyCleanupStage =
   | "pkdns_free"
   | "pubky_free"
   | "public_key_free"
+  | "recovery_file_clear"
   | "secret_key_clear"
   | "session_free"
   | "session_info_free"
@@ -965,6 +1011,7 @@ type PubkyErrorCode =
   | PubkyPublicationErrorCode
   | PubkyIdentityKeysErrorCode
   | PubkyRecoveryFileErrorCode
+  | PubkyRecoveryFileImportErrorCode
   | PubkySessionAccessErrorCode
   | "invalid_pubky"
   | "resolution_failed";

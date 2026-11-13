@@ -26,7 +26,16 @@ type StoredLocalIdentity = {
 };
 
 export type LocalIdentityErrorCode =
-  "invalid_identity" | "invalid_secret_key" | "invalid_store" | "storage_unavailable";
+  | "invalid_identity"
+  | "invalid_secret_key"
+  | "invalid_store"
+  | "provider_conflict"
+  | "provider_in_use"
+  | "storage_unavailable";
+
+/** The Google or Apple account to link to an identity that has none. */
+export type LocalIdentityProviderLink =
+  { googleAccount: GoogleAccountProfile } | { appleAccount: AppleAccount };
 
 export type LocalIdentityResult<Success> = ResultType<
   Success,
@@ -72,6 +81,29 @@ export class LocalStorageIdentityRepository {
     identity: LocalIdentityMetadata,
     secretKey: PubkySecretKeyMaterial,
   ): LocalIdentityResult<LocalIdentityMetadata> {
+    const saved = this.write(identity, secretKey, false);
+    if (Result.isError(saved)) return Result.err(saved.error);
+    return saved.value ? Result.ok(saved.value) : storageUnavailable("write");
+  }
+
+  /**
+   * Saves an identity only when none with its public key is stored yet. An existing record (and
+   * its Google or Apple link) is left untouched and reported as `"already-stored"`.
+   */
+  saveIfAbsent(
+    identity: LocalIdentityMetadata,
+    secretKey: PubkySecretKeyMaterial,
+  ): LocalIdentityResult<"saved" | "already-stored"> {
+    const saved = this.write(identity, secretKey, true);
+    if (Result.isError(saved)) return Result.err(saved.error);
+    return Result.ok(saved.value ? "saved" : "already-stored");
+  }
+
+  private write(
+    identity: LocalIdentityMetadata,
+    secretKey: PubkySecretKeyMaterial,
+    onlyIfAbsent: boolean,
+  ): LocalIdentityResult<LocalIdentityMetadata | null> {
     if (
       !isPubkyPublicIdentity(identity.publicIdentity) ||
       (identity.googleAccount !== undefined && !isGoogleAccountProfile(identity.googleAccount)) ||
@@ -108,6 +140,7 @@ export class LocalStorageIdentityRepository {
 
     try {
       previousIdentity = storage.getItem(storedKey);
+      if (onlyIfAbsent && previousIdentity !== null) return Result.ok(null);
       previousActive = storage.getItem(ACTIVE_IDENTITY_KEY);
       storage.setItem(storedKey, JSON.stringify(stored));
       storage.setItem(ACTIVE_IDENTITY_KEY, stored.publicKeyZ32);
@@ -125,6 +158,97 @@ export class LocalStorageIdentityRepository {
         );
         notifySameTab();
       }
+      return storageUnavailable("write", e);
+    }
+  }
+
+  /**
+   * Links a Google or Apple account to a stored identity that has none, keeping its key as it is.
+   * The same account linked already is `"already-linked"`; any other account is
+   * `provider_conflict`, and an account another identity here already uses is `provider_in_use`.
+   * A record that changed between the read and the write is not overwritten.
+   */
+  linkProviderAccount(
+    publicKeyZ32: string,
+    link: LocalIdentityProviderLink,
+  ): LocalIdentityResult<"linked" | "already-linked"> {
+    const google = "googleAccount" in link ? link.googleAccount : undefined;
+    const apple = "appleAccount" in link ? link.appleAccount : undefined;
+    if (
+      (google === undefined) === (apple === undefined) ||
+      (google !== undefined && !isGoogleAccountProfile(google)) ||
+      (apple !== undefined && !isAppleAccount(apple))
+    ) {
+      return invalidIdentity("link_provider");
+    }
+
+    const storageResult = getLocalStorage("write");
+    if (Result.isError(storageResult)) return Result.err(storageResult.error);
+    const storage = storageResult.value;
+    if (!isPubkyPublicKey(publicKeyZ32)) return invalidIdentity("link_provider");
+    const storedKey = identityStorageKey(publicKeyZ32);
+
+    let previous: string | null;
+    try {
+      previous = storage.getItem(storedKey);
+    } catch (e) {
+      return storageUnavailable("read", e);
+    }
+    if (previous === null) return invalidIdentity("link_provider");
+    const stored = parseStoredIdentity(previous);
+    if (!stored || stored.publicKeyZ32 !== publicKeyZ32) return invalidStore();
+
+    if (stored.googleAccount || stored.appleAccount) {
+      const sameAccount = google
+        ? stored.googleAccount?.googleSubject === google.googleSubject
+        : stored.appleAccount?.appleSubject === apple?.appleSubject;
+      if (sameAccount) return Result.ok("already-linked");
+      LOGGER.info("identity.local_store.failed", {
+        operation: "link_provider",
+        code: "provider_conflict",
+      });
+      return Result.err({ code: "provider_conflict" });
+    }
+
+    const others = readAllIdentities(storage);
+    if (Result.isError(others)) return Result.err(others.error);
+    const usedElsewhere = others.value.some(
+      (other) =>
+        other.publicKeyZ32 !== publicKeyZ32 &&
+        (google
+          ? other.googleAccount?.googleSubject === google.googleSubject
+          : other.appleAccount?.appleSubject === apple?.appleSubject),
+    );
+    if (usedElsewhere) {
+      LOGGER.info("identity.local_store.failed", {
+        operation: "link_provider",
+        code: "provider_in_use",
+      });
+      return Result.err({ code: "provider_in_use" });
+    }
+
+    const linked: StoredLocalIdentity = {
+      v: 1,
+      publicKeyZ32: stored.publicKeyZ32,
+      ...(google ? { googleAccount: { ...google } } : {}),
+      ...(apple ? { appleAccount: { ...apple } } : {}),
+      secretKey: stored.secretKey,
+    };
+    try {
+      // Another tab may have changed the record since it was read: never overwrite that change.
+      if (storage.getItem(storedKey) !== previous) {
+        LOGGER.info("identity.local_store.failed", {
+          operation: "link_provider",
+          code: "provider_conflict",
+        });
+        return Result.err({ code: "provider_conflict" });
+      }
+      storage.setItem(storedKey, JSON.stringify(linked));
+      notifySameTab();
+      return Result.ok("linked");
+    } catch (e) {
+      restoreStorageValues(storage, [[storedKey, previous]], "save_rollback");
+      notifySameTab();
       return storageUnavailable("write", e);
     }
   }

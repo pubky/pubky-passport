@@ -16,27 +16,30 @@ import { ProviderChoice } from "./providerChoice";
 const CONSENT =
   "By continuing, you agree to the Pubky Passport Terms of Service and Privacy Policy, and confirm you are over 18.";
 const BUILT_BY =
-  "Pubky Passport is powered by the Pubky protocol. Built by Synonym Software, S.A. DE C.V.";
+  "Pubky Passport is powered by the Pubky protocol. Built by Synonym Software, S.A. DE C.V. ©2026.";
+const NOTICE = `${CONSENT} ${BUILT_BY}`;
 
-/** The notice's two paragraphs and links, checked exactly. */
+/** The notice's one paragraph and its links, checked exactly. */
 function expectTermsNotice(scope: HTMLElement) {
   const consent = within(scope).getByText(
-    (_, node) => node?.tagName === "P" && node.textContent === CONSENT,
+    (_, node) => node?.tagName === "P" && node.textContent === NOTICE,
   );
   const notice = consent.parentElement!;
-  expect([...notice.querySelectorAll("p")].map((p) => p.textContent)).toEqual([CONSENT, BUILT_BY]);
+  expect([...notice.querySelectorAll("p")].map((p) => p.textContent)).toEqual([NOTICE]);
   const links = within(notice).getAllByRole("link");
   expect(links.map((link) => [link.textContent, link.getAttribute("href")])).toEqual([
     ["Terms of Service", "/terms-of-service"],
     ["Privacy Policy", "/privacy-policy"],
+    ["Pubky protocol", "https://pubky.org/"],
   ]);
   for (const link of links) {
     expect(link).toHaveAttribute("target", "_blank");
     expect(link).toHaveAttribute("rel", "noopener noreferrer");
-    expect(link).toHaveClass("underline");
+    // Green text without an underline at rest; hover and keyboard focus add one.
+    expect(link).toHaveClass("text-brand", "hover:underline", "focus-visible:underline");
+    expect(link).not.toHaveClass("underline");
   }
-  // "Pubky protocol" stays plain text, and continuing is the consent: no checkbox.
-  expect(within(notice).queryByRole("link", { name: /Pubky protocol/u })).toBeNull();
+  // Continuing is the consent: no checkbox.
   expect(within(scope).queryByRole("checkbox")).toBeNull();
   expect(notice).toHaveClass("text-muted-foreground");
   return notice;
@@ -49,22 +52,16 @@ function precedes(first: Element, second: Element): boolean {
 
 function renderFlow({
   apple,
-  forAuthorization = false,
   onBack,
 }: {
   apple: typeof TEST_APPLE_CONFIGURATION | null;
-  forAuthorization?: boolean;
   onBack?: () => void;
 }) {
   const fake = fakeAppleIdentityController();
   return render(
     withPassportTestProviders(
       <AppleIdentityConfigurationProvider apple={apple}>
-        <IdentityEstablishmentFlow
-          forAuthorization={forAuthorization}
-          onBack={onBack}
-          onComplete={vi.fn()}
-        />
+        <IdentityEstablishmentFlow onBack={onBack} onComplete={vi.fn()} />
       </AppleIdentityConfigurationProvider>,
       {
         createAppleIdentityController: () => fake.controller,
@@ -113,7 +110,7 @@ describe("Terms and Privacy notice", () => {
   );
 
   it.each([true, false])(
-    "renders on the start page and Add identity, once, above Back (Apple=%s)",
+    "renders on the start page and Add identity, once, under Back (Apple=%s)",
     async (appleEnabled) => {
       const { container } = renderFlow({
         apple: appleEnabled ? TEST_APPLE_CONFIGURATION : null,
@@ -122,24 +119,12 @@ describe("Terms and Privacy notice", () => {
       await screen.findByRole("button", { name: "Continue with Google" });
       const notice = expectTermsNotice(container);
       expect(screen.getAllByText(/By continuing/u)).toHaveLength(1);
-      expect(precedes(notice, screen.getByRole("button", { name: "Back" }))).toBe(true);
+      const back = screen.getByRole("button", { name: "Back" });
+      expect(precedes(screen.getByRole("button", { name: "Import it" }), back)).toBe(true);
+      expect(precedes(back, notice)).toBe(true);
       expect(screen.queryAllByRole("button", { name: "Continue with Apple" }).length > 0).toBe(
         appleEnabled,
       );
     },
   );
-
-  it("renders in the authorization sign-in (/authorize, Use other identity) with Apple on", async () => {
-    const { container } = renderFlow({
-      apple: TEST_APPLE_CONFIGURATION,
-      forAuthorization: true,
-      onBack: vi.fn(),
-    });
-    await screen.findByRole("button", { name: "Continue with Apple" });
-    const notice = expectTermsNotice(container);
-    expect(precedes(screen.getByRole("button", { name: "Continue with Apple" }), notice)).toBe(
-      true,
-    );
-    expect(precedes(notice, screen.getByRole("button", { name: "Back" }))).toBe(true);
-  });
 });

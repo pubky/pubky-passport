@@ -11,6 +11,7 @@ import {
 } from "@/client/logic/homegate/HomegateClient";
 import {
   PassportFileIdentityLifecycle,
+  type IdentityAttachment,
   type IdentityLifecycleError,
   type IdentityProgress,
   type PassportFileIdentityLifecycleDependencies,
@@ -158,6 +159,42 @@ export class AppleIdentityLifecycle extends PassportFileIdentityLifecycle {
         : Result.ok();
     } catch (e) {
       LOGGER.warn("identity.apple.detach.failed", {
+        code: "unexpected_failure",
+        ...safeErrorLogFields(e),
+      });
+      return Result.err({ code: "unexpected_failure", cause: e });
+    }
+  }
+
+  /**
+   * Stores this browser's identity in the connected iCloud like a new setup does, then links the
+   * Apple Account locally. A record holding another pubky stops the attach and nothing is
+   * written or deleted.
+   */
+  async attachIdentity(
+    credentials: AppleIdentityCredentials,
+    store: ICloudStorePort,
+    publicIdentity: PubkyPublicIdentity,
+  ): Promise<
+    ResultType<
+      { attachment: IdentityAttachment; appleAccount: AppleAccount },
+      AppleIdentityLifecycleError
+    >
+  > {
+    const appleAccount = this.appleAccount(credentials);
+    try {
+      const attached = await this.attachToPassportFile({
+        account: { appleAccount },
+        publicIdentity,
+        idToken: credentials.appleIdToken,
+        store,
+        readFailure,
+        writeFailure,
+      });
+      if (Result.isError(attached)) return Result.err(attached.error);
+      return Result.ok({ attachment: attached.value, appleAccount });
+    } catch (e) {
+      LOGGER.warn("identity.apple.attach.failed", {
         code: "unexpected_failure",
         ...safeErrorLogFields(e),
       });

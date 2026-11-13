@@ -12,6 +12,8 @@ import type {
 import type { LocalIdentityMetadata } from "@/client/logic/local-identity/localIdentityModels";
 import type { LocalIdentityResult } from "@/client/logic/local-identity/LocalStorageIdentityRepository";
 import type { PubkyHomeserverResolutionResult } from "@/client/logic/pubky/pubkyIdentityKey";
+import { TEST_APPLE_CONFIGURATION } from "@test-utils/fakeAppleIdentityController";
+import { AppleIdentityConfigurationProvider } from "@/client/ui/appleIdentityConfiguration";
 import { IdentityManagement } from "./identityManagement";
 
 const MOCKS = vi.hoisted(() => ({ toastInfo: vi.fn() }));
@@ -40,6 +42,7 @@ describe("IdentityManagement", () => {
       <IdentityManagement
         identity={identity}
         listAuthorizedApps={async () => Result.ok([])}
+        onAttachToProvider={vi.fn()}
         onBack={vi.fn()}
         onDetachFromProvider={vi.fn()}
         onDownloadRecoveryFile={vi.fn()}
@@ -310,9 +313,68 @@ describe("IdentityManagement", () => {
   });
 });
 
+describe("IdentityManagement sign-in account", () => {
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+  });
+
+  it("offers Connect Google for a browser-only identity while Apple login is off", () => {
+    const onAttachToProvider = vi.fn();
+    renderManagement({
+      identity: { publicIdentity: identity.publicIdentity },
+      onAttachToProvider,
+    });
+
+    expect(screen.getByText("Not connected")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Connect Google" }));
+    expect(onAttachToProvider).toHaveBeenCalledOnce();
+    expect(screen.queryByRole("button", { name: /Detach/u })).toBeNull();
+  });
+
+  it("offers Connect Google or Apple while Apple login is on", () => {
+    render(
+      <AppleIdentityConfigurationProvider apple={TEST_APPLE_CONFIGURATION}>
+        <IdentityManagement
+          identity={{ publicIdentity: identity.publicIdentity }}
+          listAuthorizedApps={async () => Result.ok([])}
+          onAttachToProvider={vi.fn()}
+          onBack={vi.fn()}
+          onDetachFromProvider={vi.fn()}
+          onDownloadRecoveryFile={vi.fn()}
+          onRemoveLocalIdentity={() => Result.ok()}
+          onMigrateToKeychain={vi.fn()}
+          republishHomeserver={async () => Result.ok()}
+          resolveHomeserver={async () => Result.ok("homeserver-pubky")}
+          revokeAuthorizedApp={async () => Result.ok()}
+        />
+      </AppleIdentityConfigurationProvider>,
+    );
+
+    expect(screen.getByRole("button", { name: "Connect Google or Apple" })).toBeInTheDocument();
+  });
+
+  it.each([
+    ["Google", identity],
+    [
+      "Apple",
+      {
+        appleAccount: { appleSubject: "apple-subject", email: "jane@example.com", name: null },
+        publicIdentity: identity.publicIdentity,
+      },
+    ],
+  ] as const)("shows nothing new for an identity linked to %s", (provider, linked) => {
+    renderManagement({ identity: linked });
+
+    expect(screen.queryByRole("button", { name: /^Connect/u })).toBeNull();
+    expect(screen.getByRole("button", { name: `Detach from ${provider}` })).toBeInTheDocument();
+  });
+});
+
 function renderManagement({
   identity: managedIdentity = identity,
   listAuthorizedApps = async () => Result.ok([]),
+  onAttachToProvider = vi.fn(),
   onBack = vi.fn(),
   onDetachFromProvider = vi.fn(),
   onDownloadRecoveryFile = vi.fn(),
@@ -323,6 +385,7 @@ function renderManagement({
 }: {
   identity?: LocalIdentityMetadata;
   listAuthorizedApps?: () => Promise<LocalIdentityAuthorizedAppsResult>;
+  onAttachToProvider?: () => void;
   onBack?: () => void;
   onDetachFromProvider?: (account: unknown) => void;
   onDownloadRecoveryFile?: () => void;
@@ -335,6 +398,7 @@ function renderManagement({
     <IdentityManagement
       identity={managedIdentity}
       listAuthorizedApps={listAuthorizedApps}
+      onAttachToProvider={onAttachToProvider}
       onBack={onBack}
       onDetachFromProvider={onDetachFromProvider}
       onDownloadRecoveryFile={onDownloadRecoveryFile}

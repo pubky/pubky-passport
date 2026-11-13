@@ -3,7 +3,6 @@
 import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Result } from "better-result";
-import { StrictMode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -25,20 +24,14 @@ const COLLABORATORS: Partial<PassportCollaborators> = {
 };
 
 function ConfiguredIdentityEstablishmentFlow({
-  forAuthorization,
   onBack,
   onComplete,
 }: {
-  forAuthorization?: boolean | undefined;
   onBack?: (() => void) | undefined;
   onComplete: () => void;
 }) {
   return withPassportTestProviders(
-    <IdentityEstablishmentFlow
-      forAuthorization={forAuthorization}
-      onBack={onBack}
-      onComplete={onComplete}
-    />,
+    <IdentityEstablishmentFlow onBack={onBack} onComplete={onComplete} />,
     COLLABORATORS,
   );
 }
@@ -73,7 +66,7 @@ describe("IdentityEstablishmentFlow", () => {
       "aria-expanded",
       "false",
     );
-    // The only links are the Terms and Privacy notice's, opening in a new tab.
+    // The only links are the notice's (Terms, Privacy, Pubky protocol), opening in a new tab.
     expect(
       within(shell)
         .getAllByRole("link")
@@ -81,6 +74,7 @@ describe("IdentityEstablishmentFlow", () => {
     ).toEqual([
       ["Terms of Service", "/terms-of-service", "_blank"],
       ["Privacy Policy", "/privacy-policy", "_blank"],
+      ["Pubky protocol", "https://pubky.org/", "_blank"],
     ]);
     expect(MOCKS.constructGoogleIdentityController).not.toHaveBeenCalled();
     shell.remove();
@@ -109,25 +103,6 @@ describe("IdentityEstablishmentFlow", () => {
     expect(
       within(screen.getByRole("status")).getByText("Waiting for Google..."),
     ).toBeInTheDocument();
-  });
-
-  it("automatically starts Google once for authorization, including StrictMode", async () => {
-    const establishIdentity = vi.fn(() => new Promise<never>(() => undefined));
-    useController(mockGoogleIdentityController({ establishIdentity }));
-    render(
-      <StrictMode>
-        <ConfiguredIdentityEstablishmentFlow forAuthorization onComplete={vi.fn()} />
-      </StrictMode>,
-    );
-
-    await waitFor(() => expect(establishIdentity).toHaveBeenCalledOnce());
-    expect(screen.queryByRole("button", { name: "Continue with Google" })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Waiting for Google..." })).toHaveClass("w-full");
-    expect(MOCKS.constructGoogleIdentityController).toHaveBeenCalledWith(
-      "google-client-id",
-      "https://homegate.example/",
-      true,
-    );
   });
 
   it("only shows contextual back navigation when supplied by its parent flow", async () => {
@@ -164,7 +139,7 @@ describe("IdentityEstablishmentFlow", () => {
       screen.queryByRole("heading", { name: "Setting up your pubky." }),
     ).not.toBeInTheDocument();
     expect(screen.queryByRole("list")).not.toBeInTheDocument();
-    expect(screen.getByRole("status")).toHaveTextContent("Loading your Pubky.");
+    expect(screen.getByRole("status")).toHaveTextContent("Loading your pubky.");
     expect(screen.queryByText("Republish PKDNS records")).not.toBeInTheDocument();
 
     act(() =>
@@ -233,7 +208,7 @@ describe("IdentityEstablishmentFlow", () => {
     ).toHaveAttribute("src", "/illustrations/google-drive-permissions.gif");
     expect(deniedHeading.parentElement).toHaveClass("gap-6");
     expect(
-      screen.getByText("Passport needs Google Drive access to create or restore your Pubky."),
+      screen.getByText("Passport needs Google Drive access to create or restore your pubky."),
     ).toBeInTheDocument();
     expect(screen.queryByRole("group", { name: "Error" })).not.toBeInTheDocument();
     // One set of actions at every width.
@@ -334,7 +309,9 @@ describe("IdentityEstablishmentFlow", () => {
       .setup()
       .click(screen.getByRole("button", { name: "Continue without visible backup" }));
     expect(continueWithoutVisibleBackup).toHaveBeenCalledOnce();
-    expect(await screen.findByText(/No visible recovery copy was created/i)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/did not save a copy of your recovery file/i),
+    ).toBeInTheDocument();
   });
 
   it("shows the setup error and retries automatic reconciliation", async () => {
@@ -659,7 +636,7 @@ describe("IdentityEstablishmentFlow", () => {
       .click(await screen.findByRole("button", { name: "Continue with Google" }));
 
     expect(await screen.findByRole("status")).toHaveTextContent(
-      "Passport could not confirm the visible recovery copy",
+      "Passport could not confirm that a copy of your recovery file was saved",
     );
   });
 

@@ -37,22 +37,26 @@ const AES_GCM_DERIVATION_INFO = TEXT_ENCODER.encode("passport-file:aes-gcm:v1");
  * Encrypts and decrypts the 32-byte Pubky secret stored in a v1 Passport file.
  *
  * The wrapping key is expanded with HKDF-SHA-256 into a non-extractable
- * AES-256-GCM key. The envelope version and normalized Passport origin are
- * authenticated as additional data. Operational failures retain their original
- * causes, while logs expose only safe classifications and never key material.
+ * AES-256-GCM key. The envelope version, normalized Passport origin, key id and
+ * the `attached` marker (only when set) are authenticated as additional data.
+ * Operational failures retain their original causes, while logs expose only safe
+ * classifications and never key material.
  */
 export class PassportFileWebCrypto {
   /**
    * Encrypts exactly 32 secret bytes with a fresh 96-bit IV and returns a
    * normalized v1 envelope. The caller retains ownership of the input bytes and
-   * must clear them after this operation settles.
+   * must clear them after this operation settles. `attached` marks a file written by
+   * attach; see {@link PassportFileEnvelope.attached}.
    */
   async encryptSecretKeyBytes(
     secretKeyBytes: Uint8Array,
     wrappingKey: string,
     passportOrigin: string,
     keyId: string,
+    options: { attached?: true } = {},
   ): Promise<CryptoResult<PassportFileEnvelope>> {
+    const attached = options.attached === true;
     const browserCrypto = getBrowserCrypto();
     if (Result.isError(browserCrypto)) {
       LOGGER.warn("passport_file.crypto.failed", {
@@ -117,7 +121,7 @@ export class PassportFileWebCrypto {
         {
           name: "AES-GCM",
           iv,
-          additionalData: createEnvelopeAdditionalData(keyId, origin.value),
+          additionalData: createEnvelopeAdditionalData(keyId, origin.value, attached),
           tagLength: AES_GCM_TAG_BITS,
         },
         key.value,
@@ -130,6 +134,7 @@ export class PassportFileWebCrypto {
         iv: encodeBase64Url(iv),
         ct: encodeBase64Url(new Uint8Array(ciphertext)),
         url: origin.value,
+        ...(attached ? { attached: true } : {}),
       });
     } catch (e) {
       LOGGER.warn("passport_file.crypto.failed", {
@@ -235,7 +240,11 @@ export class PassportFileWebCrypto {
         {
           name: "AES-GCM",
           iv: copyToArrayBuffer(iv),
-          additionalData: createEnvelopeAdditionalData(parsedEnvelope.keyId, parsedEnvelope.url),
+          additionalData: createEnvelopeAdditionalData(
+            parsedEnvelope.keyId,
+            parsedEnvelope.url,
+            parsedEnvelope.attached === true,
+          ),
           tagLength: AES_GCM_TAG_BITS,
         },
         key.value,
@@ -324,9 +333,14 @@ function base64UrlLength(byteLength: number): number {
   return Math.ceil((byteLength * 4) / 3);
 }
 
-function createEnvelopeAdditionalData(keyId: string, url: string): ArrayBuffer {
+/**
+ * Files without the marker keep the original bytes, so they still decrypt. A key id never holds
+ * a newline, so the extra line cannot be confused with one.
+ */
+function createEnvelopeAdditionalData(keyId: string, url: string, attached: boolean): ArrayBuffer {
+  const additionalData = `pubky-passport/passport-file/v1\n${url}\n${keyId}`;
   return copyToArrayBuffer(
-    TEXT_ENCODER.encode(`pubky-passport/passport-file/v1\n${url}\n${keyId}`),
+    TEXT_ENCODER.encode(attached ? `${additionalData}\nattached` : additionalData),
   );
 }
 

@@ -126,14 +126,15 @@ body:has([data-passport-sign-in-notice]) .passport-footer {
     border-radius: calc(var(--radius) - 4px);
     color: var(--brand);
     font-weight: 600;
-    text-decoration-line: underline;
-    text-decoration-color: color-mix(in oklab, var(--brand) 40%, transparent);
+    text-decoration-line: none;
     text-underline-offset: 4px;
     outline: none;
   }
 
-  .legal-document a:hover {
-    text-decoration-color: var(--brand);
+  /* No underline at rest; hover and keyboard focus add one, so links are not marked by colour alone. */
+  .legal-document a:hover,
+  .legal-document a:focus-visible {
+    text-decoration-line: underline;
   }
 
   .legal-document a:focus-visible {

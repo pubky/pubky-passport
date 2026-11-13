@@ -14,12 +14,13 @@ type GoogleIdentityOperation = (
   controller: GoogleIdentityControllerPort,
 ) => Promise<Result<unknown, GoogleIdentityViewError>>;
 type GoogleIdentityOperationName =
+  | "attach"
   | "detach"
   | "establish"
   | "replace-invalid-file"
   | "replace-undecryptable-file"
   | "continue-without-visible-backup";
-type GoogleIdentityScreen = "establishment" | "detachment";
+type GoogleIdentityScreen = "attachment" | "establishment" | "detachment";
 
 const IDLE_STATE: GoogleIdentityViewState = { status: "idle" };
 const OPERATION_FAILED_STATE: GoogleIdentityViewState = {
@@ -124,13 +125,13 @@ class GoogleIdentityStore {
 }
 
 /** Connects a screen to its own Google identity controller through `useSyncExternalStore`. */
-export function useGoogleIdentityStore(screen: GoogleIdentityScreen, forAuthorization = false) {
+export function useGoogleIdentityStore(screen: GoogleIdentityScreen) {
   const { googleClientId, homegateBaseUrl } = useGoogleIdentityConfiguration();
   const { createGoogleIdentityController } = usePassportCollaborators();
   const [store] = useState(
     () =>
       new GoogleIdentityStore(
-        () => createGoogleIdentityController(googleClientId, homegateBaseUrl, forAuthorization),
+        () => createGoogleIdentityController(googleClientId, homegateBaseUrl),
         screen,
       ),
   );

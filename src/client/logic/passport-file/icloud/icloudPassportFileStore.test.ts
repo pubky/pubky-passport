@@ -211,6 +211,23 @@ describe("ICloudPassportFileStore", () => {
   });
 
   describe("createPassportFile", () => {
+    it("round-trips the attached marker through the record", async () => {
+      const attached = { ...ENVELOPE, attached: true as const };
+      const { database, operations } = fakeDatabase({});
+      expectResultOk(await store(database).createPassportFile(attached));
+      const created = operations[0];
+      if (created?.type !== "create") throw new Error("Expected a create");
+      const written = (created.record.fields as { envelope: { value: string } }).envelope.value;
+      expect(written).toBe(`${SERIALIZED.slice(0, -1)},"attached":true}`);
+
+      const record = await storedRecord({ envelope: written });
+      const read = fakeDatabase({ fetch: async () => ({ records: [record] }) });
+      expect(expectResultOk(await store(read.database).readPassportFile())).toMatchObject({
+        status: "found",
+        envelope: attached,
+      });
+    });
+
     it("creates exactly the Passport record with the envelope and subject hash", async () => {
       const { database, operations } = fakeDatabase({});
 

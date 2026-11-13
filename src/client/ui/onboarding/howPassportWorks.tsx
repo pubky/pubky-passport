@@ -21,7 +21,7 @@ function HowPassportWorks({
         <button
           aria-expanded={open}
           aria-haspopup="dialog"
-          className="cursor-pointer rounded-sm font-bold text-brand outline-none hover:underline hover:underline-offset-4 focus-visible:ring-3 focus-visible:ring-ring/50"
+          className="cursor-pointer rounded-sm font-bold text-brand underline-offset-4 hover:underline focus-visible:underline outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
           onClick={() => setOpen(true)}
           ref={trigger}
           type="button"

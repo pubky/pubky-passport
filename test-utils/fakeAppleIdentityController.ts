@@ -17,6 +17,7 @@ export function fakeAppleIdentityController() {
   const listeners = new Set<(next: AppleIdentityViewState) => void>();
   const ok = () => Promise.resolve(Result.ok(undefined));
   const controller = {
+    attachIdentity: vi.fn(ok),
     focusICloud: vi.fn(),
     focusSignIn: vi.fn(),
     cancelSignIn: vi.fn(),

@@ -64,6 +64,29 @@ function renderDashboard() {
             }
             return Result.err({ code: "authorization_failed" as const });
           },
+          attachIdentity: async (publicIdentity: PubkyPublicIdentity) => {
+            const googleAccount = {
+              googleSubject: "google-attached",
+              email: "attached@gmail.com",
+              name: "Attached",
+              pictureUrl: null,
+            };
+            FLOW.catalog = {
+              ...FLOW.catalog,
+              identities: FLOW.catalog.identities.map((identity) =>
+                identity.publicIdentity.publicKeyZ32 === publicIdentity.publicKeyZ32
+                  ? { ...identity, googleAccount }
+                  : identity,
+              ),
+            };
+            FLOW.listener?.();
+            return Result.ok({
+              attachment: "created" as const,
+              googleAccount,
+              publicIdentity,
+              visibleRecoveryCopyStatus: "created" as const,
+            });
+          },
           detachIdentity: async (publicIdentity: PubkyPublicIdentity) => {
             const identities = FLOW.catalog.identities.filter(
               (identity) => identity.publicIdentity.publicKeyZ32 !== publicIdentity.publicKeyZ32,
@@ -276,6 +299,34 @@ describe("IdentityDashboard", () => {
     expect(screen.getByRole("heading", { name: "Encrypted backup." })).toBeInTheDocument();
     await userEvent.setup().click(screen.getByRole("button", { name: "Back" }));
     expect(screen.getByRole("heading", { name: "Manage identity." })).toBeInTheDocument();
+  });
+
+  it("connects a browser-only identity to Google and returns to Manage with the account", async () => {
+    FLOW.catalog = {
+      activePublicKeyZ32: "identity",
+      identities: [{ publicIdentity: { publicKeyZ32: "identity" } }],
+    };
+    renderDashboard();
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole("button", { name: "Manage" }));
+    expect(screen.getByText("Not connected")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Connect Google" }));
+    expect(screen.getByRole("heading", { name: "Connect an account." })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Back" }));
+    expect(screen.getByRole("heading", { name: "Manage identity." })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Connect Google" }));
+    await user.click(screen.getByRole("button", { name: "Continue with Google" }));
+    expect(
+      await screen.findByRole("heading", { name: "Connected to Google." }),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Done" }));
+
+    expect(screen.getByRole("heading", { name: "Manage identity." })).toBeInTheDocument();
+    expect(screen.getByText("attached@gmail.com")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Detach from Google" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Connect/u })).toBeNull();
   });
 
   it("exports the managed identity to Pubky Ring", async () => {

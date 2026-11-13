@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 
 import { Result } from "better-result";
-import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { StrictMode, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -9,10 +9,18 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PassportAuthorizationViewState } from "@/client/logic/authorization/flow/PassportAuthorizationController";
 import type { PubkyPublicIdentity } from "@/client/logic/pubky/pubkyIdentityKey";
 import type { LocalIdentityCatalog } from "@/client/logic/local-identity/localIdentityModels";
-import { mockGoogleIdentityController } from "@test-utils/mockGoogleIdentityController";
+import {
+  fakeAppleIdentityController,
+  TEST_APPLE_CONFIGURATION,
+} from "@test-utils/fakeAppleIdentityController";
+import {
+  mockGoogleIdentityController,
+  type MockGoogleIdentityController,
+} from "@test-utils/mockGoogleIdentityController";
 import { fakeLocalIdentityController } from "@test-utils/fakeLocalIdentityController";
 import { fakePassportAuthorizationController } from "@test-utils/fakePassportAuthorizationController";
 import { withPassportTestProviders } from "@test-utils/googleIdentityConfiguration";
+import { AppleIdentityConfigurationProvider } from "@/client/ui/appleIdentityConfiguration";
 import { AuthorizationFlow } from "./authorizationFlow";
 
 const MOCKS = {
@@ -24,6 +32,7 @@ const MOCKS = {
   catalogListener: undefined as (() => void) | undefined,
   dispose: vi.fn(),
   remove: vi.fn(),
+  attach: vi.fn(),
   detach: vi.fn(),
   createRecoveryFile: vi.fn(),
   createMigration: vi.fn(),
@@ -32,18 +41,15 @@ const MOCKS = {
 };
 
 function IdentitySetupStub({
-  forAuthorization,
   onBack,
   onComplete,
 }: {
-  forAuthorization?: boolean | undefined;
   onBack?: (() => void) | undefined;
   onComplete: () => void;
 }) {
   return (
     <main>
       <h1>Add identity</h1>
-      {forAuthorization ? <p>Authorization identity setup</p> : null}
       <button
         onClick={() => {
           MOCKS.catalogListener?.();
@@ -115,7 +121,7 @@ function wrapFlow(children: ReactNode) {
   return withPassportTestProviders(children, {
     ...authorizationCollaborators(),
     createGoogleIdentityController: () =>
-      mockGoogleIdentityController({ detachIdentity: MOCKS.detach }),
+      mockGoogleIdentityController({ attachIdentity: MOCKS.attach, detachIdentity: MOCKS.detach }),
     IdentitySetup: IdentitySetupStub,
   });
 }
@@ -750,6 +756,48 @@ describe("AuthorizationFlow", () => {
     },
   );
 
+  it("attaches a browser-only identity and returns to Manage without authorizing", async () => {
+    const user = userEvent.setup();
+    const browserOnly = { publicIdentity: { publicKeyZ32: "browser-only-key" } };
+    MOCKS.catalog = {
+      activePublicKeyZ32: browserOnly.publicIdentity.publicKeyZ32,
+      identities: [browserOnly, SECOND],
+    };
+    MOCKS.attach.mockImplementation(async (publicIdentity: PubkyPublicIdentity) => {
+      // As in the real flow, the catalog then lists the account with the identity.
+      MOCKS.catalog = {
+        activePublicKeyZ32: publicIdentity.publicKeyZ32,
+        identities: [{ publicIdentity, googleAccount: FIRST.googleAccount }, SECOND],
+      };
+      MOCKS.catalogListener?.();
+      return Result.ok({
+        attachment: "created" as const,
+        googleAccount: FIRST.googleAccount,
+        publicIdentity,
+        visibleRecoveryCopyStatus: "created" as const,
+      });
+    });
+    renderFlow();
+
+    await user.click(await screen.findByRole("button", { name: "Manage" }));
+    await user.click(screen.getByRole("button", { name: "Connect Google" }));
+    expect(screen.getByRole("heading", { name: "Connect an account." })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Continue with Google" }));
+
+    expect(
+      await screen.findByRole("heading", { name: "Connected to Google." }),
+    ).toBeInTheDocument();
+    expect(MOCKS.attach).toHaveBeenCalledExactlyOnceWith(browserOnly.publicIdentity);
+    expect(screen.getByLabelText("Signing in to requesting.app")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Done" }));
+
+    expect(screen.getByRole("heading", { name: "Manage identity." })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Detach from Google" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Signing in to requesting.app")).toBeInTheDocument();
+    expect(MOCKS.approve).not.toHaveBeenCalled();
+    expect(MOCKS.cancel).not.toHaveBeenCalled();
+  });
+
   it("adds an identity through the normal sign-in flow without losing the review", async () => {
     const user = userEvent.setup();
     renderFlow();
@@ -759,7 +807,6 @@ describe("AuthorizationFlow", () => {
     await user.click(screen.getByRole("button", { name: /use other identity/iu }));
 
     expect(screen.getByRole("heading", { name: "Add identity" })).toBeInTheDocument();
-    expect(screen.getByText("Authorization identity setup")).toBeInTheDocument();
     expect(screen.getAllByLabelText("Signing in to requesting.app")).toHaveLength(1);
     await user.click(screen.getByRole("button", { name: "Complete identity setup" }));
     expect(screen.getByRole("heading", { name: "Sign in to requesting.app" })).toBeInTheDocument();
@@ -821,6 +868,101 @@ describe("AuthorizationFlow", () => {
 
     expect(MOCKS.cancel).toHaveBeenCalledOnce();
   });
+
+  describe.each([
+    { apple: "off", configuration: null },
+    { apple: "on", configuration: TEST_APPLE_CONFIGURATION },
+  ] as const)(
+    "with the real sign-in screens and Apple login $apple",
+    ({ apple, configuration }) => {
+      function renderSignIn(
+        establishIdentity: MockGoogleIdentityController["establishIdentity"] = vi.fn(
+          () => new Promise<never>(() => undefined),
+        ),
+      ) {
+        const appleController = fakeAppleIdentityController().controller;
+        render(
+          <StrictMode>
+            <AppleIdentityConfigurationProvider apple={configuration}>
+              {withPassportTestProviders(<AuthorizationFlow />, {
+                ...authorizationCollaborators(),
+                createGoogleIdentityController: () =>
+                  mockGoogleIdentityController({ establishIdentity }),
+                createAppleIdentityController: () => appleController,
+              })}
+            </AppleIdentityConfigurationProvider>
+          </StrictMode>,
+        );
+        return { appleController, establishIdentity };
+      }
+
+      async function expectProviderChoice() {
+        const google = await screen.findByRole("button", { name: "Continue with Google" });
+        expect(screen.queryAllByRole("button", { name: "Continue with Apple" })).toHaveLength(
+          apple === "on" ? 1 : 0,
+        );
+        expect(screen.getByRole("button", { name: "Import it" })).toBeInTheDocument();
+        expect(
+          screen.queryByRole("heading", { name: "Requesting Google access." }),
+        ).not.toBeInTheDocument();
+        return google;
+      }
+
+      it("shows the provider choice and import link on first-identity setup", async () => {
+        const user = userEvent.setup();
+        MOCKS.catalog = { activePublicKeyZ32: null, identities: [] };
+        const { appleController, establishIdentity } = renderSignIn();
+
+        await expectProviderChoice();
+        await act(async () => {
+          await new Promise((resolve) => setTimeout(resolve, 0));
+        });
+        expect(establishIdentity).not.toHaveBeenCalled();
+        expect(appleController.continueWithApple).not.toHaveBeenCalled();
+
+        await user.click(screen.getByRole("button", { name: "Import it" }));
+        expect(await screen.findByRole("heading", { name: "Import pubky." })).toBeInTheDocument();
+        expect(establishIdentity).not.toHaveBeenCalled();
+      });
+
+      it("goes back from a Google error to the choice without cancelling the request", async () => {
+        const user = userEvent.setup();
+        MOCKS.catalog = { activePublicKeyZ32: null, identities: [] };
+        const establishIdentity = vi.fn(async () => Result.err({ code: "signin_failed" as const }));
+        renderSignIn(establishIdentity);
+
+        const google = await expectProviderChoice();
+        await waitFor(() => expect(google).toBeEnabled());
+        await user.click(google);
+        expect(
+          await screen.findByRole("heading", { name: "Setup interrupted." }),
+        ).toBeInTheDocument();
+        await user.click(
+          within(screen.getByRole("group", { name: "Error actions" })).getByRole("button", {
+            name: "Back",
+          }),
+        );
+
+        await expectProviderChoice();
+        expect(establishIdentity).toHaveBeenCalledOnce();
+        expect(MOCKS.cancel).not.toHaveBeenCalled();
+      });
+
+      it("shows the same choice from Use other identity and starts Google only on the click", async () => {
+        const user = userEvent.setup();
+        const { establishIdentity } = renderSignIn();
+        await screen.findByRole("heading", { name: "Sign in to requesting.app" });
+        await user.click(screen.getByRole("button", { name: "Switch" }));
+        await user.click(screen.getByRole("button", { name: /use other identity/iu }));
+
+        const google = await expectProviderChoice();
+        expect(establishIdentity).not.toHaveBeenCalled();
+        await waitFor(() => expect(google).toBeEnabled());
+        await user.click(google);
+        expect(establishIdentity).toHaveBeenCalledOnce();
+      });
+    },
+  );
 
   it("cancels authorization when leaving an unavailable identity catalog", async () => {
     const user = userEvent.setup();
