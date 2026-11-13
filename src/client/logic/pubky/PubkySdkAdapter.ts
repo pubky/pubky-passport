@@ -6,7 +6,6 @@ import {
   Pubky,
   PublicKey,
   type GrantInfo,
-  type GrantSession,
   type PubkyError,
   type Session,
 } from "@synonymdev/pubky";
@@ -14,6 +13,7 @@ import { Result, type Result as ResultType } from "better-result";
 
 import { LOGGER, safeErrorLogFields } from "@/libs/logger/logger";
 import type { CodedFailure } from "@/libs/result";
+import { browserPassportSessionLedger, type PassportSessionLedger } from "./passportSessionLedger";
 import {
   PUBKY_SECRET_KEY_BYTES,
   PUBKY_SECRET_KEY_FORMAT,
@@ -79,6 +79,12 @@ type PublicKeyParseResult<ErrorCode extends string> = ResultType<
   CodedFailure<ErrorCode>
 >;
 const PASSPORT_CLIENT_ID = "passport.pubky.app";
+/** What the SDK's `signin(clientId)` grants: root storage access, no encryption keys. */
+const PASSPORT_SESSION_CAPABILITIES = "/:rw";
+/** Passport's own sessions last seconds; anything older than this is a leftover. */
+const LEFTOVER_PASSPORT_GRANT_MIN_AGE_SECONDS = 10 * 60;
+/** How far the homeserver's clock may run ahead of the browser's for a grant to count as new. */
+const GRANT_CLOCK_SKEW_SECONDS = 60;
 /** Message of the SDK signer's refusal of a sign-in request for another key. */
 const EXPECTED_SIGNER_REFUSAL = "this sign-in request is for a different key";
 
@@ -142,6 +148,10 @@ export class PubkySdkAdapter {
   private readonly pubky = new Pubky();
   private readonly keypairs = new Map<PubkyIdentityKeyHandle, Keypair>();
   private disposed = false;
+
+  constructor(
+    private readonly sessionLedger: PassportSessionLedger = browserPassportSessionLedger,
+  ) {}
 
   static createPubkyRingMigration(
     secretKey: PubkySecretKeyMaterial,
@@ -338,10 +348,16 @@ export class PubkySdkAdapter {
           ? signer.signinBlocking(PASSPORT_CLIENT_ID)
           : signer.signin(PASSPORT_CLIENT_ID),
       );
+      const opened = this.rememberPassportSession(
+        "signin",
+        keypair,
+        await optionalSessionGrantId("signin", session),
+      );
       try {
         return Result.ok(authenticatedIdentityFromSession("signin", session));
       } finally {
-        await session.signout();
+        // A failed signout is only logged: it must not turn a working sign-in into a failure.
+        await this.closePassportSession("signin", session, opened);
       }
     } catch (e) {
       return failure("signin", "sdk_signin", "signin_failed", e);
@@ -398,8 +414,9 @@ export class PubkySdkAdapter {
 
   /**
    * Lists the apps this identity authorized. Signs in with a short-lived root session and hides
-   * that session's own grant by id. Earlier Passport sessions whose signout failed stay listed so
-   * the user can revoke them.
+   * that session's own grant by id. Grants of earlier Passport sessions from this browser whose
+   * signout never reached the homeserver are revoked here; one that cannot be revoked stays
+   * listed so the user can revoke it.
    */
   async listAuthorizedApps(keyHandle: PubkyIdentityKeyHandle): Promise<PubkyAuthorizedAppsResult> {
     const keypair = this.keypairFor(keyHandle);
@@ -412,13 +429,54 @@ export class PubkySdkAdapter {
         "list_authorized_apps",
         keypair,
         async (manager, sessionGrantId) => {
+          const owner = publicIdentity("list_authorized_apps", keypair);
+          const ownerZ32 = Result.isError(owner) ? undefined : owner.value.publicKeyZ32;
+          // Read before listing: every grant recorded by then already exists on the homeserver.
+          const recorded = ownerZ32 ? this.sessionLedger.recorded(ownerZ32) : new Set<string>();
           const grants = await manager.list();
           try {
-            return Object.freeze(
-              grants
-                .filter((grant) => grant.grantId !== sessionGrantId)
-                .map((grant) => authorizedApp(grant)),
-            );
+            // Read again after listing: a Passport operation that opened its session while the
+            // list was in flight (another tab, or a second load in React StrictMode) has recorded
+            // it by now, or has already signed out and moved it to the recently closed record.
+            const open = ownerZ32 ? this.sessionLedger.recorded(ownerZ32) : new Set<string>();
+            const closed = ownerZ32
+              ? this.sessionLedger.recentlyClosed(ownerZ32)
+              : new Set<string>();
+            const nowSeconds = Math.floor(Date.now() / 1000);
+            const apps: PubkyAuthorizedApp[] = [];
+            const settled = new Set<string>();
+            for (const grant of grants) {
+              if (grant.grantId === sessionGrantId) continue;
+              // A running Passport operation's session: its signout removes it, so listing it
+              // would show an app that is gone a moment later.
+              if (
+                (recorded.has(grant.grantId) ||
+                  open.has(grant.grantId) ||
+                  closed.has(grant.grantId)) &&
+                isRunningPassportSession(grant, nowSeconds)
+              ) {
+                continue;
+              }
+              if (
+                recorded.has(grant.grantId) &&
+                isLeftoverPassportGrant(grant, nowSeconds) &&
+                (await revokeLeftoverPassportGrant(manager, grant.grantId))
+              ) {
+                settled.add(grant.grantId);
+                continue;
+              }
+              apps.push(authorizedApp(grant));
+            }
+            if (ownerZ32) {
+              // Recorded grants the homeserver no longer lists were revoked or expired. This
+              // session's own record is left to its signout.
+              const listed = new Set(grants.map((grant) => grant.grantId));
+              for (const grantId of recorded) {
+                if (grantId !== sessionGrantId && !listed.has(grantId)) settled.add(grantId);
+              }
+              this.sessionLedger.forget(ownerZ32, [...settled]);
+            }
+            return Object.freeze(apps);
           } finally {
             for (const grant of grants) {
               cleanup("list_authorized_apps", "grant_info_free", () => grant.free());
@@ -555,24 +613,46 @@ export class PubkySdkAdapter {
     ) => Promise<OperationResult>,
   ): Promise<OperationResult> {
     let session: Session | undefined;
-    let grantSession: GrantSession | undefined;
     let manager: GrantManager | undefined;
+    let opened: OpenedPassportSession | undefined;
     try {
       session = await this.withSigner(operationName, keypair, (signer) =>
         signer.signin(PASSPORT_CLIENT_ID),
       );
-      grantSession = session.grant;
-      const sessionGrantId = grantSession ? await grantSession.grantId() : undefined;
+      const sessionGrantId = await sessionGrantIdOf(operationName, session);
+      opened = this.rememberPassportSession(operationName, keypair, sessionGrantId);
       manager = new GrantManager(session);
       return await operation(manager, sessionGrantId);
     } finally {
       cleanup(operationName, "grant_manager_free", () => manager?.free());
-      cleanup(operationName, "grant_session_free", () => grantSession?.free());
       if (session) {
-        await signout(operationName, session);
+        await this.closePassportSession(operationName, session, opened);
       }
       cleanup(operationName, "session_free", () => session?.free());
     }
+  }
+
+  /** Records a Passport session's grant until its signout succeeds. */
+  private rememberPassportSession(
+    operation: PubkyOperation,
+    keypair: Keypair,
+    grantId: string | undefined,
+  ): OpenedPassportSession | undefined {
+    if (!grantId) return undefined;
+    const identity = publicIdentity(operation, keypair);
+    if (Result.isError(identity)) return undefined;
+    this.sessionLedger.record(identity.value.publicKeyZ32, grantId);
+    return { publicKeyZ32: identity.value.publicKeyZ32, grantId };
+  }
+
+  /** Signs out; the record stays when the signout fails, so Authorized apps can clean it up. */
+  private async closePassportSession(
+    operation: PubkyOperation,
+    session: Session,
+    opened: OpenedPassportSession | undefined,
+  ): Promise<void> {
+    const signedOut = await signout(operation, session);
+    if (signedOut && opened) this.sessionLedger.forget(opened.publicKeyZ32, [opened.grantId]);
   }
 
   private async withSigner<OperationResult>(
@@ -685,24 +765,85 @@ function isExpectedSignerRefusalMessage(message: string): boolean {
   return message === EXPECTED_SIGNER_REFUSAL || message.endsWith(`: ${EXPECTED_SIGNER_REFUSAL}`);
 }
 
+/**
+ * A recorded grant that Passport's own short-lived root session left behind: Passport's client
+ * id, root access only, and older than any Passport operation still running in another tab.
+ * The record proves this browser's Passport opened it; the client id alone would not, because
+ * an app can request a grant under any client id.
+ */
+function isLeftoverPassportGrant(grant: GrantInfo, nowSeconds: number): boolean {
+  return (
+    isPassportSessionGrant(grant) &&
+    grant.issuedAt <= nowSeconds - LEFTOVER_PASSPORT_GRANT_MIN_AGE_SECONDS
+  );
+}
+
+/**
+ * A recorded Passport session young enough to belong to an operation that is still running. A
+ * grant dated further ahead than clock skew explains stays listed, so a wrong clock can never
+ * hide a grant for longer than ten minutes.
+ */
+function isRunningPassportSession(grant: GrantInfo, nowSeconds: number): boolean {
+  return (
+    isPassportSessionGrant(grant) &&
+    Number.isFinite(grant.issuedAt) &&
+    grant.issuedAt > nowSeconds - LEFTOVER_PASSPORT_GRANT_MIN_AGE_SECONDS &&
+    grant.issuedAt <= nowSeconds + GRANT_CLOCK_SKEW_SECONDS
+  );
+}
+
+function isPassportSessionGrant(grant: GrantInfo): boolean {
+  return (
+    grant.clientId === PASSPORT_CLIENT_ID &&
+    grantCapabilities(grant).join(",") === PASSPORT_SESSION_CAPABILITIES
+  );
+}
+
+/** Best effort: a leftover that cannot be revoked now stays listed for the user. */
+async function revokeLeftoverPassportGrant(
+  manager: GrantManager,
+  grantId: string,
+): Promise<boolean> {
+  try {
+    await manager.revoke(grantId);
+    return true;
+  } catch (e) {
+    // Another tab may have revoked it first: a grant the homeserver no longer knows is gone.
+    if (requestStatus(e) === 404) return true;
+    LOGGER.warn("identity.pubky.cleanup.failed", {
+      operation: "list_authorized_apps",
+      stage: "leftover_grant_revoke",
+      code: "cleanup_failed",
+      ...safeErrorLogFields(e),
+    });
+    return false;
+  }
+}
+
+function grantCapabilities(grant: GrantInfo): string[] {
+  return grant.capabilities
+    .split(",")
+    .map((capability) => capability.trim())
+    .filter((capability) => capability.length > 0);
+}
+
 function authorizedApp(grant: GrantInfo): PubkyAuthorizedApp {
   return Object.freeze({
     grantId: grant.grantId,
     clientId: grant.clientId,
-    capabilities: Object.freeze(
-      grant.capabilities
-        .split(",")
-        .map((capability) => capability.trim())
-        .filter((capability) => capability.length > 0),
-    ),
+    capabilities: Object.freeze(grantCapabilities(grant)),
     issuedAt: grant.issuedAt,
     expiresAt: grant.expiresAt,
   });
 }
 
-async function signout(operation: PubkyOperation, session: Session): Promise<void> {
+type OpenedPassportSession = { publicKeyZ32: string; grantId: string };
+
+/** Never throws; returns whether the homeserver confirmed the signout. */
+async function signout(operation: PubkyOperation, session: Session): Promise<boolean> {
   try {
     await session.signout();
+    return true;
   } catch (e) {
     LOGGER.warn("identity.pubky.cleanup.failed", {
       operation,
@@ -710,6 +851,39 @@ async function signout(operation: PubkyOperation, session: Session): Promise<voi
       code: "cleanup_failed",
       ...safeErrorLogFields(e),
     });
+    return false;
+  }
+}
+
+/** The id of the grant behind a session; a failure propagates to the caller. */
+async function sessionGrantIdOf(
+  operation: PubkyOperation,
+  session: Session,
+): Promise<string | undefined> {
+  const grantSession = session.grant;
+  if (!grantSession) return undefined;
+  try {
+    return await grantSession.grantId();
+  } finally {
+    cleanup(operation, "grant_session_free", () => grantSession.free());
+  }
+}
+
+/** Like {@link sessionGrantIdOf}, for callers whose result must not depend on the grant id. */
+async function optionalSessionGrantId(
+  operation: PubkyOperation,
+  session: Session,
+): Promise<string | undefined> {
+  try {
+    return await sessionGrantIdOf(operation, session);
+  } catch (e) {
+    LOGGER.warn("identity.pubky.cleanup.failed", {
+      operation,
+      stage: "session_grant_id",
+      code: "cleanup_failed",
+      ...safeErrorLogFields(e),
+    });
+    return undefined;
   }
 }
 
