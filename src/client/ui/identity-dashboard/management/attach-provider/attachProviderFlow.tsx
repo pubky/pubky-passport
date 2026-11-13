@@ -155,7 +155,7 @@ function AppleAttachment({
           attachment={state.identity.attachment}
           notice={
             state.identity.attachment === "created"
-              ? "Apple sign-in restores this pubky only together with the iCloud account you just connected in Apple’s window. Keep your recovery file or phrase too."
+              ? "Apple sign-in restores this pubky only together with the iCloud account you just connected in Apple’s window. Keep your recovery phrase or file too."
               : undefined
           }
           onDone={onDone}
@@ -199,9 +199,9 @@ function visibleRecoveryCopyNotice(
     case "created":
       return undefined;
     case "skipped":
-      return "Passport did not save a copy of your recovery file in Google Drive because you did not allow it. Keep your recovery file or phrase.";
+      return "Passport did not save a copy of your recovery file in Google Drive because you did not allow it. Keep your recovery phrase or file.";
     case "unconfirmed":
-      return "Passport could not confirm that a copy of your recovery file was saved in Google Drive. Keep your recovery file or phrase.";
+      return "Passport could not confirm that a copy of your recovery file was saved in Google Drive. Keep your recovery phrase or file.";
   }
 }
 

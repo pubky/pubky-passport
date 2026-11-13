@@ -29,7 +29,7 @@ function googleIdentityErrorMessage(code: GoogleIdentityViewError["code"]): stri
     case "local_identity_unavailable":
       return "Passport could not read this pubky in this browser. Go back and check that it is still there.";
     case "local_link_failed":
-      return "Your backup is in Google Drive, but Passport could not update this browser. Try again.";
+      return "Your backup is in Google Drive, but Passport could not update this browser. Please try again.";
     case "homeserver_not_found":
       // Only a restore returns this (attach never does): the backup itself is fine.
       return "Passport could not find this pubky's homeserver record. Your backup in Google Drive is unchanged. Open the app that manages this pubky so it republishes its homeserver, then try again.";

@@ -240,7 +240,7 @@ describe("AttachProviderFlow", () => {
     async (failure) => {
       await showFailure(failure);
       expect(screen.getByText("Nothing was changed.")).toBeVisible();
-      expect(screen.queryByText(/stays in this browser only/u)).toBeNull();
+      expect(screen.queryByText(/stays only in this browser/u)).toBeNull();
     },
   );
 
@@ -249,7 +249,7 @@ describe("AttachProviderFlow", () => {
     async (failure) => {
       await showFailure(failure);
       expect(
-        screen.getByText("Nothing was changed. This pubky stays in this browser only."),
+        screen.getByText("Nothing was changed. This pubky stays only in this browser."),
       ).toBeVisible();
     },
   );

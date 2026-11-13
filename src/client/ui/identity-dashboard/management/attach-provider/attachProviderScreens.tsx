@@ -208,7 +208,7 @@ function AttachError({
         {effect === "may-have-stored" ? null : (
           <p className="text-sm leading-5 text-muted-foreground">
             {effect === "browser-only"
-              ? "Nothing was changed. This pubky stays in this browser only."
+              ? "Nothing was changed. This pubky stays only in this browser."
               : "Nothing was changed."}
           </p>
         )}

@@ -37,7 +37,7 @@ const EXPECTED_COPY: Record<GoogleIdentityViewError["code"], string> = {
   local_identity_unavailable:
     "Passport could not read this pubky in this browser. Go back and check that it is still there.",
   local_link_failed:
-    "Your backup is in Google Drive, but Passport could not update this browser. Try again.",
+    "Your backup is in Google Drive, but Passport could not update this browser. Please try again.",
   provider_account_in_use:
     "This Google Account already holds another pubky. Passport keeps one pubky per account. Detach that pubky from Google first, or use a different Google Account.",
   invalid_passport_file:
