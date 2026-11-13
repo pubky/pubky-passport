@@ -397,9 +397,10 @@ export abstract class PassportFileIdentityLifecycle {
 
   /**
    * Shared activation for new and interrupted identities. The SDK's signup publishes PKDNS
-   * itself, so a definitive new signup only republishes in the background and signs in without
-   * waiting. Signup conflict means the account already exists. Ambiguous signup or publication
-   * failures are verified through blocking sign-in before they are treated as fatal.
+   * itself, so a definitive new signup only republishes in the background and checks that the
+   * record resolves, without a sign-in. Signup conflict means the account already exists.
+   * Ambiguous signup or publication failures are verified through blocking sign-in before they
+   * are treated as fatal.
    */
   private async signupAndActivate(
     identity: PubkyIdentityKey,
@@ -478,7 +479,8 @@ export abstract class PassportFileIdentityLifecycle {
 
   /**
    * A definitive signup has already published PKDNS. The forced republish is insurance that
-   * runs in the background; the caller must let it settle before freeing the key.
+   * runs in the background; the caller must let it settle before freeing the key. Activation
+   * only checks the record resolves; it opens no homeserver session.
    */
   private async activateAfterSignup(
     identity: PubkyIdentityKey,
@@ -495,12 +497,17 @@ export abstract class PassportFileIdentityLifecycle {
     onBackgroundRepublish(republish);
 
     report({ flow: "create", step: "activating" });
-    const signedIn = await this.pubky.signin(identity.keyHandle, "normal");
-    if (Result.isError(signedIn)) {
-      return Result.err({ code: "signin_failed", cause: signedIn.error });
+    // The signup created the account and published PKDNS. Check the record resolves, as the
+    // sign-in this replaces did first, without opening a session: a session would add a
+    // Passport grant on the homeserver that has to be signed out again.
+    const resolved = await this.pubky.resolveHomeserver(identity.publicIdentity.publicKeyZ32);
+    if (Result.isError(resolved)) {
+      return Result.err({ code: "signin_failed", cause: resolved.error });
     }
-    const verified = this.verifySessionIdentity(identity, signedIn.value.publicIdentity);
-    if (Result.isError(verified)) return Result.err(verified.error);
+    if (resolved.value === null) {
+      LOGGER.warn(`identity.${this.provider}.activation_resolution.failed`);
+      return Result.err({ code: "signin_failed" });
+    }
     return this.saveIdentity(identity, account, "homeserver_signup");
   }
 

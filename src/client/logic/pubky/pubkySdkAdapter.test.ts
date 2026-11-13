@@ -706,6 +706,41 @@ describe("PubkySdkAdapter", () => {
     }
   });
 
+  it("keeps a successful signin when the signout afterwards rejects", async () => {
+    const warn = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+    const pubky = new PubkySdkAdapter();
+
+    try {
+      const created = expectOk(await pubky.createIdentityKey());
+      const signout = vi.fn().mockRejectedValue(new Error("sensitive signout failure"));
+      const sessionFree = vi.fn();
+      const session = {
+        get info() {
+          return {
+            publicKey: PublicKey.from(created.publicIdentity.publicKeyZ32),
+            free: vi.fn(),
+          };
+        },
+        signout,
+        free: sessionFree,
+      } as unknown as Session;
+      vi.spyOn(Signer.prototype, "signin").mockResolvedValue(session);
+
+      const result = expectOk(await pubky.signin(created.keyHandle, "normal"));
+
+      expect(result.publicIdentity).toEqual(created.publicIdentity);
+      expect(signout).toHaveBeenCalledOnce();
+      expect(sessionFree).toHaveBeenCalledOnce();
+      expect(warn).toHaveBeenCalledWith(
+        "identity.pubky.cleanup.failed",
+        expect.objectContaining({ operation: "signin", stage: "session_signout" }),
+      );
+      expect(JSON.stringify(warn.mock.calls)).not.toContain("sensitive signout failure");
+    } finally {
+      pubky.dispose();
+    }
+  });
+
   it.each([
     ["session info", "session_info", false, false],
     ["session public key", "public_key", true, false],

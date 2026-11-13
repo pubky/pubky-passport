@@ -91,7 +91,10 @@ describe("Google identity use cases", () => {
     });
     MOCKS.signup.mockResolvedValue(Result.ok({ publicIdentity: PUBLIC_IDENTITY }));
     MOCKS.signin.mockResolvedValue(Result.ok({ publicIdentity: PUBLIC_IDENTITY }));
-    MOCKS.resolveHomeserver.mockResolvedValue(Result.ok(null));
+    // Signup publishes the PKDNS record, so it resolves only after a signup ran.
+    MOCKS.resolveHomeserver.mockImplementation(async () =>
+      Result.ok(MOCKS.signup.mock.calls.length > 0 ? SIGNUP_DETAILS.homeserverPubky : null),
+    );
     MOCKS.publishHomeserver.mockResolvedValue(Result.ok());
     MOCKS.encryptSecretKeyBytes.mockResolvedValue(Result.ok(ENVELOPE));
     MOCKS.decryptSecretKeyBytes.mockResolvedValue(Result.ok(new Uint8Array(32).fill(9)));
@@ -114,7 +117,7 @@ describe("Google identity use cases", () => {
     vi.unstubAllGlobals();
   });
 
-  it("creates, stores, signs up, publishes, verifies, and saves a missing identity in order", async () => {
+  it("creates, stores, signs up, publishes, resolves, and saves a missing identity in order", async () => {
     const events: string[] = [];
     MOCKS.readPassportFile.mockResolvedValue(Result.ok({ status: "missing" }));
     record(MOCKS.requestSignupToken, "homegate", events);
@@ -123,6 +126,7 @@ describe("Google identity use cases", () => {
     record(MOCKS.createVisibleRecoveryCopy, "visible-copy", events);
     record(MOCKS.signup, "signup", events);
     record(MOCKS.publishHomeserver, "publish-if-stale", events);
+    record(MOCKS.resolveHomeserver, "resolve", events);
     record(MOCKS.signin, "signin", events);
     record(MOCKS.repositorySave, "save", events);
     const progress: GoogleIdentityProgress[] = [];
@@ -143,7 +147,7 @@ describe("Google identity use cases", () => {
       "visible-copy",
       "signup",
       "publish-if-stale",
-      "signin",
+      "resolve",
       "save",
     ]);
     expect(progress).toEqual([
@@ -156,8 +160,9 @@ describe("Google identity use cases", () => {
     ]);
     expect(MOCKS.driveStoreConstructions.count).toBe(1);
     expect(MOCKS.visibleCopiesConstructions.count).toBe(1);
-    expect(MOCKS.signin).toHaveBeenCalledWith(KEY_HANDLE, "normal");
-    expect(MOCKS.signin).not.toHaveBeenCalledWith(KEY_HANDLE, "after-publication");
+    // A definitive signup opens no homeserver session, so it leaves no Passport grant behind.
+    expect(MOCKS.signin).not.toHaveBeenCalled();
+    expect(MOCKS.resolveHomeserver).toHaveBeenCalledWith(PUBLIC_IDENTITY.publicKeyZ32);
     await vi.waitFor(() => expect(MOCKS.disposeIdentityKey).toHaveBeenCalledWith(KEY_HANDLE));
   });
 
@@ -802,12 +807,16 @@ describe("Google identity use cases", () => {
   });
 
   it.each([
-    ["signin", "signin_failed"],
+    ["resolution", "signin_failed"],
+    ["missing-record", "signin_failed"],
     ["local-save", "local_save_failed"],
   ] as const)("stops and disposes the key after a %s failure", async (stage, expectedCode) => {
     MOCKS.readPassportFile.mockResolvedValue(Result.ok({ status: "missing" }));
-    if (stage === "signin") {
-      MOCKS.signin.mockResolvedValue(Result.err({ code: "signin_failed" }));
+    if (stage === "resolution") {
+      MOCKS.resolveHomeserver.mockResolvedValue(Result.err({ code: "resolution_failed" }));
+    } else if (stage === "missing-record") {
+      vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+      MOCKS.resolveHomeserver.mockResolvedValue(Result.ok(null));
     } else {
       MOCKS.repositorySave.mockReturnValue(Result.err({ code: "storage_unavailable" }));
     }
@@ -815,6 +824,8 @@ describe("Google identity use cases", () => {
     expectResultError(await createSubject().establishIdentity(CREDENTIALS, () => undefined), {
       code: expectedCode,
     });
+    if (stage !== "local-save") expect(MOCKS.repositorySave).not.toHaveBeenCalled();
+    expect(MOCKS.signin).not.toHaveBeenCalled();
     await vi.waitFor(() => expect(MOCKS.disposeIdentityKey).toHaveBeenCalledWith(KEY_HANDLE));
   });
 
@@ -825,7 +836,7 @@ describe("Google identity use cases", () => {
 
     expectResultOk(await createSubject().establishIdentity(CREDENTIALS, () => undefined));
 
-    expect(MOCKS.signin).toHaveBeenCalledWith(KEY_HANDLE, "normal");
+    expect(MOCKS.resolveHomeserver).toHaveBeenCalledWith(PUBLIC_IDENTITY.publicKeyZ32);
     expect(MOCKS.repositorySave).toHaveBeenCalledOnce();
     await vi.waitFor(() =>
       expect(warning).toHaveBeenCalledWith(

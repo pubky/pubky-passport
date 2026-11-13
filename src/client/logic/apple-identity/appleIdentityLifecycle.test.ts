@@ -79,7 +79,10 @@ describe("Apple identity lifecycle", () => {
     });
     MOCKS.signup.mockResolvedValue(Result.ok({ publicIdentity: PUBLIC_IDENTITY }));
     MOCKS.signin.mockResolvedValue(Result.ok({ publicIdentity: PUBLIC_IDENTITY }));
-    MOCKS.resolveHomeserver.mockResolvedValue(Result.ok(null));
+    // Signup publishes the PKDNS record, so it resolves only after a signup ran.
+    MOCKS.resolveHomeserver.mockImplementation(async () =>
+      Result.ok(MOCKS.signup.mock.calls.length > 0 ? SIGNUP_DETAILS.homeserverPubky : null),
+    );
     MOCKS.publishHomeserver.mockResolvedValue(Result.ok());
     MOCKS.encryptSecretKeyBytes.mockResolvedValue(Result.ok(ENVELOPE));
     MOCKS.decryptSecretKeyBytes.mockResolvedValue(Result.ok(new Uint8Array(32).fill(9)));
@@ -201,6 +204,7 @@ describe("Apple identity lifecycle", () => {
       record(MOCKS.createIdentityKey, "create-key", events);
       record(MOCKS.createPassportFile, "icloud-create", events);
       record(MOCKS.signup, "signup", events);
+      record(MOCKS.resolveHomeserver, "resolve", events);
       record(MOCKS.signin, "signin", events);
       record(MOCKS.repositorySave, "save", events);
       const progress: IdentityProgress[] = [];
@@ -228,9 +232,10 @@ describe("Apple identity lifecycle", () => {
         "create-key",
         "icloud-create",
         "signup",
-        "signin",
+        "resolve",
       ]);
       expect(events).toContain("save");
+      expect(MOCKS.signin).not.toHaveBeenCalled();
       expect(MOCKS.repositorySave.mock.calls[0]?.[0]).toEqual({
         publicIdentity: PUBLIC_IDENTITY,
         appleAccount: APPLE_ACCOUNT,
