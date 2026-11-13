@@ -197,9 +197,9 @@ function visibleRecoveryCopyNotice(
     case "created":
       return undefined;
     case "skipped":
-      return "Your identity is ready. No visible recovery copy was created in Google Drive because you did not grant that permission. Download a recovery file from identity management.";
+      return "Your pubky is ready. Passport did not save a copy of your recovery file in Google Drive because you did not allow it. Download a recovery file from identity management.";
     case "unconfirmed":
-      return "Your identity is ready, but Passport could not confirm the visible recovery copy in Google Drive. Download a recovery file from identity management.";
+      return "Your pubky is ready, but Passport could not confirm that a copy of your recovery file was saved in Google Drive. Download a recovery file from identity management.";
   }
 }
 

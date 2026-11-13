@@ -139,7 +139,7 @@ describe("IdentityEstablishmentFlow", () => {
       screen.queryByRole("heading", { name: "Setting up your pubky." }),
     ).not.toBeInTheDocument();
     expect(screen.queryByRole("list")).not.toBeInTheDocument();
-    expect(screen.getByRole("status")).toHaveTextContent("Loading your Pubky.");
+    expect(screen.getByRole("status")).toHaveTextContent("Loading your pubky.");
     expect(screen.queryByText("Republish PKDNS records")).not.toBeInTheDocument();
 
     act(() =>
@@ -208,7 +208,7 @@ describe("IdentityEstablishmentFlow", () => {
     ).toHaveAttribute("src", "/illustrations/google-drive-permissions.gif");
     expect(deniedHeading.parentElement).toHaveClass("gap-6");
     expect(
-      screen.getByText("Passport needs Google Drive access to create or restore your Pubky."),
+      screen.getByText("Passport needs Google Drive access to create or restore your pubky."),
     ).toBeInTheDocument();
     expect(screen.queryByRole("group", { name: "Error" })).not.toBeInTheDocument();
     // One set of actions at every width.
@@ -309,7 +309,9 @@ describe("IdentityEstablishmentFlow", () => {
       .setup()
       .click(screen.getByRole("button", { name: "Continue without visible backup" }));
     expect(continueWithoutVisibleBackup).toHaveBeenCalledOnce();
-    expect(await screen.findByText(/No visible recovery copy was created/i)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/did not save a copy of your recovery file/i),
+    ).toBeInTheDocument();
   });
 
   it("shows the setup error and retries automatic reconciliation", async () => {
@@ -634,7 +636,7 @@ describe("IdentityEstablishmentFlow", () => {
       .click(await screen.findByRole("button", { name: "Continue with Google" }));
 
     expect(await screen.findByRole("status")).toHaveTextContent(
-      "Passport could not confirm the visible recovery copy",
+      "Passport could not confirm that a copy of your recovery file was saved",
     );
   });
 

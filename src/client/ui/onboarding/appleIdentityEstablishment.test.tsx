@@ -146,7 +146,7 @@ describe("Apple onboarding", () => {
         },
       }),
     );
-    expect(screen.getByText("Stored backup in iCloud.")).toBeInTheDocument();
+    expect(screen.getByText("Backup stored in iCloud.")).toBeInTheDocument();
     expect(screen.getByText("Jane Appleseed")).toBeInTheDocument();
     expect(screen.getByText("abc123@privaterelay.appleid.com")).toBeInTheDocument();
     expect(screen.queryByText("001234.abcdef.1234")).not.toBeInTheDocument();

@@ -128,7 +128,7 @@ describe("AttachProviderFlow", () => {
     expect(
       await screen.findByRole("heading", { name: "Connected to Google." }),
     ).toBeInTheDocument();
-    expect(screen.getByText("Stored backup in Google Drive.")).toBeInTheDocument();
+    expect(screen.getByText("Backup stored in Google Drive.")).toBeInTheDocument();
     expect(screen.getByText("user@example.com")).toBeInTheDocument();
     expect(screen.getByText(PUBKY)).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Done" }));
@@ -148,7 +148,7 @@ describe("AttachProviderFlow", () => {
     renderAttach({ attachIdentity: linked });
     await user.click(screen.getByRole("button", { name: "Continue with Google" }));
     expect(
-      await screen.findByText("Google Drive already held the backup of this pubky."),
+      await screen.findByText("Google Drive already had a backup of this pubky."),
     ).toBeInTheDocument();
     expect(screen.queryByRole("status")).toBeNull();
     cleanup();
@@ -163,7 +163,9 @@ describe("AttachProviderFlow", () => {
     );
     renderAttach({ attachIdentity: skipped });
     await user.click(screen.getByRole("button", { name: "Continue with Google" }));
-    expect(await screen.findByRole("status")).toHaveTextContent(/No visible recovery copy/u);
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      /did not save a copy of your recovery file/u,
+    );
   });
 
   it("refuses an account that holds another pubky, then lets the person go back", async () => {
@@ -171,7 +173,7 @@ describe("AttachProviderFlow", () => {
     const attachIdentity = vi.fn<AttachGoogle>(async () =>
       Result.err({ code: "provider_account_in_use" as const }),
     );
-    renderAttach({ attachIdentity });
+    const { onBack } = renderAttach({ attachIdentity });
 
     await user.click(screen.getByRole("button", { name: "Continue with Google" }));
 
@@ -180,7 +182,8 @@ describe("AttachProviderFlow", () => {
     expect(screen.getByText(/Detach that pubky from Google first/u)).toBeInTheDocument();
     expect(screen.getByText(/Nothing was changed/u)).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Back" }));
-    expect(screen.getByRole("heading", { name: "Connect an account." })).toBeInTheDocument();
+    // Back on a failure leaves the attach flow for Manage identity.
+    expect(onBack).toHaveBeenCalledOnce();
   });
 
   it("lets Try again use another Google account", async () => {
@@ -323,15 +326,15 @@ describe("AttachProviderFlow", () => {
       }),
     );
     expect(screen.getByRole("heading", { name: "Connected to Apple." })).toBeInTheDocument();
-    expect(screen.getByText("Stored backup in iCloud.")).toBeInTheDocument();
+    expect(screen.getByText("Backup stored in iCloud.")).toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent(/only together with the iCloud/u);
     await user.click(screen.getByRole("button", { name: "Done" }));
     expect(onDone).toHaveBeenCalledOnce();
   });
 
-  it("names the Apple Account that already holds another pubky; Back resets Apple", async () => {
+  it("names the Apple Account that already holds another pubky; Back resets Apple and leaves", async () => {
     const user = userEvent.setup();
-    const { appleFake } = renderAttach();
+    const { appleFake, onBack } = renderAttach();
     act(() =>
       appleFake.emit({
         status: "failed",
@@ -345,7 +348,7 @@ describe("AttachProviderFlow", () => {
     expect(screen.getByText("You signed in with Apple as jane@example.com.")).toBeVisible();
     await user.click(screen.getByRole("button", { name: "Back" }));
     expect(appleFake.controller.reset).toHaveBeenCalled();
-    expect(screen.getByRole("heading", { name: "Connect an account." })).toBeInTheDocument();
+    expect(onBack).toHaveBeenCalledOnce();
   });
 
   it("goes back from Connect iCloud without attaching", async () => {

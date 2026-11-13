@@ -18,7 +18,7 @@ describe("DetachmentComplete", () => {
     expect(heading.querySelector(".md\\:hidden")).toBeNull();
     expect(
       screen.getByText(
-        "Google access has been removed. Your identity is self-managed, and recoverable only with your backup.",
+        "Google access has been removed. Your pubky is self-managed and recoverable only with your backup.",
       ),
     ).toBeInTheDocument();
     expect(container.querySelector('img[src*="checkmark.png"]')?.parentElement).toHaveClass(

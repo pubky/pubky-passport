@@ -21,7 +21,7 @@ describe("IdentityProgress", () => {
       const heading = screen.getByRole("heading", { name: "Loading your pubky." });
       expect(heading.parentElement).toHaveClass("gap-6");
       expect(screen.queryByRole("list")).not.toBeInTheDocument();
-      expect(screen.getByRole("status")).toHaveTextContent("Loading your Pubky.");
+      expect(screen.getByRole("status")).toHaveTextContent("Loading your pubky.");
       expect(screen.queryByRole("button")).not.toBeInTheDocument();
     },
   );

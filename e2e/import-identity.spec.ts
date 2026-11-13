@@ -252,7 +252,7 @@ test("recovery file on the start page: wrong file, wrong password, no homeserver
   const fileInput = page.locator("input[type=file]");
   await expect(fileInput).toHaveAttribute("accept", ".pkarr");
   const restore = page.getByRole("button", { name: "Restore" });
-  const password = page.getByLabel("Enter password");
+  const password = page.getByLabel("Password");
 
   await fileInput.setInputFiles(wrongType);
   await expect(page.getByRole("main").getByRole("alert")).toHaveText(
@@ -271,7 +271,7 @@ test("recovery file on the start page: wrong file, wrong password, no homeserver
   await password.fill("not-the-password");
   await restore.click();
   await expect(page.getByRole("main").getByRole("alert")).toHaveText(
-    "Invalid password or corrupted file. Please check your password and try again.",
+    "Wrong password or damaged file. Please check your password and try again.",
   );
 
   await password.fill(PASSWORD);
@@ -303,7 +303,7 @@ test("recovery file of an identity already here: selected, not duplicated", asyn
   await page.getByRole("button", { name: "Add identity" }).click();
   await openImport(page, "Recovery file");
   await page.locator("input[type=file]").setInputFiles(known);
-  await page.getByLabel("Enter password").fill(PASSWORD);
+  await page.getByLabel("Password").fill(PASSWORD);
   await page.getByRole("button", { name: "Restore" }).click();
 
   await expect(page.getByRole("heading", { name: "Pubky imported." })).toBeVisible();
@@ -336,7 +336,7 @@ test("recovery phrase on /authorize: word checks, bad checksum, no homeserver", 
   await expect(page.getByRole("textbox", { name: "Word 2", exact: true })).toBeFocused();
   await expect(first).toHaveAttribute("aria-invalid", "true");
   await expect(page.getByRole("main").getByRole("alert")).toHaveText(
-    "Invalid words detected. Check the spelling of the marked words.",
+    "Some words are not valid. Check the spelling of the marked words.",
   );
 
   // Every word valid, two swapped: the checksum fails.

@@ -143,7 +143,7 @@ function RecoveryPhraseImport({
   const message = tooManyWords
     ? "A recovery phrase has 12 words. Check what you pasted."
     : invalid.some(Boolean)
-      ? "Invalid words detected. Check the spelling of the marked words."
+      ? "Some words are not valid. Check the spelling of the marked words."
       : failure
         ? importErrorMessage(failure)
         : null;
@@ -154,9 +154,7 @@ function RecoveryPhraseImport({
         <DisplayHeading accent="phrase." aria-label="Recovery phrase.">
           Recovery
         </DisplayHeading>
-        <LeadText>
-          Use your 12 words (recovery phrase) to restore your account and sign in.
-        </LeadText>
+        <LeadText>Use your 12 words (recovery phrase) to restore your pubky and sign in.</LeadText>
       </div>
       <div className="flex flex-col gap-3">
         <div

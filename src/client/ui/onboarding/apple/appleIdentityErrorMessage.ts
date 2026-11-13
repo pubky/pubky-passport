@@ -64,16 +64,16 @@ function appleIdentityErrorMessage(code: AppleIdentityViewError["code"]): string
     case "provider_account_in_use":
       return "This Apple Account already holds another pubky. Passport keeps one pubky per account. Detach that pubky from Apple first, or use a different Apple Account.";
     case "identity_already_linked":
-      return "This pubky was connected to another account meanwhile. Go back to see its sign-in account.";
+      return "In the meantime, this pubky was connected to another account. Go back to see which one.";
     case "identity_linked_meanwhile":
-      return "Another tab connected an account at the same time. The encrypted backup is in iCloud, but this browser was not updated.";
+      return "Another tab connected an account at the same time. The backup is in iCloud, but this browser was not updated.";
     case "local_identity_unavailable":
-      return "Passport could not read this pubky in this browser. Go back and check it is still there.";
+      return "Passport could not read this pubky in this browser. Go back and check that it is still there.";
     case "local_link_failed":
-      return "Your encrypted backup is in iCloud, but Passport could not update this browser. Try again.";
+      return "Your backup is in iCloud, but Passport could not update this browser. Try again.";
     case "homeserver_not_found":
       // Only a restore returns this (attach never does): the backup itself is fine.
-      return "Passport couldn't find this pubky's homeserver record. Your backup in iCloud is unchanged. Open the app that manages this pubky so it republishes its homeserver, then try again.";
+      return "Passport could not find this pubky's homeserver record. Your backup in iCloud is unchanged. Open the app that manages this pubky so it republishes its homeserver, then try again.";
     case "restore_failed":
       return "Passport could not restore the Pubky identity from the encrypted file.";
     case "signin_failed":

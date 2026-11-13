@@ -28,18 +28,18 @@ const EXPECTED_COPY: Record<GoogleIdentityViewError["code"], string> = {
     "Passport needs both Google Drive permissions to delete your encrypted identity and visible recovery copies before removing Google access.",
   homeserver_signup_token_failed: "Passport could not obtain a homeserver invitation.",
   homeserver_not_found:
-    "Passport couldn't find this pubky's homeserver record. Your backup in Google Drive is unchanged. Open the app that manages this pubky so it republishes its homeserver, then try again.",
+    "Passport could not find this pubky's homeserver record. Your backup in Google Drive is unchanged. Open the app that manages this pubky so it republishes its homeserver, then try again.",
   identity_already_linked:
-    "This pubky was connected to another account meanwhile. Go back to see its sign-in account.",
+    "In the meantime, this pubky was connected to another account. Go back to see which one.",
   identity_linked_meanwhile:
-    "Another tab connected an account at the same time. The encrypted backup is in Google Drive, but this browser was not updated.",
+    "Another tab connected an account at the same time. The backup is in Google Drive, but this browser was not updated.",
   identity_mismatch: "The restored Pubky identity did not match the activated homeserver identity.",
   local_identity_unavailable:
-    "Passport could not read this pubky in this browser. Go back and check it is still there.",
+    "Passport could not read this pubky in this browser. Go back and check that it is still there.",
   local_link_failed:
-    "Your encrypted backup is in Google Drive, but Passport could not update this browser. Try again.",
+    "Your backup is in Google Drive, but Passport could not update this browser. Try again.",
   provider_account_in_use:
-    "This Google account already holds another pubky. Passport keeps one pubky per account. Detach that pubky from Google first, or use a different Google account.",
+    "This Google Account already holds another pubky. Passport keeps one pubky per account. Detach that pubky from Google first, or use a different Google Account.",
   invalid_passport_file:
     "Passport found your encrypted identity file in Google Drive, but it is damaged and cannot be restored.",
   invalid_passport_file_delete_failed:
@@ -57,7 +57,7 @@ const EXPECTED_COPY: Record<GoogleIdentityViewError["code"], string> = {
   wrapping_key_failed:
     "Passport could not unlock your encrypted identity with this Google account.",
   visible_backup_permission_missing:
-    "Passport can continue, but it will not create a visible recovery copy in Google Drive unless you grant the second permission.",
+    "Passport can continue, but it will not save a copy of your recovery file in Google Drive unless you also allow the second permission.",
 };
 
 describe("googleIdentityErrorMessage", () => {

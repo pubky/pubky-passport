@@ -213,7 +213,7 @@ describe("recovery phrase import", () => {
     expect(second).toHaveFocus();
     expect(first).toHaveAttribute("aria-invalid", "true");
     expect(
-      screen.getByText("Invalid words detected. Check the spelling of the marked words."),
+      screen.getByText("Some words are not valid. Check the spelling of the marked words."),
     ).toBeVisible();
 
     await user.clear(first!);
@@ -277,7 +277,7 @@ describe("recovery phrase import", () => {
     expect(await screen.findByRole("heading", { name: "Pubky imported." })).toBeVisible();
     expect(screen.getByText(PUBLIC_KEY)).toBeVisible();
     expect(
-      screen.getByText(/Your identity is self-managed, and recoverable only with your backup./u),
+      screen.getByText(/Your pubky is self-managed and recoverable only with your backup./u),
     ).toBeVisible();
     expect(onComplete).not.toHaveBeenCalled();
     await user.click(screen.getByRole("button", { name: "Continue" }));
@@ -312,7 +312,7 @@ describe("recovery phrase import", () => {
     ["signin_failed", "Could not sign in to this pubky's homeserver. Nothing was saved."],
     [
       "storage_unavailable",
-      "Your browser couldn't save your identity. Check your browser's storage settings and try again.",
+      "Your browser could not save this pubky. Check your browser's storage settings and try again.",
     ],
   ] as const)("shows %s without echoing the words", async (code, message) => {
     const user = userEvent.setup();
@@ -365,7 +365,7 @@ describe("recovery file import", () => {
     await user.upload(fileInput, recoveryFile());
     expect(screen.getByText("pubky-backup.pkarr")).toBeVisible();
     expect(restore).toBeDisabled();
-    await user.type(screen.getByLabelText("Enter password"), "secret-password");
+    await user.type(screen.getByLabelText("Password"), "secret-password");
     expect(restore).toBeEnabled();
     await user.click(restore);
 
@@ -392,7 +392,7 @@ describe("recovery file import", () => {
     renderFlow({ importIdentity });
     await openFile(user);
     await user.upload(document.querySelector<HTMLInputElement>("input[type=file]")!, file);
-    await user.type(screen.getByLabelText("Enter password"), "secret-password");
+    await user.type(screen.getByLabelText("Password"), "secret-password");
 
     expect(screen.getByRole("alert")).toHaveTextContent(message);
     expect(screen.getByText("No file selected")).toBeVisible();
@@ -403,7 +403,7 @@ describe("recovery file import", () => {
   it.each([
     [
       "recovery_file_undecryptable",
-      "Invalid password or corrupted file. Please check your password and try again.",
+      "Wrong password or damaged file. Please check your password and try again.",
     ],
     ["invalid_recovery_file", "This file is not a recovery file. Please select a .pkarr file."],
     ["import_failed", "Could not sign in. Please try again."],
@@ -420,13 +420,13 @@ describe("recovery file import", () => {
       document.querySelector<HTMLInputElement>("input[type=file]")!,
       recoveryFile(),
     );
-    await user.type(screen.getByLabelText("Enter password"), "secret-password{Enter}");
+    await user.type(screen.getByLabelText("Password"), "secret-password{Enter}");
 
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent(message);
     expect(screen.getByRole("button", { name: "Restore" })).toBeEnabled();
     if (code === "import_failed") expect(screen.getByText(PUBLIC_KEY)).toBeVisible();
-    const password = screen.getByLabelText("Enter password");
+    const password = screen.getByLabelText("Password");
     if (code === "recovery_file_undecryptable") {
       expect(password).toHaveAttribute("aria-invalid", "true");
       expect(password).toHaveAccessibleDescription(message);
@@ -447,7 +447,7 @@ describe("recovery file import", () => {
     const file = recoveryFile();
     vi.spyOn(file, "arrayBuffer").mockRejectedValue(new Error("gone"));
     await user.upload(document.querySelector<HTMLInputElement>("input[type=file]")!, file);
-    await user.type(screen.getByLabelText("Enter password"), "secret-password");
+    await user.type(screen.getByLabelText("Password"), "secret-password");
     await user.click(screen.getByRole("button", { name: "Restore" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
@@ -466,14 +466,14 @@ describe("recovery file import", () => {
     const file = recoveryFile();
     vi.spyOn(file, "arrayBuffer").mockRejectedValueOnce(new Error("gone"));
     await user.upload(document.querySelector<HTMLInputElement>("input[type=file]")!, file);
-    await user.type(screen.getByLabelText("Enter password"), "secret-password");
+    await user.type(screen.getByLabelText("Password"), "secret-password");
     await user.click(screen.getByRole("button", { name: "Restore" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Could not read this file.");
 
     await user.click(screen.getByRole("button", { name: "Restore" }));
 
     await waitFor(() =>
-      expect(screen.getByRole("alert")).toHaveTextContent("Invalid password or corrupted file."),
+      expect(screen.getByRole("alert")).toHaveTextContent("Wrong password or damaged file."),
     );
     expect(importIdentity).toHaveBeenCalledOnce();
   });

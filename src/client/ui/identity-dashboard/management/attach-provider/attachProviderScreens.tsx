@@ -131,8 +131,8 @@ function AttachProviderChoice({
         </DisplayHeading>
         <LeadText>
           {apple
-            ? "Back up this pubky in your Google Drive or iCloud. Signing in with that account then restores it on any device."
-            : "Back up this pubky in your Google Drive. Signing in with Google then restores it on any device."}
+            ? "Back up this pubky in your Google Drive or iCloud. Then signing in with that account restores it on any device."
+            : "Back up this pubky in your Google Drive. Then signing in with Google restores it on any device."}
         </LeadText>
       </div>
       <PubkyCard publicIdentity={publicIdentity} />
@@ -259,8 +259,8 @@ function AttachComplete({
         </DisplayHeading>
         <LeadText>
           {attachment === "created"
-            ? `Stored backup in ${storageName}.`
-            : `${storageName} already held the backup of this pubky.`}
+            ? `Backup stored in ${storageName}.`
+            : `${storageName} already had a backup of this pubky.`}
         </LeadText>
       </div>
       <div className="mt-6 flex min-h-0 flex-1 flex-col">

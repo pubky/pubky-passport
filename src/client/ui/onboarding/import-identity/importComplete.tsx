@@ -37,7 +37,7 @@ function ImportComplete({
       </div>
       {imported.alreadyStored ? null : (
         <p className="rounded-xl border border-amber-400/40 bg-amber-400/10 p-4 text-sm leading-5">
-          Your identity is self-managed, and recoverable only with your backup. Keep your recovery
+          Your pubky is self-managed and recoverable only with your backup. Keep your recovery
           phrase or file safe.
         </p>
       )}

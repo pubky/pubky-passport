@@ -47,7 +47,7 @@ function AttachProviderFlow({
   preload("/illustrations/checkmark.png", { as: "image" });
 
   if (apple && apple.state.status !== "idle") {
-    return <AppleAttachment apple={apple} identity={identity} onDone={onDone} />;
+    return <AppleAttachment apple={apple} identity={identity} onBack={onBack} onDone={onDone} />;
   }
 
   const state = google.state;
@@ -87,7 +87,10 @@ function AttachProviderFlow({
         <AttachError
           error={state.error}
           message={googleIdentityErrorMessage(state.error.code)}
-          onBack={google.reset}
+          onBack={() => {
+            google.reset();
+            onBack();
+          }}
           onTryAgain={retryWithGoogle}
           provider="Google"
         />
@@ -116,10 +119,12 @@ function AttachProviderFlow({
 function AppleAttachment({
   apple,
   identity,
+  onBack,
   onDone,
 }: {
   apple: AppleIdentityHandle;
   identity: LocalIdentityMetadata;
+  onBack: () => void;
   onDone: () => void;
 }) {
   const state = apple.state;
@@ -150,7 +155,7 @@ function AppleAttachment({
           attachment={state.identity.attachment}
           notice={
             state.identity.attachment === "created"
-              ? "Apple sign-in restores this pubky only together with the iCloud you just connected in Apple’s window. Keep your recovery file or phrase too."
+              ? "Apple sign-in restores this pubky only together with the iCloud account you just connected in Apple’s window. Keep your recovery file or phrase too."
               : undefined
           }
           onDone={onDone}
@@ -166,7 +171,10 @@ function AppleAttachment({
           }
           error={state.error}
           message={appleIdentityErrorMessage(state.error.code)}
-          onBack={apple.reset}
+          onBack={() => {
+            apple.reset();
+            onBack();
+          }}
           onTryAgain={() => apple.attachIdentity(publicIdentity)}
           provider="Apple"
         />
@@ -191,9 +199,9 @@ function visibleRecoveryCopyNotice(
     case "created":
       return undefined;
     case "skipped":
-      return "No visible recovery copy was created in Google Drive because you did not grant that permission. Keep your recovery file or phrase.";
+      return "Passport did not save a copy of your recovery file in Google Drive because you did not allow it. Keep your recovery file or phrase.";
     case "unconfirmed":
-      return "Passport could not confirm the visible recovery copy in Google Drive. Keep your recovery file or phrase.";
+      return "Passport could not confirm that a copy of your recovery file was saved in Google Drive. Keep your recovery file or phrase.";
   }
 }
 

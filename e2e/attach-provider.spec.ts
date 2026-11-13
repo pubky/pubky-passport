@@ -118,7 +118,7 @@ test.describe("attach with Google", () => {
     serverRequests.length = 0;
     await page.getByRole("button", { name: "Continue with Google" }).click();
     await expect(page.getByRole("heading", { name: "Connected to Google." })).toBeVisible();
-    await expect(page.getByText("Stored backup in Google Drive.")).toBeVisible();
+    await expect(page.getByText("Backup stored in Google Drive.")).toBeVisible();
     await expect(page.getByText(GOOGLE_EMAIL)).toBeVisible();
     await expectAccessibleAndFitting(page);
     await page.screenshot({ path: testInfo.outputPath("attach-success.png"), fullPage: true });
@@ -189,7 +189,9 @@ test.describe("attach with Google", () => {
     await attachWithGoogle(page);
     await expect(page.getByRole("heading", { name: "Connected to Google." })).toBeVisible();
     // Without the second permission there is no visible copy, and the screen says so.
-    await expect(page.getByRole("status")).toContainText("No visible recovery copy");
+    await expect(page.getByRole("status")).toContainText(
+      "did not save a copy of your recovery file",
+    );
     const original = passportFile(google)!;
 
     // This browser forgets the link; Drive still holds this pubky.
@@ -197,9 +199,7 @@ test.describe("attach with Google", () => {
     await openManage(page);
     const before = google.driveCalls.length;
     await attachWithGoogle(page);
-    await expect(
-      page.getByText("Google Drive already held the backup of this pubky."),
-    ).toBeVisible();
+    await expect(page.getByText("Google Drive already had a backup of this pubky.")).toBeVisible();
     await expect(page.getByRole("status")).toHaveCount(0);
     expect(google.driveCalls.slice(before).filter((call) => !call.startsWith("GET"))).toEqual([]);
     expect(passportFile(google)).toEqual(original);
@@ -217,9 +217,7 @@ test.describe("attach with Google", () => {
     };
     const conflictStart = google.driveCalls.length;
     await attachWithGoogle(page);
-    await expect(
-      page.getByText("Google Drive already held the backup of this pubky."),
-    ).toBeVisible();
+    await expect(page.getByText("Google Drive already had a backup of this pubky.")).toBeVisible();
     expect(
       google.driveCalls.slice(conflictStart).filter((call) => !call.startsWith("GET")),
     ).toEqual([]);
@@ -247,7 +245,7 @@ test.describe("attach with Google", () => {
     await attachWithGoogle(page);
 
     await expect(page.getByRole("heading", { name: "Account in use." })).toBeVisible();
-    await expect(page.getByText(/This Google account already holds another pubky/u)).toBeVisible();
+    await expect(page.getByText(/This Google Account already holds another pubky/u)).toBeVisible();
     await expect(page.getByText(/Detach that pubky from Google first/u)).toBeVisible();
     await expect(page.getByText(/Nothing was changed/u)).toBeVisible();
     await expectAccessibleAndFitting(page);
@@ -257,8 +255,7 @@ test.describe("attach with Google", () => {
     expect(passportFile(google)).toEqual(held);
     expect((await storedRecord(page, FIRST))?.googleAccount).toBeUndefined();
 
-    await page.getByRole("button", { name: "Back" }).click();
-    await expect(page.getByRole("heading", { name: "Connect an account." })).toBeVisible();
+    // Back on a failure returns straight to Manage identity.
     await page.getByRole("button", { name: "Back" }).click();
     await expect(page.getByText("Not connected")).toBeVisible();
   });
@@ -284,7 +281,6 @@ test.describe("attach with Google", () => {
     await attachWithGoogle(page);
     await expect(page.getByRole("heading", { name: "Not connected." })).toBeVisible();
     await expect(page.getByText("google_authorization_popup_closed")).toBeVisible();
-    await page.getByRole("button", { name: "Back" }).click();
     await page.getByRole("button", { name: "Back" }).click();
     await expect(page.getByText("Not connected")).toBeVisible();
     expect(google.driveCalls).toEqual([]);
@@ -342,7 +338,7 @@ test.describe("attach with Apple", () => {
     serverRequests.length = 0;
     await continueWithApple.click();
     await expect(page.getByRole("heading", { name: "Connected to Apple." })).toBeVisible();
-    await expect(page.getByText("Stored backup in iCloud.")).toBeVisible();
+    await expect(page.getByText("Backup stored in iCloud.")).toBeVisible();
     expect(apple.records.size).toBe(1);
     expect(apple.homegateBodies).toEqual([]);
     expect(serverRequests.map((request) => new URL(request.url()).pathname)).toEqual([

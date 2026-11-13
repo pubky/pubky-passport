@@ -120,12 +120,12 @@ function RecoveryFileImport({
         <DisplayHeading accent="file." aria-label="Recovery file.">
           Recovery
         </DisplayHeading>
-        <LeadText>Use your encrypted backup file to restore your account and sign in.</LeadText>
+        <LeadText>Use your recovery file to restore your pubky and sign in.</LeadText>
       </div>
 
       <div className="flex flex-col gap-2">
         <Label className="leading-5" htmlFor="import-recovery-file">
-          Upload encrypted file
+          Recovery file
         </Label>
         <div className="flex h-14 items-center gap-3 rounded-lg border border-dashed border-input bg-black/10 pl-4 pr-2">
           <span
@@ -166,7 +166,7 @@ function RecoveryFileImport({
 
       <div className="flex flex-col gap-2">
         <Label className="leading-5" htmlFor="import-recovery-file-password">
-          Enter password
+          Password
         </Label>
         <Input
           aria-describedby={passwordInvalid ? "import-recovery-file-message" : undefined}

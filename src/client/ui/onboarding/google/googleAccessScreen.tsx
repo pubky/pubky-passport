@@ -11,7 +11,7 @@ function GoogleAccessScreen({ purpose = "setup" }: { purpose?: "setup" | "attach
         <LeadText>
           {purpose === "attach"
             ? "Complete the Google request to back up this pubky in your Google Drive."
-            : "Complete the Google request to securely create or restore your Pubky."}
+            : "Complete the Google request to securely create or restore your pubky."}
         </LeadText>
       </div>
       <div aria-live="polite" role="status">

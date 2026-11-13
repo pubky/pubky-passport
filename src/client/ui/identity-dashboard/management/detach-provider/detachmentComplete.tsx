@@ -23,8 +23,8 @@ function DetachmentComplete({
           Detached
         </DisplayHeading>
         <LeadText>
-          {providerName} access has been removed. Your identity is self-managed, and recoverable
-          only with your backup.
+          {providerName} access has been removed. Your pubky is self-managed and recoverable only
+          with your backup.
         </LeadText>
       </div>
       <div className="flex h-[296px] items-center justify-center">

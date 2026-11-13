@@ -6,7 +6,7 @@ function importErrorMessage(code: LocalIdentityImportErrorCode): string {
     case "invalid_recovery_file":
       return "This file is not a recovery file. Please select a .pkarr file.";
     case "recovery_file_undecryptable":
-      return "Invalid password or corrupted file. Please check your password and try again.";
+      return "Wrong password or damaged file. Please check your password and try again.";
     case "invalid_recovery_phrase":
       return "This recovery phrase is not valid. Check the words and their order.";
     case "homeserver_not_found":
@@ -14,7 +14,7 @@ function importErrorMessage(code: LocalIdentityImportErrorCode): string {
     case "homeserver_unreachable":
       return "Could not connect. Check your connection and try again.";
     case "storage_unavailable":
-      return "Your browser couldn't save your identity. Check your browser's storage settings and try again.";
+      return "Your browser could not save this pubky. Check your browser's storage settings and try again.";
     case "signin_failed":
       return "Could not sign in to this pubky's homeserver. Nothing was saved.";
     case "import_failed":
