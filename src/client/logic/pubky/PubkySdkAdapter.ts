@@ -83,6 +83,8 @@ const PASSPORT_CLIENT_ID = "passport.pubky.app";
 const PASSPORT_SESSION_CAPABILITIES = "/:rw";
 /** Passport's own sessions last seconds; anything older than this is a leftover. */
 const LEFTOVER_PASSPORT_GRANT_MIN_AGE_SECONDS = 10 * 60;
+/** How far the homeserver's clock may run ahead of the browser's for a grant to count as new. */
+const GRANT_CLOCK_SKEW_SECONDS = 60;
 /** Message of the SDK signer's refusal of a sign-in request for another key. */
 const EXPECTED_SIGNER_REFUSAL = "this sign-in request is for a different key";
 
@@ -433,11 +435,28 @@ export class PubkySdkAdapter {
           const recorded = ownerZ32 ? this.sessionLedger.recorded(ownerZ32) : new Set<string>();
           const grants = await manager.list();
           try {
+            // Read again after listing: a Passport operation that opened its session while the
+            // list was in flight (another tab, or a second load in React StrictMode) has recorded
+            // it by now, or has already signed out and moved it to the recently closed record.
+            const open = ownerZ32 ? this.sessionLedger.recorded(ownerZ32) : new Set<string>();
+            const closed = ownerZ32
+              ? this.sessionLedger.recentlyClosed(ownerZ32)
+              : new Set<string>();
             const nowSeconds = Math.floor(Date.now() / 1000);
             const apps: PubkyAuthorizedApp[] = [];
             const settled = new Set<string>();
             for (const grant of grants) {
               if (grant.grantId === sessionGrantId) continue;
+              // A running Passport operation's session: its signout removes it, so listing it
+              // would show an app that is gone a moment later.
+              if (
+                (recorded.has(grant.grantId) ||
+                  open.has(grant.grantId) ||
+                  closed.has(grant.grantId)) &&
+                isRunningPassportSession(grant, nowSeconds)
+              ) {
+                continue;
+              }
               if (
                 recorded.has(grant.grantId) &&
                 isLeftoverPassportGrant(grant, nowSeconds) &&
@@ -754,9 +773,29 @@ function isExpectedSignerRefusalMessage(message: string): boolean {
  */
 function isLeftoverPassportGrant(grant: GrantInfo, nowSeconds: number): boolean {
   return (
-    grant.clientId === PASSPORT_CLIENT_ID &&
-    grantCapabilities(grant).join(",") === PASSPORT_SESSION_CAPABILITIES &&
+    isPassportSessionGrant(grant) &&
     grant.issuedAt <= nowSeconds - LEFTOVER_PASSPORT_GRANT_MIN_AGE_SECONDS
+  );
+}
+
+/**
+ * A recorded Passport session young enough to belong to an operation that is still running. A
+ * grant dated further ahead than clock skew explains stays listed, so a wrong clock can never
+ * hide a grant for longer than ten minutes.
+ */
+function isRunningPassportSession(grant: GrantInfo, nowSeconds: number): boolean {
+  return (
+    isPassportSessionGrant(grant) &&
+    Number.isFinite(grant.issuedAt) &&
+    grant.issuedAt > nowSeconds - LEFTOVER_PASSPORT_GRANT_MIN_AGE_SECONDS &&
+    grant.issuedAt <= nowSeconds + GRANT_CLOCK_SKEW_SECONDS
+  );
+}
+
+function isPassportSessionGrant(grant: GrantInfo): boolean {
+  return (
+    grant.clientId === PASSPORT_CLIENT_ID &&
+    grantCapabilities(grant).join(",") === PASSPORT_SESSION_CAPABILITIES
   );
 }
 

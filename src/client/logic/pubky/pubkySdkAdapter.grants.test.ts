@@ -149,7 +149,7 @@ describe("PubkySdkAdapter grant management", () => {
     }
   });
 
-  it("revokes recorded Passport leftovers and lists every other grant", async () => {
+  it("revokes recorded Passport leftovers, hides running ones and lists every other grant", async () => {
     const root = fakeRootSession("own-grant");
     vi.spyOn(Signer.prototype, "signin").mockResolvedValue(root.session);
     vi.spyOn(Date, "now").mockReturnValue(NOW_SECONDS * 1000);
@@ -160,8 +160,9 @@ describe("PubkySdkAdapter grant management", () => {
       fakeGrantInfo("gone", "passport.pubky.app", "/:rw", NOW_SECONDS - 600),
       fakeGrantInfo("other-tab", "passport.pubky.app", "/:rw", NOW_SECONDS - 599),
       fakeGrantInfo("not-recorded", "passport.pubky.app", "/:rw", NOW_SECONDS - 3600),
-      fakeGrantInfo("scoped", "passport.pubky.app", "/pub/passport.pubky.app/:rw", 0),
-      fakeGrantInfo("app", "demo.pubky.app", "/:rw", 0),
+      fakeGrantInfo("not-recorded-new", "passport.pubky.app", "/:rw", NOW_SECONDS - 5),
+      fakeGrantInfo("scoped", "passport.pubky.app", "/pub/passport.pubky.app/:rw", NOW_SECONDS),
+      fakeGrantInfo("app", "demo.pubky.app", "/:rw", NOW_SECONDS),
     ];
     GRANTS.list.mockResolvedValue(grants.map(({ grant }) => grant));
     GRANTS.revoke.mockImplementation(async (grantId: string) => {
@@ -178,10 +179,12 @@ describe("PubkySdkAdapter grant management", () => {
       const apps = expectOk(await pubky.listAuthorizedApps(created.keyHandle));
 
       expect(GRANTS.revoke.mock.calls).toEqual([["leftover"], ["gone"]]);
-      // An unrecorded grant under Passport's client id may belong to an app: never auto-revoked.
+      // "other-tab" is a recorded session under 10 minutes old: a running operation, so hidden.
+      // An unrecorded grant under Passport's client id may belong to an app: never auto-revoked
+      // or hidden, whatever its age.
       expect(apps.map((app) => app.grantId)).toEqual([
-        "other-tab",
         "not-recorded",
+        "not-recorded-new",
         "scoped",
         "app",
       ]);
@@ -189,6 +192,136 @@ describe("PubkySdkAdapter grant management", () => {
       expect([...ledger.recorded(owner)]).toEqual(["other-tab", "scoped", "app"]);
       for (const { free } of grants) expect(free).toHaveBeenCalledOnce();
       expect(root.signout).toHaveBeenCalledOnce();
+    } finally {
+      pubky.dispose();
+    }
+  });
+
+  it("hides the session of a second load running at the same time", async () => {
+    // React StrictMode runs the Authorized apps effect twice in development, and two tabs can
+    // open Manage identity together: each load must not list the other's short-lived session.
+    vi.spyOn(Date, "now").mockReturnValue(NOW_SECONDS * 1000);
+    const first = fakeRootSession("first-load");
+    const second = fakeRootSession("second-load");
+    vi.spyOn(Signer.prototype, "signin")
+      .mockResolvedValueOnce(first.session)
+      .mockResolvedValueOnce(second.session);
+    const listed = [
+      fakeGrantInfo("first-load", "passport.pubky.app", "/:rw", NOW_SECONDS),
+      fakeGrantInfo("second-load", "passport.pubky.app", "/:rw", NOW_SECONDS),
+      fakeGrantInfo("grant-1", "demo.pubky.app", "/pub/demo.pubky.app/:rw", NOW_SECONDS),
+    ];
+    let releaseList = () => {};
+    const listReleased = new Promise<void>((resolve) => {
+      releaseList = resolve;
+    });
+    GRANTS.list.mockImplementation(async () => {
+      await listReleased;
+      return listed.map(({ grant }) => grant);
+    });
+    const ledger = memoryLedger();
+    const pubky = new PubkySdkAdapter(ledger);
+
+    try {
+      const created = expectOk(await pubky.createIdentityKey());
+      const loads = Promise.all([
+        pubky.listAuthorizedApps(created.keyHandle),
+        pubky.listAuthorizedApps(created.keyHandle),
+      ]);
+      await vi.waitFor(() => expect(GRANTS.list).toHaveBeenCalledTimes(2));
+      releaseList();
+      const [one, two] = await loads;
+
+      expect(expectOk(one).map((app) => app.grantId)).toEqual(["grant-1"]);
+      expect(expectOk(two).map((app) => app.grantId)).toEqual(["grant-1"]);
+      expect(GRANTS.revoke).not.toHaveBeenCalled();
+      expect(first.signout).toHaveBeenCalledOnce();
+      expect(second.signout).toHaveBeenCalledOnce();
+      expect([...ledger.recorded(created.publicIdentity.publicKeyZ32)]).toEqual([]);
+    } finally {
+      pubky.dispose();
+    }
+  });
+
+  it("hides a Passport session recorded while the list was in flight", async () => {
+    vi.spyOn(Date, "now").mockReturnValue(NOW_SECONDS * 1000);
+    const root = fakeRootSession("own-grant");
+    vi.spyOn(Signer.prototype, "signin").mockResolvedValue(root.session);
+    const ledger = memoryLedger();
+    const pubky = new PubkySdkAdapter(ledger);
+
+    try {
+      const created = expectOk(await pubky.createIdentityKey());
+      const owner = created.publicIdentity.publicKeyZ32;
+      GRANTS.list.mockImplementation(async () => {
+        ledger.record(owner, "other-tab");
+        return [
+          fakeGrantInfo("other-tab", "passport.pubky.app", "/:rw", NOW_SECONDS).grant,
+          fakeGrantInfo("grant-1", "demo.pubky.app", "/pub/demo.pubky.app/:rw").grant,
+        ];
+      });
+      const apps = expectOk(await pubky.listAuthorizedApps(created.keyHandle));
+
+      expect(apps.map((app) => app.grantId)).toEqual(["grant-1"]);
+      // The other operation's own signout forgets it.
+      expect([...ledger.recorded(owner)]).toEqual(["other-tab"]);
+    } finally {
+      pubky.dispose();
+    }
+  });
+
+  it("hides a Passport session that signed out while the list was in flight", async () => {
+    // The other operation records, shows up in this list's snapshot, then signs out and forgets
+    // its record before this list returns.
+    vi.spyOn(Date, "now").mockReturnValue(NOW_SECONDS * 1000);
+    const root = fakeRootSession("own-grant");
+    vi.spyOn(Signer.prototype, "signin").mockResolvedValue(root.session);
+    const ledger = memoryLedger();
+    const pubky = new PubkySdkAdapter(ledger);
+
+    try {
+      const created = expectOk(await pubky.createIdentityKey());
+      const owner = created.publicIdentity.publicKeyZ32;
+      GRANTS.list.mockImplementation(async () => {
+        ledger.record(owner, "other-load");
+        ledger.forget(owner, ["other-load"]);
+        return [
+          fakeGrantInfo("other-load", "passport.pubky.app", "/:rw", NOW_SECONDS).grant,
+          fakeGrantInfo("grant-1", "demo.pubky.app", "/pub/demo.pubky.app/:rw").grant,
+        ];
+      });
+      const apps = expectOk(await pubky.listAuthorizedApps(created.keyHandle));
+
+      expect(apps.map((app) => app.grantId)).toEqual(["grant-1"]);
+    } finally {
+      pubky.dispose();
+    }
+  });
+
+  it("lists a known grant that is not a young Passport session", async () => {
+    vi.spyOn(Date, "now").mockReturnValue(NOW_SECONDS * 1000);
+    const root = fakeRootSession("own-grant");
+    vi.spyOn(Signer.prototype, "signin").mockResolvedValue(root.session);
+    const ledger = memoryLedger();
+    const pubky = new PubkySdkAdapter(ledger);
+
+    try {
+      const created = expectOk(await pubky.createIdentityKey());
+      const owner = created.publicIdentity.publicKeyZ32;
+      ledger.forget(owner, ["old", "app", "scoped", "skew", "future"]);
+      GRANTS.list.mockResolvedValue([
+        fakeGrantInfo("old", "passport.pubky.app", "/:rw", NOW_SECONDS - 600).grant,
+        fakeGrantInfo("app", "demo.pubky.app", "/:rw", NOW_SECONDS).grant,
+        fakeGrantInfo("scoped", "passport.pubky.app", "/pub/x/:rw", NOW_SECONDS).grant,
+        // Within clock skew of now: still a running session, hidden.
+        fakeGrantInfo("skew", "passport.pubky.app", "/:rw", NOW_SECONDS + 60).grant,
+        // Dated further ahead: a wrong clock must not hide it.
+        fakeGrantInfo("future", "passport.pubky.app", "/:rw", NOW_SECONDS + 3600).grant,
+      ]);
+      const apps = expectOk(await pubky.listAuthorizedApps(created.keyHandle));
+
+      expect(apps.map((app) => app.grantId)).toEqual(["old", "app", "scoped", "future"]);
+      expect(GRANTS.revoke).not.toHaveBeenCalled();
     } finally {
       pubky.dispose();
     }
@@ -371,6 +504,7 @@ const NOW_SECONDS = 1_800_000_000;
 
 function memoryLedger(): PassportSessionLedger {
   const grants = new Map<string, string[]>();
+  const closed = new Map<string, string[]>();
   return {
     record(owner, grantId) {
       grants.set(owner, [...(grants.get(owner) ?? []).filter((id) => id !== grantId), grantId]);
@@ -380,9 +514,13 @@ function memoryLedger(): PassportSessionLedger {
         owner,
         (grants.get(owner) ?? []).filter((id) => !grantIds.includes(id)),
       );
+      closed.set(owner, [...(closed.get(owner) ?? []), ...grantIds]);
     },
     recorded(owner) {
       return new Set(grants.get(owner) ?? []);
+    },
+    recentlyClosed(owner) {
+      return new Set(closed.get(owner) ?? []);
     },
   };
 }
