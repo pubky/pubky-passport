@@ -3,12 +3,16 @@ import { Button } from "@/client/ui/shared/primitives/button";
 import { Spinner } from "@/client/ui/shared/primitives/spinner";
 import { DisplayHeading, LeadText } from "@/client/ui/shared/primitives/typography";
 
-function GoogleAccessScreen() {
+function GoogleAccessScreen({ purpose = "setup" }: { purpose?: "setup" | "attach" }) {
   return (
     <PassportScreen className="gap-6">
       <div className="flex flex-col gap-6">
         <DisplayHeading accent="access.">Requesting Google</DisplayHeading>
-        <LeadText>Complete the Google request to securely create or restore your Pubky.</LeadText>
+        <LeadText>
+          {purpose === "attach"
+            ? "Complete the Google request to back up this pubky in your Google Drive."
+            : "Complete the Google request to securely create or restore your pubky."}
+        </LeadText>
       </div>
       <div aria-live="polite" role="status">
         <Button className="w-full" disabled size="lg" type="button" variant="secondary">

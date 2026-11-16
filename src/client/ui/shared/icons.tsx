@@ -216,6 +216,20 @@ function KeyRoundIcon(props: IconProps) {
   );
 }
 
+function LinkIcon(props: IconProps) {
+  return (
+    <Glyph height={16} viewBox="0 0 24 24" width={16} {...props}>
+      <path
+        d="M9 17H7a5 5 0 0 1 0-10h2m6 0h2a5 5 0 0 1 0 10h-2m-7-5h8"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.5"
+      />
+    </Glyph>
+  );
+}
+
 function LinkOffIcon(props: IconProps) {
   return (
     <Glyph height={16} viewBox="0 0 21.5 21.5" width={16} {...props}>
@@ -370,6 +384,7 @@ export {
   DownloadIcon,
   FolderIcon,
   KeyRoundIcon,
+  LinkIcon,
   LinkOffIcon,
   LogInIcon,
   LogOutIcon,

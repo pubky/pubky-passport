@@ -35,7 +35,7 @@ function IdentityProgress({
         <div className="flex flex-1 flex-col gap-6">
           {heading}
           <p aria-atomic="true" className="sr-only" role="status">
-            Loading your Pubky.
+            Loading your pubky.
           </p>
           <div className="py-3">
             <ActiveIcon />

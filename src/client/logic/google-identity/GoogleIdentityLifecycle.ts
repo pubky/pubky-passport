@@ -12,6 +12,7 @@ import {
 } from "@/client/logic/homegate/HomegateClient";
 import {
   PassportFileIdentityLifecycle,
+  type IdentityAttachment,
   type IdentityProgress,
   type PassportFileIdentityLifecycleDependencies,
   type StepResult,
@@ -41,6 +42,14 @@ type GoogleIdentityEstablishmentResult = ResultType<
 >;
 
 type DetachGoogleIdentityResult = ResultType<void, GoogleIdentityLifecycleError>;
+
+type AttachGoogleIdentityResult = ResultType<
+  {
+    attachment: IdentityAttachment;
+    visibleRecoveryCopyStatus: "created" | "unconfirmed" | "skipped";
+  },
+  GoogleIdentityLifecycleError
+>;
 
 type EstablishmentStepResult<Success = void> = ResultType<Success, GoogleIdentityLifecycleError>;
 
@@ -213,6 +222,61 @@ export class GoogleIdentityLifecycle extends PassportFileIdentityLifecycle {
       LOGGER.warn("identity.google.detach.failed", {
         ...safeErrorLogFields(e),
         code: "unexpected_failure",
+      });
+      return Result.err({ code: "unexpected_failure", cause: e });
+    }
+  }
+
+  /**
+   * Stores this browser's identity in the Google account's Drive like a new setup does, then
+   * links the account locally. A Drive file holding another pubky stops the attach and nothing
+   * is written or deleted. A new file gets a visible recovery copy when that permission was
+   * granted; the copy never blocks the attach.
+   * The promise settles with a Result and does not intentionally reject.
+   */
+  async attachIdentity(
+    credentials: GoogleIdentityCredentials,
+    publicIdentity: PubkyPublicIdentity,
+  ): Promise<AttachGoogleIdentityResult> {
+    try {
+      const store = this.createDriveStore(credentials.driveAccessToken, this.fetch);
+      let created: PassportFileEnvelope | undefined;
+      const attached = await this.attachToPassportFile({
+        account: { googleAccount: credentials.googleAccount },
+        publicIdentity,
+        idToken: credentials.googleIdToken,
+        store,
+        readFailure: (error): GoogleIdentityLifecycleError => ({
+          code: error.code === "invalid_file" ? "invalid_passport_file" : "drive_read_failed",
+          cause: error,
+        }),
+        writeFailure: (error): GoogleIdentityLifecycleError => ({
+          code: error.code === "create_conflict" ? "drive_create_conflict" : "drive_write_failed",
+          cause: error,
+        }),
+        onCreated: (envelope) => {
+          created = envelope;
+        },
+      });
+      if (Result.isError(attached)) return Result.err(attached.error);
+      // Only once this browser is linked: a failed attach leaves no visible copy behind.
+      let visibleCopy: Promise<boolean> | undefined;
+      if (created && credentials.visibleBackupPermissionGranted) {
+        LOGGER.info("identity.google.visible_recovery_copy.started");
+        visibleCopy = this.createVisibleRecoveryCopy(
+          this.createVisibleRecoveryCopies(credentials.driveAccessToken, this.fetch),
+          created,
+          publicIdentity,
+        );
+      }
+      return Result.ok({
+        attachment: attached.value,
+        visibleRecoveryCopyStatus: await this.settleVisibleRecoveryCopy(visibleCopy),
+      });
+    } catch (e) {
+      LOGGER.warn("identity.google.attach.failed", {
+        code: "unexpected_failure",
+        ...safeErrorLogFields(e),
       });
       return Result.err({ code: "unexpected_failure", cause: e });
     }

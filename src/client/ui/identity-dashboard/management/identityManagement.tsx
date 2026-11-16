@@ -21,6 +21,7 @@ import {
   CopyIcon,
   DownloadIcon,
   KeyRoundIcon,
+  LinkIcon,
   LinkOffIcon,
   LogOutIcon,
   RotateCcwIcon,
@@ -35,6 +36,7 @@ import { IconButton } from "@/client/ui/shared/primitives/iconButton";
 import { FieldMessage } from "@/client/ui/shared/primitives/fieldMessage";
 import { DisplayHeading } from "@/client/ui/shared/primitives/typography";
 import { providerDisplayName } from "@/client/ui/shared/providerDisplayName";
+import { useAppleIdentityConfiguration } from "@/client/ui/appleIdentityConfiguration";
 import { AuthorizedApps } from "./authorized-apps/authorizedApps";
 
 type HomeserverLookup =
@@ -54,6 +56,7 @@ function homeserverLabel(lookup: HomeserverLookup): string {
 function IdentityManagement({
   identity,
   listAuthorizedApps,
+  onAttachToProvider,
   onBack,
   onDetachFromProvider,
   onDownloadRecoveryFile,
@@ -65,6 +68,8 @@ function IdentityManagement({
 }: {
   identity: LocalIdentityMetadata;
   listAuthorizedApps: () => Promise<LocalIdentityAuthorizedAppsResult>;
+  /** Opens the Google/Apple backup for an identity that has no sign-in account. */
+  onAttachToProvider: () => void;
   onBack: () => void;
   onDetachFromProvider: (account: IdentityProviderAccount) => void;
   onDownloadRecoveryFile: () => void;
@@ -75,6 +80,7 @@ function IdentityManagement({
   revokeAuthorizedApp: (grantId: string) => Promise<LocalIdentityAuthorizedAppRevocationResult>;
 }) {
   const providerAccount = identityProviderAccount(identity);
+  const appleEnabled = useAppleIdentityConfiguration() !== null;
   const account = identity.googleAccount;
   const profile = identityProfile(identity);
   const name = profile.name ?? "Your Pubky";
@@ -233,7 +239,11 @@ function IdentityManagement({
           >
             {`Detach from ${providerDisplayName(providerAccount.provider)}`}
           </ManagementButton>
-        ) : null}
+        ) : (
+          <ManagementButton icon={<LinkIcon />} onClick={onAttachToProvider}>
+            {appleEnabled ? "Connect Google or Apple" : "Connect Google"}
+          </ManagementButton>
+        )}
       </div>
       <AuthorizedApps
         key={identity.publicIdentity.publicKeyZ32}

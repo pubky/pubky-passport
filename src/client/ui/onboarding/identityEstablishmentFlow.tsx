@@ -1,7 +1,6 @@
-import { useEffect, useRef } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { preload } from "react-dom";
 
-import { isGoogleRedirectReturn } from "@/client/logic/google-identity/gia/googleRedirectBootstrap";
 import { useAppleIdentity, type AppleIdentityHandle } from "@/client/ui/useAppleIdentity";
 import { AppleIdentityError } from "./apple/appleIdentityError";
 import { AppleSignInScreen } from "./apple/appleSignInScreen";
@@ -12,38 +11,34 @@ import { IdentityComplete } from "./identityComplete";
 import { IdentityProgress } from "./identityProgress";
 import { useGoogleIdentityEstablishment } from "./google/useGoogleIdentityEstablishment";
 import { BackButton } from "@/client/ui/shared/backButton";
+import { LoadingScreen } from "@/client/ui/shared/loadingScreen";
+import { ImportIdentityLink } from "./import-identity/importIdentityLink";
+import { ImportUnavailable } from "./import-identity/importUnavailable";
 import { ProviderChoice } from "./providerChoice";
 import { SignInPage } from "./signInPage";
 
+// Loaded on demand: the BIP39 wordlist and the import screens are not needed to sign in. A chunk
+// that fails to load (offline, or an old tab after a deploy) shows a way back, not a crashed page.
+const ImportIdentityFlow = lazy(async () => {
+  try {
+    const { ImportIdentityFlow } = await import("./import-identity/importIdentityFlow");
+    return { default: ImportIdentityFlow };
+  } catch {
+    return { default: ImportUnavailable };
+  }
+});
+
 function IdentityEstablishmentFlow({
-  forAuthorization = false,
   onBack,
   onComplete,
 }: {
-  forAuthorization?: boolean | undefined;
   onBack?: (() => void) | undefined;
   onComplete: () => void;
 }) {
-  const google = useGoogleIdentityEstablishment(forAuthorization);
+  const google = useGoogleIdentityEstablishment();
+  const [importing, setImporting] = useState(false);
   const apple = useAppleIdentity();
-  const appleEnabled = apple !== null;
-  // With only Google, an authorization starts Google at once, as before Apple. With Apple too,
-  // the person picks a provider; Google's own redirect still resumes on its return.
-  const startsGoogleAutomatically = forAuthorization && (!appleEnabled || isGoogleRedirectReturn());
-  const automaticallyStarted = useRef(false);
-  useEffect(() => {
-    if (!startsGoogleAutomatically || automaticallyStarted.current) return;
-    let active = true;
-    // Wait through StrictMode's setup/cleanup probe before starting one navigation.
-    queueMicrotask(() => {
-      if (!active || automaticallyStarted.current) return;
-      automaticallyStarted.current = true;
-      google.establishIdentity();
-    });
-    return () => {
-      active = false;
-    };
-  }, [startsGoogleAutomatically, google]);
+  // Nothing starts on its own, /authorize included: the person picks a provider or the import.
   const view = google.view;
   const appleState = apple?.state;
   const restored =
@@ -88,7 +83,7 @@ function IdentityEstablishmentFlow({
       return (
         <GoogleIdentityError
           error={view.error}
-          onBack={forAuthorization && onBack ? onBack : google.back}
+          onBack={google.back}
           onReplaceInvalidFile={google.replaceInvalidPassportFile}
           onReplaceUndecryptableFile={google.replaceUndecryptablePassportFile}
           onTryAgain={google.establishIdentity}
@@ -99,14 +94,25 @@ function IdentityEstablishmentFlow({
     case "working":
       return <IdentityProgress progress={view.progress} storageName="Google Drive" />;
     case "idle":
-      if (startsGoogleAutomatically) return <GoogleAccessScreen />;
+      if (importing) {
+        return (
+          <Suspense fallback={<LoadingScreen label="Loading" />}>
+            <ImportIdentityFlow onBack={() => setImporting(false)} onComplete={onComplete} />
+          </Suspense>
+        );
+      }
       return (
         <SignInPage>
           <ProviderChoice
             apple={apple ? { ready: apple.ready, onContinue: apple.continueWithApple } : null}
             onContinueWithGoogle={google.establishIdentity}
+            secondary={
+              <>
+                <ImportIdentityLink onImport={() => setImporting(true)} />
+                {onBack ? <BackButton onClick={onBack} /> : null}
+              </>
+            }
           />
-          {onBack ? <BackButton onClick={onBack} /> : null}
         </SignInPage>
       );
   }
@@ -115,6 +121,8 @@ function IdentityEstablishmentFlow({
 function isAppleFlowActive(apple: AppleIdentityHandle): boolean {
   switch (apple.state.status) {
     case "idle":
+    case "attaching":
+    case "attached":
     case "detaching":
     case "detached":
       return false;
@@ -174,6 +182,8 @@ function AppleEstablishment({
         />
       );
     case "idle":
+    case "attaching":
+    case "attached":
     case "detaching":
     case "detached":
       return null;
@@ -187,9 +197,9 @@ function visibleRecoveryCopyNotice(
     case "created":
       return undefined;
     case "skipped":
-      return "Your identity is ready. No visible recovery copy was created in Google Drive because you did not grant that permission. Download a recovery file from identity management.";
+      return "Your pubky is ready. Passport did not save a copy of your recovery file in Google Drive because you did not allow it. Download a recovery file from identity management.";
     case "unconfirmed":
-      return "Your identity is ready, but Passport could not confirm the visible recovery copy in Google Drive. Download a recovery file from identity management.";
+      return "Your pubky is ready, but Passport could not confirm that a copy of your recovery file was saved in Google Drive. Download a recovery file from identity management.";
   }
 }
 

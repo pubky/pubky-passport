@@ -9,6 +9,7 @@ import { AuthorizationPopup } from "./gia/AuthorizationPopup";
 import { GoogleIdentityController, type GoogleIdentityViewState } from "./GoogleIdentityController";
 
 const MOCKS = {
+  attachIdentity: vi.fn(),
   detachIdentity: vi.fn(),
   abortRequests: vi.fn(),
   disposeAuthorization: vi.fn(),
@@ -70,61 +71,6 @@ describe("GoogleIdentityController", () => {
   afterEach(() => {
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
-  });
-
-  it.each([
-    "establish",
-    "replace_invalid_passport_file",
-    "replace_undecryptable_passport_file",
-  ] as const)(
-    "resumes %s after Google without a popup and preserves the backup choice",
-    async (operation) => {
-      const redirect = {
-        request: vi.fn().mockResolvedValue(Result.ok(CREDENTIALS)),
-        dispose: vi.fn(),
-        takeContinuation: vi.fn().mockReturnValueOnce({
-          operation,
-          allowWithoutVisibleBackup: true,
-          googleSubject: GOOGLE_ACCOUNT.googleSubject,
-        }),
-      };
-      const controller = createController(redirect);
-      const result = await controller.establishIdentity();
-      expect(Result.isOk(result)).toBe(true);
-      expect(window.open).not.toHaveBeenCalled();
-      expect(MOCKS.requestAuthorization).not.toHaveBeenCalled();
-      expect(redirect.request).toHaveBeenCalledWith({
-        operation,
-        allowWithoutVisibleBackup: true,
-        googleSubject: GOOGLE_ACCOUNT.googleSubject,
-      });
-      const lifecycle =
-        operation === "establish"
-          ? MOCKS.establishIdentity
-          : operation === "replace_invalid_passport_file"
-            ? MOCKS.replaceInvalidPassportFile
-            : MOCKS.replaceUndecryptablePassportFile;
-      expect(lifecycle).toHaveBeenCalledWith(CREDENTIALS, expect.any(Function), true);
-      expect(controller.getState().status).toBe("established");
-      controller.dispose();
-      expect(redirect.dispose).toHaveBeenCalledOnce();
-    },
-  );
-
-  it("rejects a different Google account when resuming a confirmed replacement", async () => {
-    const redirect = {
-      request: vi.fn().mockResolvedValue(Result.ok(CREDENTIALS)),
-      dispose: vi.fn(),
-      takeContinuation: vi.fn().mockReturnValueOnce({
-        operation: "replace_invalid_passport_file",
-        allowWithoutVisibleBackup: true,
-        googleSubject: "another-account",
-      }),
-    };
-    const controller = createController(redirect);
-    expectResultError(await controller.establishIdentity(), { code: "authorization_failed" });
-    expect(MOCKS.replaceInvalidPassportFile).not.toHaveBeenCalled();
-    controller.dispose();
   });
 
   it("continues a creation paused by the lifecycle with the same credentials", async () => {
@@ -358,6 +304,7 @@ describe("GoogleIdentityController", () => {
       undefined,
       () => ({
         abortRequests: MOCKS.abortRequests,
+        attachIdentity: MOCKS.attachIdentity,
         detachIdentity: MOCKS.detachIdentity,
         dispose: MOCKS.disposeLifecycle,
         establishIdentity: MOCKS.establishIdentity,
@@ -527,6 +474,49 @@ describe("GoogleIdentityController", () => {
       { status: "detaching" },
       { status: "detached" },
     ]);
+  });
+
+  it("attaches with Google's popup and publishes only safe fields", async () => {
+    MOCKS.attachIdentity.mockResolvedValue(
+      Result.ok({ attachment: "created", visibleRecoveryCopyStatus: "created" }),
+    );
+    const controller = createController();
+    const states = recordStates(controller);
+
+    const result = await controller.attachIdentity(PUBLIC_IDENTITY);
+
+    const attached = {
+      attachment: "created",
+      googleAccount: GOOGLE_ACCOUNT,
+      publicIdentity: PUBLIC_IDENTITY,
+      visibleRecoveryCopyStatus: "created",
+    };
+    expect(Result.isOk(result) && result.value).toEqual(attached);
+    expect(window.open).toHaveBeenCalledOnce();
+    expect(MOCKS.attachIdentity).toHaveBeenCalledWith(CREDENTIALS, PUBLIC_IDENTITY);
+    expect(MOCKS.establishIdentity).not.toHaveBeenCalled();
+    expect(states).toEqual([
+      { status: "requesting-authorization" },
+      { status: "attaching" },
+      { status: "attached", identity: attached },
+    ]);
+    expect(JSON.stringify(states)).not.toContain(CREDENTIALS.googleIdToken);
+  });
+
+  it("publishes a refused attach without causes", async () => {
+    vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+    MOCKS.attachIdentity.mockResolvedValue(
+      Result.err({ code: "provider_account_in_use", cause: new Error("secret detail") }),
+    );
+    const controller = createController();
+
+    const result = await controller.attachIdentity(PUBLIC_IDENTITY);
+
+    expectResultError(result, { code: "provider_account_in_use" });
+    expect(controller.getState()).toEqual({
+      status: "failed",
+      error: { code: "provider_account_in_use" },
+    });
   });
 
   it("contains state listener details without failing establishment", async () => {
@@ -878,9 +868,7 @@ function recordStates(controller: GoogleIdentityController): GoogleIdentityViewS
   return states;
 }
 
-function createController(
-  redirect?: ConstructorParameters<typeof GoogleIdentityController>[4],
-): GoogleIdentityController {
+function createController(): GoogleIdentityController {
   return new GoogleIdentityController(
     "google-client-id",
     "https://homegate.example/",
@@ -890,12 +878,12 @@ function createController(
     }),
     () => ({
       abortRequests: MOCKS.abortRequests,
+      attachIdentity: MOCKS.attachIdentity,
       detachIdentity: MOCKS.detachIdentity,
       dispose: MOCKS.disposeLifecycle,
       establishIdentity: MOCKS.establishIdentity,
       replaceInvalidPassportFile: MOCKS.replaceInvalidPassportFile,
       replaceUndecryptablePassportFile: MOCKS.replaceUndecryptablePassportFile,
     }),
-    redirect,
   );
 }

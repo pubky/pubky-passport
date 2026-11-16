@@ -148,6 +148,8 @@ export function useAppleIdentity() {
           return Result.ok();
         }),
       connectICloud: () => store.run("connect_icloud", (controller) => controller.connectICloud()),
+      attachIdentity: (publicIdentity: PubkyPublicIdentity) =>
+        store.run("attach", (controller) => controller.attachIdentity(publicIdentity)),
       detachIdentity: (publicIdentity: PubkyPublicIdentity, appleSubject: string) =>
         store.run("detach", (controller) =>
           controller.detachIdentity(publicIdentity, appleSubject),

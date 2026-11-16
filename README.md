@@ -56,9 +56,8 @@ identity in the browser.
 
 **Continue with Google** opens Google's sign-in, which also asks for Drive access: the app-data
 permission is required, the permission for files Passport creates (the visible copy) is
-optional. During an app sign-in Google opens in the same tab and Passport returns to the request
-afterwards; on Passport's own pages it opens in a popup. Google's profile (name, email, picture)
-is stored only in the browser.
+optional. It opens in a popup from that click, on Passport's own pages and during an app
+sign-in alike. Google's profile (name, email, picture) is stored only in the browser.
 
 ### Apple
 
@@ -119,6 +118,10 @@ Register `https://localhost:3000` with the Google OAuth client.
 | `APPLE_CLOUDKIT_API_TOKEN`              | CloudKit JS API token for that container                   |
 | `APPLE_CLOUDKIT_ENVIRONMENT`            | `production` (default) or `development`                    |
 | `APPLE_LIVE_CHECK`                      | `true` serves `/dev/apple-live-check`; never in production |
+
+Pages other than `/authorize` connect only to the homeservers in
+`PUBKY_HOMESERVER_CONNECT_ORIGINS`, so removing an origin stops them from importing or restoring
+identities on that homeserver.
 
 To rotate the server secret, deploy the new key alongside the retained keys, then make its ID
 current. Keep an old key for as long as files bearing its ID must remain usable; files contain key

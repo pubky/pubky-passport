@@ -17,6 +17,7 @@ import { RotateCcwIcon } from "@/client/ui/shared/icons";
 import { LoadingScreen } from "@/client/ui/shared/loadingScreen";
 import { ButtonLink } from "@/client/ui/shared/primitives/button";
 import { IdentityManagement } from "./management/identityManagement";
+import { AttachProviderFlow } from "./management/attach-provider/attachProviderFlow";
 import { DetachFromProviderFlow } from "./management/detach-provider/detachFromProviderFlow";
 import { RecoveryFileDownload } from "./management/recovery-file/recoveryFileDownload";
 import { MigrateToPubkyRing } from "./management/migrate-to-pubky-ring/migrateToPubkyRing";
@@ -27,6 +28,7 @@ type IdentityDashboardView =
   | { view: "overview" }
   | { view: "select-identity" }
   | { view: "manage-identity"; publicKeyZ32: string }
+  | { view: "attach-to-provider"; publicKeyZ32: string }
   | { view: "recovery-file"; publicKeyZ32: string }
   | { view: "migrate-to-pubky-ring"; publicKeyZ32: string }
   | {
@@ -111,6 +113,7 @@ function ReadyIdentityDashboard({
         <IdentityManagement
           identity={identity}
           listAuthorizedApps={() => actions.listAuthorizedApps(publicKeyZ32)}
+          onAttachToProvider={() => setNavigation({ view: "attach-to-provider", publicKeyZ32 })}
           onBack={() => setNavigation({ view: "overview" })}
           onDetachFromProvider={(account) => {
             setNavigation({ view: "detach-from-provider", account, identity });
@@ -128,6 +131,15 @@ function ReadyIdentityDashboard({
           revokeAuthorizedApp={(grantId) => actions.revokeAuthorizedApp(publicKeyZ32, grantId)}
         />
       );
+    }
+    case "attach-to-provider": {
+      const identity = catalog.identities.find(
+        (candidate) => candidate.publicIdentity.publicKeyZ32 === state.publicKeyZ32,
+      );
+      if (!identity) return null;
+      const back = () =>
+        setNavigation({ view: "manage-identity", publicKeyZ32: state.publicKeyZ32 });
+      return <AttachProviderFlow identity={identity} onBack={back} onDone={back} />;
     }
     case "recovery-file":
       return (

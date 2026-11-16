@@ -127,6 +127,40 @@ describe("Apple identity lifecycle", () => {
       expect(MOCKS.createPassportFile).not.toHaveBeenCalled();
     });
 
+    it("never signs up or publishes an attached identity whose homeserver record is missing", async () => {
+      const attachedEnvelope = { ...ENVELOPE, attached: true as const };
+      MOCKS.readPassportFile.mockResolvedValue(
+        Result.ok({ status: "found", envelope: attachedEnvelope, reference: REFERENCE }),
+      );
+      MOCKS.signin.mockResolvedValue(Result.err({ code: "signin_failed" }));
+      MOCKS.resolveHomeserver.mockResolvedValue(Result.ok(null));
+
+      const result = await createSubject().establishIdentity(CREDENTIALS, STORE, () => undefined);
+
+      expectError(result, { code: "homeserver_not_found" });
+      expect(MOCKS.resolveHomeserver).toHaveBeenCalledWith(PUBLIC_IDENTITY.publicKeyZ32);
+      expect(MOCKS.signin).toHaveBeenCalledOnce();
+      expect(MOCKS.requestAppleSignupToken).not.toHaveBeenCalled();
+      expect(MOCKS.signup).not.toHaveBeenCalled();
+      expect(MOCKS.publishHomeserver).not.toHaveBeenCalled();
+      expect(MOCKS.repositorySave).not.toHaveBeenCalled();
+      expect(MOCKS.createPassportFile).not.toHaveBeenCalled();
+    });
+
+    it("still repairs an interrupted setup of an identity Passport created", async () => {
+      foundPassportFile();
+      MOCKS.signin
+        .mockResolvedValueOnce(Result.err({ code: "signin_failed" }))
+        .mockResolvedValue(Result.ok({ publicIdentity: PUBLIC_IDENTITY }));
+      MOCKS.resolveHomeserver.mockResolvedValue(Result.ok(null));
+
+      expectResultOk(await createSubject().establishIdentity(CREDENTIALS, STORE, () => undefined));
+
+      expect(MOCKS.requestAppleSignupToken).toHaveBeenCalledOnce();
+      expect(MOCKS.signup).toHaveBeenCalledOnce();
+      expect(MOCKS.publishHomeserver).toHaveBeenCalledWith(KEY_HANDLE, "homeserver-pubky");
+    });
+
     it("keeps a name this browser already has when Apple sends none", async () => {
       foundPassportFile();
       MOCKS.repositoryList.mockReturnValue(

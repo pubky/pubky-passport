@@ -180,7 +180,7 @@ function GoogleAccessDenied({
     <PassportScreen className="gap-6">
       <div className="flex flex-col gap-6">
         <DisplayHeading accent="denied.">Google access</DisplayHeading>
-        <LeadText>Passport needs Google Drive access to create or restore your Pubky.</LeadText>
+        <LeadText>Passport needs Google Drive access to create or restore your pubky.</LeadText>
       </div>
       <GooglePermissionGuide />
       <div

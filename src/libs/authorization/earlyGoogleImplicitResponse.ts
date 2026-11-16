@@ -1,9 +1,4 @@
 import { AUTHORIZATION_CAPTURE_MAX_CHARACTERS } from "@/libs/passportPolicy";
-import {
-  EARLY_GOOGLE_REDIRECT_RESPONSE_PROPERTY,
-  GOOGLE_REDIRECT_STORAGE_KEY,
-  GOOGLE_REDIRECT_STATE_PREFIX,
-} from "./googleRedirectConstants";
 
 export const EARLY_GOOGLE_IMPLICIT_RESPONSE_MAX_CHARACTERS = AUTHORIZATION_CAPTURE_MAX_CHARACTERS;
 export const GOOGLE_IMPLICIT_RESPONSE_MESSAGE_TYPE = "pubky-passport-google-implicit-response";
@@ -21,35 +16,9 @@ export const EARLY_GOOGLE_IMPLICIT_RESPONSE_SCRIPT = `(() => {
     }
     return;
   }
+  if (!opener) return;
   const response = hash.length > ${EARLY_GOOGLE_IMPLICIT_RESPONSE_MAX_CHARACTERS}
     ? { type: "${GOOGLE_IMPLICIT_RESPONSE_MESSAGE_TYPE}", status: "too_large" }
     : { type: "${GOOGLE_IMPLICIT_RESPONSE_MESSAGE_TYPE}", status: "captured", hash };
-  let redirectPending = false;
-  try { redirectPending = sessionStorage.getItem("${GOOGLE_REDIRECT_STORAGE_KEY}") !== null; } catch { /* Fail closed during bootstrap. */ }
-  // A marked redirect must not fall through to the popup credential transport
-  // when the originating tab lost its saved attempt. The marker is not proof
-  // of authorization: resumeGoogleRedirect still rejects missing/invalid state.
-  const redirectReturn = new URLSearchParams(hash.slice(1)).get("state")?.startsWith("${GOOGLE_REDIRECT_STATE_PREFIX}");
-  if (redirectPending || redirectReturn || !opener) {
-    let pending = response;
-    const dispose = () => {
-      pending = undefined;
-      clearTimeout(timer);
-      removeEventListener("pagehide", dispose);
-    };
-    const timer = setTimeout(dispose, 60_000);
-    addEventListener("pagehide", dispose, { once: true });
-    Object.defineProperty(window, "${EARLY_GOOGLE_REDIRECT_RESPONSE_PROPERTY}", {
-      configurable: true,
-      value: () => {
-        const captured = pending;
-        dispose();
-        Reflect.deleteProperty(window, "${EARLY_GOOGLE_REDIRECT_RESPONSE_PROPERTY}");
-        return captured;
-      },
-    });
-    return;
-  }
-  if (!opener) return;
   opener.postMessage(response, location.origin);
 })();`;

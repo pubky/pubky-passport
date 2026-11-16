@@ -30,6 +30,18 @@ const TEST_ENVELOPE = {
   url: "https://passport.pubky.app",
 };
 
+/** Written with IV 0..11 by the code from before the attached marker: its bytes must still decrypt. */
+const LEGACY_ENVELOPE = {
+  ...TEST_ENVELOPE,
+  ct: "YZy1I_a6WzFnql8rW2A94EJrgz38Sqd1LV_KjVe2Qd3_X1ZbmXbQTVLibwUu-bAs",
+};
+/** The same inputs written by attach: pins the attached additional data, so stored files keep decrypting. */
+const ATTACHED_ENVELOPE = {
+  ...TEST_ENVELOPE,
+  ct: "YZy1I_a6WzFnql8rW2A94EJrgz38Sqd1LV_KjVe2Qd3NrRNkT68Vp2hyXgz1xMSv",
+  attached: true as const,
+};
+
 afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
@@ -244,6 +256,55 @@ describe("PassportFileWebCrypto", () => {
       "https://passport.pubky.app",
     );
     expect(Result.isError(tampered) && tampered.error.code).toBe("decrypt_failed");
+  });
+
+  it("still decrypts a file written before the attached marker existed", async () => {
+    const secretKey = expectResultOk(
+      await decrypt(createCrypto(), LEGACY_ENVELOPE, WRAPPING_KEY, "https://passport.pubky.app"),
+    );
+
+    expect(secretKey).toEqual(SECRET_KEY_BYTES);
+  });
+
+  it("still decrypts a file written by attach", async () => {
+    const secretKey = expectResultOk(
+      await decrypt(createCrypto(), ATTACHED_ENVELOPE, WRAPPING_KEY, "https://passport.pubky.app"),
+    );
+
+    expect(secretKey).toEqual(SECRET_KEY_BYTES);
+  });
+
+  it("authenticates the attached marker, so it cannot be added or removed", async () => {
+    const crypto = createCrypto();
+    const attached = expectResultOk(
+      await crypto.encryptSecretKeyBytes(
+        SECRET_KEY_BYTES,
+        WRAPPING_KEY,
+        "https://passport.pubky.app",
+        "current",
+        { attached: true },
+      ),
+    );
+
+    expect(attached.attached).toBe(true);
+    expect(
+      expectResultOk(await decrypt(crypto, attached, WRAPPING_KEY, "https://passport.pubky.app")),
+    ).toEqual(SECRET_KEY_BYTES);
+    const stripped = { ...attached };
+    delete stripped.attached;
+    expectCryptoError(
+      await decrypt(crypto, stripped, WRAPPING_KEY, "https://passport.pubky.app"),
+      "decrypt_failed",
+    );
+    expectCryptoError(
+      await decrypt(
+        crypto,
+        { ...LEGACY_ENVELOPE, attached: true },
+        WRAPPING_KEY,
+        "https://passport.pubky.app",
+      ),
+      "decrypt_failed",
+    );
   });
 
   it("round-trips encrypted Pubky secret key bytes", async () => {

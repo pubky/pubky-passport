@@ -6,6 +6,7 @@ import {
   normalizePassportFileOrigin,
   parsePassportFileContents,
   parsePassportFileEnvelope,
+  serializePassportFileEnvelope,
   type PassportFileEnvelope,
 } from "./passportFileEnvelope";
 
@@ -181,6 +182,28 @@ describe("parsePassportFileContents", () => {
     }
 
     expect(result.value.url).toBe("https://passport.pubky.app");
+  });
+});
+
+describe("attached marker", () => {
+  it("parses and keeps attached: true", () => {
+    const result = parsePassportFileContents(stringifyEnvelope({ attached: true }));
+
+    expect(Result.isOk(result) && result.value).toEqual({ ...VALID_ENVELOPE, attached: true });
+  });
+
+  it.each([false, "true", 1, null])("rejects attached: %j", (attached) => {
+    expectParseError(stringifyEnvelope({ attached }), "invalid_file");
+  });
+
+  it("serializes the marker last and only when set", () => {
+    expect(serializePassportFileEnvelope({ ...VALID_ENVELOPE, attached: true })).toBe(
+      `{"v":1,"keyId":"2026-08","iv":"${VALID_ENVELOPE.iv}","ct":"${VALID_ENVELOPE.ct}","url":"https://passport.pubky.app","attached":true}`,
+    );
+    expect(serializePassportFileEnvelope(VALID_ENVELOPE)).toBe(JSON.stringify(VALID_ENVELOPE));
+    expect(serializePassportFileEnvelope({ ...VALID_ENVELOPE, attached: undefined })).toBe(
+      JSON.stringify(VALID_ENVELOPE),
+    );
   });
 });
 

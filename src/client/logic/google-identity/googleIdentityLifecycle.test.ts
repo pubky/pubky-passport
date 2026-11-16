@@ -679,6 +679,33 @@ describe("Google identity use cases", () => {
     ]);
   });
 
+  it("never signs up or publishes an attached identity whose homeserver record is missing", async () => {
+    const attachedEnvelope = { ...ENVELOPE, attached: true as const };
+    MOCKS.readPassportFile.mockResolvedValue(
+      Result.ok({ status: "found", envelope: attachedEnvelope, reference: REFERENCE }),
+    );
+    MOCKS.signin.mockResolvedValue(Result.err({ code: "signin_failed" }));
+    MOCKS.resolveHomeserver.mockResolvedValue(Result.ok(null));
+
+    expectResultError(await createSubject().establishIdentity(CREDENTIALS, () => undefined), {
+      code: "homeserver_not_found",
+    });
+
+    expect(MOCKS.decryptSecretKeyBytes).toHaveBeenCalledWith(
+      attachedEnvelope,
+      "w".repeat(43),
+      "https://passport.pubky.app",
+    );
+    expect(MOCKS.resolveHomeserver).toHaveBeenCalledWith(PUBLIC_IDENTITY.publicKeyZ32);
+    expect(MOCKS.signin).toHaveBeenCalledOnce();
+    expect(MOCKS.requestSignupToken).not.toHaveBeenCalled();
+    expect(MOCKS.signup).not.toHaveBeenCalled();
+    expect(MOCKS.publishHomeserver).not.toHaveBeenCalled();
+    expect(MOCKS.repositorySave).not.toHaveBeenCalled();
+    expect(MOCKS.createPassportFile).not.toHaveBeenCalled();
+    expect(MOCKS.disposeIdentityKey).toHaveBeenCalledWith(KEY_HANDLE);
+  });
+
   it("republishes when restored-identity signup reports that the account exists", async () => {
     foundPassportFile();
     MOCKS.signin.mockResolvedValueOnce(Result.err({ code: "signin_failed" }));

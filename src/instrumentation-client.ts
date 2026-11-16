@@ -6,27 +6,23 @@ import {
   scrubAuthorizationLocation,
   type AuthorizationEntry,
 } from "./client/logic/authorization/entry/authorizationEntry";
-import {
-  resumeGoogleRedirect,
-  setGoogleRedirectRequest,
-} from "./client/logic/google-identity/gia/googleRedirectBootstrap";
 
 // Next.js runs this module's top-level code before React hydration. Unlike server
 // instrumentation.ts, client instrumentation has no register() hook.
+
+// Older builds kept a pending same-tab Google sign-in here, its request URL included. Drop it so
+// a tab that was on Google during a deploy keeps no request secret.
+if (typeof window !== "undefined") {
+  try {
+    window.sessionStorage.removeItem("pubky-passport/google-redirect/v1");
+  } catch {
+    /* Storage may be blocked. */
+  }
+}
 let initialAuthorizationEntry =
   typeof window !== "undefined" && window.location.pathname === "/authorize"
     ? readAndScrubAuthorizationEntry(window)
-    : typeof window !== "undefined" && window.location.pathname === "/"
-      ? resumeGoogleRedirect(window)
-      : undefined;
-
-if (
-  typeof window !== "undefined" &&
-  window.location.pathname === "/authorize" &&
-  initialAuthorizationEntry
-) {
-  setGoogleRedirectRequest(initialAuthorizationEntry, window);
-}
+    : undefined;
 
 /**
  * Takes the one-shot authorization entry captured and scrubbed before React
@@ -37,7 +33,7 @@ export function takeInitialAuthorizationEntry(): AuthorizationEntry | undefined 
   initialAuthorizationEntry = undefined;
   if (
     entry &&
-    (window.location.pathname === "/authorize" || window.location.pathname === "/") &&
+    window.location.pathname === "/authorize" &&
     (window.location.search !== "" || window.location.hash !== "")
   ) {
     // Next may restore the initial address-bar URL during hydration.

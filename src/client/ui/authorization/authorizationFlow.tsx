@@ -12,6 +12,7 @@ import type {
   LocalIdentityMetadata,
 } from "@/client/logic/local-identity/localIdentityModels";
 import { IdentityManagement } from "@/client/ui/identity-dashboard/management/identityManagement";
+import { AttachProviderFlow } from "@/client/ui/identity-dashboard/management/attach-provider/attachProviderFlow";
 import { DetachFromProviderFlow } from "@/client/ui/identity-dashboard/management/detach-provider/detachFromProviderFlow";
 import { RecoveryFileDownload } from "@/client/ui/identity-dashboard/management/recovery-file/recoveryFileDownload";
 import { MigrateToPubkyRing } from "@/client/ui/identity-dashboard/management/migrate-to-pubky-ring/migrateToPubkyRing";
@@ -35,10 +36,6 @@ import { AuthorizationReview } from "./review/authorizationReview";
 import { InvalidAuthorization } from "./invalidAuthorization";
 import { ManualAuthorization } from "./manual-entry/manualAuthorization";
 import { usePassportAuthorization, type AuthorizationController } from "./usePassportAuthorization";
-import {
-  isGoogleRedirectReturn,
-  returnToAuthorization,
-} from "@/client/logic/google-identity/gia/googleRedirectBootstrap";
 
 const AUTHORIZATION_LOADING_HEIGHT =
   "min-h-[calc(100svh-var(--passport-header-height)-var(--passport-context-band-height))]";
@@ -59,7 +56,7 @@ function AuthorizationFlow() {
     case "manual-entry":
       return <ManualAuthorization onBack={goHome} />;
     case "invalid":
-      return <InvalidAuthorization onBack={goHome} interrupted={isGoogleRedirectReturn()} />;
+      return <InvalidAuthorization onBack={goHome} />;
     case "failed":
       return (
         <PassportScreen className="gap-6">
@@ -104,7 +101,10 @@ type ActiveAuthorization = Extract<
 /** `first-identity-setup` stays until the setup screen reports completion, not when the catalog fills. */
 type AuthorizationIdentityView =
   | { view: "first-identity-setup" | "review" | "identity-selection" }
-  | { view: "manage-identity" | "recovery-file" | "migrate-to-pubky-ring"; publicKeyZ32: string }
+  | {
+      view: "manage-identity" | "attach-to-provider" | "recovery-file" | "migrate-to-pubky-ring";
+      publicKeyZ32: string;
+    }
   | {
       view: "detach-from-provider";
       account: IdentityProviderAccount;
@@ -167,10 +167,7 @@ function ReadyAuthorizationWithIdentity({
   const { IdentitySetup } = usePassportCollaborators();
   const Setup = IdentitySetup ?? IdentityEstablishmentFlow;
   const [navigation, setNavigation] = useState<AuthorizationIdentityView>(() => ({
-    view:
-      catalog.identities.length === 0 || isGoogleRedirectReturn()
-        ? "first-identity-setup"
-        : "review",
+    view: catalog.identities.length === 0 ? "first-identity-setup" : "review",
   }));
   // Consent belongs to the pending request, including while switching or managing identities.
   const [declinedEncryptionPaths, setDeclinedEncryptionPaths] = useState<readonly string[]>([]);
@@ -179,15 +176,10 @@ function ReadyAuthorizationWithIdentity({
   if (state.view === "first-identity-setup") {
     return (
       <Setup
-        forAuthorization
         onBack={() => {
           void passportAuthorizationController.cancel();
         }}
-        onComplete={() => {
-          // The root callback has a narrower CSP; grant approval belongs on /authorize.
-          if (isGoogleRedirectReturn()) returnToAuthorization();
-          else setNavigation({ view: "review" });
-        }}
+        onComplete={() => setNavigation({ view: "review" })}
       />
     );
   }
@@ -214,6 +206,7 @@ function ReadyAuthorizationWithIdentity({
       <IdentityManagement
         identity={identity}
         listAuthorizedApps={() => actions.listAuthorizedApps(publicKeyZ32)}
+        onAttachToProvider={() => setNavigation({ view: "attach-to-provider", publicKeyZ32 })}
         onBack={() =>
           setNavigation((current) =>
             current.view === "identity-selection" ? current : { view: "review" },
@@ -234,6 +227,15 @@ function ReadyAuthorizationWithIdentity({
         revokeAuthorizedApp={(grantId) => actions.revokeAuthorizedApp(publicKeyZ32, grantId)}
       />
     );
+  }
+
+  if (state.view === "attach-to-provider") {
+    const identity = catalog.identities.find(
+      (candidate) => candidate.publicIdentity.publicKeyZ32 === state.publicKeyZ32,
+    );
+    if (!identity) return null;
+    const back = () => setNavigation({ view: "manage-identity", publicKeyZ32: state.publicKeyZ32 });
+    return <AttachProviderFlow identity={identity} onBack={back} onDone={back} />;
   }
 
   if (state.view === "recovery-file") {
