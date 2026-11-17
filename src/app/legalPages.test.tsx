@@ -12,7 +12,7 @@ describe("legal pages", () => {
     const markup = renderToStaticMarkup(<Page />);
 
     expect(markup).toContain(heading);
-    expect(markup).toContain("Effective Date: September 21, 2026");
+    expect(markup).toContain("Effective Date: November 17, 2026");
     expect(markup).not.toContain("[DATE]");
     expect(markup).not.toContain("[Legal:");
     expect(markup).not.toContain('aria-label="Legal documents"');
@@ -23,7 +23,35 @@ describe("legal pages", () => {
 
     expect(markup).toContain("Passport is meant for adults.");
     expect(markup).toContain("COPPA Information Request");
-    expect(markup).toContain("Pubky session containing your public key");
+    expect(markup).toContain("receives the access you approved on your Homeserver");
     expect(markup).not.toContain("eligible minor");
+  });
+
+  it.each([
+    [
+      "terms of service",
+      TermsOfServicePage,
+      [
+        "YOUR GOOGLE OR APPLE ACCOUNT",
+        "Sign in with Apple and iCloud",
+        "means the account you use to sign in to Apple services and iCloud",
+        "or iCloud, if you sign in to Passport with Apple",
+        "means the Google Account or Apple Account you use to sign in to Passport",
+      ],
+    ],
+    [
+      "privacy policy",
+      PrivacyPolicyPage,
+      [
+        "Apple Account Information (browser only).",
+        "private relay address",
+        "With Apple.",
+        "Google Drive or iCloud",
+      ],
+    ],
+  ])("covers Sign in with Apple and iCloud in the %s", (_, Page, phrases) => {
+    const markup = renderToStaticMarkup(<Page />);
+
+    for (const phrase of phrases) expect(markup).toContain(phrase);
   });
 });
