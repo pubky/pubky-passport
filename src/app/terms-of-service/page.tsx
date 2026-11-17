@@ -13,7 +13,7 @@ export default function TermsOfServicePage() {
       <p>
         <strong>PUBKY PASSPORT TERMS AND CONDITIONS</strong>
         <br />
-        Effective Date: September 21, 2026
+        Effective Date: November 17, 2026
       </p>
       <p>
         Thank you for using Pubky Passport, the web application at passport.pubky.app that lets you
@@ -40,7 +40,6 @@ export default function TermsOfServicePage() {
           DOCUMENTATION, YOU MUST CEASE TO ACCESS OR USE PASSPORT.
         </strong>
       </p>
-
       <LegalSection title="INTRODUCTION">
         <p>
           In order to assist your understanding of these Terms, we have included, in italicised
@@ -65,7 +64,6 @@ export default function TermsOfServicePage() {
           subject you to these Terms.
         </p>
       </LegalSection>
-
       <LegalSection title="ACCEPTANCE OF THESE TERMS THROUGH USE">
         <SectionIntroduction>
           This section explains your acceptance of these Terms and our ability to update them.
@@ -83,36 +81,37 @@ export default function TermsOfServicePage() {
           constitute a violation of, or would be subject to penalties under applicable Laws.
         </p>
       </LegalSection>
-
       <LegalSection title="WHAT PASSPORT IS, AND WHAT IT IS NOT">
         <SectionIntroduction>
           This section describes the service. Read it before you rely on Passport for anything that
           matters to you.
         </SectionIntroduction>
         <p>Passport runs in your browser. It allows you to:</p>
-        <ul>
+        <ol>
           <li>
             create a Pubky identity, and where applicable request the creation of an account on a
             Homeserver;
           </li>
           <li>
-            keep an encrypted backup of that identity (the “Passport File”) in your own Google
-            Drive; and
+            keep an encrypted backup of that identity (the “Passport File”) in your own Cloud
+            Storage; and
           </li>
           <li>
             review and approve or decline authorization requests sent to Passport by other
             applications.
           </li>
-        </ul>
+        </ol>
         <p>
-          Passport is a signer and a recovery tool. Passport is not a wallet, an exchange, a
-          custodian, a payment service, a bank, or a social application. Synonym does not hold your
-          funds and does not charge you a fee for Passport under these Terms. Synonym is not the
-          operator of the applications that ask you for authorization and is not a party to your
-          relationship with them.
+          Passport is a signer and a recovery tool. Passport is <strong>not</strong> a wallet, an
+          exchange, a custodian, a payment service, a bank, or a social application. Synonym does
+          not hold your funds and does not charge you a fee for Passport under these Terms. An
+          application that asks you for authorization may be operated by Synonym (including Pubky
+          App) or by someone else. These Terms govern Passport only. If the application is Pubky
+          App, the Pubky App Terms govern your use of Pubky App. If someone else operates the
+          application, that operator’s terms govern your use of it, and Synonym is not a party to
+          your relationship with that operator.
         </p>
       </LegalSection>
-
       <LegalSection title="REQUIREMENTS TO USE PASSPORT">
         <SectionIntroduction>
           This section explains who may use Passport and what you need.
@@ -132,8 +131,8 @@ export default function TermsOfServicePage() {
             window rather than embedded in another site; and
           </li>
           <li>
-            you must have a Google Account, because Passport uses Google sign-in and Google Drive as
-            described below.
+            you must have a Google Account or an Apple Account, because Passport uses Google or
+            Apple sign-in, and the matching Cloud Storage, as described below.
           </li>
         </ul>
         <p>
@@ -146,26 +145,25 @@ export default function TermsOfServicePage() {
           void.
         </p>
       </LegalSection>
-
-      <LegalSection title="YOUR GOOGLE ACCOUNT">
+      <LegalSection title="YOUR GOOGLE OR APPLE ACCOUNT">
         <SectionIntroduction>
-          This section explains the role of Google, which is not us.
+          This section explains the role of Google and Apple, which are not us.
         </SectionIntroduction>
         <p>
-          Passport signs you in with Google and asks for your permission to use your Google Account
-          for two purposes: to identify the Google Account associated with an identity, and to store
-          and read the Passport File in your Google Drive. Google is a third party. Your use of your
-          Google Account is governed by Google’s terms and privacy policy, not by these Terms.
+          Passport signs you in with Google or with Apple, as you choose, and asks for your
+          permission to use your Sign-in Account for two purposes: to identify the Sign-in Account
+          associated with an identity, and to store and read the Passport File in your Cloud
+          Storage. Google and Apple are third parties. Your use of your Sign-in Account is governed
+          by Google’s or Apple’s terms and privacy policy, not by these Terms.
         </p>
         <p>
-          You may withdraw Google’s permissions at any time from your Google Account settings. If
-          you do, Passport can no longer read or write the Passport File, and recovery through
-          Google will not work until you grant permission again. Loss of access to your Google
-          Account, deletion of your Google Account, or deletion of the Passport File by you or by
-          Google may make recovery impossible.
+          You may withdraw these permissions at any time from your Sign-in Account settings. If you
+          do, Passport can no longer read or write the Passport File, and recovery through that
+          Sign-in Account will not work until you grant permission again. Loss of access to your
+          Sign-in Account, deletion of your Sign-in Account, or deletion of the Passport File by
+          you, by Google or by Apple may make recovery impossible.
         </p>
       </LegalSection>
-
       <LegalSection title="YOUR KEYS AND THE PASSPORT FILE">
         <SectionIntroduction>
           This section is the most important one. It explains that your identity is yours, including
@@ -173,37 +171,39 @@ export default function TermsOfServicePage() {
         </SectionIntroduction>
         <p>
           A Pubky identity is controlled by a cryptographic key. When you create or restore an
-          identity in Passport, the secret key is held in your browser on your device. It is not
-          sent to us.
+          identity in Passport, the secret key is held{" "}
+          <strong>in your browser on your device</strong>. It is not sent to us.
         </p>
         <p>
           The Passport File is a copy of that secret key, encrypted in your browser before it leaves
-          your device. Passport stores it in your Google Drive. Passport may also write additional
-          encrypted copies to a visible folder in your Google Drive so that you can see and keep
-          them yourself. We do not receive, hold, or store the Passport File, and we cannot read it.
+          your device. Passport stores it in your Cloud Storage. If you sign in with Google,
+          Passport may also write additional encrypted copies to a visible folder in your Google
+          Drive so that you can see and keep them yourself. We do not receive, hold, or store the
+          Passport File, and we cannot read it.
         </p>
         <p>Decrypting a Passport File requires both:</p>
-        <ul>
-          <li>the encrypted file, which lives in your Google Drive; and</li>
+        <ol>
+          <li>the encrypted file, which lives in your Cloud Storage; and</li>
           <li>
-            a wrapping key, which Passport’s server derives only after Google has verified an
-            identity assertion for the same Google Account, using a secret we hold.
+            a wrapping key, which Passport’s server derives only after Google or Apple, as
+            applicable, has verified an identity assertion for the same Sign-in Account, using a
+            secret we hold.
           </li>
-        </ul>
+        </ol>
         <p>You acknowledge and agree that:</p>
         <ul>
           <li>
-            we cannot recover your identity for you. We do not hold your secret key and we cannot
-            reconstruct it from the wrapping key alone;
+            <strong>we cannot recover your identity for you.</strong> We do not hold your secret key
+            and we cannot reconstruct it from the wrapping key alone;
           </li>
           <li>
-            if you clear your browser storage, lose your device, or lose your Google Account, and no
-            usable Passport File remains, your identity and anything that depends on it may be
+            if you clear your browser storage, lose your device, or lose your Sign-in Account, and
+            no usable Passport File remains, your identity and anything that depends on it may be
             permanently lost;
           </li>
           <li>
-            anyone who obtains both your Google Account access and the encrypted file may be able to
-            restore your identity, so you must protect your Google Account accordingly;
+            anyone who obtains both your Sign-in Account access and the encrypted file may be able
+            to restore your identity, so you must protect your Sign-in Account accordingly;
           </li>
           <li>you should keep your own copy of any recovery material Passport offers you; and</li>
           <li>
@@ -212,7 +212,6 @@ export default function TermsOfServicePage() {
           </li>
         </ul>
       </LegalSection>
-
       <LegalSection title="OUR SERVER SECRET AND KEY ROTATION">
         <SectionIntroduction>
           This section explains the one cryptographic input we hold, and its limits.
@@ -231,7 +230,6 @@ export default function TermsOfServicePage() {
           Synonym a custodian of your identity.
         </p>
       </LegalSection>
-
       <LegalSection title="AUTHORIZING APPLICATIONS">
         <SectionIntroduction>
           This section explains what happens when another application asks Passport to approve
@@ -272,16 +270,15 @@ export default function TermsOfServicePage() {
           Passport’s security requirements, or that we believe is being used to harm users.
         </p>
       </LegalSection>
-
       <LegalSection title="ACCOUNT CREATION ON A HOMESERVER">
         <SectionIntroduction>
           This section explains onboarding, which involves services other than Passport.
         </SectionIntroduction>
         <p>
           Where Passport helps you create an account on a Homeserver, it asks a Synonym-operated
-          verification service to confirm your Google identity assertion and, if that succeeds, to
-          issue a signup invitation for a Homeserver. Passport then uses that invitation to create
-          the account.
+          verification service to confirm your Google or Apple identity assertion and, if that
+          succeeds, to issue a signup invitation for a Homeserver. Passport then uses that
+          invitation to create the account.
         </p>
         <p>
           Verification exists to limit abuse and automated account creation. It is rate limited, it
@@ -291,7 +288,18 @@ export default function TermsOfServicePage() {
           not your Homeserver.
         </p>
       </LegalSection>
-
+      <LegalSection title="NO FEES, NO CUSTODY, NO PAYMENTS">
+        <SectionIntroduction>
+          This section is here so nobody mistakes Passport for a financial service.
+        </SectionIntroduction>
+        <p>
+          Synonym does not charge you for Passport under these Terms. Passport does not hold,
+          transmit, or convert money or digital assets, does not process payments, and does not act
+          as an escrow or intermediary for any transaction. If you use another application after
+          authorizing it through Passport, any payment in that application is between you and that
+          application or its counterparties.
+        </p>
+      </LegalSection>
       <LegalSection title="ACCEPTABLE USE AND PROHIBITED USES">
         <SectionIntroduction>
           This section explains what you must not do with Passport.
@@ -340,7 +348,6 @@ export default function TermsOfServicePage() {
           through another application after authorizing it is governed by that application’s terms.
         </p>
       </LegalSection>
-
       <LegalSection title="REPORTING A PROBLEM">
         <SectionIntroduction>This section explains how to reach us.</SectionIntroduction>
         <p>
@@ -351,7 +358,6 @@ export default function TermsOfServicePage() {
           appropriate action in our sole discretion.
         </p>
       </LegalSection>
-
       <LegalSection title="REGIONAL AVAILABILITY">
         <SectionIntroduction>This section explains geographic restrictions.</SectionIntroduction>
         <p>
@@ -361,15 +367,15 @@ export default function TermsOfServicePage() {
           is not available to users in Prohibited Jurisdictions.
         </p>
       </LegalSection>
-
       <LegalSection title="PRIVACY POLICY">
+        <SectionIntroduction>This section points to the Privacy Policy.</SectionIntroduction>
         <p>
           The Pubky Passport <a href="/privacy-policy">Privacy Policy</a> explains how we treat
-          personal information in connection with Passport, including what we receive from Google
-          and what stays on your device and in your Google Drive. It forms part of these Terms.
+          personal information in connection with Passport, including what we receive from Google or
+          Apple and what stays on your device and in your Cloud Storage. It forms part of these
+          Terms.
         </p>
       </LegalSection>
-
       <LegalSection title="AVAILABILITY AND NO REPRESENTATION BY SYNONYM">
         <SectionIntroduction>
           This section explains that Passport is provided as is.
@@ -389,25 +395,24 @@ export default function TermsOfServicePage() {
         </p>
         <p>
           We may change, suspend, or discontinue Passport or any part of it, including a deployment,
-          an endpoint, or support for a Google permission, at any time.
+          an endpoint, or support for a Google or Apple permission, at any time.
         </p>
       </LegalSection>
-
       <LegalSection title="THIRD-PARTY MATERIALS">
         <SectionIntroduction>
           This section explains that other people’s services are not ours.
         </SectionIntroduction>
         <p>
           Passport interoperates with Third-Party Materials, including Google sign-in and Google
-          Drive, Homeservers and their operators, public key resolution relays, authorization
-          relays, and the applications that ask you for authorization. Synonym is not responsible
-          for the content, availability, privacy settings, policies, or procedures of Third-Party
-          Materials, and their products and services are the sole responsibility of the third party.
-          If you decide to access any Third-Party Materials, you do so entirely at your own risk,
-          and you are advised to read their terms and privacy policies first.
+          Drive, Sign in with Apple and iCloud, Homeservers and their operators, public key
+          resolution relays, authorization relays, and the applications that ask you for
+          authorization. Synonym is not responsible for the content, availability, privacy settings,
+          policies, or procedures of Third-Party Materials, and their products and services are the
+          sole responsibility of the third party. If you decide to access any Third-Party Materials,
+          you do so entirely at your own risk, and you are advised to read their terms and privacy
+          policies first.
         </p>
       </LegalSection>
-
       <LegalSection title="INTELLECTUAL PROPERTY">
         <SectionIntroduction>
           This section explains what you may do with the application itself.
@@ -420,24 +425,22 @@ export default function TermsOfServicePage() {
           governs your use of that code and nothing in these Terms limits the rights it grants you.
         </p>
       </LegalSection>
-
       <LegalSection title="TERMINATION">
         <SectionIntroduction>This section explains how each side can stop.</SectionIntroduction>
         <p>
           You may stop using Passport at any time. To remove your data, you can remove the
           identities held in your browser, clear Passport’s browser storage, delete the Passport
-          File and any visible copies from your Google Drive, and withdraw Passport’s permissions in
-          your Google Account.
+          File and any visible copies from your Cloud Storage, and withdraw Passport’s permissions
+          in your Sign-in Account.
         </p>
         <p>
           We may restrict or terminate your access to Passport at any time, including for a
           Prohibited Use, for a legal or regulatory reason, or because we discontinue the service,
           without liability for that termination. Termination does not delete your identity, your
-          Homeserver account, or files held in your Google Drive, and it does not by itself make
+          Homeserver account, or files held in your Cloud Storage, and it does not by itself make
           your identity unrecoverable.
         </p>
       </LegalSection>
-
       <LegalSection title="RESPONSIBILITIES, LIMITATION OF LIABILITY AND INDEMNITY">
         <SectionIntroduction>
           This section limits our liability and asks you to cover losses you cause.
@@ -446,7 +449,7 @@ export default function TermsOfServicePage() {
           To the maximum extent permitted by applicable Law, neither Synonym nor any of its
           Associates assumes any liability or responsibility for any Losses directly or indirectly
           arising out of or related to Passport, including any loss of an identity, a key, a
-          Passport File, access to a Google Account, or access to a Homeserver account.
+          Passport File, access to a Sign-in Account, or access to a Homeserver account.
         </p>
         <p>
           You hereby agree to release Synonym and its Associates from liability for any and all such
@@ -460,17 +463,15 @@ export default function TermsOfServicePage() {
           any) in respect of Passport in relation to which the liability has arisen.
         </p>
       </LegalSection>
-
       <LegalSection title="FORCE MAJEURE">
         <SectionIntroduction>This section covers events outside our control.</SectionIntroduction>
         <p>
           Synonym is not responsible for Losses caused by delay or failure of Synonym or of Passport
           where the delay or failure is due to an event outside our reasonable control, including
-          outages or changes at Google, at a Homeserver operator, or at a relay, network or protocol
-          failures, public health events, government acts, and acts of God.
+          outages or changes at Google or Apple, at a Homeserver operator, or at a relay, network or
+          protocol failures, public health events, government acts, and acts of God.
         </p>
       </LegalSection>
-
       <LegalSection title="MANDATORY RESOLUTION OF DISPUTES THROUGH ARBITRATION">
         <SectionIntroduction>
           This section requires that most disputes be resolved individually through binding
@@ -556,7 +557,6 @@ export default function TermsOfServicePage() {
           judicial decision.
         </p>
       </LegalSection>
-
       <LegalSection title="JURY TRIAL WAIVER">
         <p>
           <strong>
@@ -568,155 +568,160 @@ export default function TermsOfServicePage() {
           </strong>
         </p>
       </LegalSection>
-
       <LegalSection title="DEFINITIONS">
         <p>
           In these Terms, the following words have the following meanings, unless otherwise
           indicated:
         </p>
-        <ul>
-          <li>
-            <strong>“Associates”</strong> means Synonym, its subsidiaries and affiliates and their
-            respective directors, officers, employees, agents and representatives;
-          </li>
-          <li>
-            <strong>“Google Account”</strong> means the account you use to sign in to Google
-            services and Google Drive;
-          </li>
-          <li>
-            <strong>“Homeserver”</strong> means a server that stores data for a Pubky identity,
-            whether operated by Synonym or by a third party;
-          </li>
-          <li>
-            <strong>“Law”</strong> means all laws, statutes, orders, regulations, rules, treaties,
-            and official obligations that apply;
-          </li>
-          <li>
-            <strong>“LCIA Rules”</strong> means LCIA Arbitration Rules 2020;
-          </li>
-          <li>
-            <strong>“Losses”</strong> means, collectively, any claim, application, loss, injury,
-            delay, accident, cost, business interruption cost, or any other expense or damage of any
-            nature;
-          </li>
-          <li>
-            <strong>“Passport”</strong> means the web application known as Pubky Passport, provided
-            by Synonym at passport.pubky.app, and the services we operate for it, including the
-            wrapping-key endpoint;
-          </li>
-          <li>
-            <strong>“Passport File”</strong> means the encrypted copy of an identity secret key that
-            Passport writes to your Google Drive, including any visible copy;
-          </li>
-          <li>
-            <strong>“Person”</strong> includes an individual, association, partnership, corporation,
-            company, or other entity;
-          </li>
-          <li>
-            <strong>“Privacy Policy”</strong> means the Pubky Passport{" "}
-            <a href="/privacy-policy">Privacy Policy</a>;
-          </li>
-          <li>
-            <strong>“Prohibited Jurisdiction”</strong> means any of: Cuba, Democratic People’s
-            Republic of Korea (North Korea), Iran, Syria, Crimea (a region of Ukraine annexed by the
-            Russian Federation), the self-proclaimed Donetsk People’s Republic (a region of Ukraine)
-            and the self-proclaimed Luhansk People’s Republic (a region of Ukraine);
-          </li>
-          <li>
-            <strong>“Prohibited Use”</strong> has the meaning given above;
-          </li>
-          <li>
-            <strong>“Pubky identity”</strong> means a cryptographic key pair used to identify you on
-            the Pubky protocol, and the public identifier derived from it;
-          </li>
-          <li>
-            <strong>“Third-Party Material(s)”</strong> means sites, software applications, content,
-            services, and infrastructure that Synonym does not operate;
-          </li>
-          <li>
-            <strong>“Users”</strong> means all users and others who access Passport.
-          </li>
-        </ul>
+        <p>
+          “<strong>Apple Account</strong>” means the account you use to sign in to Apple services
+          and iCloud;
+        </p>
+        <p>
+          “<strong>Associates</strong>” means Synonym, its subsidiaries and affiliates and their
+          respective directors, officers, employees, agents and representatives;
+        </p>
+        <p>
+          “<strong>Cloud Storage</strong>” means Google Drive, if you sign in to Passport with
+          Google, or iCloud, if you sign in to Passport with Apple;
+        </p>
+        <p>
+          “<strong>Google Account</strong>” means the account you use to sign in to Google services
+          and Google Drive;
+        </p>
+        <p>
+          “<strong>Homeserver</strong>” means a server that stores data for a Pubky identity,
+          whether operated by Synonym or by a third party;
+        </p>
+        <p>
+          “<strong>Law</strong>” means all laws, statutes, orders, regulations, rules, treaties, and
+          official obligations that apply;
+        </p>
+        <p>
+          “<strong>LCIA Rules</strong>” means LCIA Arbitration Rules 2020;
+        </p>
+        <p>
+          “<strong>Losses</strong>” means, collectively, any claim, application, loss, injury,
+          delay, accident, cost, business interruption cost, or any other expense or damage of any
+          nature;
+        </p>
+        <p>
+          “<strong>Passport</strong>” means the web application known as Pubky Passport, provided by
+          Synonym at passport.pubky.app, and the services we operate for it, including the
+          wrapping-key endpoint;
+        </p>
+        <p>
+          “<strong>Passport File</strong>” means the encrypted copy of an identity secret key that
+          Passport writes to your Cloud Storage, including any visible copy;
+        </p>
+        <p>
+          “<strong>Person</strong>” includes an individual, association, partnership, corporation,
+          company, or other entity;
+        </p>
+        <p>
+          “<strong>Privacy Policy</strong>” means the Pubky Passport Privacy Policy;
+        </p>
+        <p>
+          “<strong>Prohibited Jurisdiction</strong>” means any of: Cuba, Democratic People’s
+          Republic of Korea (North Korea), Iran, Syria, Crimea (a region of Ukraine annexed by the
+          Russian Federation), the self-proclaimed Donetsk People’s Republic (a region of Ukraine)
+          and the self-proclaimed Luhansk People’s Republic (a region of Ukraine);
+        </p>
+        <p>
+          “<strong>Prohibited Use</strong>” has the meaning given above;
+        </p>
+        <p>
+          “<strong>Pubky identity</strong>” means a cryptographic key pair used to identify you on
+          the Pubky protocol, and the public identifier derived from it;
+        </p>
+        <p>
+          “<strong>Sign-in Account</strong>” means the Google Account or Apple Account you use to
+          sign in to Passport;
+        </p>
+        <p>
+          “<strong>Third-Party Material(s)</strong>” means sites, software applications, content,
+          services, and infrastructure that Synonym does not operate;
+        </p>
+        <p>
+          “<strong>Users</strong>” means all users and others who access Passport.
+        </p>
       </LegalSection>
-
       <LegalSection title="MISCELLANEOUS">
         <SectionIntroduction>
           This section covers governing law and the usual final provisions.
         </SectionIntroduction>
-        <h3>Governing law</h3>
         <p>
-          These Terms shall be governed by and construed and enforced in accordance with the Laws of
-          England and Wales and shall be interpreted in all respects as an English law contract.
+          <strong>Governing law:</strong> These Terms shall be governed by and construed and
+          enforced in accordance with the Laws of England and Wales and shall be interpreted in all
+          respects as an English law contract.
         </p>
-        <h3>No Waiver; Available Remedies</h3>
         <p>
-          Any failure by Synonym to exercise any of its rights, powers, or remedies under these
-          Terms, or any delay by Synonym in doing so, does not constitute a waiver of any such
-          right, power, or remedy. The single or partial exercise of any right, power, or remedy by
-          Synonym does not prevent either from exercising any other rights, powers, or remedies. The
-          remedies of Synonym are cumulative with and not exclusive of any other remedy conferred by
-          the provisions of these Terms, or by law or equity. You agree that the remedies to which
-          Synonym is entitled include (i) injunctions to prevent breaches of these Terms and to
-          enforce specifically the terms and provisions hereof, and you waive the requirement of any
-          posting of a bond in connection with such remedies, (ii) the right to recover the amount
-          of any Losses by set off against any amounts that Synonym would otherwise be obligated to
-          pay to you, and (iii) the right to seize and recover against any of your assets, or your
-          interests therein, that are held by Synonym or any of its Associates.
+          <strong>No Waiver; Available Remedies:</strong> Any failure by Synonym to exercise any of
+          its rights, powers, or remedies under these Terms, or any delay by Synonym in doing so,
+          does not constitute a waiver of any such right, power, or remedy. The single or partial
+          exercise of any right, power, or remedy by Synonym does not prevent either from exercising
+          any other rights, powers, or remedies. The remedies of Synonym are cumulative with and not
+          exclusive of any other remedy conferred by the provisions of these Terms, or by law or
+          equity. You agree that the remedies to which Synonym is entitled include (i) injunctions
+          to prevent breaches of these Terms and to enforce specifically the terms and provisions
+          hereof, and you waive the requirement of any posting of a bond in connection with such
+          remedies, (ii) the right to recover the amount of any Losses by set off against any
+          amounts that Synonym would otherwise be obligated to pay to you, and (iii) the right to
+          seize and recover against any of your assets, or your interests therein, that are held by
+          Synonym or any of its Associates.
         </p>
-        <h3>Assignment and Third-Party Rights</h3>
         <p>
-          These Terms, and any of the rights, duties, and obligations contained or incorporated
-          herein, are not assignable by you without prior written consent of Synonym and any attempt
-          by you to assign these Terms without Synonym’s written consent is void. These Terms, and
-          any of the rights, duties, and obligations contained herein, are freely assignable by
-          Synonym, in whole or in part, without notice or your consent (for clarity, this assignment
-          right includes the right for Synonym to assign any claim, in whole or in part, arising
-          hereunder). Subject to the foregoing, these Terms, and any of the rights, duties, and
-          obligations contained or incorporated herein, shall be binding upon and inure to the
-          benefit of the heirs, executors, administrators, personal or legal representatives,
-          successors and assigns of you and of Synonym. None of the provisions of these Terms, or
-          any of the rights, duties, and obligations contained or incorporated herein, are for the
-          benefit of or enforceable by any creditors of you or Synonym or any other persons, except:
-          (i) such as inure to a successor or assign in accordance herewith; and (ii) that the
-          Associates of Synonym are intended third party beneficiaries of the rights and privileges
-          expressly stated to apply to the Associates hereunder and shall be entitled to enforce
-          such rights and privileges as if a direct party to these Terms. No consent of any Person
-          is required for any modification or amendment to these Terms.
+          <strong>Assignment and Third-Party Rights:</strong> These Terms, and any of the rights,
+          duties, and obligations contained or incorporated herein, are not assignable by you
+          without prior written consent of Synonym and any attempt by you to assign these Terms
+          without Synonym’s written consent is void. These Terms, and any of the rights, duties, and
+          obligations contained herein, are freely assignable by Synonym, in whole or in part,
+          without notice or your consent (for clarity, this assignment right includes the right for
+          Synonym to assign any claim, in whole or in part, arising hereunder). Subject to the
+          foregoing, these Terms, and any of the rights, duties, and obligations contained or
+          incorporated herein, shall be binding upon and inure to the benefit of the heirs,
+          executors, administrators, personal or legal representatives, successors and assigns of
+          you and of Synonym. None of the provisions of these Terms, or any of the rights, duties,
+          and obligations contained or incorporated herein, are for the benefit of or enforceable by
+          any creditors of you or Synonym or any other persons, except: (i) such as inure to a
+          successor or assign in accordance herewith; and (ii) that the Associates of Synonym are
+          intended third party beneficiaries of the rights and privileges expressly stated to apply
+          to the Associates hereunder and shall be entitled to enforce such rights and privileges as
+          if a direct party to these Terms. No consent of any Person is required for any
+          modification or amendment to these Terms.
         </p>
-        <h3>Severability</h3>
         <p>
-          If any provision of these Terms or part thereof, as amended from time to time, is
-          determined to be invalid, void, or unenforceable, in whole or in part, by any court of
-          competent jurisdiction, such invalidity, voidness, or unenforceability attaches only to
-          such provision to the extent of its illegality, unenforceability, invalidity, or voidness,
-          as may be, and everything else in these Terms continues in full force and effect.
+          <strong>Severability:</strong> If any provision of these Terms or part thereof, as amended
+          from time to time, is determined to be invalid, void, or unenforceable, in whole or in
+          part, by any court of competent jurisdiction, such invalidity, voidness, or
+          unenforceability attaches only to such provision to the extent of its illegality,
+          unenforceability, invalidity, or voidness, as may be, and everything else in these Terms
+          continues in full force and effect.
         </p>
-        <h3>Electronic Communications and Acceptance</h3>
         <p>
-          You agree and consent to receive electronically all communications, agreements, documents,
-          receipts, notices and disclosures that Synonym may provide in connection with these Terms
-          through publication on any part of Passport or to an email address on file that you have
-          previously provided to Synonym. Such notices shall be deemed effective and received by you
-          on the date on which the notice is published on any part of Passport or on which the email
-          is sent to such email address. These Terms may be accepted electronically, and it is the
-          intention of the Parties that such acceptance shall be deemed to be as valid as an
-          original signature being applied to these Terms.
+          <strong>Electronic Communications and Acceptance:</strong> You agree and consent to
+          receive electronically all communications, agreements, documents, receipts, notices and
+          disclosures that Synonym may provide in connection with these Terms through publication on
+          any part of Passport or to an email address on file that you have previously provided to
+          Synonym. Such notices shall be deemed effective and received by you on the date on which
+          the notice is published on any part of Passport or on which the email is sent to such
+          email address. These Terms may be accepted electronically, and it is the intention of the
+          Parties that such acceptance shall be deemed to be as valid as an original signature being
+          applied to these Terms.
         </p>
-        <h3>Termination and No Liability for Termination</h3>
         <p>
-          We reserve the right, in our sole discretion, to suspend and/or terminate your access to
-          Passport for any reason, including if we determine that you violated these Terms or
-          applicable Law. In general, we will notify you at the latest from the date the action is
-          taken and provide you with an opportunity to remedy the relevant breach or breaches.
-          However, advanced notification and/or opportunity to remedy will not be provided if the
-          seriousness of the breach requires immediate termination of your access to Passport, or
-          when it is impossible to remedy the breach. You acknowledge and agree that we shall not be
-          liable to you or any third party for any termination or suspension of your access to
-          Passport.
+          <strong>Termination and No Liability for Termination:</strong> We reserve the right, in
+          our sole discretion, to suspend and/or terminate your access to Passport for any reason,
+          including if we determine that you violated these Terms or applicable Law. In general, we
+          will notify you at the latest from the date the action is taken and provide you with an
+          opportunity to remedy the relevant breach or breaches. However, advanced notification
+          and/or opportunity to remedy will not be provided if the seriousness of the breach
+          requires immediate termination of your access to Passport, or when it is impossible to
+          remedy the breach. You acknowledge and agree that we shall not be liable to you or any
+          third party for any termination or suspension of your access to Passport.
         </p>
-        <h3>Contact</h3>
         <p>
-          <a href="mailto:info@synonym.to">info@synonym.to</a>
+          <strong>Contact:</strong> <a href="mailto:info@synonym.to">info@synonym.to</a>.
         </p>
       </LegalSection>
     </LegalPage>
