@@ -35,19 +35,24 @@ export default function PrivacyPolicyPage() {
           Passport runs in your browser. Your identity secret key stays on your device and, in
           encrypted form, in your own Google Drive or iCloud. We do not receive it. The account
           information you receive from Google or Apple when you sign in (such as your email address,
-          account identifier, display name, and, for Google, profile picture) stays in your browser
-          only. We do not keep a user account or a copy of those identifiers on our servers. What
-          our servers do receive is a Google or Apple identity assertion that we verify in order to
-          derive a key that unlocks your encrypted backup, and ordinary technical information that
-          comes with any web request (such as IP address and logs). We do not sell or share personal
-          information, we do not run advertising, and no analytics or error-monitoring vendor is
-          configured in Passport.
+          account identifier, display name, and, for Google, profile picture) is stored in your
+          browser. We do not create a Passport user profile from it. Passport sends a signed Google
+          or Apple identity assertion to our wrapping-key service and, during account creation, to
+          our verification service. That assertion identifies your Google or Apple account. We do
+          not retain the assertion itself. Our verification service does retain a stable,
+          pseudonymous hash derived from your account identifier, together with signup and timing
+          information, to enforce onboarding limits. Our servers also receive ordinary technical
+          information that comes with web requests, such as IP address, browser and device
+          information, and logs. We do not sell or share personal information, we do not run
+          advertising, and no analytics or error-monitoring vendor is configured in Passport.
         </p>
       </LegalSection>
       <LegalSection title="NOTICE AT COLLECTION">
         <p>
           “Collect” in this notice means information involved when you use Passport. It does not
-          mean we keep a copy of everything on our servers. There is no Passport user database.
+          mean we keep a copy of everything on our servers. Passport does not maintain a
+          conventional user-profile database, but the verification service used during account
+          creation keeps the pseudonymous verification records described below.
         </p>
         <p>
           <strong>Stored in your browser only.</strong> Your Google or Apple account identifier,
@@ -57,13 +62,18 @@ export default function PrivacyPolicyPage() {
         </p>
         <p>
           <strong>Stored in your Google Drive or iCloud, not on our servers.</strong> The encrypted
-          Passport File, and any visible recovery copies Passport writes for you.
+          Passport File. Visible copies exist in Google Drive only: Passport may write visible
+          recovery copies there for you.
         </p>
         <p>
-          <strong>Received by our servers, not stored as a user profile.</strong> A Google or Apple
-          identity assertion, used for the request that derives a wrapping key and then discarded.
-          Ordinary internet activity that comes with any web request: IP address, device and browser
-          information, and structured server logs of operations that succeed or fail.
+          <strong>Received by our services.</strong> A Google or Apple identity assertion, used to
+          derive a wrapping key and, when you request account creation, to verify eligibility for a
+          signup invitation. We do not retain the assertion itself. The account-creation
+          verification service stores a stable, peppered hash derived from the assertion’s issuer
+          and account identifier, the issued signup code, and the time of issuance. Our services
+          also receive ordinary internet activity that comes with web requests, including IP
+          address, device and browser information, request metadata, and structured logs of
+          operations that succeed or fail.
         </p>
         <p>
           We use these categories in order to provide Passport to you, to secure it against abuse,
@@ -71,10 +81,10 @@ export default function PrivacyPolicyPage() {
         </p>
         <p>
           We may have disclosed each of these categories for a business purpose as described below.
-          We have not “sold” or “shared” personal information in the past 12 months, as those terms
-          are defined by the California Consumer Privacy Act (“CCPA”) or the General Data Protection
-          Regulation (“GDPR”). For a description of your rights and how to exercise them, see Your
-          Privacy Rights below.
+          We have not “sold” or “shared” personal information in the past 12 months as those terms
+          are defined by the California Consumer Privacy Act (“CCPA”). We do not sell personal data
+          as that concept is understood under the General Data Protection Regulation (“GDPR”). For a
+          description of your rights and how to exercise them, see Your Privacy Rights below.
         </p>
       </LegalSection>
       <LegalSection title="TYPES OF INFORMATION WE COLLECT">
@@ -96,8 +106,10 @@ export default function PrivacyPolicyPage() {
           <li>
             <strong>Google or Apple Identity Assertion.</strong> Passport sends the signed assertion
             issued by Google or Apple to our wrapping-key endpoint so that we can verify it with its
-            issuer and derive the key that decrypts your encrypted backup. We use it for that
-            request and we do not store it.
+            issuer and derive the key that decrypts your encrypted backup. If you request account
+            creation, Passport also sends the assertion to our verification service. We use it for
+            those requests and do not retain the assertion itself. The verification service derives
+            and retains the pseudonymous record described above.
           </li>
           <li>
             <strong>Storage Authorization Token.</strong> Passport receives a token that lets it
@@ -112,8 +124,9 @@ export default function PrivacyPolicyPage() {
           <li>
             <strong>Device and Log Information.</strong> Like any website, Passport’s servers
             receive your IP address, your browser and device information, and request metadata, and
-            record structured log entries about operations that succeed or fail. That is the
-            personal information we retain on our side, for a limited operational period.
+            record structured log entries about operations that succeed or fail. Together with the
+            account-creation verification records, that is the personal information we retain on our
+            side.
           </li>
           <li>
             <strong>Information You Submit.</strong> Anything you send us if you contact us, for
@@ -137,8 +150,10 @@ export default function PrivacyPolicyPage() {
             other files.
           </li>
           <li>
-            <strong>Passwords, recovery phrases, or payment credentials.</strong> Passport does not
-            ask for them.
+            <strong>Recovery phrases and payment credentials.</strong> Passport does not ask for
+            them. Passport does ask for a password when you download or import an encrypted recovery
+            file. That password is processed in your browser to encrypt or decrypt the file and is
+            not sent to or stored by us.
           </li>
         </ul>
       </LegalSection>
@@ -154,10 +169,11 @@ export default function PrivacyPolicyPage() {
         </p>
         <p>
           <strong>In your Google Drive or iCloud.</strong> Passport writes an encrypted copy of your
-          identity secret key to a private application-data area of your Google Drive or iCloud,
-          depending on how you sign in, and may also write encrypted copies to a visible folder
-          named “Pubky Passport” so that you can see and keep them. These files are yours, in your
-          Google or Apple account. You can delete them at any time.
+          identity secret key to a private area of your Google Drive or iCloud, depending on how you
+          sign in. In iCloud, this is a single record in your private database. In Google Drive,
+          Passport may also write encrypted copies to a visible folder named “Pubky Passport” so
+          that you can see and keep them. These files are yours, in your Google or Apple account.
+          You can delete them at any time.
         </p>
         <p>
           <strong>On our server.</strong> We do not store your email address or other Google or
@@ -165,8 +181,10 @@ export default function PrivacyPolicyPage() {
           Passport File. Deriving it requires a Google or Apple identity assertion that Google or
           Apple confirms as belonging to the same account. The file itself never passes through us,
           so the derived key alone does not give us access to your identity. Each Passport File
-          records the public identifier of the secret used, never the secret itself. We retain
-          server logs as described above.
+          records the public identifier of the secret used, never the secret itself. During account
+          creation, our verification service stores a stable, peppered hash derived from the
+          assertion’s issuer and account identifier, the issued signup code, and its creation time.
+          We also retain server logs as described above.
         </p>
       </LegalSection>
       <LegalSection title="LEGAL BASIS">
@@ -213,8 +231,9 @@ export default function PrivacyPolicyPage() {
           <li>
             <strong>From a verification service we operate.</strong> Where Passport helps you create
             an account on a Homeserver, that service confirms a Google or Apple identity assertion
-            and issues a signup invitation. It applies rate limits, which means it keeps counters
-            associated with that verification.
+            and issues a signup invitation. To apply weekly and annual rate limits, it records each
+            successful issuance using a stable, peppered hash derived from the assertion’s issuer
+            and account identifier, together with the signup code and issuance time.
           </li>
         </ul>
       </LegalSection>
@@ -274,9 +293,11 @@ export default function PrivacyPolicyPage() {
           </li>
         </ul>
         <p>
-          We do not share your information with the applications that ask you for authorization.
-          When you approve a request, the application receives the access you approved on your
-          Homeserver, not the information described in this Policy.
+          We do not share your Google or Apple account information, identity assertion,
+          authorization token, or identity secret key with applications that ask you for
+          authorization. When you approve a request, the application receives a Pubky session
+          containing your public key, the relevant Homeserver, grant details, and the capabilities
+          you approved.
         </p>
       </LegalSection>
       <LegalSection title="RETENTION">
@@ -291,9 +312,10 @@ export default function PrivacyPolicyPage() {
           request that uses them.
         </p>
         <p>
-          Server logs are retained for a limited operational period, based on security and
-          abuse-prevention needs, legal and regulatory requirements, and dispute resolution
-          obligations, and then deleted.
+          The account-creation verification service retains the stable, peppered identity hash,
+          signup code, and issuance time described above to enforce weekly and annual limits and to
+          operate and secure onboarding. Server logs and verification records are retained according
+          to our operational, security, legal, regulatory, and dispute-resolution needs.
         </p>
       </LegalSection>
       <LegalSection title="CHILDREN">
@@ -316,8 +338,9 @@ export default function PrivacyPolicyPage() {
             Apple account settings. Passport can then no longer read or write your Passport File.
           </li>
           <li>
-            <strong>Delete your Passport File and any visible copies</strong> from your Google Drive
-            or iCloud. Recovery through that account will no longer be possible with those files.
+            <strong>Delete your Passport File</strong> from your Google Drive or iCloud, and any
+            visible copies from your Google Drive. Recovery through that account will no longer be
+            possible with those files.
           </li>
           <li>
             <strong>Clear Passport’s browser storage</strong> to remove the identities held on that
@@ -352,8 +375,9 @@ export default function PrivacyPolicyPage() {
         <p>
           Because your Google or Apple identifiers, identity secret key, and Passport File are held
           by you, on your device and in your Google or Apple account, a request to us cannot delete
-          them. We will tell you where the data sits and how to remove it. We can act only on what
-          we actually hold, which is server logs and any message you send us.
+          them. We will tell you where the data sits and how to remove it. We can act only on
+          information we hold, which may include server logs, account-creation verification records,
+          and messages you send us.
         </p>
       </LegalSection>
       <LegalSection title="SECURITY">

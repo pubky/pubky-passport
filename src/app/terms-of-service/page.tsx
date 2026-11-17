@@ -176,9 +176,10 @@ export default function TermsOfServicePage() {
         </p>
         <p>
           The Passport File is a copy of that secret key, encrypted in your browser before it leaves
-          your device. Passport stores it in your Cloud Storage. Passport may also write additional
-          encrypted copies to a visible folder in your Cloud Storage so that you can see and keep
-          them yourself. We do not receive, hold, or store the Passport File, and we cannot read it.
+          your device. Passport stores it in your Cloud Storage. If you sign in with Google,
+          Passport may also write additional encrypted copies to a visible folder in your Google
+          Drive so that you can see and keep them yourself. We do not receive, hold, or store the
+          Passport File, and we cannot read it.
         </p>
         <p>Decrypting a Passport File requires both:</p>
         <ol>
@@ -655,70 +656,69 @@ export default function TermsOfServicePage() {
           respects as an English law contract.
         </p>
         <p>
-          <strong>No Waiver; Available Remedies:</strong>
-          Any failure by Synonym to exercise any of its rights, powers, or remedies under these
-          Terms, or any delay by Synonym in doing so, does not constitute a waiver of any such
-          right, power, or remedy. The single or partial exercise of any right, power, or remedy by
-          Synonym does not prevent either from exercising any other rights, powers, or remedies. The
-          remedies of Synonym are cumulative with and not exclusive of any other remedy conferred by
-          the provisions of these Terms, or by law or equity. You agree that the remedies to which
-          Synonym is entitled include (i) injunctions to prevent breaches of these Terms and to
-          enforce specifically the terms and provisions hereof, and you waive the requirement of any
-          posting of a bond in connection with such remedies, (ii) the right to recover the amount
-          of any Losses by set off against any amounts that Synonym would otherwise be obligated to
-          pay to you, and (iii) the right to seize and recover against any of your assets, or your
-          interests therein, that are held by Synonym or any of its Associates.
+          <strong>No Waiver; Available Remedies:</strong> Any failure by Synonym to exercise any of
+          its rights, powers, or remedies under these Terms, or any delay by Synonym in doing so,
+          does not constitute a waiver of any such right, power, or remedy. The single or partial
+          exercise of any right, power, or remedy by Synonym does not prevent either from exercising
+          any other rights, powers, or remedies. The remedies of Synonym are cumulative with and not
+          exclusive of any other remedy conferred by the provisions of these Terms, or by law or
+          equity. You agree that the remedies to which Synonym is entitled include (i) injunctions
+          to prevent breaches of these Terms and to enforce specifically the terms and provisions
+          hereof, and you waive the requirement of any posting of a bond in connection with such
+          remedies, (ii) the right to recover the amount of any Losses by set off against any
+          amounts that Synonym would otherwise be obligated to pay to you, and (iii) the right to
+          seize and recover against any of your assets, or your interests therein, that are held by
+          Synonym or any of its Associates.
         </p>
         <p>
-          <strong>Assignment and Third-Party Rights:</strong>
-          These Terms, and any of the rights, duties, and obligations contained or incorporated
-          herein, are not assignable by you without prior written consent of Synonym and any attempt
-          by you to assign these Terms without Synonym’s written consent is void. These Terms, and
-          any of the rights, duties, and obligations contained herein, are freely assignable by
-          Synonym, in whole or in part, without notice or your consent (for clarity, this assignment
-          right includes the right for Synonym to assign any claim, in whole or in part, arising
-          hereunder). Subject to the foregoing, these Terms, and any of the rights, duties, and
-          obligations contained or incorporated herein, shall be binding upon and inure to the
-          benefit of the heirs, executors, administrators, personal or legal representatives,
-          successors and assigns of you and of Synonym. None of the provisions of these Terms, or
-          any of the rights, duties, and obligations contained or incorporated herein, are for the
-          benefit of or enforceable by any creditors of you or Synonym or any other persons, except:
-          (i) such as inure to a successor or assign in accordance herewith; and (ii) that the
-          Associates of Synonym are intended third party beneficiaries of the rights and privileges
-          expressly stated to apply to the Associates hereunder and shall be entitled to enforce
-          such rights and privileges as if a direct party to these Terms. No consent of any Person
-          is required for any modification or amendment to these Terms.
+          <strong>Assignment and Third-Party Rights:</strong> These Terms, and any of the rights,
+          duties, and obligations contained or incorporated herein, are not assignable by you
+          without prior written consent of Synonym and any attempt by you to assign these Terms
+          without Synonym’s written consent is void. These Terms, and any of the rights, duties, and
+          obligations contained herein, are freely assignable by Synonym, in whole or in part,
+          without notice or your consent (for clarity, this assignment right includes the right for
+          Synonym to assign any claim, in whole or in part, arising hereunder). Subject to the
+          foregoing, these Terms, and any of the rights, duties, and obligations contained or
+          incorporated herein, shall be binding upon and inure to the benefit of the heirs,
+          executors, administrators, personal or legal representatives, successors and assigns of
+          you and of Synonym. None of the provisions of these Terms, or any of the rights, duties,
+          and obligations contained or incorporated herein, are for the benefit of or enforceable by
+          any creditors of you or Synonym or any other persons, except: (i) such as inure to a
+          successor or assign in accordance herewith; and (ii) that the Associates of Synonym are
+          intended third party beneficiaries of the rights and privileges expressly stated to apply
+          to the Associates hereunder and shall be entitled to enforce such rights and privileges as
+          if a direct party to these Terms. No consent of any Person is required for any
+          modification or amendment to these Terms.
         </p>
         <p>
-          <strong>Severability:</strong>
-          If any provision of these Terms or part thereof, as amended from time to time, is
-          determined to be invalid, void, or unenforceable, in whole or in part, by any court of
-          competent jurisdiction, such invalidity, voidness, or unenforceability attaches only to
-          such provision to the extent of its illegality, unenforceability, invalidity, or voidness,
-          as may be, and everything else in these Terms continues in full force and effect.
+          <strong>Severability:</strong> If any provision of these Terms or part thereof, as amended
+          from time to time, is determined to be invalid, void, or unenforceable, in whole or in
+          part, by any court of competent jurisdiction, such invalidity, voidness, or
+          unenforceability attaches only to such provision to the extent of its illegality,
+          unenforceability, invalidity, or voidness, as may be, and everything else in these Terms
+          continues in full force and effect.
         </p>
         <p>
-          <strong>Electronic Communications and Acceptance:</strong>
-          You agree and consent to receive electronically all communications, agreements, documents,
-          receipts, notices and disclosures that Synonym may provide in connection with these Terms
-          through publication on any part of Passport or to an email address on file that you have
-          previously provided to Synonym. Such notices shall be deemed effective and received by you
-          on the date on which the notice is published on any part of Passport or on which the email
-          is sent to such email address. These Terms may be accepted electronically, and it is the
-          intention of the Parties that such acceptance shall be deemed to be as valid as an
-          original signature being applied to these Terms.
+          <strong>Electronic Communications and Acceptance:</strong> You agree and consent to
+          receive electronically all communications, agreements, documents, receipts, notices and
+          disclosures that Synonym may provide in connection with these Terms through publication on
+          any part of Passport or to an email address on file that you have previously provided to
+          Synonym. Such notices shall be deemed effective and received by you on the date on which
+          the notice is published on any part of Passport or on which the email is sent to such
+          email address. These Terms may be accepted electronically, and it is the intention of the
+          Parties that such acceptance shall be deemed to be as valid as an original signature being
+          applied to these Terms.
         </p>
         <p>
-          <strong>Termination and No Liability for Termination:</strong>
-          We reserve the right, in our sole discretion, to suspend and/or terminate your access to
-          Passport for any reason, including if we determine that you violated these Terms or
-          applicable Law. In general, we will notify you at the latest from the date the action is
-          taken and provide you with an opportunity to remedy the relevant breach or breaches.
-          However, advanced notification and/or opportunity to remedy will not be provided if the
-          seriousness of the breach requires immediate termination of your access to Passport, or
-          when it is impossible to remedy the breach. You acknowledge and agree that we shall not be
-          liable to you or any third party for any termination or suspension of your access to
-          Passport.
+          <strong>Termination and No Liability for Termination:</strong> We reserve the right, in
+          our sole discretion, to suspend and/or terminate your access to Passport for any reason,
+          including if we determine that you violated these Terms or applicable Law. In general, we
+          will notify you at the latest from the date the action is taken and provide you with an
+          opportunity to remedy the relevant breach or breaches. However, advanced notification
+          and/or opportunity to remedy will not be provided if the seriousness of the breach
+          requires immediate termination of your access to Passport, or when it is impossible to
+          remedy the breach. You acknowledge and agree that we shall not be liable to you or any
+          third party for any termination or suspension of your access to Passport.
         </p>
         <p>
           <strong>Contact:</strong> <a href="mailto:info@synonym.to">info@synonym.to</a>.
