@@ -86,6 +86,10 @@ Pubky is moving to many apps, so onboarding and profile management shouldn't sta
 
 ![Option C](images/0001-4-option-c.png)
 
+External apps skip Accounts in Option C too. They open Passport directly through the same SDK, see the same screens and Homegate methods, and ask for their own grant, signed with your key.
+
+![Option C for external apps](images/0001-4b-option-c-external.png)
+
 ### App integration: one SDK, Accounts and Passport in a pop-up
 
 Apps add one button from a Passport SDK, as the Passport v2 client package does today for Passport alone. The button opens a pop-up from the click. For a suite app, the pop-up opens Accounts. Accounts sends the same pop-up on to Passport if you aren't signed in, then to the app's callback page with the child grant. The callback page hands the result to the app tab and closes the pop-up, so the app tab never leaves. Other apps open Passport in the pop-up directly. If a pop-up can't open, the same steps run in the tab.

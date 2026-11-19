@@ -1,0 +1,311 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2000 1885" width="2000" height="1885" font-family="DejaVu Sans, Verdana, sans-serif">
+<defs>
+<marker id="dark" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#333"/></marker>
+<marker id="green" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#2E9A50"/></marker>
+<marker id="grey" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#888"/></marker>
+<style>
+.solid{stroke:#333;stroke-width:2.2;fill:none;marker-end:url(#dark)}
+.dash{stroke:#2E9A50;stroke-width:2.2;fill:none;stroke-dasharray:8 6;marker-end:url(#green)}
+.opt{stroke:#888;stroke-width:2.2;fill:none;stroke-dasharray:6 5;marker-end:url(#grey)}
+.life{stroke:#bbb;stroke-width:1.5;stroke-dasharray:4 5}
+.title{font-weight:bold;font-size:34px;fill:#111}
+.sub{font-size:20px;fill:#555}
+.sec{font-weight:bold;font-size:22px;fill:#111}
+.h{font-weight:bold;font-size:20px;fill:#111}
+.b{font-size:17px;fill:#222}
+.cap{font-size:15px;fill:#555}
+.lbl{font-size:16px;fill:#222;paint-order:stroke;stroke:#fff;stroke-width:6px;stroke-linejoin:round}
+.lblg{font-size:16px;fill:#1E7D36;paint-order:stroke;stroke:#fff;stroke-width:6px;stroke-linejoin:round}
+.num{font-weight:bold}
+.link{font-size:15px;fill:#1E7D36;font-weight:bold}
+.mono{font-family:"DejaVu Sans Mono",monospace}
+.pro{font-size:17px;fill:#1E5E30}
+.con{font-size:17px;fill:#8A2A1E}
+</style>
+</defs>
+<rect width="2000" height="1885" fill="#fff"/>
+<text x="56" y="62" class="title">Option C for external apps: straight to Passport, no Accounts</text><text x="56" y="96" class="sub">Same Passport screens and Homegate methods. The app asks for its own grant, signed with your key.</text><rect x="80" y="180" width="320" height="470" rx="18" fill="#fff" stroke="#6E6E6E" stroke-width="2.5"/>
+<path d="M82,228 V198 Q82,182 98,182 H382 Q398,182 398,198 V228 Z" fill="#F2F2F2"/>
+<line x1="80" y1="228" x2="400" y2="228" stroke="#6E6E6E" stroke-width="1.2"/>
+<rect x="94" y="191" width="292" height="26" rx="13" fill="#fff" stroke="#ccc" stroke-width="1"/>
+<text x="240.0" y="210" class="cap mono" text-anchor="middle">example.app</text>
+<circle cx="80" cy="180" r="19" fill="#222"/><text x="80" y="187" font-size="19" font-weight="bold" fill="#fff" text-anchor="middle">1</text>
+<text x="240.0" y="680" class="h" text-anchor="middle">External app</text>
+<text x="240.0" y="704" class="cap" text-anchor="middle">SDK button, no Accounts</text>
+<text x="240.0" y="280" class="h" text-anchor="middle">Example App</text>
+<rect x="130.0" y="310" width="220.0" height="14" rx="7" fill="#EEE" stroke="#EEE" stroke-width="0"/>
+<rect x="150.0" y="336" width="180.0" height="14" rx="7" fill="#EEE" stroke="#EEE" stroke-width="0"/>
+<rect x="140.0" y="362" width="200.0" height="14" rx="7" fill="#EEE" stroke="#EEE" stroke-width="0"/>
+<rect x="115.0" y="410" width="250.0" height="40" rx="20" fill="#111" stroke="#111" stroke-width="0"/>
+<text x="240.0" y="436" font-size="16" font-weight="bold" fill="#fff" text-anchor="middle">Continue with Pubky</text>
+<rect x="105" y="480" width="270" height="80" rx="8" fill="#F7F7F7" stroke="#ddd" stroke-width="1"/>
+<text x="120" y="506" class="cap" text-anchor="start">Passport: passport.pubky.app</text>
+<text x="120" y="532" class="link" text-anchor="start">Use another Passport</text>
+<rect x="560" y="180" width="320" height="470" rx="18" fill="#fff" stroke="#2E9A50" stroke-width="2.5"/>
+<path d="M562,228 V198 Q562,182 578,182 H862 Q878,182 878,198 V228 Z" fill="#EEF8F0"/>
+<line x1="560" y1="228" x2="880" y2="228" stroke="#2E9A50" stroke-width="1.2"/>
+<rect x="574" y="191" width="292" height="26" rx="13" fill="#fff" stroke="#ccc" stroke-width="1"/>
+<text x="720.0" y="210" class="cap mono" text-anchor="middle">passport.pubky.app</text>
+<circle cx="560" cy="180" r="19" fill="#222"/><text x="560" y="187" font-size="19" font-weight="bold" fill="#fff" text-anchor="middle">2</text>
+<text x="720.0" y="680" class="h" text-anchor="middle">Pop-up: Passport</text>
+<text x="720.0" y="704" class="cap" text-anchor="middle">new pubky: create and key, as in C</text>
+<text x="720.0" y="262" class="h" text-anchor="middle">Sign in to Example App</text>
+<rect x="585" y="278" width="270" height="36" rx="8" fill="#fff" stroke="#999" stroke-width="1.3"/>
+<text x="600" y="302" class="b" text-anchor="start">Homegate: Synonym</text>
+<path d="M828,292 l8,8 l8,-8" fill="none" stroke="#444" stroke-width="2"/>
+<text x="720.0" y="342" class="cap" text-anchor="middle">Scan with Ring or Bitkit</text>
+<rect x="671.0" y="349" width="98.0" height="98" rx="6" fill="#fff" stroke="#ddd" stroke-width="1"/>
+<rect x="706.0" y="356.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="714.0" y="356.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="726.0" y="356.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="730.0" y="356.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="710.0" y="360.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="714.0" y="360.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="710.0" y="364.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="706.0" y="368.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="718.0" y="368.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="722.0" y="368.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="722.0" y="372.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="730.0" y="372.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="714.0" y="376.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="718.0" y="376.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="722.0" y="376.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="730.0" y="376.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="710.0" y="380.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="718.0" y="380.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="722.0" y="380.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="702.0" y="384.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="726.0" y="384.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="738.0" y="384.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="742.0" y="384.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="754.0" y="384.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="678.0" y="388.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="682.0" y="388.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="686.0" y="388.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="698.0" y="388.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="706.0" y="388.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="714.0" y="388.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="734.0" y="388.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="738.0" y="388.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="746.0" y="388.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="750.0" y="388.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="754.0" y="388.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="678.0" y="392.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="682.0" y="392.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="690.0" y="392.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="702.0" y="392.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="738.0" y="392.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="746.0" y="392.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="750.0" y="392.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="682.0" y="396.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="686.0" y="396.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="694.0" y="396.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="706.0" y="396.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="722.0" y="396.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="734.0" y="396.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="738.0" y="396.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="750.0" y="396.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="678.0" y="400.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="682.0" y="400.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="686.0" y="400.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="690.0" y="400.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="698.0" y="400.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="702.0" y="400.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="710.0" y="400.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="722.0" y="400.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="726.0" y="400.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="734.0" y="400.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="738.0" y="400.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="742.0" y="400.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="750.0" y="400.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="754.0" y="400.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="758.0" y="400.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="682.0" y="404.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="690.0" y="404.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="694.0" y="404.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="710.0" y="404.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="714.0" y="404.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="722.0" y="404.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="734.0" y="404.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="738.0" y="404.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="754.0" y="404.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="758.0" y="404.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="678.0" y="408.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="686.0" y="408.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="690.0" y="408.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="694.0" y="408.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="698.0" y="408.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="702.0" y="408.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="710.0" y="408.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="714.0" y="408.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="730.0" y="408.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="742.0" y="408.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="706.0" y="412.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="710.0" y="412.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="714.0" y="412.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="718.0" y="412.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="726.0" y="412.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="734.0" y="412.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="706.0" y="416.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="714.0" y="416.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="718.0" y="416.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="730.0" y="416.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="742.0" y="416.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="746.0" y="416.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="706.0" y="420.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="710.0" y="420.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="722.0" y="420.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="742.0" y="420.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="754.0" y="420.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="758.0" y="420.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="706.0" y="424.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="714.0" y="424.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="726.0" y="424.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="730.0" y="424.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="734.0" y="424.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="738.0" y="424.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="742.0" y="424.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="754.0" y="424.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="706.0" y="428.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="710.0" y="428.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="714.0" y="428.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="726.0" y="428.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="730.0" y="428.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="734.0" y="428.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="738.0" y="428.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="750.0" y="428.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="754.0" y="428.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="758.0" y="428.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="706.0" y="432.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="718.0" y="432.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="730.0" y="432.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="734.0" y="432.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="746.0" y="432.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="758.0" y="432.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="714.0" y="436.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="718.0" y="436.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="722.0" y="436.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="734.0" y="436.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="746.0" y="436.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="754.0" y="436.0" width="4.0" height="4.0" fill="#111"/>
+<rect x="678.0" y="356.0" width="28.0" height="28.0" fill="#111"/><rect x="682.0" y="360.0" width="20.0" height="20.0" fill="#fff"/><rect x="686.0" y="364.0" width="12.0" height="12.0" fill="#111"/>
+<rect x="734.0" y="356.0" width="28.0" height="28.0" fill="#111"/><rect x="738.0" y="360.0" width="20.0" height="20.0" fill="#fff"/><rect x="742.0" y="364.0" width="12.0" height="12.0" fill="#111"/>
+<rect x="678.0" y="412.0" width="28.0" height="28.0" fill="#111"/><rect x="682.0" y="416.0" width="20.0" height="20.0" fill="#fff"/><rect x="686.0" y="420.0" width="12.0" height="12.0" fill="#111"/>
+<line x1="595.0" y1="464" x2="702.0" y2="464" stroke="#ccc"/><line x1="738.0" y1="464" x2="845.0" y2="464" stroke="#ccc"/>
+<text x="720.0" y="469" class="cap" text-anchor="middle">or</text>
+<rect x="595.0" y="480" width="250.0" height="40" rx="20" fill="#fff" stroke="#999" stroke-width="1.3"/>
+<text x="720.0" y="506" font-size="16" font-weight="bold" fill="#111" text-anchor="middle">Continue with Google</text>
+<rect x="595.0" y="528" width="250.0" height="40" rx="20" fill="#111" stroke="#111" stroke-width="0"/>
+<text x="720.0" y="554" font-size="16" font-weight="bold" fill="#fff" text-anchor="middle">Continue with Apple</text>
+<text x="720.0" y="594" class="link" text-anchor="middle">Already have a pubky? Import it</text>
+<text x="720.0" y="622" class="link" text-anchor="middle">New here? Create a pubky</text>
+<rect x="1040" y="180" width="320" height="470" rx="18" fill="#fff" stroke="#2E9A50" stroke-width="2.5"/>
+<path d="M1042,228 V198 Q1042,182 1058,182 H1342 Q1358,182 1358,198 V228 Z" fill="#EEF8F0"/>
+<line x1="1040" y1="228" x2="1360" y2="228" stroke="#2E9A50" stroke-width="1.2"/>
+<rect x="1054" y="191" width="292" height="26" rx="13" fill="#fff" stroke="#ccc" stroke-width="1"/>
+<text x="1200.0" y="210" class="cap mono" text-anchor="middle">passport.pubky.app</text>
+<circle cx="1040" cy="180" r="19" fill="#222"/><text x="1040" y="187" font-size="19" font-weight="bold" fill="#fff" text-anchor="middle">3</text>
+<text x="1200.0" y="680" class="h" text-anchor="middle">Pop-up: Passport</text>
+<text x="1200.0" y="704" class="cap" text-anchor="middle">review and approve</text>
+<text x="1200.0" y="270" class="h" text-anchor="middle">Sign in to Example App</text>
+<rect x="1065" y="290" width="270" height="60" rx="8" fill="#EEF8F0" stroke="#EEF8F0" stroke-width="0"/>
+<text x="1082" y="314" class="cap" text-anchor="start">Signing in as</text>
+<text x="1082" y="338" class="b mono" text-anchor="start">pk:8pin…zq4y</text>
+<text x="1065" y="385" class="b" text-anchor="start">Example App asks for:</text>
+<text x="1075" y="415" class="cap" text-anchor="start">• Read and write its folder</text>
+<rect x="1075.0" y="510" width="250.0" height="40" rx="20" fill="#2E9A50" stroke="#2E9A50" stroke-width="0"/>
+<text x="1200.0" y="536" font-size="16" font-weight="bold" fill="#fff" text-anchor="middle">Approve</text>
+<rect x="1075.0" y="560" width="250.0" height="40" rx="20" fill="#fff" stroke="#999" stroke-width="1.3"/>
+<text x="1200.0" y="586" font-size="16" font-weight="bold" fill="#111" text-anchor="middle">Cancel</text>
+<rect x="1520" y="180" width="320" height="470" rx="18" fill="#fff" stroke="#6E6E6E" stroke-width="2.5"/>
+<path d="M1522,228 V198 Q1522,182 1538,182 H1822 Q1838,182 1838,198 V228 Z" fill="#F2F2F2"/>
+<line x1="1520" y1="228" x2="1840" y2="228" stroke="#6E6E6E" stroke-width="1.2"/>
+<rect x="1534" y="191" width="292" height="26" rx="13" fill="#fff" stroke="#ccc" stroke-width="1"/>
+<text x="1680.0" y="210" class="cap mono" text-anchor="middle">example.app</text>
+<circle cx="1520" cy="180" r="19" fill="#222"/><text x="1520" y="187" font-size="19" font-weight="bold" fill="#fff" text-anchor="middle">4</text>
+<text x="1680.0" y="680" class="h" text-anchor="middle">External app</text>
+<text x="1680.0" y="704" class="cap" text-anchor="middle">pop-up closed, signed in</text>
+<text x="1680.0" y="280" class="h" text-anchor="middle">Example App</text>
+<rect x="1545" y="305" width="270" height="60" rx="10" fill="#F2F2F2" stroke="#F2F2F2" stroke-width="0"/>
+<circle cx="1578" cy="335" r="18" fill="#D6D6D6"/>
+<text x="1608" y="331" class="b" text-anchor="start">Signed in as Gil</text>
+<text x="1608" y="353" class="cap" text-anchor="start">own Session, own scope</text>
+<text x="1680.0" y="420" class="link" text-anchor="middle">Edit your profile in Passport</text>
+<path class="solid" d="M402,380 H556"/>
+<text x="480.0" y="348" class="lbl" text-anchor="middle">click:</text>
+<text x="480.0" y="368" class="lbl" text-anchor="middle">pop-up</text>
+<path class="solid" d="M882,380 H1036"/>
+<text x="960.0" y="368" class="lbl" text-anchor="middle">signed in</text>
+<path class="solid" d="M1362,380 H1516"/>
+<text x="1440.0" y="348" class="lbl" text-anchor="middle">pop-up</text>
+<text x="1440.0" y="368" class="lbl" text-anchor="middle">closes</text>
+<rect x="790" y="140" width="90" height="28" rx="14" fill="#222" stroke="#222" stroke-width="0"/>
+<text x="835" y="160" font-size="15" font-weight="bold" fill="#fff" text-anchor="middle">pop-up</text>
+<rect x="1270" y="140" width="90" height="28" rx="14" fill="#222" stroke="#222" stroke-width="0"/>
+<text x="1315" y="160" font-size="15" font-weight="bold" fill="#fff" text-anchor="middle">pop-up</text>
+<text x="56" y="760" class="sec" text-anchor="start">What is passed where</text>
+<line class="life" x1="200.0" y1="828" x2="200.0" y2="1564"/>
+<rect x="115.0" y="784" width="170.0" height="44" rx="10" fill="#EDF3FF" stroke="#3B6FD9" stroke-width="2"/>
+<text x="200.0" y="812" class="b num" text-anchor="middle">External app</text>
+<line class="life" x1="520.0" y1="828" x2="520.0" y2="1564"/>
+<rect x="418.75" y="784" width="202.5" height="44" rx="10" fill="#EEF8F0" stroke="#2E9A50" stroke-width="2"/>
+<text x="520.0" y="812" class="b num" text-anchor="middle">Passport (pop-up)</text>
+<line class="life" x1="840.0" y1="828" x2="840.0" y2="1564"/>
+<rect x="738.75" y="784" width="202.5" height="44" rx="10" fill="#F4EFFD" stroke="#7B4FD0" stroke-width="2"/>
+<text x="840.0" y="812" class="b num" text-anchor="middle">Homegate (chosen)</text>
+<line class="life" x1="1160.0" y1="828" x2="1160.0" y2="1564"/>
+<rect x="1075.0" y="784" width="170.0" height="44" rx="10" fill="#F2F2F2" stroke="#6E6E6E" stroke-width="2"/>
+<text x="1160.0" y="812" class="b num" text-anchor="middle">Homeserver</text>
+<line class="life" x1="1480.0" y1="828" x2="1480.0" y2="1564"/>
+<rect x="1395.0" y="784" width="170.0" height="44" rx="10" fill="#F2F2F2" stroke="#6E6E6E" stroke-width="2"/>
+<text x="1480.0" y="812" class="b num" text-anchor="middle">Relay</text>
+<line class="life" x1="1800.0" y1="828" x2="1800.0" y2="1564"/>
+<rect x="1715.0" y="784" width="170.0" height="44" rx="10" fill="#EDEDED" stroke="#222222" stroke-width="2"/>
+<text x="1800.0" y="812" class="b num" text-anchor="middle">Mobile Signer</text>
+<path class="solid" d="M200.0,868 H516.0"/>
+<text x="214.0" y="859" class="lbl" text-anchor="start">1  pop-up, its own request</text>
+<line x1="56" y1="912" x2="1920" y2="912" stroke="#ddd" stroke-width="1"/>
+<rect x="56" y="896" width="212.20000000000005" height="30" rx="15" fill="#F4F4F4" stroke="#ccc" stroke-width="1"/>
+<text x="68" y="916" class="cap num" text-anchor="start">New pubky (as in C)</text>
+<path class="solid" d="M520.0,968 H836.0"/>
+<text x="534.0" y="959" class="lbl" text-anchor="start">2  ID token, SMS code, or payment</text>
+<path class="dash" d="M840.0,1018 H524.0"/>
+<text x="534.0" y="1009" class="lblg" text-anchor="start">3  signup code (+ wrapping key)</text>
+<path class="solid" d="M520.0,1068 H1156.0"/>
+<text x="534.0" y="1059" class="lbl" text-anchor="start">4  sign up with the code</text>
+<line x1="56" y1="1112" x2="1920" y2="1112" stroke="#ddd" stroke-width="1"/>
+<rect x="56" y="1096" width="173.0" height="30" rx="15" fill="#F4F4F4" stroke="#ccc" stroke-width="1"/>
+<text x="68" y="1116" class="cap num" text-anchor="start">Key in Passport</text>
+<path class="solid" d="M520.0,1168 H1476.0"/>
+<text x="534.0" y="1159" class="lbl" text-anchor="start">5  grant signed with your key, encrypted for the app</text>
+<line x1="56" y1="1212" x2="1920" y2="1212" stroke="#ddd" stroke-width="1"/>
+<rect x="56" y="1196" width="231.8" height="30" rx="15" fill="#F4F4F4" stroke="#ccc" stroke-width="1"/>
+<text x="68" y="1216" class="cap num" text-anchor="start">Key in Ring or Bitkit</text>
+<path class="solid" d="M1800.0,1268 H1484.0"/>
+<text x="1494.0" y="1259" class="lbl" text-anchor="start">5  grant signed in Ring or Bitkit</text>
+<line x1="56" y1="1312" x2="1920" y2="1312" stroke="#ddd" stroke-width="1"/>
+<rect x="56" y="1296" width="65.2" height="30" rx="15" fill="#F4F4F4" stroke="#ccc" stroke-width="1"/>
+<text x="68" y="1316" class="cap num" text-anchor="start">Both</text>
+<path class="dash" d="M520.0,1368 H204.0"/>
+<text x="214.0" y="1359" class="lblg" text-anchor="start">6  message, pop-up closes</text>
+<path class="dash" d="M1480.0,1418 H204.0"/>
+<text x="214.0" y="1409" class="lblg" text-anchor="start">7  signed grant</text>
+<path class="solid" d="M200.0,1468 H1156.0"/>
+<text x="214.0" y="1459" class="lbl" text-anchor="start">8  exchanges the grant for its Session</text>
+<line x1="56" y1="1512" x2="1920" y2="1512" stroke="#ddd" stroke-width="1"/>
+<rect x="56" y="1496" width="574.8000000000001" height="30" rx="15" fill="#F4F4F4" stroke="#ccc" stroke-width="1"/>
+<text x="68" y="1516" class="cap num" text-anchor="start">Later: profile edits go to Passport (a link or a pop-up)</text>
+<rect x="56" y="1604" width="934" height="241" rx="14" fill="#F3FAF5" stroke="#9CCFAA" stroke-width="1.5"/>
+<text x="80" y="1648" class="sec" text-anchor="start">Benefits</text>
+<text x="80" y="1684" class="pro" text-anchor="start">+ Same Passport screens and Homegate methods as suite apps.</text>
+<text x="80" y="1715" class="pro" text-anchor="start">+ The app gets a Session for its own scope only. It never sees the key or the SSO account.</text>
+<text x="80" y="1746" class="pro" text-anchor="start">+ No COOP hop: Passport can message the app tab and close the pop-up itself.</text>
+<text x="80" y="1777" class="pro" text-anchor="start">+ Users can pick their own Passport instance in the SDK.</text>
+<text x="80" y="1808" class="pro" text-anchor="start">+ The same SDK button, with Accounts left out.</text>
+<rect x="1010" y="1604" width="934" height="241" rx="14" fill="#FDF4F2" stroke="#E3A99F" stroke-width="1.5"/>
+<text x="1034" y="1648" class="sec" text-anchor="start">Tradeoffs</text>
+<text x="1034" y="1684" class="con" text-anchor="start">− No single sign-on: each external app asks for its own approval (one click when signed in to</text>
+<text x="1034" y="1709" class="con" text-anchor="start">   Passport).</text>
+<text x="1034" y="1740" class="con" text-anchor="start">− Each app's grant needs your key, not a child grant. Grant-only identities need an SSO sign-in or</text>
+<text x="1034" y="1765" class="con" text-anchor="start">   a Ring approval per app.</text>
+<text x="1034" y="1796" class="con" text-anchor="start">− The app handles the pop-up, the relay and the Session. The SDK does this.</text></svg>
