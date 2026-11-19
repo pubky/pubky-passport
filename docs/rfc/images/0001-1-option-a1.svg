@@ -255,19 +255,19 @@
 <path class="solid" d="M600.0,968 H996.0"/>
 <text x="614.0" y="959" class="lbl" text-anchor="start">2  redirect with the <tspan class="mono">pubkyauth://…</tspan> request</text>
 <line x1="56" y1="1012" x2="1920" y2="1012" stroke="#ddd" stroke-width="1"/>
-<rect x="56" y="996" width="138.4" height="30" rx="15" fill="#F4F4F4" stroke="#ccc" stroke-width="1"/>
+<rect x="56" y="996" width="153.4" height="30" rx="15" fill="#F4F4F4" stroke="#ccc" stroke-width="1"/>
 <text x="68" y="1016" class="cap num" text-anchor="start">SSO or import</text>
 <path class="solid" d="M1000.0,1068 H1396.0"/>
 <text x="1014.0" y="1059" class="lbl" text-anchor="start">3  signed parent grant, encrypted for Accounts</text>
 <line x1="56" y1="1112" x2="1920" y2="1112" stroke="#ddd" stroke-width="1"/>
-<rect x="56" y="1096" width="138.4" height="30" rx="15" fill="#F4F4F4" stroke="#ccc" stroke-width="1"/>
+<rect x="56" y="1096" width="153.4" height="30" rx="15" fill="#F4F4F4" stroke="#ccc" stroke-width="1"/>
 <text x="68" y="1116" class="cap num" text-anchor="start">Mobile Signer</text>
 <path class="solid" d="M1800.0,1168 H1404.0"/>
 <text x="1414.0" y="1159" class="lbl" text-anchor="start">3  signed parent grant</text>
 <path class="opt" d="M1000.0,1218 H1396.0"/>
 <text x="1014.0" y="1209" class="lbl" text-anchor="start">4  checks the channel, doesn't take it</text>
 <line x1="56" y1="1262" x2="1920" y2="1262" stroke="#ddd" stroke-width="1"/>
-<rect x="56" y="1246" width="59.2" height="30" rx="15" fill="#F4F4F4" stroke="#ccc" stroke-width="1"/>
+<rect x="56" y="1246" width="65.2" height="30" rx="15" fill="#F4F4F4" stroke="#ccc" stroke-width="1"/>
 <text x="68" y="1266" class="cap num" text-anchor="start">Both</text>
 <path class="solid" d="M1000.0,1318 H604.0"/>
 <text x="614.0" y="1309" class="lbl" text-anchor="start">5  redirect back (not a credential)</text>

@@ -73,19 +73,24 @@ Accounts runs SSO sign-in itself, unlocks the key in memory, and signs the paren
 
 ![Option B](images/0001-3-option-b.png)
 
-### Option C (preferred): Passport as the home for your identity
+### Option C (preferred): Passport as the front end for Homegate, your homeserver and your identity
 
-Pubky is moving to many apps, so profile management and onboarding shouldn't stay in pubky.app. Apps from other developers should be able to hand them to a drop-in solution. Option C makes Passport that place:
+Pubky is moving to many apps, so onboarding and profile management shouldn't stay in pubky.app. Apps from other developers should be able to hand them to a drop-in solution. Option C moves them into Passport:
 
 - Sign-in works as in A.1.
+- Passport is the front end for Homegate. You pick the Homegate on the sign-in screen, and it decides which methods are offered: SSO providers, phone number (SMS), Bitcoin payment (Lightning), or an invite code. An invite code is tied to a homeserver and signs you up there. An identity on its own homeserver can also have no Homegate.
 - The wrapping key endpoint moves into Homegate.
+- After sign-up, you choose where the key lives: in this browser, moved to Pubky Ring, or grant only (Passport loads an SSO identity's key into memory when it needs to sign). You also set up backups: SSO provider, recovery file, recovery phrase.
+- Passport is where you manage your identity: profile, homeserver and storage, key, backups, and authorized apps. It signs in to Accounts like any suite app and gets a child grant, so this also works for identities whose key is in Ring or Bitkit.
 - Apps only link to Passport. Through the SDK, users can choose their own Passport instance.
-- You pick the Homegate on the Passport sign-in screen, because it decides which sign-in options are offered. It can be Synonym's, another provider's, or a self-hosted one. An identity on its own homeserver can also have no Homegate.
-- You can enter an invite code instead. The code is tied to a homeserver and signs you up there.
-- Passport handles profile management. It signs in to Accounts like any suite app and gets a child grant, so this works for every identity, including ones whose key is in Ring or Bitkit.
-- For each identity, you choose how Passport holds it: the key in this browser, or only a grant. A grant can come from Ring, Bitkit, or another Signer. For an SSO identity, Passport loads the key from the backup into memory when it needs to sign.
 
 ![Option C](images/0001-4-option-c.png)
+
+### App integration: one SDK, Accounts and Passport in a pop-up
+
+Apps add one button from a Passport SDK, as the Passport v2 client package does today for Passport alone. The button opens a pop-up from the click. For a suite app, the pop-up opens Accounts. Accounts sends the same pop-up on to Passport if you aren't signed in, then to the app's callback page with the child grant. The callback page hands the result to the app tab and closes the pop-up, so the app tab never leaves. Other apps open Passport in the pop-up directly. If a pop-up can't open, the same steps run in the tab.
+
+![App integration](images/0001-5-app-integration.png)
 
 A.1 needs no backend change, so it can ship first. C builds on it.
 

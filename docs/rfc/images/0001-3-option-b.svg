@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2000 1966" width="2000" height="1966" font-family="DejaVu Sans, Verdana, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2000 1866" width="2000" height="1866" font-family="DejaVu Sans, Verdana, sans-serif">
 <defs>
 <marker id="dark" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#333"/></marker>
 <marker id="green" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#2E9A50"/></marker>
@@ -23,7 +23,7 @@
 .con{font-size:17px;fill:#8A2A1E}
 </style>
 </defs>
-<rect width="2000" height="1966" fill="#fff"/>
+<rect width="2000" height="1866" fill="#fff"/>
 <text x="56" y="62" class="title">Option B: Passport sign-in inside Accounts</text><text x="56" y="96" class="sub">Accounts runs SSO sign-in itself. The wrapping key endpoint moves from Passport's server into Homegate.</text><rect x="80" y="180" width="320" height="470" rx="18" fill="#fff" stroke="#3B6FD9" stroke-width="2.5"/>
 <path d="M82,228 V198 Q82,182 98,182 H382 Q398,182 398,198 V228 Z" fill="#EDF3FF"/>
 <line x1="80" y1="228" x2="400" y2="228" stroke="#3B6FD9" stroke-width="1.2"/>
@@ -240,7 +240,7 @@
 <path class="solid" d="M200.0,868 H516.0"/>
 <text x="214.0" y="859" class="lbl" text-anchor="start">1  Log in (redirect)</text>
 <line x1="56" y1="912" x2="1920" y2="912" stroke="#ddd" stroke-width="1"/>
-<rect x="56" y="896" width="129.60000000000002" height="30" rx="15" fill="#F4F4F4" stroke="#ccc" stroke-width="1"/>
+<rect x="56" y="896" width="143.60000000000002" height="30" rx="15" fill="#F4F4F4" stroke="#ccc" stroke-width="1"/>
 <text x="68" y="916" class="cap num" text-anchor="start">SSO provider</text>
 <path class="solid" d="M520.0,968 H836.0"/>
 <text x="534.0" y="959" class="lbl" text-anchor="start">2  pop-up from the click</text>
@@ -255,30 +255,26 @@
 <rect x="341.2" y="1196" width="357.59999999999997" height="32" rx="6" fill="#FFFBE6" stroke="#E0C860" stroke-width="1.2"/>
 <text x="520.0" y="1217" class="cap" text-anchor="middle">unlocks key in memory, signs, clears it</text>
 <line x1="56" y1="1262" x2="1920" y2="1262" stroke="#ddd" stroke-width="1"/>
-<rect x="56" y="1246" width="138.4" height="30" rx="15" fill="#F4F4F4" stroke="#ccc" stroke-width="1"/>
+<rect x="56" y="1246" width="153.4" height="30" rx="15" fill="#F4F4F4" stroke="#ccc" stroke-width="1"/>
 <text x="68" y="1266" class="cap num" text-anchor="start">Mobile Signer</text>
 <path class="solid" d="M1800.0,1318 H1484.0"/>
 <text x="1494.0" y="1309" class="lbl" text-anchor="start">2  signed parent grant</text>
 <path class="dash" d="M1480.0,1368 H524.0"/>
 <text x="534.0" y="1359" class="lblg" text-anchor="start">3  parent grant</text>
 <line x1="56" y1="1412" x2="1920" y2="1412" stroke="#ddd" stroke-width="1"/>
-<rect x="56" y="1396" width="59.2" height="30" rx="15" fill="#F4F4F4" stroke="#ccc" stroke-width="1"/>
+<rect x="56" y="1396" width="65.2" height="30" rx="15" fill="#F4F4F4" stroke="#ccc" stroke-width="1"/>
 <text x="68" y="1416" class="cap num" text-anchor="start">Both</text>
 <path class="dash" d="M520.0,1468 H204.0"/>
 <text x="214.0" y="1459" class="lblg" text-anchor="start">7  redirect back with a child grant</text>
-<rect x="56" y="1554" width="934" height="372" rx="14" fill="#F3FAF5" stroke="#9CCFAA" stroke-width="1.5"/>
+<rect x="56" y="1554" width="934" height="272" rx="14" fill="#F3FAF5" stroke="#9CCFAA" stroke-width="1.5"/>
 <text x="80" y="1598" class="sec" text-anchor="start">Benefits</text>
 <text x="80" y="1634" class="pro" text-anchor="start">+ No redirect to Passport: every option on the Accounts page.</text>
 <text x="80" y="1665" class="pro" text-anchor="start">+ Wrapping key in Homegate is a first step to self-hosting.</text>
-<rect x="1010" y="1554" width="934" height="372" rx="14" fill="#FDF4F2" stroke="#E3A99F" stroke-width="1.5"/>
+<rect x="1010" y="1554" width="934" height="272" rx="14" fill="#FDF4F2" stroke="#E3A99F" stroke-width="1.5"/>
 <text x="1034" y="1598" class="sec" text-anchor="start">Tradeoffs</text>
 <text x="1034" y="1634" class="con" text-anchor="start">− Two sites handle private keys: twice the security review.</text>
-<text x="1034" y="1665" class="con" text-anchor="start">− Every SSO change lands in both sites. A shared package helps, but doesn't</text>
-<text x="1034" y="1690" class="con" text-anchor="start">   remove it.</text>
-<text x="1034" y="1721" class="con" text-anchor="start">− Homegate must derive Passport's current wrapping key, or existing backups</text>
-<text x="1034" y="1746" class="con" text-anchor="start">   can't be unlocked.</text>
-<text x="1034" y="1777" class="con" text-anchor="start">− Backups are bound to Passport's address. Accounts has to open them as</text>
-<text x="1034" y="1802" class="con" text-anchor="start">   Passport.</text>
-<text x="1034" y="1833" class="con" text-anchor="start">− Same SSO setup from a second address: not tested yet.</text>
-<text x="1034" y="1864" class="con" text-anchor="start">− Accounts can't see Passport's local identities, so Passport users sign in</text>
-<text x="1034" y="1889" class="con" text-anchor="start">   again.</text></svg>
+<text x="1034" y="1665" class="con" text-anchor="start">− Every SSO change lands in both sites. A shared package helps, but doesn't remove it.</text>
+<text x="1034" y="1696" class="con" text-anchor="start">− Homegate must derive Passport's current wrapping key, or existing backups can't be unlocked.</text>
+<text x="1034" y="1727" class="con" text-anchor="start">− Backups are bound to Passport's address. Accounts has to open them as Passport.</text>
+<text x="1034" y="1758" class="con" text-anchor="start">− Same SSO setup from a second address: not tested yet.</text>
+<text x="1034" y="1789" class="con" text-anchor="start">− Accounts can't see Passport's local identities, so Passport users sign in again.</text></svg>
