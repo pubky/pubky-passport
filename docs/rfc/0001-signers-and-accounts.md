@@ -127,7 +127,7 @@ We don't plan to embed Passport in an iframe. Browsers handle iframe storage and
 
 Pubky is moving to many apps. Profile management and onboarding then shouldn't stay in pubky.app. Apps from other developers should also be able to hand onboarding to a drop-in solution. Passport can be that place.
 
-Passport could become the place where you manage your pubky identity. It isn't limited to keys held in Passport: if you use a Mobile Signer, you can sign in to Passport with a grant and use the same tools.
+Passport could become the place where you manage your pubky identity. It isn't limited to keys held in Passport: if your key is somewhere else, you can sign in to Passport with a grant and use the same tools. The grant can come straight from your Mobile Signer, or be a child grant from Accounts if you're already signed in there.
 
 Some examples of what it could offer:
 
