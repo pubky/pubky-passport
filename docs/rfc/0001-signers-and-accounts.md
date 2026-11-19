@@ -7,7 +7,7 @@ Status: Draft. Anything not marked Live is a proposal.
 This RFC covers how Pubky Accounts and Passport work together:
 
 - The options for how Accounts gets you signed in through Passport.
-- Option C, where Passport becomes the front end for Homegate, your homeserver and your identity.
+- Option C, an example of everything Passport could take on: Homegate, your homeserver and your identity.
 
 It's meant for discussion. Nothing in it changes current behavior.
 
@@ -73,16 +73,16 @@ Accounts runs SSO sign-in itself, unlocks the key in memory, and signs the paren
 
 ![Option B](images/0001-3-option-b.png)
 
-### Option C: Passport as the front end for Homegate, your homeserver and your identity
+### Option C: example of everything Passport could do
 
-Pubky is moving to many apps, so onboarding and profile management shouldn't stay in pubky.app. Apps from other developers should be able to hand them to a drop-in solution. Option C moves them into Passport:
+Option C isn't a fixed design. It shows, as one example, everything Passport could take on. Pubky is moving to many apps, so onboarding and profile management shouldn't stay in pubky.app, and apps from other developers should be able to hand them to a drop-in solution. Passport could be that place. Each part below could be picked up on its own:
 
-- Sign-in works as in A.1.
-- Passport is the front end for Homegate. You pick the Homegate on the sign-in screen, and it decides which methods are offered: SSO providers, phone number (SMS), Bitcoin payment (Lightning), or an invite code. An invite code is tied to a homeserver and signs you up there. An identity on its own homeserver can also have no Homegate.
-- The wrapping key endpoint moves into Homegate.
-- After sign-up, you choose where the key lives: in this browser, moved to Pubky Ring, or grant only (Passport loads an SSO identity's key into memory when it needs to sign). You also set up backups: SSO provider, recovery file, recovery phrase.
-- Passport is where you manage your identity: profile, homeserver and storage, key, backups, and authorized apps. It signs in to Accounts like any suite app and gets a child grant, so this also works for identities whose key is in Ring or Bitkit.
-- Apps only link to Passport. Through the SDK, users can choose their own Passport instance.
+- Sign-in could work as in A.1.
+- Passport could be the front end for Homegate. You would pick the Homegate on the sign-in screen, and it would decide which methods are offered: SSO providers, phone number (SMS), Bitcoin payment (Lightning), or an invite code. An invite code is tied to a homeserver and would sign you up there. An identity on its own homeserver could also have no Homegate.
+- The wrapping key endpoint could move into Homegate.
+- After sign-up, you could choose where the key lives: in this browser, moved to Pubky Ring, or grant only (Passport would load an SSO identity's key into memory when it needs to sign). You could also set up backups: SSO provider, recovery file, recovery phrase.
+- Passport could be where you manage your identity: profile, homeserver and storage, key, backups, and authorized apps. It would sign in to Accounts like any suite app and get a child grant, so this would also work for identities whose key is in Ring or Bitkit.
+- Apps could just link to Passport, and users could choose their own Passport instance through the SDK.
 
 ![Option C](images/0001-4-option-c.png)
 
@@ -96,6 +96,6 @@ Apps add one button from a Passport SDK, as the Passport v2 client package does 
 
 ![App integration](images/0001-5-app-integration.png)
 
-A.1 needs no backend change, so it can ship first. C builds on it.
+A.1 needs no backend change, so it can ship first. Parts of C could follow one at a time.
 
 We don't plan to embed Passport in an iframe. Browsers handle iframe storage and SSO provider sign-in differently, so it wouldn't work the same everywhere.
