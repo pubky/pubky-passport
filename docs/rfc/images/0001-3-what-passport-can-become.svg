@@ -22,7 +22,7 @@
 </defs>
 <rect width="2000" height="860" fill="#fff"/>
 
-<text x="56" y="62" class="title">Later: identity management in Passport (examples)</text>
+<text x="56" y="62" class="title">What Passport can become (examples)</text>
 <path class="solid" d="M1560,45 H1630"/>
 <text x="1645" y="52" class="lg" text-anchor="start">signs in / uses</text>
 <rect x="56" y="160" width="414" height="170" rx="14" fill="#EEF8F0" stroke="#2E9A50" stroke-width="3"/>
@@ -36,8 +36,8 @@
 <rect x="640" y="110" width="760" height="690" rx="14" fill="#EEF8F0" stroke="#2E9A50" stroke-width="3"/>
 <text x="668" y="150" class="h" text-anchor="start">passport.pubky.app</text>
 <rect x="668" y="180" width="332" height="100" rx="10" fill="#fff" stroke="#2E9A50" stroke-width="1.5"/>
-<text x="688" y="220" class="ct" text-anchor="start">Profile and onboarding</text>
-<text x="688" y="256" class="cap" text-anchor="start">Create and edit your profile</text>
+<text x="688" y="220" class="ct" text-anchor="start">Onboarding for any app</text>
+<text x="688" y="256" class="cap" text-anchor="start">Drop-in profile setup</text>
 <rect x="1040" y="180" width="332" height="100" rx="10" fill="#fff" stroke="#2E9A50" stroke-width="1.5"/>
 <text x="1060" y="220" class="ct" text-anchor="start">File explorer</text>
 <text x="1060" y="256" class="cap" text-anchor="start">Browse homeserver files</text>
@@ -70,5 +70,5 @@
 <path class="solid" d="M470,515 H638"/>
 <text x="555" y="499" class="el" text-anchor="middle">grant</text>
 <path class="solid" d="M1400,305 H1538"/>
-<path class="solid" d="M1400,500 H1538"/>
+<path class="solid" d="M1400,555 H1538"/>
 </svg>

@@ -4,12 +4,11 @@ Status: Draft. Anything not marked Live is a proposal.
 
 ## Purpose
 
-This RFC proposes how Passport and Pubky Accounts work together:
+This RFC covers how Pubky Accounts and Passport work together:
 
-- How people sign in to the Pubky suite.
-- What Passport could take on later.
-- How Passport could be self-hosted.
-- Alternatives to redirecting people to Passport.
+- Two options for how Accounts gets you signed in through Passport, and what each one passes where.
+- Which option to start with.
+- What Passport can become after that.
 
 It's meant for discussion. Nothing in it changes current behavior.
 
@@ -21,6 +20,8 @@ It's meant for discussion. Nothing in it changes current behavior.
 - Pubky Accounts: the shared sign-in site for the Pubky suite, which is the set of apps Synonym runs. Accounts isn't a Signer.
 - Parent grant: a single approval from a Signer that lets Accounts act for you.
 - Child grant: a grant that Accounts gives each suite app. Accounts signs it with its own key, not yours.
+- Relay: the server that carries the signed approval from the Signer back to the app that asked for it.
+- Wrapping key: the key that unlocks your encrypted backup in Google Drive or iCloud. A server derives it after it checks your Google or Apple sign-in.
 - External app: an app outside the Pubky suite.
 
 ## Problems
@@ -33,98 +34,113 @@ It's meant for discussion. Nothing in it changes current behavior.
 
 - You can sign in to Passport with a Google or Apple Account.
 - Passport keeps your key in the browser and saves an encrypted backup in your Google Drive or iCloud. If you sign in again with the same account, Passport restores the key from that backup.
+- Passport's server checks your Google or Apple sign-in and returns the wrapping key. It never sees the backup or your key.
 - You can import an existing pubky with a recovery phrase or a recovery file.
+- Apps open Passport with a `pubkyauth://` request. Passport sends the signed approval through the relay, and the app never gets your key or your Google or Apple Account.
 - Passport has no onboarding, profile setup, or homeserver management.
 
-## Proposal: Passport handles every sign-in
+## How Accounts signs you in
 
-Passport's main job is sign-in with a cloud account such as Google or Apple. It keeps your private key in the browser. You can also import a key directly.
+Both options below share these parts:
 
-Pubky Accounts always uses Passport to sign you in. The Passport page shows every option in one place: the Mobile Signer QR code, Continue with Google, Continue with Apple, and Import.
+- In a suite app, you select Sign in, and the app sends you to Accounts.
+- Accounts holds one account at a time. If you're already signed in, it sends you straight back to the app with a child grant, without asking.
+- Accounts keeps only the parent grant and its own key. It never stores your pubky key.
+- External apps skip Accounts. They send their own `pubkyauth://` request to Passport and get the signed grant back.
 
-### Sign-in flow for suite apps
+The options differ in where the sign-in itself happens.
 
-1. In a suite app, you select Sign in. The app redirects you to Accounts.
-2. If you're already signed in to Accounts, it skips to step 5 without asking. Accounts holds one account at a time.
-3. Otherwise, Accounts creates a `pubkyauth://` request and redirects you to Passport.
-4. You sign in with Google, Apple, or an imported key, or you approve the request in a Mobile Signer. Passport returns the signed parent grant to Accounts.
-5. Accounts redirects you back to the app with a child grant, and you're signed in.
+### Option A: Accounts redirects to Passport
 
-![Sign-in flow: suite apps go through Accounts, external apps go straight to Passport](images/0001-1-proposal-sign-in.png)
+Accounts sends you to Passport, and Passport sends you back. Accounts signs in through Passport the same way any other app does.
 
-### Sign-in flow for external apps
+1. Accounts creates a `pubkyauth://` request for a parent grant and saves the pending request in the browser.
+2. Accounts redirects you to Passport, with the request in the address.
+3. You sign in with Google, Apple, or an imported key. If you already have an identity in Passport, you skip this step.
+4. You review the request and approve it.
+5. Passport sends the signed parent grant through the relay, then redirects you back to Accounts.
+6. Accounts picks up the saved request, receives the parent grant from the relay, and sends you on with a child grant.
 
-External apps skip Accounts. They send their own `pubkyauth://` request straight to Passport and get the signed grant back, as shown at the bottom of the diagram above.
+What is passed where:
 
-## Later: identity management in Passport
+- Accounts to Passport: the `pubkyauth://` request (requested access, relay address, and the address to return to).
+- Passport to the relay: the signed parent grant, encrypted for Accounts.
+- Passport to Accounts: a redirect back. The redirect isn't a credential. Accounts trusts only what it gets from the relay.
+- Stays in Passport: your key and your Google or Apple Account.
+
+Benefits:
+
+- No new backend. Passport works as it does today.
+- Keys and Google and Apple sign-in stay on one site, so only one site needs security review for them.
+- Signing in to Accounts looks and works like signing in to any app that uses Passport.
+- If you already use Passport in this browser, signing in to Accounts takes one approval.
+
+Tradeoffs:
+
+- You see one extra page change on your first sign-in.
+- Passport would need to show the Mobile Signer QR code for the same request. Ring or Bitkit sends the approval to the relay, not to Passport, so Passport needs a way to send you back to Accounts after you approve, such as a button.
+
+Accounts could open Passport in a pop-up instead of a redirect. The existing Passport button package does this. A pop-up needs a click on the Accounts page first, though, so Accounts would show a page with a single button. A redirect needs no click.
+
+![Option A: Accounts redirects to Passport](images/0001-1-option-a-redirect.png)
+
+### Option B: Passport sign-in inside Accounts
+
+Accounts shows Continue with Google, Continue with Apple, the Mobile Signer QR code, and Import on its own page. The wrapping key endpoint moves from Passport's server into Homegate, so Accounts and Passport use the same backend.
+
+1. You select Continue with Google or Continue with Apple on the Accounts page. The provider opens in a pop-up.
+2. Accounts sends the provider's ID token to Homegate. Homegate checks it and returns the wrapping key. For a new account, Homegate also returns a sign-up code.
+3. Accounts reads your encrypted backup from Google Drive or iCloud and unlocks it in memory.
+4. Accounts signs the parent grant with your key, then clears the key.
+5. Accounts sends you on with a child grant.
+
+What is passed where:
+
+- Google or Apple to Accounts: an ID token, plus access to the backup in Drive or iCloud.
+- Accounts to Homegate: the ID token. Homegate returns the wrapping key.
+- Drive or iCloud to Accounts: the encrypted backup.
+- Stays in Accounts' memory for a moment: your key. It's cleared after signing.
+
+Benefits:
+
+- No redirect. Every option is on the Accounts page, in the same tab.
+- Moving the wrapping key into Homegate is also the first step toward self-hosting (see below).
+
+Tradeoffs:
+
+- Two sites handle private keys, which doubles what needs security review.
+- Every provider change must land in both sites. Sharing Passport's sign-in code as one package reduces this but doesn't remove it.
+- Homegate must derive the same wrapping key as Passport's server does today. Otherwise existing backups can't be unlocked.
+- Each backup is tied to Passport's address today, and Passport checks that address when it opens a backup. Accounts would have to open backups as Passport, which needs a change and its own review.
+- Both sites must use the same Google client and Apple Services ID to reach the same backup. Access from a second address hasn't been tested yet.
+- Accounts doesn't see the identities Passport keeps in the browser. Someone already signed in to Passport signs in again with Google or Apple.
+
+![Option B: Passport sign-in inside Accounts](images/0001-2-option-b-accounts-sign-in.png)
+
+### Recommendation
+
+Start with Option A. It needs no new backend, and Accounts uses Passport like any other app. If the redirect turns out to cause friction, move to Option B.
+
+We don't plan to embed Passport in an iframe. Browsers handle iframe storage and Google and Apple sign-in differently, so it wouldn't work the same everywhere.
+
+## What Passport can become
+
+Pubky is moving to many apps. Profile management and onboarding then shouldn't stay in pubky.app. Apps from other developers should also be able to hand onboarding to a drop-in solution. Passport can be that place.
 
 Passport could become the place where you manage your pubky identity. It isn't limited to keys held in Passport: if you use a Mobile Signer, you can sign in to Passport with a grant and use the same tools.
 
 Some examples of what it could offer:
 
+- Onboarding and profile setup that any app can use. Each app decides whether it requires a profile.
 - Homeserver tools, such as a file explorer, backups, mirroring, and storage quota.
 - An interface for Homegate.
-- Profile onboarding. Each app decides whether it requires a profile.
 - Stronger key protection in the browser, such as a PIN, a passkey, or biometrics.
 - Not keeping keys in the browser. Passport would use a grant for everyday tasks and load the key only when it needs to sign. This works only for Google and Apple identities, because they can reload the key from their cloud backup.
 
-![Identity management in Passport, with examples](images/0001-2-identity-management.png)
+![What Passport can become, with examples](images/0001-3-what-passport-can-become.png)
 
-## Self-hosting
+### Self-hosting
 
-Passport has a small backend. It checks your Google or Apple sign-in and returns the key that unlocks your backup. A Google or Apple identity is tied to the backend that created it. To move it to another one, export a recovery file and import it there.
+With the wrapping key in Homegate, Passport becomes a frontend for any Homegate. You could self-host Homegate, or use a provider other than Synonym. Each Homegate needs its own Google and Apple setup.
 
-### Option: run your own Passport
-
-You run your own Passport, frontend and backend, and set its address in the apps you use. It needs its own Google and Apple setup.
-
-### Option: Passport backend in Homegate
-
-Homegate provides the backend, and Passport becomes a client only.
-
-Benefits:
-
-- Passport becomes a frontend for any Homegate and the options it offers.
-- You could self-host Homegate, or use a provider other than Synonym, and switch providers later.
-
-Tradeoffs:
-
-- Each Homegate needs its own Google and Apple setup.
-- Switching providers still means moving the identity with a recovery file. This could be handled inside the passport UI though.
-
-![Passport backend in Homegate](images/0001-3-alternative-homegate.png)
-
-## Alternatives to redirecting to Passport
-
-In the proposal, suite apps and Accounts send you to Passport to sign in. Ideally, every option would sit on the app's own page, in the same tab.
-
-Today, Google and Apple sign-in must start from a click on a page that carries Passport's key code and provider setup. That's why apps redirect you to Passport instead of showing the buttons themselves. Each alternative below handles this differently.
-
-### Option: Accounts runs Google and Apple sign-in itself
-
-Accounts shows Continue with Google and Continue with Apple on its own page. It loads the key in memory, signs the parent grant, and clears the key, without redirecting you to Passport. Accounts and Passport would share one backend, such as Homegate from the self-hosting option or a separate service.
-
-Benefits:
-
-- Signing in to a suite app doesn't redirect you to Passport.
-
-Tradeoffs:
-
-- Every provider change must be built and maintained in both Accounts and Passport.
-- Two sites would handle private keys, which doubles what needs security review.
-- Both sites must use the same Google client and Apple Services ID to reach the same backup.
-- It isn't clear that Accounts needs its own sign-in.
-
-![Accounts runs Google and Apple sign-in itself](images/0001-5-alternative-accounts-sign-in.png)
-
-### Option to explore: Passport embedded in the app page
-
-An app page embeds Passport in an iframe. You sign in inside the iframe. The app gets the signed grant but never has access to the key. This could work for any app, not only Accounts.
-
-Before choosing this option, we need to answer these questions:
-
-- Browsers give an embedded page separate storage for each site that embeds it. A Google or Apple identity would be restored from its cloud backup on each new site. An imported key would have to be imported again on each site.
-- Do Google and Apple sign-in work from inside an iframe in every browser we support?
-- Passport would have to allow embedding, limited to sites we trust.
-
-![Passport embedded in an app page](images/0001-4-embedded-passport.png)
+A Google or Apple identity is tied to the backend that created it. To move it to another one, export a recovery file and import it there. This could be handled inside the Passport UI.

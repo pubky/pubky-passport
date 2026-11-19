@@ -1,0 +1,84 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2000 960" width="2000" height="960" font-family="DejaVu Sans, Verdana, sans-serif">
+<defs>
+<marker id="dark" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#333"/></marker>
+<marker id="green" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#2E9A50"/></marker>
+<marker id="grey" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#888"/></marker>
+<style>
+.solid{stroke:#333;stroke-width:2.5;fill:none;marker-end:url(#dark)}
+.dash{stroke:#2E9A50;stroke-width:2.5;fill:none;stroke-dasharray:8 6;marker-end:url(#green)}
+.opt{stroke:#888;stroke-width:2.5;fill:none;stroke-dasharray:8 6;marker-end:url(#grey)}
+.title{font-weight:bold;font-size:34px;fill:#111}
+.h{font-weight:bold;font-size:26px;fill:#111}
+.ct{font-weight:bold;font-size:21px;fill:#111}
+.b{font-size:21px;fill:#222}
+.cap{font-size:18px;fill:#555}
+.el{font-size:18px;fill:#444}
+.elb{font-size:18px;fill:#222;font-weight:bold}
+.eg{font-size:18px;fill:#1E7D36;font-weight:bold}
+.lg{font-size:20px;fill:#333}
+.btn{font-size:20px;fill:#fff;font-weight:bold}
+.mono{font-family:"DejaVu Sans Mono",monospace}
+</style>
+</defs>
+<rect width="2000" height="960" fill="#fff"/>
+
+<text x="56" y="62" class="title">Option B: Passport sign-in inside Accounts</text>
+<path class="solid" d="M1330,45 H1400"/>
+<text x="1415" y="52" class="lg" text-anchor="start">goes to / sends</text>
+<path class="dash" d="M1645,45 H1715"/>
+<text x="1730" y="52" class="lg" text-anchor="start">returns</text>
+<rect x="56" y="220" width="344" height="210" rx="14" fill="#EDF3FF" stroke="#3B6FD9" stroke-width="3"/>
+<text x="80" y="262" class="h" text-anchor="start">Pubky apps</text>
+<text x="80" y="300" class="b" text-anchor="start">arena.pubky.app</text>
+<text x="80" y="332" class="b" text-anchor="start">shop.pubky.app, …</text>
+<rect x="80" y="360" width="124" height="38" rx="19" fill="#3B6ED8"/>
+<text x="142" y="386" class="btn" text-anchor="middle">Log in</text>
+<rect x="540" y="120" width="600" height="550" rx="14" fill="#FFF8EC" stroke="#D98A1C" stroke-width="3"/>
+<text x="568" y="162" class="h" text-anchor="start">accounts.pubky.app</text>
+<rect x="568" y="190" width="544" height="90" rx="10" fill="#fff" stroke="#D98A1C" stroke-width="1.5"/>
+<text x="590" y="228" class="ct" text-anchor="start">Continue with Google or Apple</text>
+<text x="590" y="262" class="cap" text-anchor="start">Pop-up from a click on this page</text>
+<rect x="568" y="295" width="544" height="120" rx="10" fill="#fff" stroke="#D98A1C" stroke-width="1.5"/>
+<text x="590" y="333" class="ct" text-anchor="start">Key in memory only</text>
+<text x="590" y="367" class="cap" text-anchor="start">Unlocks the backup, signs the parent grant,</text>
+<text x="590" y="395" class="cap" text-anchor="start">then clears the key</text>
+<rect x="568" y="430" width="544" height="90" rx="10" fill="#fff" stroke="#D98A1C" stroke-width="1.5"/>
+<text x="590" y="468" class="ct" text-anchor="start">Mobile Signer QR code and Import</text>
+<text x="590" y="502" class="cap" text-anchor="start">Also on this page</text>
+<rect x="568" y="535" width="544" height="105" rx="10" fill="#fff" stroke="#D98A1C" stroke-width="1.5"/>
+<text x="590" y="575" class="ct" text-anchor="start">Child grants</text>
+<text x="590" y="609" class="cap" text-anchor="start">Given to each suite app</text>
+<rect x="540" y="720" width="600" height="180" rx="14" fill="#EEF8F0" stroke="#2E9A50" stroke-width="3"/>
+<text x="568" y="762" class="h" text-anchor="start">passport.pubky.app</text>
+<text x="568" y="802" class="b" text-anchor="start">Same sign-in code,</text>
+<text x="568" y="834" class="b" text-anchor="start">shared as one package</text>
+<rect x="1320" y="120" width="624" height="170" rx="14" fill="#F2F2F2" stroke="#6E6E6E" stroke-width="3"/>
+<text x="1344" y="165" class="h" text-anchor="start">Google or Apple</text>
+<text x="1344" y="205" class="b" text-anchor="start">Sign-in pop-up</text>
+<rect x="1320" y="330" width="624" height="170" rx="14" fill="#F2F2F2" stroke="#6E6E6E" stroke-width="3"/>
+<text x="1344" y="375" class="h" text-anchor="start">Google Drive or iCloud</text>
+<text x="1344" y="415" class="b" text-anchor="start">Encrypted backup</text>
+<rect x="1320" y="560" width="624" height="260" rx="14" fill="#F4EFFD" stroke="#7B4FD0" stroke-width="3"/>
+<text x="1344" y="605" class="h" text-anchor="start">Homegate</text>
+<text x="1344" y="645" class="b" text-anchor="start">Checks the ID token</text>
+<text x="1344" y="680" class="b" text-anchor="start">Returns the wrapping key</text>
+<text x="1344" y="715" class="b" text-anchor="start">Sign-up code for new accounts</text>
+<path class="solid" d="M400,300 H538"/>
+<text x="470" y="284" class="el" text-anchor="middle">Log in</text>
+<path class="dash" d="M540,380 H402"/>
+<text x="470" y="410" class="eg" text-anchor="middle">child grant</text>
+<path class="solid" d="M1140,185 H1318"/>
+<text x="1229" y="169" class="el" text-anchor="middle">pop-up</text>
+<path class="dash" d="M1320,240 H1142"/>
+<text x="1229" y="270" class="eg" text-anchor="middle">ID token</text>
+<path class="solid" d="M1140,395 H1318"/>
+<text x="1229" y="379" class="el" text-anchor="middle">reads</text>
+<path class="dash" d="M1320,445 H1142"/>
+<text x="1229" y="475" class="eg" text-anchor="middle">backup</text>
+<path class="solid" d="M1140,600 H1318"/>
+<text x="1229" y="584" class="el" text-anchor="middle">ID token</text>
+<path class="dash" d="M1320,640 H1142"/>
+<text x="1229" y="666" class="eg" text-anchor="middle">wrapping key</text>
+<path class="solid" d="M1140,830 H1240 V770 H1318"/>
+<text x="1250" y="860" class="el" text-anchor="middle">uses</text>
+</svg>
