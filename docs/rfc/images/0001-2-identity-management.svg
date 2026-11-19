@@ -22,7 +22,7 @@
 </defs>
 <rect width="2000" height="860" fill="#fff"/>
 
-<text x="56" y="62" class="title">Later: identity management in Passport</text>
+<text x="56" y="62" class="title">Later: identity management in Passport (examples)</text>
 <path class="solid" d="M1560,45 H1630"/>
 <text x="1645" y="52" class="lg" text-anchor="start">signs in / uses</text>
 <rect x="56" y="160" width="414" height="170" rx="14" fill="#EEF8F0" stroke="#2E9A50" stroke-width="3"/>

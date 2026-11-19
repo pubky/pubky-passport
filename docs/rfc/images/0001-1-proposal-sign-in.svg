@@ -70,12 +70,13 @@
 <text x="1405" y="387" class="ct" text-anchor="start">Google, Apple, or Import</text>
 <text x="1405" y="424" class="b" text-anchor="start">Key stays in this browser</text>
 <rect x="1361" y="497" width="555" height="277" rx="10" fill="none" stroke="#2E9A50" stroke-width="1.5" stroke-dasharray="8 6"/>
-<text x="1384" y="532" font-weight="bold" font-size="22" fill="#1E7D36">Later: identity management</text>
-<text x="1385" y="575" class="b" text-anchor="start">• Profile and onboarding</text>
-<text x="1385" y="614" class="b" text-anchor="start">• File explorer</text>
-<text x="1385" y="653" class="b" text-anchor="start">• Backups and mirroring</text>
-<text x="1385" y="692" class="b" text-anchor="start">• Storage quota</text>
-<text x="1385" y="731" class="b" text-anchor="start">• Homegate</text>
+<text x="1384" y="532" font-weight="bold" font-size="22" fill="#1E7D36">Later, for example:</text>
+<text x="1385" y="570" class="b" text-anchor="start">• Profile and onboarding</text>
+<text x="1385" y="607" class="b" text-anchor="start">• File explorer</text>
+<text x="1385" y="644" class="b" text-anchor="start">• Backups and mirroring</text>
+<text x="1385" y="681" class="b" text-anchor="start">• Storage quota</text>
+<text x="1385" y="718" class="b" text-anchor="start">• Homegate</text>
+<text x="1385" y="755" class="b" text-anchor="start">• …</text>
 <path class="solid" d="M444,215 H581"/>
 <path class="solid" d="M444,444 H581"/>
 <text x="513" y="428" class="el" text-anchor="middle">Log in</text>
