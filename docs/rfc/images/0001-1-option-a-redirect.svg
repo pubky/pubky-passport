@@ -22,7 +22,7 @@
 </defs>
 <rect width="2000" height="1222" fill="#fff"/>
 
-<text x="56" y="62" class="title">Option A: Accounts redirects to Passport</text>
+<text x="56" y="62" class="title">Option A.1: Passport shows every option</text>
 <path class="solid" d="M1330,45 H1400"/>
 <text x="1415" y="52" class="lg" text-anchor="start">go to / auto redirect</text>
 <path class="dash" d="M1717,45 H1787"/>
