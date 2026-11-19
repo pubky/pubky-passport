@@ -80,7 +80,8 @@ Pubky is moving to many apps, so profile management and onboarding shouldn't sta
 - Sign-in works as in A.1.
 - The wrapping key endpoint moves into Homegate.
 - Apps only link to Passport. Through the SDK, users can choose their own Passport instance.
-- Each identity picks its Homegate: Synonym's, another provider's, or a self-hosted one. An identity on its own homeserver can also have no Homegate.
+- You pick the Homegate on the Passport sign-in screen, because it decides which sign-in options are offered. It can be Synonym's, another provider's, or a self-hosted one. An identity on its own homeserver can also have no Homegate.
+- You can enter an invite code instead. The code is tied to a homeserver and signs you up there.
 - Passport handles profile management. It signs in to Accounts like any suite app and gets a child grant, so this works for every identity, including ones whose key is in Ring or Bitkit.
 - For each identity, you choose how Passport holds it: the key in this browser, or only a grant. A grant can come from Ring, Bitkit, or another Signer. For an SSO identity, Passport loads the key from the backup into memory when it needs to sign.
 
