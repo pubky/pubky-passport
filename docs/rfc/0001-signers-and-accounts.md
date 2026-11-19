@@ -6,9 +6,8 @@ Status: Draft. Anything not marked Live is a proposal.
 
 This RFC covers how Pubky Accounts and Passport work together:
 
-- Two options for how Accounts gets you signed in through Passport, and what each one passes where.
-- Which option to start with.
-- What Passport can become after that.
+- The options for how Accounts gets you signed in through Passport.
+- The preferred design (Option C), where Passport becomes the home for your identity.
 
 It's meant for discussion. Nothing in it changes current behavior.
 
@@ -26,6 +25,7 @@ It's meant for discussion. Nothing in it changes current behavior.
   - SSO identity: a local identity that is attached to an SSO provider, so its key can be restored from the backup there.
   - Local-only identity: a local identity that isn't attached to an SSO provider. Its key exists only in this browser, unless you saved a recovery phrase or recovery file.
 - Wrapping key: the key that unlocks your encrypted backup. A server derives it after it checks your SSO provider sign-in.
+- Homegate: the sign-up service in front of a homeserver.
 - External app: an app outside the Pubky suite.
 
 ## Problems
@@ -44,141 +44,48 @@ It's meant for discussion. Nothing in it changes current behavior.
 - Apps open Passport with a `pubkyauth://` request. Passport sends the signed approval through the relay, and the app never gets your key or your SSO account.
 - Passport has no onboarding, profile setup, or homeserver management.
 
-## How Accounts signs you in
+## Options
 
-Both options below share these parts:
+Every option shares these parts:
 
-- In a suite app, you select Sign in, and the app sends you to Accounts.
-- Accounts holds one account at a time. If you're already signed in, it sends you straight back to the app with a child grant, without asking.
-- Accounts keeps only the parent grant and its own key. It never stores your pubky key.
-- External apps skip Accounts. They send their own `pubkyauth://` request to Passport and get the signed grant back.
+- In a suite app, you select Log in, and the app sends you to Accounts.
+- Accounts holds one account at a time. If you're already signed in, it sends you straight back with a child grant.
+- Accounts keeps only the parent grant and its own key, never your pubky key.
+- External apps skip Accounts and send their `pubkyauth://` request straight to Passport.
 
-The options differ in where the sign-in itself happens.
+Each figure shows the sign-in screens on top, what is passed where in the middle, and the benefits and tradeoffs at the bottom. The screens are basic mockups, not designs.
 
-### Option A: Accounts redirects to Passport
+### Option A.1: Accounts redirects to Passport, Passport shows every option
 
-Accounts sends you to Passport for sign-in, and Passport sends you back. Accounts signs in through Passport the same way any other app does. A.1 and A.2 differ in where the Mobile Signer QR code is shown.
+Accounts has no sign-in page. It redirects you to Passport right away, and Passport shows the Mobile Signer QR code next to the SSO providers and Import. For a Mobile Signer, Passport checks the relay channel without taking the approval and returns you to Accounts on its own.
 
-What is passed where, in both A.1 and A.2:
+![Option A.1](images/0001-1-option-a1.png)
 
-- Accounts to Passport: the `pubkyauth://` request (requested access, relay address, and the address to return to).
-- Passport or the Mobile Signer to the relay: the signed parent grant, encrypted for Accounts.
-- Passport to Accounts: a redirect back. The redirect isn't a credential. Accounts trusts only what it gets from the relay.
-- Stays in Passport: your key and your SSO account.
+### Option A.2: Mobile Signer in Accounts, Passport for the rest
 
-Benefits of both:
+Accounts shows its own page with the Mobile Signer QR code and one Continue with Passport button. Passport stays as it is today.
 
-- No new backend. Passport works as it does today.
-- Keys and SSO provider sign-in stay on one site, so only one site needs security review for them.
-- Signing in to Accounts looks and works like signing in to any app that uses Passport.
-- If you already use Passport in this browser, signing in to Accounts takes one approval.
-
-#### Option A.1: Passport shows every option
-
-1. Accounts creates a `pubkyauth://` request for a parent grant and saves the pending request in the browser.
-2. Accounts redirects you to Passport right away, with the request in the address.
-3. Passport shows every sign-in option: the Mobile Signer QR code, the SSO providers, and Import.
-4. You sign in:
-   - With a Mobile Signer: you scan the QR code, or open the link on your phone, and approve in Ring or Bitkit. The Mobile Signer sends the signed parent grant to the relay. Passport checks the relay channel without taking the approval, and redirects you back to Accounts as soon as it's there.
-   - With an SSO provider or an imported key: you sign in to Passport, review the request, and approve it. If you already have a local identity in Passport, you only review and approve. Passport sends the signed parent grant to the relay and redirects you back to Accounts.
-5. Accounts picks up the saved request, receives the parent grant from the relay, and sends you on with a child grant.
-
-Benefits:
-
-- Accounts shows no sign-in page of its own, and you don't need to click anything before Passport opens.
-- Every sign-in option is on one page.
-
-Tradeoffs:
-
-- You see one extra page change on your first sign-in.
-- Passport needs to show the Mobile Signer QR code, which it doesn't do today.
-- Mobile Signer users go through Passport even though they don't use its key.
-
-![Option A.1: Passport shows every option](images/0001-1-option-a-redirect.png)
-
-![Option A.1 screens](images/0001-4-screens-option-a1.png)
-
-#### Option A.2: Mobile Signer in Accounts, Passport for the rest
-
-1. Accounts creates a `pubkyauth://` request for a parent grant.
-2. Accounts shows its own sign-in page: the request as a Mobile Signer QR code, and a Continue with Passport button.
-3. You sign in:
-   - With a Mobile Signer: you scan the QR code, or open the link on your phone, and approve in Ring or Bitkit. The Mobile Signer sends the signed parent grant to the relay. Accounts is still open, receives it, and sends you on with a child grant. You never see Passport.
-   - With Passport: you select Continue with Passport. Accounts saves the pending request and redirects you to Passport, which shows the SSO providers and Import, as it does today. You sign in, review the request, and approve it. Passport sends the signed parent grant to the relay and redirects you back to Accounts, which sends you on with a child grant.
-
-Benefits:
-
-- Mobile Signer users stay on the Accounts page.
-- Passport doesn't need to show a QR code.
-
-Tradeoffs:
-
-- SSO and import users need one more click on the Accounts page before Passport opens.
-- Accounts shows a sign-in page of its own, and sign-in options appear on two sites.
-
-Because A.2 already has a click on the Accounts page, that click could open Passport in a pop-up instead of a redirect. The existing Passport button package does this, and you would never leave the Accounts tab. A.1 has no click, so it has to redirect: browsers block pop-ups that don't come from a click.
-
-![Option A.2 screens](images/0001-5-screens-option-a2.png)
+![Option A.2](images/0001-2-option-a2.png)
 
 ### Option B: Passport sign-in inside Accounts
 
-Accounts shows the SSO provider buttons, the Mobile Signer QR code, and Import on its own page. The wrapping key endpoint moves from Passport's server into Homegate, so Accounts and Passport use the same backend.
+Accounts runs SSO sign-in itself, unlocks the key in memory, and signs the parent grant. The wrapping key endpoint moves from Passport's server into Homegate, so both sites use the same backend.
 
-1. You select an SSO provider on the Accounts page. The provider opens in a pop-up.
-2. Accounts sends the provider's ID token to Homegate. Homegate checks it and returns the wrapping key. For a new account, Homegate also returns a sign-up code.
-3. Accounts reads your encrypted backup from the provider's cloud storage and unlocks it in memory.
-4. Accounts signs the parent grant with your key, then clears the key.
-5. Accounts sends you on with a child grant.
+![Option B](images/0001-3-option-b.png)
 
-What is passed where:
+### Option C (preferred): Passport as the home for your identity
 
-- SSO provider to Accounts: an ID token, plus access to the backup in its cloud storage.
-- Accounts to Homegate: the ID token. Homegate returns the wrapping key.
-- The provider's cloud storage to Accounts: the encrypted backup.
-- Stays in Accounts' memory for a moment: your key. It's cleared after signing.
+Pubky is moving to many apps, so profile management and onboarding shouldn't stay in pubky.app. Apps from other developers should be able to hand them to a drop-in solution. Option C makes Passport that place:
 
-Benefits:
+- Sign-in works as in A.1.
+- The wrapping key endpoint moves into Homegate.
+- Apps only link to Passport. Through the SDK, users can choose their own Passport instance.
+- Each identity picks its Homegate: Synonym's, another provider's, or a self-hosted one. An identity on its own homeserver can also have no Homegate.
+- Passport handles profile management. It signs in to Accounts like any suite app and gets a child grant, so this works for every identity, including ones whose key is in Ring or Bitkit.
+- For each identity, you choose how Passport holds it: the key in this browser, or only a grant. A grant can come from Ring, Bitkit, or another Signer. For an SSO identity, Passport loads the key from the backup into memory when it needs to sign.
 
-- No redirect. Every option is on the Accounts page, in the same tab.
-- Moving the wrapping key into Homegate is also the first step toward self-hosting (see below).
+![Option C](images/0001-4-option-c.png)
 
-Tradeoffs:
-
-- Two sites handle private keys, which doubles what needs security review.
-- Every SSO provider change must land in both sites. Sharing Passport's sign-in code as one package reduces this but doesn't remove it.
-- Homegate must derive the same wrapping key as Passport's server does today. Otherwise existing backups can't be unlocked.
-- Each backup is tied to Passport's address today, and Passport checks that address when it opens a backup. Accounts would have to open backups as Passport, which needs a change and its own review.
-- Both sites must use the same SSO provider setup (today a Google client and an Apple Services ID) to reach the same backup. Access from a second address hasn't been tested yet.
-- Accounts doesn't see Passport's local identities. Someone already signed in to Passport signs in again with their SSO provider.
-
-![Option B: Passport sign-in inside Accounts](images/0001-2-option-b-accounts-sign-in.png)
-
-![Option B screen](images/0001-6-screens-option-b.png)
-
-### Recommendation
-
-Start with Option A. It needs no new backend, and Accounts uses Passport like any other app. Whether to use A.1 or A.2 is still open. If the redirect turns out to cause friction, move to Option B.
+A.1 needs no backend change, so it can ship first. C builds on it.
 
 We don't plan to embed Passport in an iframe. Browsers handle iframe storage and SSO provider sign-in differently, so it wouldn't work the same everywhere.
-
-## What Passport can become
-
-Pubky is moving to many apps. Profile management and onboarding then shouldn't stay in pubky.app. Apps from other developers should also be able to hand onboarding to a drop-in solution. Passport can be that place.
-
-Passport could become the place where you manage your pubky identity. It isn't limited to local identities: if your key is somewhere else, you can sign in to Passport with a grant and use the same tools. The grant can come straight from your Mobile Signer, or be a child grant from Accounts if you're already signed in there.
-
-Some examples of what it could offer:
-
-- Onboarding and profile setup that any app can use. Each app decides whether it requires a profile.
-- Homeserver tools, such as a file explorer, backups, mirroring, and storage quota.
-- An interface for Homegate.
-- Stronger key protection in the browser, such as a PIN, a passkey, or biometrics.
-- Not keeping keys in the browser. Passport would use a grant for everyday tasks and load the key only when it needs to sign. This works only for SSO identities, because they can reload the key from their backup.
-
-![What Passport can become, with examples](images/0001-3-what-passport-can-become.png)
-
-### Self-hosting
-
-With the wrapping key in Homegate, Passport becomes a frontend for any Homegate. You could self-host Homegate, or use a provider other than Synonym. Each Homegate needs its own SSO provider setup.
-
-An SSO identity is tied to the backend that created it. To move it to another one, export a recovery file and import it there. This could be handled inside the Passport UI.

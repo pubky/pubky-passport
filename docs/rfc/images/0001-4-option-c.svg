@@ -1,0 +1,317 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2000 2047" width="2000" height="2047" font-family="DejaVu Sans, Verdana, sans-serif">
+<defs>
+<marker id="dark" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#333"/></marker>
+<marker id="green" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#2E9A50"/></marker>
+<marker id="grey" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#888"/></marker>
+<style>
+.solid{stroke:#333;stroke-width:2.2;fill:none;marker-end:url(#dark)}
+.dash{stroke:#2E9A50;stroke-width:2.2;fill:none;stroke-dasharray:8 6;marker-end:url(#green)}
+.opt{stroke:#888;stroke-width:2.2;fill:none;stroke-dasharray:6 5;marker-end:url(#grey)}
+.life{stroke:#bbb;stroke-width:1.5;stroke-dasharray:4 5}
+.title{font-weight:bold;font-size:34px;fill:#111}
+.sub{font-size:20px;fill:#555}
+.sec{font-weight:bold;font-size:22px;fill:#111}
+.h{font-weight:bold;font-size:20px;fill:#111}
+.b{font-size:17px;fill:#222}
+.cap{font-size:15px;fill:#555}
+.lbl{font-size:16px;fill:#222;paint-order:stroke;stroke:#fff;stroke-width:6px;stroke-linejoin:round}
+.lblg{font-size:16px;fill:#1E7D36;paint-order:stroke;stroke:#fff;stroke-width:6px;stroke-linejoin:round}
+.num{font-weight:bold}
+.link{font-size:15px;fill:#1E7D36;font-weight:bold}
+.mono{font-family:"DejaVu Sans Mono",monospace}
+.pro{font-size:17px;fill:#1E5E30}
+.con{font-size:17px;fill:#8A2A1E}
+</style>
+</defs>
+<rect width="2000" height="2047" fill="#fff"/>
+<text x="56" y="62" class="title">Option C (preferred): Passport as the identity home, backend in Homegate</text><text x="56" y="96" class="sub">Sign-in as in A.1. Each identity picks its Homegate and how its key is kept. Passport manages profiles with a child grant.</text><rect x="80" y="180" width="320" height="470" rx="18" fill="#fff" stroke="#3B6FD9" stroke-width="2.5"/>
+<path d="M82,228 V198 Q82,182 98,182 H382 Q398,182 398,198 V228 Z" fill="#EDF3FF"/>
+<line x1="80" y1="228" x2="400" y2="228" stroke="#3B6FD9" stroke-width="1.2"/>
+<rect x="94" y="191" width="292" height="26" rx="13" fill="#fff" stroke="#ccc" stroke-width="1"/>
+<text x="240.0" y="210" class="cap mono" text-anchor="middle">arena.pubky.app</text>
+<circle cx="80" cy="180" r="19" fill="#222"/><text x="80" y="187" font-size="19" font-weight="bold" fill="#fff" text-anchor="middle">1</text>
+<text x="240.0" y="680" class="h" text-anchor="middle">Suite app</text>
+<text x="240.0" y="704" class="cap" text-anchor="middle">Log in</text>
+<text x="240.0" y="280" class="h" text-anchor="middle">Arena</text>
+<rect x="130.0" y="310" width="220.0" height="14" rx="7" fill="#EEE" stroke="#EEE" stroke-width="0"/>
+<rect x="150.0" y="336" width="180.0" height="14" rx="7" fill="#EEE" stroke="#EEE" stroke-width="0"/>
+<rect x="140.0" y="362" width="200.0" height="14" rx="7" fill="#EEE" stroke="#EEE" stroke-width="0"/>
+<rect x="115.0" y="410" width="250.0" height="40" rx="20" fill="#3B6ED8" stroke="#3B6ED8" stroke-width="0"/>
+<text x="240.0" y="436" font-size="16" font-weight="bold" fill="#fff" text-anchor="middle">Log in</text>
+<rect x="105" y="480" width="270" height="80" rx="8" fill="#F7F7F7" stroke="#ddd" stroke-width="1"/>
+<text x="120" y="506" class="cap" text-anchor="start">Passport: passport.pubky.app</text>
+<text x="120" y="532" class="link" text-anchor="start">Use another Passport</text>
+<text x="240.0" y="600" class="cap" text-anchor="middle">Picker comes from the SDK</text>
+<rect x="560" y="180" width="320" height="470" rx="18" fill="#fff" stroke="#2E9A50" stroke-width="2.5"/>
+<path d="M562,228 V198 Q562,182 578,182 H862 Q878,182 878,198 V228 Z" fill="#EEF8F0"/>
+<line x1="560" y1="228" x2="880" y2="228" stroke="#2E9A50" stroke-width="1.2"/>
+<rect x="574" y="191" width="292" height="26" rx="13" fill="#fff" stroke="#ccc" stroke-width="1"/>
+<text x="720.0" y="210" class="cap mono" text-anchor="middle">passport.pubky.app</text>
+<circle cx="560" cy="180" r="19" fill="#222"/><text x="560" y="187" font-size="19" font-weight="bold" fill="#fff" text-anchor="middle">2</text>
+<text x="720.0" y="680" class="h" text-anchor="middle">Passport (any instance)</text>
+<text x="720.0" y="704" class="cap" text-anchor="middle">every sign-in option</text>
+<text x="720.0" y="270" class="h" text-anchor="middle">Sign in to Pubky Accounts</text>
+<text x="720.0" y="296" class="cap" text-anchor="middle">Scan with Ring or Bitkit</text>
+<rect x="661.0" y="307" width="118.0" height="118" rx="6" fill="#fff" stroke="#ddd" stroke-width="1"/>
+<rect x="702.7" y="314.0" width="5.0" height="5.0" fill="#111"/>
+<rect x="712.6" y="314.0" width="5.0" height="5.0" fill="#111"/>
+<rect x="727.4" y="314.0" width="5.0" height="5.0" fill="#111"/>
+<rect x="732.4" y="314.0" width="5.0" height="5.0" fill="#111"/>
+<rect x="707.6" y="319.0" width="5.0" height="5.0" fill="#111"/>
+<rect x="712.6" y="319.0" width="5.0" height="5.0" fill="#111"/>
+<rect x="707.6" y="323.9" width="5.0" height="5.0" fill="#111"/>
+<rect x="702.7" y="328.9" width="5.0" height="5.0" fill="#111"/>
+<rect x="717.5" y="328.9" width="5.0" height="5.0" fill="#111"/>
+<rect x="722.5" y="328.9" width="5.0" height="5.0" fill="#111"/>
+<rect x="722.5" y="333.8" width="5.0" height="5.0" fill="#111"/>
+<rect x="732.4" y="333.8" width="5.0" height="5.0" fill="#111"/>
+<rect x="712.6" y="338.8" width="5.0" height="5.0" fill="#111"/>
+<rect x="717.5" y="338.8" width="5.0" height="5.0" fill="#111"/>
+<rect x="722.5" y="338.8" width="5.0" height="5.0" fill="#111"/>
+<rect x="732.4" y="338.8" width="5.0" height="5.0" fill="#111"/>
+<rect x="707.6" y="343.7" width="5.0" height="5.0" fill="#111"/>
+<rect x="717.5" y="343.7" width="5.0" height="5.0" fill="#111"/>
+<rect x="722.5" y="343.7" width="5.0" height="5.0" fill="#111"/>
+<rect x="697.7" y="348.7" width="5.0" height="5.0" fill="#111"/>
+<rect x="727.4" y="348.7" width="5.0" height="5.0" fill="#111"/>
+<rect x="742.3" y="348.7" width="5.0" height="5.0" fill="#111"/>
+<rect x="747.2" y="348.7" width="5.0" height="5.0" fill="#111"/>
+<rect x="762.1" y="348.7" width="5.0" height="5.0" fill="#111"/>
+<rect x="668.0" y="353.6" width="5.0" height="5.0" fill="#111"/>
+<rect x="673.0" y="353.6" width="5.0" height="5.0" fill="#111"/>
+<rect x="677.9" y="353.6" width="5.0" height="5.0" fill="#111"/>
+<rect x="692.8" y="353.6" width="5.0" height="5.0" fill="#111"/>
+<rect x="702.7" y="353.6" width="5.0" height="5.0" fill="#111"/>
+<rect x="712.6" y="353.6" width="5.0" height="5.0" fill="#111"/>
+<rect x="737.3" y="353.6" width="5.0" height="5.0" fill="#111"/>
+<rect x="742.3" y="353.6" width="5.0" height="5.0" fill="#111"/>
+<rect x="752.2" y="353.6" width="5.0" height="5.0" fill="#111"/>
+<rect x="757.1" y="353.6" width="5.0" height="5.0" fill="#111"/>
+<rect x="762.1" y="353.6" width="5.0" height="5.0" fill="#111"/>
+<rect x="668.0" y="358.6" width="5.0" height="5.0" fill="#111"/>
+<rect x="673.0" y="358.6" width="5.0" height="5.0" fill="#111"/>
+<rect x="682.9" y="358.6" width="5.0" height="5.0" fill="#111"/>
+<rect x="697.7" y="358.6" width="5.0" height="5.0" fill="#111"/>
+<rect x="742.3" y="358.6" width="5.0" height="5.0" fill="#111"/>
+<rect x="752.2" y="358.6" width="5.0" height="5.0" fill="#111"/>
+<rect x="757.1" y="358.6" width="5.0" height="5.0" fill="#111"/>
+<rect x="673.0" y="363.5" width="5.0" height="5.0" fill="#111"/>
+<rect x="677.9" y="363.5" width="5.0" height="5.0" fill="#111"/>
+<rect x="687.8" y="363.5" width="5.0" height="5.0" fill="#111"/>
+<rect x="702.7" y="363.5" width="5.0" height="5.0" fill="#111"/>
+<rect x="722.5" y="363.5" width="5.0" height="5.0" fill="#111"/>
+<rect x="737.3" y="363.5" width="5.0" height="5.0" fill="#111"/>
+<rect x="742.3" y="363.5" width="5.0" height="5.0" fill="#111"/>
+<rect x="757.1" y="363.5" width="5.0" height="5.0" fill="#111"/>
+<rect x="668.0" y="368.5" width="5.0" height="5.0" fill="#111"/>
+<rect x="673.0" y="368.5" width="5.0" height="5.0" fill="#111"/>
+<rect x="677.9" y="368.5" width="5.0" height="5.0" fill="#111"/>
+<rect x="682.9" y="368.5" width="5.0" height="5.0" fill="#111"/>
+<rect x="692.8" y="368.5" width="5.0" height="5.0" fill="#111"/>
+<rect x="697.7" y="368.5" width="5.0" height="5.0" fill="#111"/>
+<rect x="707.6" y="368.5" width="5.0" height="5.0" fill="#111"/>
+<rect x="722.5" y="368.5" width="5.0" height="5.0" fill="#111"/>
+<rect x="727.4" y="368.5" width="5.0" height="5.0" fill="#111"/>
+<rect x="737.3" y="368.5" width="5.0" height="5.0" fill="#111"/>
+<rect x="742.3" y="368.5" width="5.0" height="5.0" fill="#111"/>
+<rect x="747.2" y="368.5" width="5.0" height="5.0" fill="#111"/>
+<rect x="757.1" y="368.5" width="5.0" height="5.0" fill="#111"/>
+<rect x="762.1" y="368.5" width="5.0" height="5.0" fill="#111"/>
+<rect x="767.0" y="368.5" width="5.0" height="5.0" fill="#111"/>
+<rect x="673.0" y="373.4" width="5.0" height="5.0" fill="#111"/>
+<rect x="682.9" y="373.4" width="5.0" height="5.0" fill="#111"/>
+<rect x="687.8" y="373.4" width="5.0" height="5.0" fill="#111"/>
+<rect x="707.6" y="373.4" width="5.0" height="5.0" fill="#111"/>
+<rect x="712.6" y="373.4" width="5.0" height="5.0" fill="#111"/>
+<rect x="722.5" y="373.4" width="5.0" height="5.0" fill="#111"/>
+<rect x="737.3" y="373.4" width="5.0" height="5.0" fill="#111"/>
+<rect x="742.3" y="373.4" width="5.0" height="5.0" fill="#111"/>
+<rect x="762.1" y="373.4" width="5.0" height="5.0" fill="#111"/>
+<rect x="767.0" y="373.4" width="5.0" height="5.0" fill="#111"/>
+<rect x="668.0" y="378.4" width="5.0" height="5.0" fill="#111"/>
+<rect x="677.9" y="378.4" width="5.0" height="5.0" fill="#111"/>
+<rect x="682.9" y="378.4" width="5.0" height="5.0" fill="#111"/>
+<rect x="687.8" y="378.4" width="5.0" height="5.0" fill="#111"/>
+<rect x="692.8" y="378.4" width="5.0" height="5.0" fill="#111"/>
+<rect x="697.7" y="378.4" width="5.0" height="5.0" fill="#111"/>
+<rect x="707.6" y="378.4" width="5.0" height="5.0" fill="#111"/>
+<rect x="712.6" y="378.4" width="5.0" height="5.0" fill="#111"/>
+<rect x="732.4" y="378.4" width="5.0" height="5.0" fill="#111"/>
+<rect x="747.2" y="378.4" width="5.0" height="5.0" fill="#111"/>
+<rect x="702.7" y="383.3" width="5.0" height="5.0" fill="#111"/>
+<rect x="707.6" y="383.3" width="5.0" height="5.0" fill="#111"/>
+<rect x="712.6" y="383.3" width="5.0" height="5.0" fill="#111"/>
+<rect x="717.5" y="383.3" width="5.0" height="5.0" fill="#111"/>
+<rect x="727.4" y="383.3" width="5.0" height="5.0" fill="#111"/>
+<rect x="737.3" y="383.3" width="5.0" height="5.0" fill="#111"/>
+<rect x="702.7" y="388.3" width="5.0" height="5.0" fill="#111"/>
+<rect x="712.6" y="388.3" width="5.0" height="5.0" fill="#111"/>
+<rect x="717.5" y="388.3" width="5.0" height="5.0" fill="#111"/>
+<rect x="732.4" y="388.3" width="5.0" height="5.0" fill="#111"/>
+<rect x="747.2" y="388.3" width="5.0" height="5.0" fill="#111"/>
+<rect x="752.2" y="388.3" width="5.0" height="5.0" fill="#111"/>
+<rect x="702.7" y="393.2" width="5.0" height="5.0" fill="#111"/>
+<rect x="707.6" y="393.2" width="5.0" height="5.0" fill="#111"/>
+<rect x="722.5" y="393.2" width="5.0" height="5.0" fill="#111"/>
+<rect x="747.2" y="393.2" width="5.0" height="5.0" fill="#111"/>
+<rect x="762.1" y="393.2" width="5.0" height="5.0" fill="#111"/>
+<rect x="767.0" y="393.2" width="5.0" height="5.0" fill="#111"/>
+<rect x="702.7" y="398.2" width="5.0" height="5.0" fill="#111"/>
+<rect x="712.6" y="398.2" width="5.0" height="5.0" fill="#111"/>
+<rect x="727.4" y="398.2" width="5.0" height="5.0" fill="#111"/>
+<rect x="732.4" y="398.2" width="5.0" height="5.0" fill="#111"/>
+<rect x="737.3" y="398.2" width="5.0" height="5.0" fill="#111"/>
+<rect x="742.3" y="398.2" width="5.0" height="5.0" fill="#111"/>
+<rect x="747.2" y="398.2" width="5.0" height="5.0" fill="#111"/>
+<rect x="762.1" y="398.2" width="5.0" height="5.0" fill="#111"/>
+<rect x="702.7" y="403.1" width="5.0" height="5.0" fill="#111"/>
+<rect x="707.6" y="403.1" width="5.0" height="5.0" fill="#111"/>
+<rect x="712.6" y="403.1" width="5.0" height="5.0" fill="#111"/>
+<rect x="727.4" y="403.1" width="5.0" height="5.0" fill="#111"/>
+<rect x="732.4" y="403.1" width="5.0" height="5.0" fill="#111"/>
+<rect x="737.3" y="403.1" width="5.0" height="5.0" fill="#111"/>
+<rect x="742.3" y="403.1" width="5.0" height="5.0" fill="#111"/>
+<rect x="757.1" y="403.1" width="5.0" height="5.0" fill="#111"/>
+<rect x="762.1" y="403.1" width="5.0" height="5.0" fill="#111"/>
+<rect x="767.0" y="403.1" width="5.0" height="5.0" fill="#111"/>
+<rect x="702.7" y="408.1" width="5.0" height="5.0" fill="#111"/>
+<rect x="717.5" y="408.1" width="5.0" height="5.0" fill="#111"/>
+<rect x="732.4" y="408.1" width="5.0" height="5.0" fill="#111"/>
+<rect x="737.3" y="408.1" width="5.0" height="5.0" fill="#111"/>
+<rect x="752.2" y="408.1" width="5.0" height="5.0" fill="#111"/>
+<rect x="767.0" y="408.1" width="5.0" height="5.0" fill="#111"/>
+<rect x="712.6" y="413.0" width="5.0" height="5.0" fill="#111"/>
+<rect x="717.5" y="413.0" width="5.0" height="5.0" fill="#111"/>
+<rect x="722.5" y="413.0" width="5.0" height="5.0" fill="#111"/>
+<rect x="737.3" y="413.0" width="5.0" height="5.0" fill="#111"/>
+<rect x="752.2" y="413.0" width="5.0" height="5.0" fill="#111"/>
+<rect x="762.1" y="413.0" width="5.0" height="5.0" fill="#111"/>
+<rect x="668.0" y="314.0" width="34.7" height="34.7" fill="#111"/><rect x="673.0" y="319.0" width="24.8" height="24.8" fill="#fff"/><rect x="677.9" y="323.9" width="14.9" height="14.9" fill="#111"/>
+<rect x="737.3" y="314.0" width="34.7" height="34.7" fill="#111"/><rect x="742.3" y="319.0" width="24.8" height="24.8" fill="#fff"/><rect x="747.2" y="323.9" width="14.9" height="14.9" fill="#111"/>
+<rect x="668.0" y="383.3" width="34.7" height="34.7" fill="#111"/><rect x="673.0" y="388.3" width="24.8" height="24.8" fill="#fff"/><rect x="677.9" y="393.2" width="14.9" height="14.9" fill="#111"/>
+<line x1="595.0" y1="452" x2="702.0" y2="452" stroke="#ccc"/><line x1="738.0" y1="452" x2="845.0" y2="452" stroke="#ccc"/>
+<text x="720.0" y="457" class="cap" text-anchor="middle">or</text>
+<rect x="595.0" y="472" width="250.0" height="40" rx="20" fill="#fff" stroke="#999" stroke-width="1.3"/>
+<text x="720.0" y="498" font-size="16" font-weight="bold" fill="#111" text-anchor="middle">Continue with Google</text>
+<rect x="595.0" y="522" width="250.0" height="40" rx="20" fill="#111" stroke="#111" stroke-width="0"/>
+<text x="720.0" y="548" font-size="16" font-weight="bold" fill="#fff" text-anchor="middle">Continue with Apple</text>
+<text x="720.0" y="598" class="link" text-anchor="middle">Already have a pubky? Import it</text>
+<rect x="1040" y="180" width="320" height="470" rx="18" fill="#fff" stroke="#2E9A50" stroke-width="2.5"/>
+<path d="M1042,228 V198 Q1042,182 1058,182 H1342 Q1358,182 1358,198 V228 Z" fill="#EEF8F0"/>
+<line x1="1040" y1="228" x2="1360" y2="228" stroke="#2E9A50" stroke-width="1.2"/>
+<rect x="1054" y="191" width="292" height="26" rx="13" fill="#fff" stroke="#ccc" stroke-width="1"/>
+<text x="1200.0" y="210" class="cap mono" text-anchor="middle">passport.pubky.app</text>
+<circle cx="1040" cy="180" r="19" fill="#222"/><text x="1040" y="187" font-size="19" font-weight="bold" fill="#fff" text-anchor="middle">3</text>
+<text x="1200.0" y="680" class="h" text-anchor="middle">Passport</text>
+<text x="1200.0" y="704" class="cap" text-anchor="middle">new identity: choices</text>
+<text x="1200.0" y="266" class="h" text-anchor="middle">Set up your pubky</text>
+<text x="1065" y="300" class="b" text-anchor="start">Homegate</text>
+<circle cx="1078" cy="321" r="8" fill="#fff" stroke="#888" stroke-width="1.5"/><circle cx="1078" cy="321" r="4.5" fill="#2E9A50"/>
+<text x="1094" y="326" class="cap" text-anchor="start">Synonym (default)</text>
+<circle cx="1078" cy="351" r="8" fill="#fff" stroke="#888" stroke-width="1.5"/>
+<text x="1094" y="356" class="cap" text-anchor="start">Another provider…</text>
+<circle cx="1078" cy="381" r="8" fill="#fff" stroke="#888" stroke-width="1.5"/>
+<text x="1094" y="386" class="cap" text-anchor="start">Own homeserver, no Homegate</text>
+<text x="1065" y="435" class="b" text-anchor="start">Key</text>
+<circle cx="1078" cy="456" r="8" fill="#fff" stroke="#888" stroke-width="1.5"/><circle cx="1078" cy="456" r="4.5" fill="#2E9A50"/>
+<text x="1094" y="461" class="cap" text-anchor="start">Keep key in this browser</text>
+<circle cx="1078" cy="486" r="8" fill="#fff" stroke="#888" stroke-width="1.5"/>
+<text x="1094" y="491" class="cap" text-anchor="start">Grant only, key loaded to sign</text>
+<rect x="1075.0" y="550" width="250.0" height="40" rx="20" fill="#2E9A50" stroke="#2E9A50" stroke-width="0"/>
+<text x="1200.0" y="576" font-size="16" font-weight="bold" fill="#fff" text-anchor="middle">Continue</text>
+<rect x="1520" y="180" width="320" height="470" rx="18" fill="#fff" stroke="#2E9A50" stroke-width="2.5"/>
+<path d="M1522,228 V198 Q1522,182 1538,182 H1822 Q1838,182 1838,198 V228 Z" fill="#EEF8F0"/>
+<line x1="1520" y1="228" x2="1840" y2="228" stroke="#2E9A50" stroke-width="1.2"/>
+<rect x="1534" y="191" width="292" height="26" rx="13" fill="#fff" stroke="#ccc" stroke-width="1"/>
+<text x="1680.0" y="210" class="cap mono" text-anchor="middle">passport.pubky.app</text>
+<circle cx="1520" cy="180" r="19" fill="#222"/><text x="1520" y="187" font-size="19" font-weight="bold" fill="#fff" text-anchor="middle">4</text>
+<text x="1680.0" y="680" class="h" text-anchor="middle">Passport</text>
+<text x="1680.0" y="704" class="cap" text-anchor="middle">review and approve</text>
+<text x="1680.0" y="270" class="h" text-anchor="middle">Sign in to Pubky Accounts</text>
+<rect x="1545" y="290" width="270" height="60" rx="8" fill="#EEF8F0" stroke="#EEF8F0" stroke-width="0"/>
+<text x="1562" y="314" class="cap" text-anchor="start">Signing in as</text>
+<text x="1562" y="338" class="b mono" text-anchor="start">pk:8pin…zq4y</text>
+<text x="1545" y="385" class="b" text-anchor="start">Pubky Accounts asks for:</text>
+<text x="1555" y="415" class="cap" text-anchor="start">• Read and write /pub/</text>
+<text x="1555" y="440" class="cap" text-anchor="start">• Read and write /priv/</text>
+<rect x="1555.0" y="510" width="250.0" height="40" rx="20" fill="#2E9A50" stroke="#2E9A50" stroke-width="0"/>
+<text x="1680.0" y="536" font-size="16" font-weight="bold" fill="#fff" text-anchor="middle">Approve</text>
+<rect x="1555.0" y="560" width="250.0" height="40" rx="20" fill="#fff" stroke="#999" stroke-width="1.3"/>
+<text x="1680.0" y="586" font-size="16" font-weight="bold" fill="#111" text-anchor="middle">Cancel</text>
+<path class="solid" d="M402,380 H556"/>
+<text x="480.0" y="348" class="lbl" text-anchor="middle">auto redirect</text>
+<text x="480.0" y="368" class="lbl" text-anchor="middle">through Accounts</text>
+<path class="solid" d="M882,380 H1036"/>
+<text x="960.0" y="348" class="lbl" text-anchor="middle">new SSO</text>
+<text x="960.0" y="368" class="lbl" text-anchor="middle">identity</text>
+<path class="solid" d="M1362,380 H1516"/>
+<text x="56" y="760" class="sec" text-anchor="start">What is passed where</text>
+<line class="life" x1="200.0" y1="828" x2="200.0" y2="1564"/>
+<rect x="115.0" y="784" width="170.0" height="44" rx="10" fill="#EDF3FF" stroke="#3B6FD9" stroke-width="2"/>
+<text x="200.0" y="812" class="b num" text-anchor="middle">App</text>
+<line class="life" x1="600.0" y1="828" x2="600.0" y2="1564"/>
+<rect x="515.0" y="784" width="170.0" height="44" rx="10" fill="#FFF8EC" stroke="#D98A1C" stroke-width="2"/>
+<text x="600.0" y="812" class="b num" text-anchor="middle">Accounts</text>
+<line class="life" x1="1000.0" y1="828" x2="1000.0" y2="1564"/>
+<rect x="915.0" y="784" width="170.0" height="44" rx="10" fill="#EEF8F0" stroke="#2E9A50" stroke-width="2"/>
+<text x="1000.0" y="812" class="b num" text-anchor="middle">Passport</text>
+<line class="life" x1="1400.0" y1="828" x2="1400.0" y2="1564"/>
+<rect x="1267.25" y="784" width="265.5" height="44" rx="10" fill="#F4EFFD" stroke="#7B4FD0" stroke-width="2"/>
+<text x="1400.0" y="812" class="b num" text-anchor="middle">Homegate (per identity)</text>
+<line class="life" x1="1800.0" y1="828" x2="1800.0" y2="1564"/>
+<rect x="1715.0" y="784" width="170.0" height="44" rx="10" fill="#F2F2F2" stroke="#6E6E6E" stroke-width="2"/>
+<text x="1800.0" y="812" class="b num" text-anchor="middle">Relay</text>
+<path class="solid" d="M200.0,868 H596.0"/>
+<text x="214.0" y="859" class="lbl" text-anchor="start">1  Log in, with the chosen Passport</text>
+<path class="solid" d="M600.0,918 H996.0"/>
+<text x="614.0" y="909" class="lbl" text-anchor="start">2  redirect with the <tspan class="mono">pubkyauth://…</tspan> request</text>
+<line x1="56" y1="962" x2="1920" y2="962" stroke="#ddd" stroke-width="1"/>
+<rect x="56" y="946" width="129.60000000000002" height="30" rx="15" fill="#F4F4F4" stroke="#ccc" stroke-width="1"/>
+<text x="68" y="966" class="cap num" text-anchor="start">SSO identity</text>
+<path class="solid" d="M1000.0,1018 H1396.0"/>
+<text x="1014.0" y="1009" class="lbl" text-anchor="start">3  ID token</text>
+<path class="dash" d="M1400.0,1068 H1004.0"/>
+<text x="1014.0" y="1059" class="lblg" text-anchor="start">4  wrapping key (and sign-up code if new)</text>
+<rect x="804.4" y="1096" width="391.19999999999993" height="32" rx="6" fill="#FFFBE6" stroke="#E0C860" stroke-width="1.2"/>
+<text x="1000.0" y="1117" class="cap" text-anchor="middle">key kept in browser, or loaded only to sign</text>
+<line x1="56" y1="1162" x2="1920" y2="1162" stroke="#ddd" stroke-width="1"/>
+<rect x="56" y="1146" width="147.20000000000002" height="30" rx="15" fill="#F4F4F4" stroke="#ccc" stroke-width="1"/>
+<text x="68" y="1166" class="cap num" text-anchor="start">All identities</text>
+<path class="solid" d="M1000.0,1218 H1796.0"/>
+<text x="1014.0" y="1209" class="lbl" text-anchor="start">5  signed parent grant (or from Ring or Bitkit)</text>
+<path class="solid" d="M1000.0,1268 H604.0"/>
+<text x="614.0" y="1259" class="lbl" text-anchor="start">6  redirect back</text>
+<path class="dash" d="M1800.0,1318 H604.0"/>
+<text x="614.0" y="1309" class="lblg" text-anchor="start">7  parent grant</text>
+<path class="dash" d="M600.0,1368 H204.0"/>
+<text x="214.0" y="1359" class="lblg" text-anchor="start">8  redirect back with a child grant</text>
+<line x1="56" y1="1412" x2="1920" y2="1412" stroke="#ddd" stroke-width="1"/>
+<rect x="56" y="1396" width="235.20000000000005" height="30" rx="15" fill="#F4F4F4" stroke="#ccc" stroke-width="1"/>
+<text x="68" y="1416" class="cap num" text-anchor="start">Profile management later</text>
+<path class="solid" d="M1000.0,1468 H604.0"/>
+<text x="614.0" y="1459" class="lbl" text-anchor="start">9  Log in, like any suite app</text>
+<path class="dash" d="M600.0,1518 H996.0"/>
+<text x="614.0" y="1509" class="lblg" text-anchor="start">10  child grant: Passport edits the profile</text>
+<rect x="56" y="1604" width="934" height="403" rx="14" fill="#F3FAF5" stroke="#9CCFAA" stroke-width="1.5"/>
+<text x="80" y="1648" class="sec" text-anchor="start">Benefits</text>
+<text x="80" y="1684" class="pro" text-anchor="start">+ Apps only link Passport. Users can pick their own Passport instance in the</text>
+<text x="80" y="1709" class="pro" text-anchor="start">   SDK.</text>
+<text x="80" y="1740" class="pro" text-anchor="start">+ No lock-in: each identity picks its Homegate, or a homeserver with no</text>
+<text x="80" y="1765" class="pro" text-anchor="start">   Homegate.</text>
+<text x="80" y="1796" class="pro" text-anchor="start">+ Profile management works for every identity, also when the key is in Ring or</text>
+<text x="80" y="1821" class="pro" text-anchor="start">   Bitkit.</text>
+<text x="80" y="1852" class="pro" text-anchor="start">+ Users choose how much the browser holds: the key, or only a grant.</text>
+<text x="80" y="1883" class="pro" text-anchor="start">+ One site handles keys and SSO sign-in.</text>
+<rect x="1010" y="1604" width="934" height="403" rx="14" fill="#FDF4F2" stroke="#E3A99F" stroke-width="1.5"/>
+<text x="1034" y="1648" class="sec" text-anchor="start">Tradeoffs</text>
+<text x="1034" y="1684" class="con" text-anchor="start">− Homegate must derive Passport's current wrapping key, or existing backups</text>
+<text x="1034" y="1709" class="con" text-anchor="start">   can't be unlocked.</text>
+<text x="1034" y="1740" class="con" text-anchor="start">− Each Homegate needs its own SSO setup (Google client, Apple Services ID).</text>
+<text x="1034" y="1771" class="con" text-anchor="start">− SSO backup needs a Homegate. Own homeserver without one: import or Mobile</text>
+<text x="1034" y="1796" class="con" text-anchor="start">   Signer only.</text>
+<text x="1034" y="1827" class="con" text-anchor="start">− Backups are bound to the Passport address that made them. Another instance</text>
+<text x="1034" y="1852" class="con" text-anchor="start">   needs a recovery file or a change.</text>
+<text x="1034" y="1883" class="con" text-anchor="start">− Moving an SSO identity to another Homegate means re-encrypting its backup.</text>
+<text x="1034" y="1908" class="con" text-anchor="start">   Passport can do it in its UI.</text>
+<text x="1034" y="1939" class="con" text-anchor="start">− Grant-only SSO identities need an SSO sign-in each time Passport has to sign.</text>
+<text x="1034" y="1970" class="con" text-anchor="start">− The SDK needs a setting for the Passport address.</text></svg>
