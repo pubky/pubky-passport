@@ -90,7 +90,7 @@ Benefits:
 Tradeoffs:
 
 - Each Homegate needs its own Google and Apple setup.
-- Switching providers still means moving the identity with a recovery file.
+- Switching providers still means moving the identity with a recovery file. This could be handled inside the passport UI though.
 
 ![Passport backend in Homegate](images/0001-3-alternative-homegate.png)
 
