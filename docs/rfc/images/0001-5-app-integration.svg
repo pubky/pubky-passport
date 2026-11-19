@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2000 1760" width="2000" height="1760" font-family="DejaVu Sans, Verdana, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2000 1979" width="2000" height="1979" font-family="DejaVu Sans, Verdana, sans-serif">
 <defs>
 <marker id="dark" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#333"/></marker>
 <marker id="green" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#2E9A50"/></marker>
@@ -23,8 +23,8 @@
 .con{font-size:17px;fill:#8A2A1E}
 </style>
 </defs>
-<rect width="2000" height="1760" fill="#fff"/>
-<text x="56" y="62" class="title">App integration: one SDK, Accounts and Passport in a pop-up</text><text x="56" y="96" class="sub">The app tab stays open. The pop-up goes to Accounts, on to Passport if needed, and back to the app's callback.</text><rect x="80" y="180" width="320" height="470" rx="18" fill="#fff" stroke="#3B6FD9" stroke-width="2.5"/>
+<rect width="2000" height="1979" fill="#fff"/>
+<text x="56" y="62" class="title">App integration: one SDK for suite apps and external apps</text><text x="56" y="96" class="sub">The SDK button opens a pop-up. Suite apps go through Accounts, external apps straight to Passport. The app tab stays open.</text><rect x="80" y="180" width="320" height="470" rx="18" fill="#fff" stroke="#3B6FD9" stroke-width="2.5"/>
 <path d="M82,228 V198 Q82,182 98,182 H382 Q398,182 398,198 V228 Z" fill="#EDF3FF"/>
 <line x1="80" y1="228" x2="400" y2="228" stroke="#3B6FD9" stroke-width="1.2"/>
 <rect x="94" y="191" width="292" height="26" rx="13" fill="#fff" stroke="#ccc" stroke-width="1"/>
@@ -47,8 +47,8 @@
 <rect x="574" y="191" width="292" height="26" rx="13" fill="#fff" stroke="#ccc" stroke-width="1"/>
 <text x="720.0" y="210" class="cap mono" text-anchor="middle">passport.pubky.app</text>
 <circle cx="560" cy="180" r="19" fill="#222"/><text x="560" y="187" font-size="19" font-weight="bold" fill="#fff" text-anchor="middle">2</text>
-<text x="720.0" y="680" class="h" text-anchor="middle">Pop-up: Accounts, then Passport</text>
-<text x="720.0" y="704" class="cap" text-anchor="middle">Accounts redirects at once</text>
+<text x="720.0" y="680" class="h" text-anchor="middle">Pop-up: Passport</text>
+<text x="720.0" y="704" class="cap" text-anchor="middle">suite apps arrive via Accounts</text>
 <text x="720.0" y="270" class="h" text-anchor="middle">Sign in to Pubky Accounts</text>
 <text x="720.0" y="296" class="cap" text-anchor="middle">Scan with Ring or Bitkit</text>
 <rect x="661.0" y="307" width="118.0" height="118" rx="6" fill="#fff" stroke="#ddd" stroke-width="1"/>
@@ -202,7 +202,7 @@
 <text x="1200.0" y="210" class="cap mono" text-anchor="middle">passport.pubky.app</text>
 <circle cx="1040" cy="180" r="19" fill="#222"/><text x="1040" y="187" font-size="19" font-weight="bold" fill="#fff" text-anchor="middle">3</text>
 <text x="1200.0" y="680" class="h" text-anchor="middle">Pop-up: Passport</text>
-<text x="1200.0" y="704" class="cap" text-anchor="middle">review and approve</text>
+<text x="1200.0" y="704" class="cap" text-anchor="middle">external apps show their own name</text>
 <text x="1200.0" y="270" class="h" text-anchor="middle">Sign in to Pubky Accounts</text>
 <rect x="1065" y="290" width="270" height="60" rx="8" fill="#EEF8F0" stroke="#EEF8F0" stroke-width="0"/>
 <text x="1082" y="314" class="cap" text-anchor="start">Signing in as</text>
@@ -237,66 +237,75 @@
 <path class="solid" d="M882,380 H1036"/>
 <text x="960.0" y="368" class="lbl" text-anchor="middle">sign in</text>
 <path class="solid" d="M1362,380 H1516"/>
-<text x="1440.0" y="348" class="lbl" text-anchor="middle">back through</text>
-<text x="1440.0" y="368" class="lbl" text-anchor="middle">Accounts</text>
+<text x="1440.0" y="348" class="lbl" text-anchor="middle">pop-up</text>
+<text x="1440.0" y="368" class="lbl" text-anchor="middle">closes</text>
 <rect x="790" y="140" width="90" height="28" rx="14" fill="#222" stroke="#222" stroke-width="0"/>
 <text x="835" y="160" font-size="15" font-weight="bold" fill="#fff" text-anchor="middle">pop-up</text>
 <rect x="1270" y="140" width="90" height="28" rx="14" fill="#222" stroke="#222" stroke-width="0"/>
 <text x="1315" y="160" font-size="15" font-weight="bold" fill="#fff" text-anchor="middle">pop-up</text>
 <text x="56" y="760" class="sec" text-anchor="start">What is passed where</text>
-<line class="life" x1="200.0" y1="828" x2="200.0" y2="1414"/>
+<line class="life" x1="200.0" y1="828" x2="200.0" y2="1614"/>
 <rect x="115.0" y="784" width="170.0" height="44" rx="10" fill="#EDF3FF" stroke="#3B6FD9" stroke-width="2"/>
 <text x="200.0" y="812" class="b num" text-anchor="middle">App tab</text>
-<line class="life" x1="600.0" y1="828" x2="600.0" y2="1414"/>
+<line class="life" x1="600.0" y1="828" x2="600.0" y2="1614"/>
 <rect x="498.75" y="784" width="202.5" height="44" rx="10" fill="#FFF8EC" stroke="#D98A1C" stroke-width="2"/>
 <text x="600.0" y="812" class="b num" text-anchor="middle">Accounts (pop-up)</text>
-<line class="life" x1="1000.0" y1="828" x2="1000.0" y2="1414"/>
+<line class="life" x1="1000.0" y1="828" x2="1000.0" y2="1614"/>
 <rect x="898.75" y="784" width="202.5" height="44" rx="10" fill="#EEF8F0" stroke="#2E9A50" stroke-width="2"/>
 <text x="1000.0" y="812" class="b num" text-anchor="middle">Passport (pop-up)</text>
-<line class="life" x1="1400.0" y1="828" x2="1400.0" y2="1414"/>
+<line class="life" x1="1400.0" y1="828" x2="1400.0" y2="1614"/>
 <rect x="1315.0" y="784" width="170.0" height="44" rx="10" fill="#F2F2F2" stroke="#6E6E6E" stroke-width="2"/>
 <text x="1400.0" y="812" class="b num" text-anchor="middle">Relay</text>
-<line class="life" x1="1800.0" y1="828" x2="1800.0" y2="1414"/>
+<line class="life" x1="1800.0" y1="828" x2="1800.0" y2="1614"/>
 <rect x="1677.75" y="784" width="244.5" height="44" rx="10" fill="#EDF3FF" stroke="#3B6FD9" stroke-width="2"/>
 <text x="1800.0" y="812" class="b num" text-anchor="middle">App callback (pop-up)</text>
-<path class="solid" d="M200.0,868 H596.0"/>
-<text x="214.0" y="859" class="lbl" text-anchor="start">1  click: pop-up with a child grant request</text>
-<rect x="471.6" y="896" width="256.79999999999995" height="32" rx="6" fill="#FFFBE6" stroke="#E0C860" stroke-width="1.2"/>
-<text x="600.0" y="917" class="cap" text-anchor="middle">opener link cut here (COOP)</text>
-<line x1="56" y1="962" x2="1920" y2="962" stroke="#ddd" stroke-width="1"/>
-<rect x="56" y="946" width="271.0" height="30" rx="15" fill="#F4F4F4" stroke="#ccc" stroke-width="1"/>
-<text x="68" y="966" class="cap num" text-anchor="start">Not signed in to Accounts</text>
+<line x1="56" y1="862" x2="1920" y2="862" stroke="#ddd" stroke-width="1"/>
+<rect x="56" y="846" width="290.6" height="30" rx="15" fill="#F4F4F4" stroke="#ccc" stroke-width="1"/>
+<text x="68" y="866" class="cap num" text-anchor="start">Suite app: through Accounts</text>
+<path class="solid" d="M200.0,918 H596.0"/>
+<text x="214.0" y="909" class="lbl" text-anchor="start">1  click: pop-up, child grant request</text>
+<rect x="471.6" y="946" width="256.79999999999995" height="32" rx="6" fill="#FFFBE6" stroke="#E0C860" stroke-width="1.2"/>
+<text x="600.0" y="967" class="cap" text-anchor="middle">opener link cut here (COOP)</text>
 <path class="solid" d="M600.0,1018 H996.0"/>
-<text x="614.0" y="1009" class="lbl" text-anchor="start">2  same pop-up, <tspan class="mono">pubkyauth://…</tspan> request</text>
+<text x="614.0" y="1009" class="lbl" text-anchor="start">2  if not signed in: <tspan class="mono">pubkyauth://…</tspan> request</text>
 <path class="solid" d="M1000.0,1068 H1396.0"/>
 <text x="1014.0" y="1059" class="lbl" text-anchor="start">3  signed parent grant</text>
 <path class="solid" d="M1000.0,1118 H604.0"/>
 <text x="614.0" y="1109" class="lbl" text-anchor="start">4  navigates back</text>
 <path class="dash" d="M1400.0,1168 H604.0"/>
 <text x="614.0" y="1159" class="lblg" text-anchor="start">5  parent grant</text>
-<line x1="56" y1="1212" x2="1920" y2="1212" stroke="#ddd" stroke-width="1"/>
-<rect x="56" y="1196" width="124.0" height="30" rx="15" fill="#F4F4F4" stroke="#ccc" stroke-width="1"/>
-<text x="68" y="1216" class="cap num" text-anchor="start">Every time</text>
-<path class="dash" d="M600.0,1268 H1796.0"/>
-<text x="614.0" y="1259" class="lblg" text-anchor="start">6  app's callback URL with the child grant</text>
-<path class="dash" d="M1800.0,1318 H204.0"/>
-<text x="214.0" y="1309" class="lblg" text-anchor="start">7  same origin: hands it to the tab, closes the pop-up</text>
-<line x1="56" y1="1362" x2="1920" y2="1362" stroke="#ddd" stroke-width="1"/>
-<rect x="56" y="1346" width="731.6" height="30" rx="15" fill="#F4F4F4" stroke="#ccc" stroke-width="1"/>
-<text x="68" y="1366" class="cap num" text-anchor="start">Pop-up blocked: the same steps in this tab, ending on the app's callback</text>
-<rect x="56" y="1454" width="934" height="266" rx="14" fill="#F3FAF5" stroke="#9CCFAA" stroke-width="1.5"/>
-<text x="80" y="1498" class="sec" text-anchor="start">Benefits</text>
-<text x="80" y="1534" class="pro" text-anchor="start">+ The app tab never leaves, so the page keeps its state.</text>
-<text x="80" y="1565" class="pro" text-anchor="start">+ One SDK for every app: suite apps go through Accounts, other apps straight to Passport.</text>
-<text x="80" y="1596" class="pro" text-anchor="start">+ Already signed in: the pop-up opens and closes by itself.</text>
-<text x="80" y="1627" class="pro" text-anchor="start">+ Falls back to the same tab when a pop-up can't open.</text>
-<text x="80" y="1658" class="pro" text-anchor="start">+ Passport v2's client package already does the Passport half: button, pop-up, fallback, instance</text>
-<text x="80" y="1683" class="pro" text-anchor="start">   picker.</text>
-<rect x="1010" y="1454" width="934" height="266" rx="14" fill="#FDF4F2" stroke="#E3A99F" stroke-width="1.5"/>
-<text x="1034" y="1498" class="sec" text-anchor="start">Tradeoffs</text>
-<text x="1034" y="1534" class="con" text-anchor="start">− Accounts sends Cross-Origin-Opener-Policy: same-origin, which cuts the link to the app tab.</text>
-<text x="1034" y="1565" class="con" text-anchor="start">− So the result comes back through the app's own callback page, which the SDK can ship.</text>
-<text x="1034" y="1596" class="con" text-anchor="start">− With the link cut, the app can't see the pop-up close. Cancel needs a callback or a timeout.</text>
-<text x="1034" y="1627" class="con" text-anchor="start">− Passport can't message its opener in this chain. It navigates back, which is already its</text>
-<text x="1034" y="1652" class="con" text-anchor="start">   fallback.</text>
-<text x="1034" y="1683" class="con" text-anchor="start">− The pop-up needs a click in the app. The SDK button gives it one.</text></svg>
+<path class="dash" d="M600.0,1218 H1796.0"/>
+<text x="614.0" y="1209" class="lblg" text-anchor="start">6  app's callback URL with the child grant</text>
+<path class="dash" d="M1800.0,1268 H204.0"/>
+<text x="214.0" y="1259" class="lblg" text-anchor="start">7  same origin: hands it to the tab, closes the pop-up</text>
+<line x1="56" y1="1312" x2="1920" y2="1312" stroke="#ddd" stroke-width="1"/>
+<rect x="56" y="1296" width="359.20000000000005" height="30" rx="15" fill="#F4F4F4" stroke="#ccc" stroke-width="1"/>
+<text x="68" y="1316" class="cap num" text-anchor="start">External app: straight to Passport</text>
+<path class="solid" d="M200.0,1368 H996.0"/>
+<text x="214.0" y="1359" class="lbl" text-anchor="start">1  click: pop-up, its own request</text>
+<path class="solid" d="M1000.0,1418 H1396.0"/>
+<text x="1014.0" y="1409" class="lbl" text-anchor="start">2  grant signed with your key</text>
+<path class="dash" d="M1000.0,1468 H204.0"/>
+<text x="214.0" y="1459" class="lblg" text-anchor="start">3  message, pop-up closes</text>
+<path class="dash" d="M1400.0,1518 H204.0"/>
+<text x="214.0" y="1509" class="lblg" text-anchor="start">4  signed grant, the app makes its Session</text>
+<line x1="56" y1="1562" x2="1920" y2="1562" stroke="#ddd" stroke-width="1"/>
+<rect x="56" y="1546" width="437.6" height="30" rx="15" fill="#F4F4F4" stroke="#ccc" stroke-width="1"/>
+<text x="68" y="1566" class="cap num" text-anchor="start">Pop-up blocked: the same steps in this tab</text>
+<rect x="56" y="1654" width="934" height="285" rx="14" fill="#F3FAF5" stroke="#9CCFAA" stroke-width="1.5"/>
+<text x="80" y="1698" class="sec" text-anchor="start">Benefits</text>
+<text x="80" y="1734" class="pro" text-anchor="start">+ The app tab never leaves, so the page keeps its state.</text>
+<text x="80" y="1765" class="pro" text-anchor="start">+ One SDK button for every app. The SDK knows whether the app is in the suite.</text>
+<text x="80" y="1796" class="pro" text-anchor="start">+ Already signed in: suite apps need no click in the pop-up, external apps one approval.</text>
+<text x="80" y="1827" class="pro" text-anchor="start">+ Falls back to the same tab when a pop-up can't open.</text>
+<text x="80" y="1858" class="pro" text-anchor="start">+ Passport v2's client package already does the external half: button, pop-up, fallback, instance</text>
+<text x="80" y="1883" class="pro" text-anchor="start">   picker.</text>
+<rect x="1010" y="1654" width="934" height="285" rx="14" fill="#FDF4F2" stroke="#E3A99F" stroke-width="1.5"/>
+<text x="1034" y="1698" class="sec" text-anchor="start">Tradeoffs</text>
+<text x="1034" y="1734" class="con" text-anchor="start">− Suite path: Accounts sends Cross-Origin-Opener-Policy: same-origin, which cuts the link to the</text>
+<text x="1034" y="1759" class="con" text-anchor="start">   app tab. The result comes back through the app's own callback page, which the SDK can ship.</text>
+<text x="1034" y="1790" class="con" text-anchor="start">− Suite path: with the link cut, the app can't see the pop-up close. Cancel needs a callback or a</text>
+<text x="1034" y="1815" class="con" text-anchor="start">   timeout.</text>
+<text x="1034" y="1846" class="con" text-anchor="start">− External path: no single sign-on. Each app's grant needs your key, so grant-only identities need</text>
+<text x="1034" y="1871" class="con" text-anchor="start">   an SSO sign-in or a Ring approval per app.</text>
+<text x="1034" y="1902" class="con" text-anchor="start">− The pop-up needs a click in the app. The SDK button gives it one.</text></svg>
