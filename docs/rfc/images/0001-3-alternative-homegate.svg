@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2000 960" width="2000" height="960" font-family="DejaVu Sans, Verdana, sans-serif">
+<defs>
+<marker id="dark" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#333"/></marker>
+<marker id="green" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#2E9A50"/></marker>
+<marker id="grey" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#888"/></marker>
+<style>
+.solid{stroke:#333;stroke-width:2.5;fill:none;marker-end:url(#dark)}
+.dash{stroke:#2E9A50;stroke-width:2.5;fill:none;stroke-dasharray:8 6;marker-end:url(#green)}
+.opt{stroke:#888;stroke-width:2.5;fill:none;stroke-dasharray:8 6;marker-end:url(#grey)}
+.title{font-weight:bold;font-size:34px;fill:#111}
+.h{font-weight:bold;font-size:26px;fill:#111}
+.ct{font-weight:bold;font-size:21px;fill:#111}
+.b{font-size:21px;fill:#222}
+.cap{font-size:18px;fill:#555}
+.el{font-size:18px;fill:#444}
+.elb{font-size:18px;fill:#222;font-weight:bold}
+.eg{font-size:18px;fill:#1E7D36;font-weight:bold}
+.lg{font-size:20px;fill:#333}
+.btn{font-size:20px;fill:#fff;font-weight:bold}
+.mono{font-family:"DejaVu Sans Mono",monospace}
+</style>
+</defs>
+<rect width="2000" height="960" fill="#fff"/>
+
+<text x="56" y="62" class="title">Alternative: Passport backend in Homegate</text>
+<path class="solid" d="M1500,45 H1570"/>
+<text x="1585" y="52" class="lg" text-anchor="start">uses</text>
+<path class="opt" d="M1683,45 H1753"/>
+<text x="1768" y="52" class="lg" text-anchor="start">optional</text>
+<rect x="56" y="130" width="544" height="170" rx="14" fill="#FFF8EC" stroke="#D98A1C" stroke-width="3"/>
+<text x="80" y="172" class="h" text-anchor="start">accounts.pubky.app</text>
+<text x="80" y="212" class="b" text-anchor="start">Optional: its own Google and</text>
+<text x="80" y="244" class="b" text-anchor="start">Apple sign-in, in memory</text>
+<text x="80" y="280" class="cap" text-anchor="start">Every provider change built twice</text>
+<rect x="56" y="380" width="544" height="420" rx="14" fill="#EEF8F0" stroke="#2E9A50" stroke-width="3"/>
+<text x="80" y="422" class="h" text-anchor="start">Passport (any instance)</text>
+<rect x="80" y="452" width="496" height="120" rx="10" fill="#fff" stroke="#2E9A50" stroke-width="1.5"/>
+<text x="102" y="492" class="ct" text-anchor="start">Sign-in options</text>
+<text x="102" y="530" class="cap" text-anchor="start">Google, Apple, Import,</text>
+<text x="102" y="556" class="cap" text-anchor="start">Mobile Signer</text>
+<rect x="80" y="592" width="496" height="120" rx="10" fill="#fff" stroke="#2E9A50" stroke-width="1.5"/>
+<text x="102" y="632" class="ct" text-anchor="start">Keys stay in the browser</text>
+<text x="102" y="670" class="cap" text-anchor="start">Backup in Google Drive or iCloud</text>
+<rect x="800" y="130" width="560" height="310" rx="14" fill="#F4EFFD" stroke="#7B4FD0" stroke-width="3"/>
+<text x="824" y="172" class="h" text-anchor="start">Homegate (Synonym)</text>
+<rect x="824" y="200" width="512" height="110" rx="10" fill="#fff" stroke="#7B4FD0" stroke-width="1.5"/>
+<text x="846" y="238" class="ct" text-anchor="start">Checks Google or Apple sign-in</text>
+<text x="846" y="276" class="cap" text-anchor="start">Returns the backup key</text>
+<rect x="824" y="326" width="512" height="90" rx="10" fill="#fff" stroke="#7B4FD0" stroke-width="1.5"/>
+<text x="846" y="380" class="ct" text-anchor="start">Homeserver sign-up</text>
+<rect x="800" y="560" width="560" height="310" rx="14" fill="#F4EFFD" stroke="#7B4FD0" stroke-width="3"/>
+<text x="824" y="602" class="h" text-anchor="start">Homegate (self-hosted or other)</text>
+<rect x="824" y="630" width="512" height="110" rx="10" fill="#fff" stroke="#7B4FD0" stroke-width="1.5"/>
+<text x="846" y="668" class="ct" text-anchor="start">Checks Google or Apple sign-in</text>
+<text x="846" y="706" class="cap" text-anchor="start">Returns the backup key</text>
+<rect x="824" y="756" width="512" height="90" rx="10" fill="#fff" stroke="#7B4FD0" stroke-width="1.5"/>
+<text x="846" y="810" class="ct" text-anchor="start">Homeserver sign-up</text>
+<rect x="1540" y="200" width="404" height="170" rx="14" fill="#F2F2F2" stroke="#6E6E6E" stroke-width="3"/>
+<text x="1564" y="270" class="h" text-anchor="start">Homeserver</text>
+<text x="1564" y="310" class="b" text-anchor="start">Your data</text>
+<rect x="1540" y="630" width="404" height="170" rx="14" fill="#F2F2F2" stroke="#6E6E6E" stroke-width="3"/>
+<text x="1564" y="700" class="h" text-anchor="start">Homeserver</text>
+<text x="1564" y="740" class="b" text-anchor="start">Your data</text>
+<path class="opt" d="M600,215 H798"/>
+<text x="700" y="199" class="el" text-anchor="middle">optional</text>
+<path class="solid" d="M600,405 H798"/>
+<text x="700" y="389" class="el" text-anchor="middle">default</text>
+<path class="solid" d="M600,715 H798"/>
+<text x="700" y="699" class="el" text-anchor="middle">or switch</text>
+<path class="solid" d="M1360,285 H1538"/>
+<path class="solid" d="M1360,715 H1538"/>
+</svg>

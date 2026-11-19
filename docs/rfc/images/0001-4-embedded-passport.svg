@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2000 880" width="2000" height="880" font-family="DejaVu Sans, Verdana, sans-serif">
+<defs>
+<marker id="dark" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#333"/></marker>
+<marker id="green" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#2E9A50"/></marker>
+<marker id="grey" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#888"/></marker>
+<style>
+.solid{stroke:#333;stroke-width:2.5;fill:none;marker-end:url(#dark)}
+.dash{stroke:#2E9A50;stroke-width:2.5;fill:none;stroke-dasharray:8 6;marker-end:url(#green)}
+.opt{stroke:#888;stroke-width:2.5;fill:none;stroke-dasharray:8 6;marker-end:url(#grey)}
+.title{font-weight:bold;font-size:34px;fill:#111}
+.h{font-weight:bold;font-size:26px;fill:#111}
+.ct{font-weight:bold;font-size:21px;fill:#111}
+.b{font-size:21px;fill:#222}
+.cap{font-size:18px;fill:#555}
+.el{font-size:18px;fill:#444}
+.elb{font-size:18px;fill:#222;font-weight:bold}
+.eg{font-size:18px;fill:#1E7D36;font-weight:bold}
+.lg{font-size:20px;fill:#333}
+.btn{font-size:20px;fill:#fff;font-weight:bold}
+.mono{font-family:"DejaVu Sans Mono",monospace}
+</style>
+</defs>
+<rect width="2000" height="880" fill="#fff"/>
+
+<text x="56" y="62" class="title">To explore: Passport embedded in an app page</text>
+<path class="solid" d="M1500,45 H1570"/>
+<text x="1585" y="52" class="lg" text-anchor="start">request</text>
+<path class="dash" d="M1719,45 H1789"/>
+<text x="1804" y="52" class="lg" text-anchor="start">result</text>
+<rect x="56" y="120" width="1244" height="700" rx="14" fill="#EDF3FF" stroke="#3B6FD9" stroke-width="3"/>
+<rect x="58" y="122" width="1240" height="54" rx="12" fill="#DCE6FB"/><rect x="58" y="150" width="1240" height="26" fill="#DCE6FB"/>
+<circle cx="88" cy="148" r="8" fill="#E0605A"/>
+<circle cx="116" cy="148" r="8" fill="#E8B53D"/>
+<circle cx="144" cy="148" r="8" fill="#5DB866"/>
+<text x="190" y="156" class="b mono" text-anchor="start">app.example</text>
+<text x="80" y="222" class="h" text-anchor="start">Any app page</text>
+<rect x="80" y="260" width="480" height="300" rx="10" fill="#fff" stroke="#3B6FD9" stroke-width="1.5"/>
+<text x="104" y="302" class="ct" text-anchor="start">App code</text>
+<text x="104" y="342" class="cap" text-anchor="start">Sends a <tspan class="mono">pubkyauth://…</tspan> request</text>
+<text x="104" y="374" class="cap" text-anchor="start">Gets the signed grant</text>
+<text x="104" y="406" class="cap" text-anchor="start">Never sees the key</text>
+<rect x="720" y="240" width="540" height="550" rx="14" fill="#EEF8F0" stroke="#2E9A50" stroke-width="3"/>
+<text x="744" y="282" class="h" text-anchor="start">Passport (iframe)</text>
+<rect x="744" y="310" width="492" height="120" rx="10" fill="#fff" stroke="#2E9A50" stroke-width="1.5"/>
+<text x="766" y="350" class="ct" text-anchor="start">Sign-in buttons</text>
+<text x="766" y="388" class="cap" text-anchor="start">Google, Apple, Import</text>
+<rect x="744" y="450" width="492" height="120" rx="10" fill="#fff" stroke="#2E9A50" stroke-width="1.5"/>
+<text x="766" y="490" class="ct" text-anchor="start">Key stays inside</text>
+<text x="766" y="528" class="cap" text-anchor="start">Page can't read it</text>
+<rect x="744" y="590" width="492" height="176" rx="10" fill="none" stroke="#2E9A50" stroke-width="1.5" stroke-dasharray="8 6"/>
+<text x="766" y="628" font-weight="bold" font-size="22" fill="#1E7D36">To check</text>
+<text x="766" y="664" class="cap" text-anchor="start">• Storage is separate per embedding site</text>
+<text x="766" y="696" class="cap" text-anchor="start">• Google and Apple sign-in inside iframes</text>
+<text x="766" y="728" class="cap" text-anchor="start">• Allow embedding only on trusted sites</text>
+<rect x="1480" y="300" width="464" height="200" rx="14" fill="#F2F2F2" stroke="#6E6E6E" stroke-width="3"/>
+<text x="1504" y="345" class="h" text-anchor="start">Google or Apple</text>
+<text x="1504" y="385" class="b" text-anchor="start">Sign-in popup</text>
+<path class="solid" d="M560,330 H718"/>
+<text x="640" y="314" class="el" text-anchor="middle">request</text>
+<path class="dash" d="M720,470 H562"/>
+<text x="640" y="500" class="eg" text-anchor="middle">signed grant</text>
+<path class="solid" d="M1260,360 H1478"/>
+<text x="1390" y="344" class="el" text-anchor="middle">popup</text>
+<path class="dash" d="M1480,440 H1262"/>
+<text x="1390" y="470" class="eg" text-anchor="middle">sign-in result</text>
+</svg>

@@ -49,46 +49,11 @@ Pubky Accounts always uses Passport to sign you in. The Passport page shows ever
 4. You sign in with Google, Apple, or an imported key, or you approve the request in a Mobile Signer. Passport returns the signed parent grant to Accounts.
 5. Accounts gives the app a child grant, and you're signed in.
 
-```mermaid
-sequenceDiagram
-    actor U as User
-    participant App as Suite app
-    participant Acc as Pubky Accounts
-    participant WS as Passport
-    participant MS as Mobile Signer
-
-    U->>App: Sign in
-    App->>Acc: redirect
-    alt already signed in
-        Acc-->>U: pick account
-    else not signed in
-        Acc->>WS: redirect with pubkyauth:// request
-        alt Google / Apple / Import
-            U->>WS: sign in, key loads in browser
-        else Mobile Signer
-            WS-->>U: QR code / "Open in app"
-            U->>MS: scan and approve
-            MS-->>WS: approved
-        end
-        WS-->>Acc: signed parent grant
-    end
-    Acc-->>App: child grant
-    App-->>U: signed in
-```
+![Sign-in flow: suite apps go through Accounts, external apps go straight to Passport](images/0001-1-proposal-sign-in.png)
 
 ### Sign-in flow for external apps
 
-External apps skip Accounts. They send their own `pubkyauth://` request straight to Passport and get the signed grant back.
-
-```mermaid
-flowchart LR
-    Suite["Suite apps"] --> Acc["Pubky Accounts"]
-    Acc -- "pubkyauth://" --> WS["Passport"]
-    Ext["External apps"] -- "pubkyauth://" --> WS
-    WS -- "signed grant" --> Acc
-    WS -- "signed grant" --> Ext
-    Acc -- "child grant" --> Suite
-```
+External apps skip Accounts. They send their own `pubkyauth://` request straight to Passport and get the signed grant back, as shown at the bottom of the diagram above.
 
 ### Later: identity management in Passport
 
@@ -103,19 +68,7 @@ Passport could become the place where you manage your pubky identity. This isn't
 - Locked storage that protects keys in the browser with a PIN, a passkey, or biometrics.
 - A "Keep keys in this browser" option. If you turn it off, Passport uses a grant for everyday tasks and loads the key only when it needs to sign. This works only for Google and Apple identities, because imported keys have no cloud backup to reload from.
 
-```mermaid
-flowchart TB
-    subgraph WS["Passport"]
-        SignIn["Sign in: Google, Apple, Import, Mobile Signer"]
-        Manage["Identity management"]
-    end
-    Manage --> Files["File explorer"]
-    Manage --> Backup["Backups / mirroring"]
-    Manage --> Quota["Storage quota"]
-    Manage --> HG["Homegate"]
-    Manage --> Profile["Profile / onboarding"]
-    SignIn --> Manage
-```
+![Identity management in Passport](images/0001-2-identity-management.png)
 
 ### Self-hosting
 
@@ -137,14 +90,7 @@ Tradeoffs:
 - Two sites would handle private keys, which doubles what needs security review.
 - It isn't clear that Accounts needs its own sign-in.
 
-```mermaid
-flowchart LR
-    WS["Passport client"] --> HG1["Homegate (Synonym)"]
-    WS --> HG2["Homegate (self-hosted / other provider)"]
-    Acc["Pubky Accounts"] -. "optional: own in-memory sign-in" .-> HG1
-    HG1 --> HS1["Homeserver"]
-    HG2 --> HS2["Homeserver"]
-```
+![Passport backend in Homegate](images/0001-3-alternative-homegate.png)
 
 ## UX constraint: sign-in on the app's own page
 
@@ -156,15 +102,7 @@ Today, Google and Apple sign-in must start from a click on a page that carries P
 
 An app page embeds Passport in an iframe. You sign in inside the iframe. The app gets the signed grant but never has access to the key.
 
-```mermaid
-flowchart LR
-    subgraph Page["Any app page"]
-        AppCode["App code"]
-        Frame["Embedded Passport<br/>key stays inside"]
-    end
-    Frame -- "Google / Apple popup" --> Prov["Provider"]
-    Frame -- "signed grant only" --> AppCode
-```
+![Passport embedded in an app page](images/0001-4-embedded-passport.png)
 
 Before choosing this option, we need to answer these questions:
 
@@ -177,3 +115,7 @@ Before choosing this option, we need to answer these questions:
 - After one approval, Accounts holds read and write access to `/pub` and `/priv` for up to two years. How do we show this to people, and should the period be shorter?
 - Does Accounts need its own sign-in page, or is a redirect to Passport enough?
 - Who would run Homegate-based Passport backends other than Synonym, and how would someone switch providers?
+
+## Diagram sources
+
+Each image in `images/` has an SVG source next to it with the same name. Edit the SVG and export it to PNG to update a diagram.
