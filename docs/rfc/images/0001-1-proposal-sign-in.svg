@@ -49,7 +49,7 @@
 <text x="634" y="250" class="b" text-anchor="start">Creates a <tspan class="mono">pubkyauth://…</tspan> request</text>
 <rect x="611" y="320" width="533" height="96" rx="10" fill="#fff" stroke="#D98A1C" stroke-width="1.5"/>
 <text x="634" y="355" font-weight="bold" font-size="22" fill="#A35F0A">Already signed in</text>
-<text x="634" y="392" class="b" text-anchor="start">Pick an account. No Passport step.</text>
+<text x="634" y="392" class="b" text-anchor="start">One account. No Passport step.</text>
 <rect x="611" y="528" width="533" height="332" rx="10" fill="#fff" stroke="#D98A1C" stroke-width="1.5"/>
 <text x="634" y="563" font-weight="bold" font-size="22" fill="#A35F0A">After sign-in</text>
 <text x="634" y="592" class="cap" text-anchor="start">signed grant from Passport, or already signed in</text>
@@ -82,6 +82,7 @@
 <path class="solid" d="M1144,227 H1331"/>
 <text x="1250" y="211" class="elb" text-anchor="middle">auto redirect</text>
 <path class="solid" d="M751,416 V526"/>
+<text x="770" y="478" class="elb" text-anchor="start">auto redirect</text>
 <path class="dash" d="M1333,652 H1146"/>
 <text x="1250" y="636" class="eg" text-anchor="middle">signed</text>
 <text x="1250" y="678" class="eg" text-anchor="middle">parent grant</text>

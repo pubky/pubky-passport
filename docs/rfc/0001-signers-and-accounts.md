@@ -44,10 +44,10 @@ Pubky Accounts always uses Passport to sign you in. The Passport page shows ever
 ### Sign-in flow for suite apps
 
 1. In a suite app, you select Sign in. The app redirects you to Accounts.
-2. If you're already signed in to Accounts, you pick an account and skip to step 5.
+2. If you're already signed in to Accounts, it skips to step 5 without asking. Accounts holds one account at a time.
 3. Otherwise, Accounts creates a `pubkyauth://` request and redirects you to Passport.
 4. You sign in with Google, Apple, or an imported key, or you approve the request in a Mobile Signer. Passport returns the signed parent grant to Accounts.
-5. Accounts gives the app a child grant, and you're signed in.
+5. Accounts redirects you back to the app with a child grant, and you're signed in.
 
 ![Sign-in flow: suite apps go through Accounts, external apps go straight to Passport](images/0001-1-proposal-sign-in.png)
 
