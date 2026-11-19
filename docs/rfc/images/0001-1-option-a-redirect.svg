@@ -68,12 +68,12 @@
 <text x="1405" y="270" class="ct" text-anchor="start">Mobile Signer QR code</text>
 <text x="1405" y="307" class="b" text-anchor="start">Scan with Ring or Bitkit</text>
 <rect x="1383" y="350" width="511" height="97" rx="8" fill="#EEF8F0"/>
-<text x="1405" y="387" class="ct" text-anchor="start">Google, Apple, or Import</text>
+<text x="1405" y="387" class="ct" text-anchor="start">SSO provider or Import</text>
 <text x="1405" y="424" class="b" text-anchor="start">Then review and approve</text>
 <rect x="1361" y="497" width="555" height="233" rx="10" fill="#fff" stroke="#2E9A50" stroke-width="1.5"/>
 <text x="1384" y="532" font-weight="bold" font-size="22" fill="#1E7D36">Stays in Passport</text>
 <text x="1385" y="572" class="b" text-anchor="start">• Your key</text>
-<text x="1385" y="612" class="b" text-anchor="start">• Your Google or Apple Account</text>
+<text x="1385" y="612" class="b" text-anchor="start">• Your SSO account</text>
 <text x="1385" y="652" class="b" text-anchor="start">• Wrapping key from Passport's server</text>
 <path class="solid" d="M444,215 H581"/>
 <path class="solid" d="M444,444 H581"/>

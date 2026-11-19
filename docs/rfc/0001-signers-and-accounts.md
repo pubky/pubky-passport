@@ -21,7 +21,9 @@ It's meant for discussion. Nothing in it changes current behavior.
 - Parent grant: a single approval from a Signer that lets Accounts act for you.
 - Child grant: a grant that Accounts gives each suite app. Accounts signs it with its own key, not yours.
 - Relay: the server that carries the signed approval from the Signer back to the app that asked for it.
-- Wrapping key: the key that unlocks your encrypted backup in Google Drive or iCloud. A server derives it after it checks your Google or Apple sign-in.
+- SSO provider: a cloud account you sign in to Passport with. Passport also saves your encrypted backup in that provider's cloud storage. The current options are Google (backup in Google Drive) and Apple (backup in iCloud).
+- SSO identity: a pubky in Passport that is attached to an SSO provider.
+- Wrapping key: the key that unlocks your encrypted backup. A server derives it after it checks your SSO provider sign-in.
 - External app: an app outside the Pubky suite.
 
 ## Problems
@@ -32,11 +34,12 @@ It's meant for discussion. Nothing in it changes current behavior.
 
 ## Current behavior (Live)
 
-- You can sign in to Passport with a Google or Apple Account.
-- Passport keeps your key in the browser and saves an encrypted backup in your Google Drive or iCloud. If you sign in again with the same account, Passport restores the key from that backup.
-- Passport's server checks your Google or Apple sign-in and returns the wrapping key. It never sees the backup or your key.
+- You can sign in to Passport with an SSO provider. Apple is on staging so far; production shows Google only.
+- Passport keeps your key in the browser and saves an encrypted backup with your SSO provider. If you sign in again with the same account, Passport restores the key from that backup.
+- Passport's server checks your SSO provider sign-in and returns the wrapping key. It never sees the backup or your key.
 - You can import an existing pubky with a recovery phrase or a recovery file.
-- Apps open Passport with a `pubkyauth://` request. Passport sends the signed approval through the relay, and the app never gets your key or your Google or Apple Account.
+- You can attach an identity that only lives in this browser, such as an imported one, to an SSO provider. Passport then saves its encrypted backup there, and you can sign in with that provider from then on.
+- Apps open Passport with a `pubkyauth://` request. Passport sends the signed approval through the relay, and the app never gets your key or your SSO account.
 - Passport has no onboarding, profile setup, or homeserver management.
 
 ## How Accounts signs you in
@@ -56,7 +59,7 @@ Accounts sends you to Passport, and Passport sends you back. Accounts signs in t
 
 1. Accounts creates a `pubkyauth://` request for a parent grant and saves the pending request in the browser.
 2. Accounts redirects you to Passport, with the request in the address.
-3. You sign in with Google, Apple, or an imported key. If you already have an identity in Passport, you skip this step.
+3. You sign in with an SSO provider or an imported key. If you already have an identity in Passport, you skip this step.
 4. You review the request and approve it.
 5. Passport sends the signed parent grant through the relay, then redirects you back to Accounts.
 6. Accounts picks up the saved request, receives the parent grant from the relay, and sends you on with a child grant.
@@ -66,12 +69,12 @@ What is passed where:
 - Accounts to Passport: the `pubkyauth://` request (requested access, relay address, and the address to return to).
 - Passport to the relay: the signed parent grant, encrypted for Accounts.
 - Passport to Accounts: a redirect back. The redirect isn't a credential. Accounts trusts only what it gets from the relay.
-- Stays in Passport: your key and your Google or Apple Account.
+- Stays in Passport: your key and your SSO account.
 
 Benefits:
 
 - No new backend. Passport works as it does today.
-- Keys and Google and Apple sign-in stay on one site, so only one site needs security review for them.
+- Keys and SSO provider sign-in stay on one site, so only one site needs security review for them.
 - Signing in to Accounts looks and works like signing in to any app that uses Passport.
 - If you already use Passport in this browser, signing in to Accounts takes one approval.
 
@@ -86,19 +89,19 @@ Accounts could open Passport in a pop-up instead of a redirect. The existing Pas
 
 ### Option B: Passport sign-in inside Accounts
 
-Accounts shows Continue with Google, Continue with Apple, the Mobile Signer QR code, and Import on its own page. The wrapping key endpoint moves from Passport's server into Homegate, so Accounts and Passport use the same backend.
+Accounts shows the SSO provider buttons, the Mobile Signer QR code, and Import on its own page. The wrapping key endpoint moves from Passport's server into Homegate, so Accounts and Passport use the same backend.
 
-1. You select Continue with Google or Continue with Apple on the Accounts page. The provider opens in a pop-up.
+1. You select an SSO provider on the Accounts page. The provider opens in a pop-up.
 2. Accounts sends the provider's ID token to Homegate. Homegate checks it and returns the wrapping key. For a new account, Homegate also returns a sign-up code.
-3. Accounts reads your encrypted backup from Google Drive or iCloud and unlocks it in memory.
+3. Accounts reads your encrypted backup from the provider's cloud storage and unlocks it in memory.
 4. Accounts signs the parent grant with your key, then clears the key.
 5. Accounts sends you on with a child grant.
 
 What is passed where:
 
-- Google or Apple to Accounts: an ID token, plus access to the backup in Drive or iCloud.
+- SSO provider to Accounts: an ID token, plus access to the backup in its cloud storage.
 - Accounts to Homegate: the ID token. Homegate returns the wrapping key.
-- Drive or iCloud to Accounts: the encrypted backup.
+- The provider's cloud storage to Accounts: the encrypted backup.
 - Stays in Accounts' memory for a moment: your key. It's cleared after signing.
 
 Benefits:
@@ -109,11 +112,11 @@ Benefits:
 Tradeoffs:
 
 - Two sites handle private keys, which doubles what needs security review.
-- Every provider change must land in both sites. Sharing Passport's sign-in code as one package reduces this but doesn't remove it.
+- Every SSO provider change must land in both sites. Sharing Passport's sign-in code as one package reduces this but doesn't remove it.
 - Homegate must derive the same wrapping key as Passport's server does today. Otherwise existing backups can't be unlocked.
 - Each backup is tied to Passport's address today, and Passport checks that address when it opens a backup. Accounts would have to open backups as Passport, which needs a change and its own review.
-- Both sites must use the same Google client and Apple Services ID to reach the same backup. Access from a second address hasn't been tested yet.
-- Accounts doesn't see the identities Passport keeps in the browser. Someone already signed in to Passport signs in again with Google or Apple.
+- Both sites must use the same SSO provider setup (today a Google client and an Apple Services ID) to reach the same backup. Access from a second address hasn't been tested yet.
+- Accounts doesn't see the identities Passport keeps in the browser. Someone already signed in to Passport signs in again with their SSO provider.
 
 ![Option B: Passport sign-in inside Accounts](images/0001-2-option-b-accounts-sign-in.png)
 
@@ -121,7 +124,7 @@ Tradeoffs:
 
 Start with Option A. It needs no new backend, and Accounts uses Passport like any other app. If the redirect turns out to cause friction, move to Option B.
 
-We don't plan to embed Passport in an iframe. Browsers handle iframe storage and Google and Apple sign-in differently, so it wouldn't work the same everywhere.
+We don't plan to embed Passport in an iframe. Browsers handle iframe storage and SSO provider sign-in differently, so it wouldn't work the same everywhere.
 
 ## What Passport can become
 
@@ -135,12 +138,12 @@ Some examples of what it could offer:
 - Homeserver tools, such as a file explorer, backups, mirroring, and storage quota.
 - An interface for Homegate.
 - Stronger key protection in the browser, such as a PIN, a passkey, or biometrics.
-- Not keeping keys in the browser. Passport would use a grant for everyday tasks and load the key only when it needs to sign. This works only for Google and Apple identities, because they can reload the key from their cloud backup.
+- Not keeping keys in the browser. Passport would use a grant for everyday tasks and load the key only when it needs to sign. This works only for SSO identities, because they can reload the key from their backup.
 
 ![What Passport can become, with examples](images/0001-3-what-passport-can-become.png)
 
 ### Self-hosting
 
-With the wrapping key in Homegate, Passport becomes a frontend for any Homegate. You could self-host Homegate, or use a provider other than Synonym. Each Homegate needs its own Google and Apple setup.
+With the wrapping key in Homegate, Passport becomes a frontend for any Homegate. You could self-host Homegate, or use a provider other than Synonym. Each Homegate needs its own SSO provider setup.
 
-A Google or Apple identity is tied to the backend that created it. To move it to another one, export a recovery file and import it there. This could be handled inside the Passport UI.
+An SSO identity is tied to the backend that created it. To move it to another one, export a recovery file and import it there. This could be handled inside the Passport UI.

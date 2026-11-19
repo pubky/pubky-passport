@@ -36,7 +36,7 @@
 <rect x="540" y="120" width="600" height="550" rx="14" fill="#FFF8EC" stroke="#D98A1C" stroke-width="3"/>
 <text x="568" y="162" class="h" text-anchor="start">accounts.pubky.app</text>
 <rect x="568" y="190" width="544" height="90" rx="10" fill="#fff" stroke="#D98A1C" stroke-width="1.5"/>
-<text x="590" y="228" class="ct" text-anchor="start">Continue with Google or Apple</text>
+<text x="590" y="228" class="ct" text-anchor="start">Continue with an SSO provider</text>
 <text x="590" y="262" class="cap" text-anchor="start">Pop-up from a click on this page</text>
 <rect x="568" y="295" width="544" height="120" rx="10" fill="#fff" stroke="#D98A1C" stroke-width="1.5"/>
 <text x="590" y="333" class="ct" text-anchor="start">Key in memory only</text>
@@ -53,11 +53,11 @@
 <text x="568" y="802" class="b" text-anchor="start">Same sign-in code,</text>
 <text x="568" y="834" class="b" text-anchor="start">shared as one package</text>
 <rect x="1320" y="120" width="624" height="170" rx="14" fill="#F2F2F2" stroke="#6E6E6E" stroke-width="3"/>
-<text x="1344" y="165" class="h" text-anchor="start">Google or Apple</text>
-<text x="1344" y="205" class="b" text-anchor="start">Sign-in pop-up</text>
+<text x="1344" y="165" class="h" text-anchor="start">SSO provider</text>
+<text x="1344" y="205" class="b" text-anchor="start">Sign-in pop-up (Google, Apple)</text>
 <rect x="1320" y="330" width="624" height="170" rx="14" fill="#F2F2F2" stroke="#6E6E6E" stroke-width="3"/>
-<text x="1344" y="375" class="h" text-anchor="start">Google Drive or iCloud</text>
-<text x="1344" y="415" class="b" text-anchor="start">Encrypted backup</text>
+<text x="1344" y="375" class="h" text-anchor="start">SSO provider storage</text>
+<text x="1344" y="415" class="b" text-anchor="start">Encrypted backup (Drive, iCloud)</text>
 <rect x="1320" y="560" width="624" height="260" rx="14" fill="#F4EFFD" stroke="#7B4FD0" stroke-width="3"/>
 <text x="1344" y="605" class="h" text-anchor="start">Homegate</text>
 <text x="1344" y="645" class="b" text-anchor="start">Checks the ID token</text>
