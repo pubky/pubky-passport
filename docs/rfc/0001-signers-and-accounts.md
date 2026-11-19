@@ -30,10 +30,9 @@ It's meant for discussion. Nothing in it changes current behavior.
 
 ## Current behavior (Live)
 
-- You can sign in to Passport with a Google Account. Apple Account sign-in is on staging.
+- You can sign in to Passport with a Google or Apple Account.
 - Passport keeps your key in the browser and saves an encrypted backup in your Google Drive or iCloud. If you sign in again with the same account, Passport restores the key from that backup.
 - You can import an existing pubky with a recovery phrase or a recovery file.
-- New sign-ups are closed.
 - Passport has no onboarding, profile setup, or homeserver management.
 
 ## Proposal: Passport handles every sign-in
