@@ -7,7 +7,7 @@ Status: Draft. Anything not marked Live is a proposal.
 This RFC covers how Pubky Accounts and Passport work together:
 
 - The options for how Accounts gets you signed in through Passport.
-- The preferred design (Option C), where Passport becomes the home for your identity.
+- Option C, where Passport becomes the front end for Homegate, your homeserver and your identity.
 
 It's meant for discussion. Nothing in it changes current behavior.
 
@@ -73,7 +73,7 @@ Accounts runs SSO sign-in itself, unlocks the key in memory, and signs the paren
 
 ![Option B](images/0001-3-option-b.png)
 
-### Option C (preferred): Passport as the front end for Homegate, your homeserver and your identity
+### Option C: Passport as the front end for Homegate, your homeserver and your identity
 
 Pubky is moving to many apps, so onboarding and profile management shouldn't stay in pubky.app. Apps from other developers should be able to hand them to a drop-in solution. Option C moves them into Passport:
 

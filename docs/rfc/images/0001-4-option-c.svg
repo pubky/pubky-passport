@@ -24,7 +24,7 @@
 </style>
 </defs>
 <rect width="2000" height="2854" fill="#fff"/>
-<text x="56" y="62" class="title">Option C (preferred): Passport as the front end for Homegate, your homeserver and your identity</text><text x="56" y="96" class="sub">Onboarding and profile management move out of pubky.app. Sign-in as in A.1; Passport gets a child grant for identity management.</text><rect x="120" y="180" width="320" height="470" rx="18" fill="#fff" stroke="#3B6FD9" stroke-width="2.5"/>
+<text x="56" y="62" class="title">Option C: Passport as the front end for Homegate, your homeserver and your identity</text><text x="56" y="96" class="sub">Onboarding and profile management move out of pubky.app. Sign-in as in A.1; Passport gets a child grant for identity management.</text><rect x="120" y="180" width="320" height="470" rx="18" fill="#fff" stroke="#3B6FD9" stroke-width="2.5"/>
 <path d="M122,228 V198 Q122,182 138,182 H422 Q438,182 438,198 V228 Z" fill="#EDF3FF"/>
 <line x1="120" y1="228" x2="440" y2="228" stroke="#3B6FD9" stroke-width="1.2"/>
 <rect x="134" y="191" width="292" height="26" rx="13" fill="#fff" stroke="#ccc" stroke-width="1"/>
