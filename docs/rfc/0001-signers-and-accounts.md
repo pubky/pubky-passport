@@ -112,7 +112,7 @@ Tradeoffs:
 
 - Every provider change must be built and maintained in both Accounts and Passport.
 - Two sites would handle private keys, which doubles what needs security review.
-- Both sites need the same Google client and Apple Services ID to reach the same backup. This isn't tested yet.
+- Both sites must use the same Google client and Apple Services ID to reach the same backup.
 - It isn't clear that Accounts needs its own sign-in.
 
 ![Accounts runs Google and Apple sign-in itself](images/0001-5-alternative-accounts-sign-in.png)
