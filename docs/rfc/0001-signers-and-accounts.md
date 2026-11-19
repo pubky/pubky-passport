@@ -79,7 +79,7 @@ Benefits of both:
 2. Accounts redirects you to Passport right away, with the request in the address.
 3. Passport shows every sign-in option: the Mobile Signer QR code, the SSO providers, and Import.
 4. You sign in:
-   - With a Mobile Signer: you scan the QR code, or open the link on your phone, and approve in Ring or Bitkit. The Mobile Signer sends the signed parent grant to the relay, and Passport sends you back to Accounts.
+   - With a Mobile Signer: you scan the QR code, or open the link on your phone, and approve in Ring or Bitkit. The Mobile Signer sends the signed parent grant to the relay. Passport checks the relay channel without taking the approval, and redirects you back to Accounts as soon as it's there.
    - With an SSO provider or an imported key: you sign in to Passport, review the request, and approve it. If you already have a local identity in Passport, you only review and approve. Passport sends the signed parent grant to the relay and redirects you back to Accounts.
 5. Accounts picks up the saved request, receives the parent grant from the relay, and sends you on with a child grant.
 
@@ -92,7 +92,6 @@ Tradeoffs:
 
 - You see one extra page change on your first sign-in.
 - Passport needs to show the Mobile Signer QR code, which it doesn't do today.
-- Ring or Bitkit sends the approval to the relay, not to Passport. Passport doesn't know when you've approved, so it needs a way to send you back to Accounts, such as a button.
 - Mobile Signer users go through Passport even though they don't use its key.
 
 ![Option A.1: Passport shows every option](images/0001-1-option-a-redirect.png)
@@ -110,7 +109,6 @@ Tradeoffs:
 Benefits:
 
 - Mobile Signer users stay on the Accounts page.
-- Accounts is already waiting on the relay when you approve in Ring or Bitkit, so there's no "back to Accounts" step.
 - Passport doesn't need to show a QR code.
 
 Tradeoffs:
