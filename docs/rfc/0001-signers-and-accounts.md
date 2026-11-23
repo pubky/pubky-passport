@@ -47,37 +47,31 @@ Every option shares these parts:
 - Accounts keeps only the parent grant and its own key, never your pubky key.
 - External apps skip Accounts and send their `pubkyauth://` request straight to Passport.
 
-Each figure shows the sign-in screens, what is passed where, and the benefits and tradeoffs. The screens are basic mockups, not designs.
+Each option has a short demo of signing in with an existing pubky, then a figure with what is passed where and the benefits and tradeoffs.
 
 ### Option A.1: Accounts redirects to Passport, Passport shows every option
 
 Accounts has no sign-in page. It redirects you to Passport right away, and Passport shows the Mobile Signer QR code next to the SSO providers and Import. For a Mobile Signer, Passport checks the relay channel without taking the approval and returns you to Accounts on its own.
 
-![Option A.1](images/0001-1-option-a1.png)
-
-Mockup, not live:
-
 ![Demo: Option A.1](images/0001-6-demo-sign-in.gif)
+
+![Option A.1](images/0001-1-option-a1.png)
 
 ### Option A.2: Mobile Signer in Accounts, Passport for the rest
 
 Accounts shows its own page with the Mobile Signer QR code and one Continue with Passport button. Passport stays as it is today.
 
-![Option A.2](images/0001-2-option-a2.png)
-
-Mockup, not live:
-
 ![Demo: Option A.2](images/0001-8-demo-option-a2.gif)
+
+![Option A.2](images/0001-2-option-a2.png)
 
 ### Option B: Passport sign-in inside Accounts
 
 Accounts runs SSO sign-in itself, unlocks the key in memory, and signs the parent grant. The wrapping key endpoint moves from Passport's server into Homegate, so both sites use the same backend.
 
-![Option B](images/0001-3-option-b.png)
-
-Mockup, not live:
-
 ![Demo: Option B](images/0001-9-demo-option-b.gif)
+
+![Option B](images/0001-3-option-b.png)
 
 ### App integration
 
@@ -99,6 +93,7 @@ What the sign-in options already give it:
 
 - New SSO users sign up in Passport, so onboarding steps could sit between sign-up and the grant review.
 - Passport could sign in to Accounts like any suite app and get a child grant. Managing your pubky would then also work when the key is in Ring or Bitkit.
+- Moving the wrapping key endpoint into Homegate, as in Option B, would also help here. The wrapping key endpoints are the only server routes Passport has, so without them other Passport instances could run as plain clients against any Homegate.
 
 Some examples of what it could offer:
 
@@ -106,6 +101,4 @@ Some examples of what it could offer:
 - Sign-up with a Mobile Signer: Passport gets the sign-up code from Homegate and hands it to Ring, which creates the pubky.
 - Editing your profile, and seeing your storage, backups, and authorized apps in one place.
 
-Mockup, not live. The A.1 sign-in with profile setup inside Passport:
-
-![Demo: sign-in with profile setup in Passport](images/0001-7-demo-profile.gif)
+![Demo: sign-up with profile setup in Passport](images/0001-7-demo-profile.gif)
