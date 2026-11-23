@@ -4,10 +4,7 @@ Status: Draft. Anything not marked Live is a proposal.
 
 ## Purpose
 
-This RFC covers how Pubky Accounts and Passport work together:
-
-- The options for how Accounts gets you signed in through Passport.
-- Option C, an example of everything Passport could take on: Homegate, your homeserver and your identity.
+This RFC is mainly about how Pubky Accounts signs you in through Passport. It also lays the technical basis for Passport to become, later, the place where you manage your pubky.
 
 It's meant for discussion. Nothing in it changes current behavior.
 
@@ -16,32 +13,29 @@ It's meant for discussion. Nothing in it changes current behavior.
 - Signer: an app that holds your pubky key and approves sign-in requests.
   - Mobile Signer: Pubky Ring or Bitkit.
   - Passport (Pubky Passport): the Signer that runs in the browser.
-- Pubky Accounts: the shared sign-in site for the Pubky suite, which is the set of apps Synonym runs. Accounts isn't a Signer.
-- Parent grant: a single approval from a Signer that lets Accounts act for you.
-- Child grant: a grant that Accounts gives each suite app. Accounts signs it with its own key, not yours.
+- Pubky Accounts: the shared sign-in site for the Pubky suite, the set of apps Synonym runs. Accounts isn't a Signer.
+- Parent grant: one approval from a Signer that lets Accounts act for you.
+- Child grant: a grant Accounts gives each suite app, signed with Accounts' own key, not yours.
 - Relay: the server that carries the signed approval from the Signer back to the app that asked for it.
-- SSO provider: a cloud account you sign in to Passport with. Passport also saves your encrypted backup in that provider's cloud storage. The current options are Google (backup in Google Drive) and Apple (backup in iCloud).
-- Local identity: a pubky whose key Passport keeps in this browser's local storage, whatever its source (SSO provider or import).
-  - SSO identity: a local identity that is attached to an SSO provider, so its key can be restored from the backup there.
-  - Local-only identity: a local identity that isn't attached to an SSO provider. Its key exists only in this browser, unless you saved a recovery phrase or recovery file.
+- SSO provider: the cloud account you sign in to Passport with, which also stores your encrypted backup. Today: Google (Google Drive) and Apple (iCloud).
+- Local identity: a pubky whose key Passport keeps in this browser. An SSO identity is attached to an SSO provider; a local-only identity isn't.
 - Wrapping key: the key that unlocks your encrypted backup. A server derives it after it checks your SSO provider sign-in.
 - Homegate: the sign-up service in front of a homeserver.
 - External app: an app outside the Pubky suite.
 
 ## Problems
 
-- Getting started is hard. Before you can try an app, you have to install a Mobile Signer and create a pubky.
-- Apps are disconnected. Each app signs you in separately, so signing in to one app doesn't sign you in to the next.
-- The ecosystem is hard to see. Our apps don't look like one suite, and builders don't see that they can build on the same stack.
+- Getting started is hard. You have to install a Mobile Signer and create a pubky before you can try an app.
+- Apps are disconnected. Signing in to one app doesn't sign you in to the next.
+- Our apps don't look like one suite, and builders don't see that they can build on the same stack.
 
 ## Current behavior (Live)
 
 - You can sign in to Passport with an SSO provider. Apple is on staging so far; production shows Google only.
-- Passport keeps your key in the browser as a local identity and saves an encrypted backup with your SSO provider. If you sign in again with the same account, Passport restores the key from that backup.
-- Passport's server checks your SSO provider sign-in and returns the wrapping key. It never sees the backup or your key.
-- You can import an existing pubky with a recovery phrase or a recovery file.
-- You can attach a local-only identity, such as an imported one, to an SSO provider. Passport then saves its encrypted backup there, and you can sign in with that provider from then on.
-- Apps open Passport with a `pubkyauth://` request. Passport sends the signed approval through the relay, and the app never gets your key or your SSO account.
+- Passport keeps the key in the browser and saves an encrypted backup with the SSO provider. Signing in again with the same account restores the key.
+- Passport's server checks the SSO provider sign-in and returns the wrapping key. It never sees the backup or the key.
+- You can import a pubky with a recovery phrase or recovery file, and attach a local-only identity to an SSO provider.
+- Apps open Passport with a `pubkyauth://` request. Passport sends the signed approval through the relay; the app never gets your key or your SSO account.
 - Passport has no onboarding, profile setup, or homeserver management.
 
 ## Options
@@ -49,11 +43,11 @@ It's meant for discussion. Nothing in it changes current behavior.
 Every option shares these parts:
 
 - In a suite app, you select Log in, and the app sends you to Accounts.
-- Accounts holds one account at a time. If you're already signed in, it sends you straight back with a child grant.
+- Accounts holds one account. If you're already signed in, it sends you straight back with a child grant.
 - Accounts keeps only the parent grant and its own key, never your pubky key.
 - External apps skip Accounts and send their `pubkyauth://` request straight to Passport.
 
-Each figure shows the sign-in screens on top, what is passed where in the middle, and the benefits and tradeoffs at the bottom. The screens are basic mockups, not designs.
+Each figure shows the sign-in screens, what is passed where, and the benefits and tradeoffs. The screens are basic mockups, not designs.
 
 ### Option A.1: Accounts redirects to Passport, Passport shows every option
 
@@ -73,29 +67,41 @@ Accounts runs SSO sign-in itself, unlocks the key in memory, and signs the paren
 
 ![Option B](images/0001-3-option-b.png)
 
-### Option C: example of everything Passport could do
+### App integration
 
-Option C isn't a fixed design. It shows, as one example, everything Passport could take on. Pubky is moving to many apps, so onboarding and profile management shouldn't stay in pubky.app, and apps from other developers should be able to hand them to a drop-in solution. Passport could be that place. Each part below could be picked up on its own:
+Apps add one button from a Passport SDK, as the Passport v2 client package already does for Passport alone. The button opens a pop-up, and the app tab never leaves.
 
-- Sign-in could work as in A.1.
-- Passport could be the front end for Homegate. You would pick the Homegate on the sign-in screen, and it would decide which methods are offered: SSO providers, phone number (SMS), Bitcoin payment (Lightning), or an invite code. An invite code is tied to a homeserver and would sign you up there. An identity on its own homeserver could also have no Homegate.
-- The wrapping key endpoint could move into Homegate.
-- After sign-up, you could choose where the key lives: in this browser, moved to Pubky Ring, or grant only (Passport would load an SSO identity's key into memory when it needs to sign). You could also set up backups: SSO provider, recovery file, recovery phrase.
-- Passport could be where you manage your identity: profile, homeserver and storage, key, backups, and authorized apps. It would sign in to Accounts like any suite app and get a child grant, so this would also work for identities whose key is in Ring or Bitkit.
-- Apps could just link to Passport, and users could choose their own Passport instance through the SDK.
-
-![Option C](images/0001-4-option-c.png)
-
-### App integration: one SDK for suite apps and external apps
-
-Apps add one button from a Passport SDK, as the Passport v2 client package does today for Passport alone. The button opens a pop-up from the click, and the app tab never leaves.
-
-- Suite apps: the pop-up opens Accounts. Accounts sends the same pop-up on to Passport if you aren't signed in, then to the app's callback page with the child grant. The callback page hands the result to the app tab and closes the pop-up.
-- External apps: the pop-up opens Passport directly, with the same screens and Homegate methods. The app asks for its own grant, signed with your key, and Passport closes the pop-up when you approve.
+- Suite apps: the pop-up opens Accounts, which sends it on to Passport if you aren't signed in, then to the app's callback page with the child grant.
+- External apps: the pop-up opens Passport directly and the app gets its own grant.
 - If a pop-up can't open, the same steps run in the tab.
 
 ![App integration](images/0001-5-app-integration.png)
 
-A.1 needs no backend change, so it can ship first. Parts of C could follow one at a time.
+## Recommendation
+
+Start with A.1. It needs no backend change, so it can ship first.
 
 We don't plan to embed Passport in an iframe. Browsers handle iframe storage and SSO provider sign-in differently, so it wouldn't work the same everywhere.
+
+## Later: Passport as the place to manage your pubky
+
+Lower priority than the sign-in above, and not a fixed design. Pubky is moving to many apps, so onboarding and profile management shouldn't stay in pubky.app. Passport could take them over, also for apps from other developers.
+
+A.1 already sets up what this needs:
+
+- New SSO users sign up in Passport, so onboarding steps could sit between sign-up and the grant review (second demo below).
+- Passport could sign in to Accounts like any suite app and get a child grant. Managing your pubky would then also work when the key is in Ring or Bitkit.
+
+Some examples of what it could offer:
+
+- Profile setup during sign-up, and editing it later.
+- Homeserver storage, backups, and authorized apps in one place.
+- More ways to keep the key: move it to Ring, or keep only a grant.
+
+Mockups, not live. Sign-in as in A.1:
+
+![Demo: sign-in through Accounts and Passport](images/0001-6-demo-sign-in.gif)
+
+The same flow with profile setup inside Passport:
+
+![Demo: sign-in with profile setup in Passport](images/0001-7-demo-profile.gif)
