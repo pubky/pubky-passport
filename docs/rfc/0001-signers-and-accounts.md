@@ -55,17 +55,29 @@ Accounts has no sign-in page. It redirects you to Passport right away, and Passp
 
 ![Option A.1](images/0001-1-option-a1.png)
 
+Mockup, not live:
+
+![Demo: Option A.1](images/0001-6-demo-sign-in.gif)
+
 ### Option A.2: Mobile Signer in Accounts, Passport for the rest
 
 Accounts shows its own page with the Mobile Signer QR code and one Continue with Passport button. Passport stays as it is today.
 
 ![Option A.2](images/0001-2-option-a2.png)
 
+Mockup, not live:
+
+![Demo: Option A.2](images/0001-8-demo-option-a2.gif)
+
 ### Option B: Passport sign-in inside Accounts
 
 Accounts runs SSO sign-in itself, unlocks the key in memory, and signs the parent grant. The wrapping key endpoint moves from Passport's server into Homegate, so both sites use the same backend.
 
 ![Option B](images/0001-3-option-b.png)
+
+Mockup, not live:
+
+![Demo: Option B](images/0001-9-demo-option-b.gif)
 
 ### App integration
 
@@ -77,31 +89,23 @@ Apps add one button from a Passport SDK, as the Passport v2 client package alrea
 
 ![App integration](images/0001-5-app-integration.png)
 
-## Recommendation
-
-Start with A.1. It needs no backend change, so it can ship first.
-
 We don't plan to embed Passport in an iframe. Browsers handle iframe storage and SSO provider sign-in differently, so it wouldn't work the same everywhere.
 
-## Later: Passport as the place to manage your pubky
+## Later: Passport as the front end for Homegate
 
-Lower priority than the sign-in above, and not a fixed design. Pubky is moving to many apps, so onboarding and profile management shouldn't stay in pubky.app. Passport could take them over, also for apps from other developers.
+Lower priority than the sign-in above, and not a fixed design. Pubky is moving to many apps, so sign-up and onboarding shouldn't stay in pubky.app. Passport could become the front end for Homegate and the place where you manage your pubky, also for apps from other developers.
 
-A.1 already sets up what this needs:
+What the sign-in options already give it:
 
-- New SSO users sign up in Passport, so onboarding steps could sit between sign-up and the grant review (second demo below).
+- New SSO users sign up in Passport, so onboarding steps could sit between sign-up and the grant review.
 - Passport could sign in to Accounts like any suite app and get a child grant. Managing your pubky would then also work when the key is in Ring or Bitkit.
 
 Some examples of what it could offer:
 
-- Profile setup during sign-up, and editing it later.
-- Homeserver storage, backups, and authorized apps in one place.
-- More ways to keep the key: move it to Ring, or keep only a grant.
+- The onboarding pubky.app has today, such as profile setup, moved into Passport.
+- Sign-up with a Mobile Signer: Passport gets the sign-up code from Homegate and hands it to Ring, which creates the pubky.
+- Editing your profile, and seeing your storage, backups, and authorized apps in one place.
 
-Mockups, not live. Sign-in as in A.1:
-
-![Demo: sign-in through Accounts and Passport](images/0001-6-demo-sign-in.gif)
-
-The same flow with profile setup inside Passport:
+Mockup, not live. The A.1 sign-in with profile setup inside Passport:
 
 ![Demo: sign-in with profile setup in Passport](images/0001-7-demo-profile.gif)
