@@ -1,12 +1,8 @@
 # RFC: Passport and Pubky Accounts
 
-Status: Draft. Anything not marked Live is a proposal.
-
 ## Purpose
 
 This RFC is mainly about how Pubky Accounts signs you in through Passport. It also lays the technical basis for Passport to become, later, the place where you manage your pubky.
-
-It's meant for discussion. Nothing in it changes current behavior.
 
 ## Terms
 
@@ -29,7 +25,7 @@ It's meant for discussion. Nothing in it changes current behavior.
 - Apps are disconnected. Signing in to one app doesn't sign you in to the next.
 - Our apps don't look like one suite, and builders don't see that they can build on the same stack.
 
-## Current behavior (Live)
+## Current behavior
 
 - You can sign in to Passport with an SSO provider. Apple is on staging so far; production shows Google only.
 - Passport keeps the key in the browser and saves an encrypted backup with the SSO provider. Signing in again with the same account restores the key.
@@ -87,7 +83,7 @@ We don't plan to embed Passport in an iframe. Browsers handle iframe storage and
 
 ## Later: Passport as the front end for Homegate
 
-Lower priority than the sign-in above, and not a fixed design. Pubky is moving to many apps, so sign-up and onboarding shouldn't stay in pubky.app. Passport could become the front end for Homegate and the place where you manage your pubky, also for apps from other developers.
+Lower priority than the sign-in above. Pubky is moving to many apps, so sign-up and onboarding shouldn't stay in pubky.app. Passport could become the front end for Homegate and the place where you manage your pubky, also for apps from other developers.
 
 What the sign-in options already give it:
 
