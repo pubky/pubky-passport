@@ -4,21 +4,6 @@
 
 This RFC is mainly about how Pubky Accounts signs you in through Passport. It also lays the technical basis for Passport to become, later, the place where you manage your pubky.
 
-## Terms
-
-- Signer: an app that holds your pubky key and approves sign-in requests.
-  - Mobile Signer: Pubky Ring or Bitkit.
-  - Passport (Pubky Passport): the Signer that runs in the browser.
-- Pubky Accounts: the shared sign-in site for the Pubky suite, the set of apps Synonym runs. Accounts isn't a Signer.
-- Parent grant: one approval from a Signer that lets Accounts act for you.
-- Child grant: a grant Accounts gives each suite app, signed with Accounts' own key, not yours.
-- Relay: the server that carries the signed approval from the Signer back to the app that asked for it.
-- SSO provider: the cloud account you sign in to Passport with, which also stores your encrypted backup. Today: Google (Google Drive) and Apple (iCloud).
-- Local identity: a pubky whose key Passport keeps in this browser. An SSO identity is attached to an SSO provider; a local-only identity isn't.
-- Wrapping key: the key that unlocks your encrypted backup. A server derives it after it checks your SSO provider sign-in.
-- Homegate: the sign-up service in front of a homeserver.
-- External app: an app outside the Pubky suite.
-
 ## Problems
 
 - Getting started is hard. You have to install a Mobile Signer and create a pubky before you can try an app.
@@ -69,18 +54,6 @@ Accounts runs SSO sign-in itself, unlocks the key in memory, and signs the paren
 
 ![Option B](images/0001-3-option-b.png)
 
-### App integration
-
-Apps add one button from a Passport SDK, as the Passport v2 client package already does for Passport alone. The button opens a pop-up, and the app tab never leaves.
-
-- Suite apps: the pop-up opens Accounts, which sends it on to Passport if you aren't signed in, then to the app's callback page with the child grant.
-- External apps: the pop-up opens Passport directly and the app gets its own grant.
-- If a pop-up can't open, the same steps run in the tab.
-
-![App integration](images/0001-5-app-integration.png)
-
-We don't plan to embed Passport in an iframe. Browsers handle iframe storage and SSO provider sign-in differently, so it wouldn't work the same everywhere.
-
 ## Later: Passport as the front end for Homegate
 
 Lower priority than the sign-in above. Pubky is moving to many apps, so sign-up and onboarding shouldn't stay in pubky.app. Passport could become the front end for Homegate and the place where you manage your pubky, also for apps from other developers.
@@ -98,3 +71,30 @@ Some examples of what it could offer:
 - Editing your profile, and seeing your storage, backups, and authorized apps in one place.
 
 ![Demo: sign-up with profile setup in Passport](images/0001-7-demo-profile.gif)
+
+### App integration
+
+Apps add one button from a Passport SDK, as the Passport v2 client package already does for Passport alone. The button opens a pop-up, and the app tab never leaves.
+
+- Suite apps: the pop-up opens Accounts, which sends it on to Passport if you aren't signed in, then to the app's callback page with the child grant.
+- External apps: the pop-up opens Passport directly and the app gets its own grant.
+- If a pop-up can't open, the same steps run in the tab.
+
+![App integration](images/0001-5-app-integration.png)
+
+We don't plan to embed Passport in an iframe. Browsers handle iframe storage and SSO provider sign-in differently, so it wouldn't work the same everywhere.
+
+## Terms
+
+- Signer: an app that holds your pubky key and approves sign-in requests.
+  - Mobile Signer: Pubky Ring or Bitkit.
+  - Passport (Pubky Passport): the Signer that runs in the browser.
+- Pubky Accounts: the shared sign-in site for the Pubky suite, the set of apps Synonym runs. Accounts isn't a Signer.
+- Parent grant: one approval from a Signer that lets Accounts act for you.
+- Child grant: a grant Accounts gives each suite app, signed with Accounts' own key, not yours.
+- Relay: the server that carries the signed approval from the Signer back to the app that asked for it.
+- SSO provider: the cloud account you sign in to Passport with, which also stores your encrypted backup. Today: Google (Google Drive) and Apple (iCloud).
+- Local identity: a pubky whose key Passport keeps in this browser. An SSO identity is attached to an SSO provider; a local-only identity isn't.
+- Wrapping key: the key that unlocks your encrypted backup. A server derives it after it checks your SSO provider sign-in.
+- Homegate: the sign-up service in front of a homeserver.
+- External app: an app outside the Pubky suite.
