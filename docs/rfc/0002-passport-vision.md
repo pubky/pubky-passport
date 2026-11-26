@@ -116,6 +116,7 @@ Apps add one button from the Passport SDK. It opens a pop-up and the app tab sta
 
 Lower priority. Examples:
 
+- **Files:** browse what each app saved on your homeserver, by folder, and download or delete it.
 - **Storage:** see use and buy more from the Homegate.
 - **Mirror:** keep a copy on a second homeserver.
 - **Export:** download all your files.
