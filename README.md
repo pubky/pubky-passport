@@ -86,7 +86,8 @@ with Google alone.
 
 Apps open `/authorize` in a popup with a Pubky SDK authorization URL in the fragment. The user
 reviews the request, Passport posts the encrypted approval to the relay, and the SDK returns a
-`Session`. Passport's own messages only describe the UI outcome. See the
+`Session`. Passport's own messages only describe the UI outcome. Apps can use the headless
+[`@pubky/passport-auth`](packages/passport-auth/README.md) package for all of this. See the
 [integration guide](docs/integration.md).
 
 ## Development
@@ -130,7 +131,7 @@ IDs, never secrets.
 ## Validation
 
 ```bash
-pnpm check           # format, lint, types, coverage, build
+pnpm check           # format, lint, types, coverage, package and app build
 pnpm test:e2e        # production build and Playwright tests
 pnpm check:critical  # dependency audit and every check
 ```

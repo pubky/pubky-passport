@@ -3,8 +3,56 @@
 Pubky Passport approves authorization requests created by the Pubky SDK. Your app creates a
 request, opens Passport, and waits for the SDK to receive the approval through the relay.
 
+Most apps should use [`@pubky/passport-auth`](../packages/passport-auth/README.md), which does all
+of this for you. The protocol underneath is under
+[Advanced: custom integrations](#advanced-custom-integrations).
+
 > Authenticate the user only after the Pubky SDK returns a `Session`. Passport callbacks and
 > messages describe the UI outcome; they are not credentials.
+
+## Sign in with `@pubky/passport-auth`
+
+The package opens the popup, checks and acknowledges Passport's messages, polls the relay, and
+returns the SDK `Session`. It has no UI; your app draws its own button.
+
+```bash
+pnpm add @pubky/passport-auth @synonymdev/pubky
+```
+
+```ts
+import { Pubky } from "@synonymdev/pubky";
+import { createPassportAuth } from "@pubky/passport-auth";
+
+const passport = createPassportAuth({
+  pubky: new Pubky(),
+  capabilities: "/pub/example.app/:rw",
+  clientId: "example.app",
+  appName: "Example App",
+  callbackUrl: "/passport/return",
+});
+
+button.addEventListener("click", async () => {
+  const result = await passport.signIn(); // call it straight from the click
+  if (result.ok) useSession(result.session);
+  else if (result.reason === "popup-blocked") askToClickAgain();
+});
+```
+
+`signIn()` never rejects. It resolves with `{ ok: true, session }` or `{ ok: false, reason }`, where
+`reason` is `popup-blocked`, `cancelled`, `rejected` (Passport could not approve), `popup-closed`,
+`timeout`, `aborted` or `failed` (SDK or relay error, with `error`). A blocked popup starts
+nothing: ask the person to click again. While an attempt is pending, `signIn()` focuses the popup
+and returns the same promise; `passport.state` and `passport.subscribe()` let you disable the
+button meanwhile.
+
+Serve a callback page at `callbackUrl` (same origin as your page, HTTPS) that calls
+`handlePassportReturn()` from `@pubky/passport-auth/return` and shows a link back to your app.
+Without `callbackUrl`, Passport shows its own result screen and the attempt ends when the popup
+closes. Any `e` action in `capabilities` switches the request to signed approval
+(see [Scoped encryption consent](#scoped-encryption-consent)).
+
+The [package README](../packages/passport-auth/README.md) lists every option and result.
+[Browser requirements](#browser-requirements) apply to your page either way.
 
 ## Flow
 
@@ -93,7 +141,9 @@ keys below that directory, so declining a nested scope also declines any request
 directory keys. Sharing a key cannot be undone by revoking storage access; it also permits
 decrypting future content encrypted with the same key.
 
-Apps requesting keys must use an SDK with signed approval and HPKE support:
+Apps requesting keys must use an SDK with signed approval and HPKE support.
+`@pubky/passport-auth` sets this for you when any capability has an `e` action; a custom
+integration passes it itself:
 
 ```ts
 const flow = await pubky.startGrantAuthFlow("/priv/chat/v1/:rwe", AuthFlowKind.signin(), {
@@ -140,7 +190,56 @@ The release's [scoped encryption documentation](https://github.com/pubky/pubky-h
 defines the protocol and key derivation. The `0.16.1` SDK also bounds received relay bodies to
 1 MiB before decryption; this is separate from a relay's configured upload limit.
 
-## Popup sign-in
+## Browser requirements
+
+`@pubky/passport-auth` handles the first three points; the rest are your page's settings.
+
+- Build the Passport URL as `/authorize#d=${encodeURIComponent(flow.authorizationUrl)}`. Passport
+  rejects requests that carry a query string.
+- Set `xSource` to a short display name of at most 128 characters. Passport shows the callback
+  host separately because `xSource` is not a verified identity.
+- Open the popup without `noopener` or `noreferrer`, otherwise Passport cannot message your page.
+- `Cross-Origin-Opener-Policy: same-origin` on your page severs the popup: `window.opener` becomes
+  `null` in Passport and your `popup` reference reports `closed`. Use `same-origin-allow-popups`
+  if you need COOP.
+- Allow the HTTP relay, the pkarr relays, and the homeservers the SDK contacts in your CSP
+  `connect-src`.
+- Do not embed Passport in an iframe; it sends `frame-ancestors 'none'`.
+
+## Popup layout and identity management
+
+Open Passport with `popup` and no explicit width or height to use the browser’s default window
+size, as `@pubky/passport-auth` does. Passport does not resize its window. Opening apps may choose their own dimensions;
+authorization review adapts to the available viewport.
+
+The signing identity card offers **Manage** and **Switch**. Manage opens identity details and
+Backup, Keychain, Log out, and Detach (from Google or Apple) actions inside the pending authorization.
+Back returns to the original review with its encryption choices preserved, without approving the app. Logging out removes the local
+identity and returns to identity selection or setup. Switch lists the identities in this browser
+and **Use other identity**, which shows the same provider choice as a first sign-in.
+
+## Integration checklist
+
+Test at least these cases before shipping. `@pubky/passport-auth` has a test for each, so with the
+package check them once in your app:
+
+- Approval returns a `Session`, and the popup closes.
+- A `success` message alone does not sign the user in.
+- `error` and `cancel` end the attempt without a session.
+- Closing the popup ends the attempt.
+- A blocked popup fails immediately with a clear message.
+- Without an acknowledgement, the callback page closes the popup; `error` and `cancel` end the
+  attempt, `success` keeps waiting for the `Session`.
+- Messages from other origins or windows are ignored.
+- The deadline ends the attempt and frees the flow.
+- A second click during a pending attempt does not start a second one.
+
+## Advanced: custom integrations
+
+Use this when you cannot use `@pubky/passport-auth`, for example in another language or with a
+same-tab flow. It is the protocol the package implements.
+
+### Popup sign-in
 
 Install the SDK:
 
@@ -234,14 +333,12 @@ function readOutcome(event: MessageEvent<unknown>, popup: Window): Outcome | und
   const data = event.data;
   if (event.source !== popup || !isRecord(data) || !isOutcome(data.outcome)) return undefined;
 
-  if (event.origin === PASSPORT_ORIGIN) {
-    if (
-      data.type !== "pubky-passport.authorization-outcome" ||
-      data.version !== 1 ||
-      typeof data.messageId !== "string"
-    ) {
-      return undefined;
-    }
+  if (
+    event.origin === PASSPORT_ORIGIN &&
+    data.type === "pubky-passport.authorization-outcome" &&
+    data.version === 1 &&
+    typeof data.messageId === "string"
+  ) {
     // Acknowledge so Passport closes the popup instead of navigating it to the callback.
     popup.postMessage(
       { type: "pubky-passport.authorization-outcome-ack", version: 1, messageId: data.messageId },
@@ -250,7 +347,8 @@ function readOutcome(event: MessageEvent<unknown>, popup: Window): Outcome | und
     return data.outcome;
   }
 
-  // Sent by the callback page when Passport fell back to navigation.
+  // Sent by the callback page when Passport fell back to navigation. Checked even when Passport
+  // shares your page's origin.
   if (event.origin === window.location.origin && data.type === CALLBACK_MESSAGE) {
     return data.outcome;
   }
@@ -284,7 +382,7 @@ Replace `CAPABILITIES` and `CLIENT_ID` with values belonging to your app, and re
 access you need. Save the returned session with `pubky.browserSessionStore.save(session)` if it
 must survive a page reload.
 
-### Ending an attempt
+#### Ending an attempt
 
 `flow.awaitApproval()` blocks until the relay delivers an approval. It cannot be interrupted, and a
 flow must not be freed while one of its calls is pending, so a popup attempt polls with
@@ -302,7 +400,7 @@ flow must not be freed while one of its calls is pending, so a popup attempt pol
 Every ending frees the flow, removes the message listener, and closes the popup if it is still
 open. Never reuse a flow after its attempt ended; start a fresh one to retry.
 
-## Callback page
+### Callback page
 
 Passport navigates the popup to your callback when it cannot deliver the outcome message: the
 popup has no opener, the callback origin differs from your page's origin, or your page did not
@@ -328,7 +426,7 @@ rejects the whole request; omit them while developing over plain HTTP. Without c
 shows its own result screen in the popup, and your app learns about a cancellation only when the
 popup is closed or the deadline passes.
 
-## Outcome messages
+### Outcome messages
 
 When the popup's opener is reachable and your callbacks share its origin, Passport first posts:
 
@@ -359,21 +457,7 @@ navigates the popup to the matching callback.
 A `success` message means the approval reached the relay; keep waiting for the SDK. `error` and
 `cancel` end the attempt. None of these messages authenticate the user.
 
-## Browser requirements
-
-- Build the Passport URL as `/authorize#d=${encodeURIComponent(flow.authorizationUrl)}`. Passport
-  rejects requests that carry a query string.
-- Set `xSource` to a short display name of at most 128 characters. Passport shows the callback
-  host separately because `xSource` is not a verified identity.
-- Open the popup without `noopener` or `noreferrer`, otherwise Passport cannot message your page.
-- `Cross-Origin-Opener-Policy: same-origin` on your page severs the popup: `window.opener` becomes
-  `null` in Passport and your `popup` reference reports `closed`. Use `same-origin-allow-popups`
-  if you need COOP.
-- Allow the HTTP relay, the pkarr relays, and the homeservers the SDK contacts in your CSP
-  `connect-src`.
-- Do not embed Passport in an iframe; it sends `frame-ancestors 'none'`.
-
-## Same-tab navigation
+### Same-tab navigation
 
 Passport also works without a popup. Before navigating the current page to Passport, save the
 pending flow with `flow.saveLocal()` in `sessionStorage`. Passport returns by navigating to your
@@ -385,29 +469,3 @@ Proof-of-Possession key material.
 
 For automated checks and a real-session browser harness, see
 [Testing scoped authorization](testing-scoped-authorization.md).
-
-## Popup layout and identity management
-
-Open Passport with `popup` and no explicit width or height to use the browser’s default window
-size. Passport does not resize its window. Opening apps may choose their own dimensions;
-authorization review adapts to the available viewport.
-
-The signing identity card offers **Manage** and **Switch**. Manage opens identity details and
-Backup, Keychain, Log out, and Detach (from Google or Apple) actions inside the pending authorization.
-Back returns to the original review with its encryption choices preserved, without approving the app. Logging out removes the local
-identity and returns to identity selection or setup. Switch lists the identities in this browser
-and **Use other identity**, which shows the same provider choice as a first sign-in.
-
-## Integration checklist
-
-Test at least these cases before shipping:
-
-- Approval returns a `Session`, and the popup closes.
-- A `success` message alone does not sign the user in.
-- `error` and `cancel` end the attempt without a session.
-- Closing the popup ends the attempt.
-- A blocked popup fails immediately with a clear message.
-- Without an acknowledgement, the callback page closes the popup and the attempt ends.
-- Messages from other origins or windows are ignored.
-- The deadline ends the attempt and frees the flow.
-- A second click during a pending attempt does not start a second one.
