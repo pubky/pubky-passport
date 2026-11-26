@@ -21,7 +21,7 @@ RFC 0001 covers how Pubky Accounts signs you in through Passport. This RFC build
 - Passport's only server routes are the two wrapping key endpoints, one for Google and one for Apple.
 - Passport doesn't show a Mobile Signer QR code and doesn't create profiles. Each Passport instance has one Homegate address, and that Homegate decides the homeserver. You can't choose either.
 - A Passport v2 prototype already has a Mobile Signer QR code that watches the relay, SMS, Lightning, and invite code sign-up steps, profile setup, and a Passport instance picker in its client package. It's built on an older version of Passport.
-- Homegate verifies by SMS, Lightning, IP address, Google, and Apple. Each method is on only when its section is in the config file. A Homegate serves one homeserver and gets sign-up tokens from that homeserver's admin API. No endpoint tells a client which methods are on. Homegate has no invite codes and no wrapping key code.
+- Homegate verifies by SMS, Lightning, IP address, Google, and Apple. Each method is on only when its section is in the config file. A Homegate serves one homeserver and gets sign-up tokens from that homeserver's admin API. No endpoint tells a client which methods are on. Homegate has no wrapping key code.
 - pubky.app runs its own onboarding: SMS, Lightning, or an invite code, then install Pubky Ring or Bitkit, scan, profile, tags, and follow suggestions.
 - Pubky Ring creates a pubky from a sign-up link that carries a sign-up token, and signs up on the homeserver itself. It has no Homegate code and doesn't support parent grants yet. Bitkit is also a Mobile Signer and gets its sign-up code from Homegate directly.
 - Delegated grants (parent and child grants) are on the homeserver's main branch, not in the current SDK release (0.18.0).
@@ -107,8 +107,8 @@ Tradeoffs:
 
 New users create their pubky in Passport, wherever they started:
 
-1. You select **Create a pubky** and pick a Homegate. Passport offers its own list, and you can add one by address or choose your own homeserver with no Homegate.
-2. Passport reads the Homegate's discovery endpoint and shows only the methods that Homegate offers: SSO provider, SMS, Lightning, or an invite code.
+1. You select **Create a pubky** and pick a Homegate. Passport offers its own list, and you can add one by address. If you have an invite code, you skip the Homegate (see below).
+2. Passport reads the Homegate's discovery endpoint and shows only the methods that Homegate offers: SSO provider, SMS, or Lightning.
 3. You verify. The Homegate returns a sign-up code and its homeserver.
 4. You choose where the key lives:
    - **In this browser:** Passport creates the key, signs up on the homeserver, and saves a backup with the SSO provider or as a recovery file.
@@ -122,7 +122,9 @@ New users create their pubky in Passport, wherever they started:
 What it needs:
 
 - The Homegate discovery endpoint (next section).
-- The SMS, Lightning, and invite code steps, moved from pubky.app or the v2 prototype. An invite code is a homeserver sign-up token, and Passport can check it with the homeserver's public `GET /signup_tokens/{token}`.
+- The SMS, Lightning, and invite code steps, moved from pubky.app or the v2 prototype.
+
+Invite codes don't go through Homegate. An invite code is a sign-up token the homeserver's operator made with the admin API. Passport checks it with the homeserver's public `GET /signup_tokens/{token}` and signs up on the homeserver with it directly. The invite link has to carry the homeserver's public key next to the code, as Ring's sign-up links already do. This is also how a homeserver with no Homegate takes new users.
 
 Benefits:
 
@@ -133,7 +135,7 @@ Tradeoffs:
 
 - The screens differ per Homegate, because each one turns on different methods.
 - Passport grows: SMS, Lightning, and profile screens move in from pubky.app.
-- SSO backup needs a Homegate with the wrapping key module. A homeserver without one supports import and Mobile Signers only.
+- SSO backup needs a Homegate with the wrapping key module. A homeserver without one still takes invite codes, but its users keep a recovery file or keep the key in a Mobile Signer.
 - pubky.app sends iOS users to Ring for sign-up, because Bitkit on iOS can't open sign-up links yet. Passport needs the same rule.
 
 ## Homegate: an optional front door for public homeservers
@@ -142,12 +144,13 @@ Homegate becomes a small public protocol between Passport and any homeserver tha
 
 ![Homegate](images/0002-06-homegate.png)
 
-- **Modules.** Each verification method is its own module, on only when the operator configures it. Homegate already works this way. Today it has SSO (Google, Apple), SMS, Lightning, and IP address. New modules could add invite codes and the wrapping key.
+- **Modules.** Each verification method is its own module, on only when the operator configures it. Homegate already works this way. Today it has SSO (Google, Apple), SMS, Lightning, and IP address. A new module could add the wrapping key. Invite codes need no module, because Passport uses them with the homeserver directly.
 - **Discovery.** One new endpoint, `GET /info`, returns what Passport needs: the homeserver's public key, the methods that are on and their settings (for example the Lightning price), the storage each method gives, the operator's name, and its terms and privacy links. Passport shows only what is on. The v2 prototype keeps this data in Passport's own config today; it would move to the Homegate that owns it.
 - **Wrapping key module.** The two wrapping key endpoints move from Passport's server into Homegate. Homegate must derive the same key as Passport does today: HKDF-SHA256 with the same secret keyring, salt, and info. Otherwise existing backups can't be unlocked. After the move, Passport has no server routes and can run as a static site that anyone hosts.
   - Each SSO identity depends on the Homegate that holds its wrapping key. The backup records which Homegate and key ID to ask.
   - Each Homegate with SSO needs its own Google client ID and Apple Services ID.
 - **Run by anyone.** Homegate ships as a Docker image with Postgres and a config file. SMS uses Prelude and Lightning uses PhoenixD today; operators bring their own accounts.
+- **Finding Homegates.** Each Passport instance lists the Homegates it knows, and you can add one by address. Finding Homegates on the network, for example a homeserver publishing its Homegate's address, is possible later but not a priority.
 - **One homeserver per Homegate,** as today. An operator with several homeservers runs several Homegates.
 
 ## App integration
