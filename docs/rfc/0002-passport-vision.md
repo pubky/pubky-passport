@@ -83,11 +83,17 @@ Tradeoffs:
 
 ### 3. Profile creation and management
 
-After a new pubky signs up, Passport asks for a profile before the first app approval: name, bio, picture, and links. You can skip it. Later you edit the profile from Passport's home page.
+After a new pubky signs up, Passport asks for a profile before the first app approval: name, bio, picture, and links. By default you can skip it. Later you edit the profile from Passport's home page.
 
 Passport writes the shared profile file that pubky.app writes today, `/pub/social/v1/profile.json`, with the picture under `/pub/social/v1/files/`. The format comes from pubky-social-specs, so pubky.app and every other app read the same file.
 
-An app can ask for a profile when it opens Passport. If the pubky has none yet, Passport runs the profile step first. The v2 client package already has this option.
+An app can mark the profile as required when it opens Passport, for example with `profile=required` in the Passport link. Passport then checks the homeserver for a profile before the grant review:
+
+- **The pubky has a profile:** no profile step, Passport goes straight to the grant review.
+- **It has none:** Passport runs the profile step without the skip option. The grant review comes only after the profile is saved.
+- **Passport can't write one** (for example the key is in Ring and there is no grant for the profile path): the app gets a "profile required" error instead of a grant, and can run its own profile step.
+
+Without the option, the step stays skippable. The v2 client package already has this option (`profile: "required"` or `"optional"`).
 
 ![Demo: profile setup and editing](images/0002-13-demo-profile.gif)
 
@@ -113,7 +119,7 @@ New users create their pubky in Passport, wherever they started:
 4. You choose where the key lives:
    - **In this browser:** Passport creates the key, signs up on the homeserver, and saves a backup with the SSO provider or as a recovery file.
    - **In Pubky Ring or Bitkit:** Passport turns the app's request into a sign-up request that also carries the homeserver and the sign-up code, and shows it as a QR code. Ring creates the key, signs up, and approves the app in one step, as it does for sign-up links today. Passport watches the relay as in feature 1 and returns you once the app has the approval.
-5. With the key in the browser, Passport runs the profile step (feature 3) and then shows the app's grant review. With the key in Ring, Passport has no key to write the profile with, so the profile step needs a grant (feature 2) or stays in the app.
+5. With the key in the browser, Passport runs the profile step (feature 3) and then shows the app's grant review. With the key in Ring, Passport has no key to write the profile with, so the profile step needs a grant (feature 2) or stays in the app. An app that requires a profile gets the "profile required" error in that case.
 
 The first demo verifies by SMS and keeps the key in the browser. The second pays with Lightning and hands the sign-up code to Ring.
 
@@ -164,7 +170,7 @@ Apps add one button from the Passport SDK. The button opens a pop-up, and the ap
 ![App integration](images/0002-07-app-integration.png)
 
 - The SDK takes a Passport address, `passport.pubky.app` by default. An app or a user can pick another Passport instance, as the v2 client package's instance picker does.
-- An app can ask for a profile (feature 3).
+- An app can make the profile required, so the user can't skip it (feature 3).
 - The first version of the package, `@pubky/passport-auth`, is in review. It covers sign-in through the pop-up and the callback page, with no UI, so apps draw their own button.
 
 ## Later: homeserver management
@@ -190,7 +196,7 @@ A new user on an external app, from start to finish:
 2. The user has no pubky, so they select **Create a pubky** (feature 4).
 3. They pick a Homegate, verify with one of its methods, and get a sign-up code.
 4. They keep the key in the browser with an SSO backup, or in Ring (feature 4, then feature 1 for later sign-ins).
-5. Passport asks for a profile and writes it to the homeserver (feature 3).
+5. Passport asks for a profile and writes it to the homeserver (feature 3). If the app requires a profile, they can't skip this step.
 6. They approve the app's grant, and the pop-up closes.
 7. Later, they open Passport to edit the profile or manage storage. If the key is in Ring, Passport works from a grant (feature 2).
 
