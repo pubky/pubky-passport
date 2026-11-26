@@ -127,15 +127,6 @@ Lower priority. Examples:
 
 ![Homeserver management](images/0002-08-homeserver.png)
 
-## Suggested order
-
-1. Mobile Signer sign-in (mostly in the v2 prototype).
-2. Profile creation and management.
-3. Homegate discovery, then onboarding in Passport.
-4. Backup key in the Google and Apple modules of Homegate.
-5. Identities with the key elsewhere (waits on the SDK release and Ring).
-6. Homeserver management.
-
 ## Terms
 
 - **Mobile Signer:** Pubky Ring or Bitkit.
