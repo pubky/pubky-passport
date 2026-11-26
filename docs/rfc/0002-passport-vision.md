@@ -77,6 +77,7 @@ Passport shows the app's `pubkyauth://` request as a QR code next to the SSO pro
 - **Needs:** the QR and relay watch from the v2 prototype.
 - **Benefits:** every sign-in method behind one button; the key never leaves the phone.
 - **Tradeoffs:** Passport polls the relay while the QR code is open. Legacy `/link` requests show the QR code but Passport can't tell when they finish.
+- **With the key vault split:** on the key vault, part of the sign-in pop-up.
 
 ### 2. Identities with the key elsewhere
 
@@ -92,6 +93,7 @@ Passport manages a pubky from a grant instead of a key. The grant comes from:
 - **Needs:** Passport in Accounts' app list, parent grants in Ring, an SDK release with delegated grants.
 - **Benefits:** profile and homeserver features for every pubky; no key in the browser.
 - **Tradeoffs:** a child grant covers only `/pub/` and `/priv/`, so storage use and grant lists need a Mobile Signer grant. Passport can't approve other apps for you with a grant.
+- **With the key vault split:** account management uses these grants the same way. The key vault keeps no key for these pubkys.
 
 ### 3. Profile creation and management
 
@@ -109,6 +111,7 @@ An app can make the profile required (`profile=required`). Passport then checks 
 
 - **Benefits:** one profile for every app; pubky.app can drop its profile step (tags and follows stay there).
 - **Tradeoffs:** Passport follows pubky-social-specs versions. A grant must cover the profile path.
+- **With the key vault split:** the profile step at sign-up stays in the key vault pop-up; it only writes what you type and checks that a profile exists. Editing later runs on account management.
 
 ### 4. Onboarding: Passport as the front end for Homegate
 
@@ -131,6 +134,7 @@ An app can make the profile required (`profile=required`). Passport then checks 
 - **Needs:** the Homegate discovery endpoint; the SMS, Lightning, and invite code steps from pubky.app or the v2 prototype.
 - **Benefits:** full onboarding from one button for every app; no lock-in to one Homegate.
 - **Tradeoffs:** screens differ per Homegate. Passport grows. SSO backup needs a Homegate with that provider's backup key switched on. iOS users go to Ring, because Bitkit on iOS can't open sign-up links yet.
+- **With the key vault split:** every onboarding step stays on the key vault. The Google or Apple sign-up check uses the same ID token as the backup key, so it can't move.
 
 ## Homegate: an optional front door
 
@@ -153,6 +157,7 @@ Apps add one button from the Passport SDK. It opens a pop-up and the app tab sta
 - The SDK uses `passport.pubky.app` by default; an app or user can pick another instance.
 - An app can make the profile required (feature 3).
 - The first package, `@pubky/passport-auth`, is in review: sign-in only, no UI.
+- With the key vault split, apps still link only `passport.pubky.app`; they never need the account management address.
 
 ## Later: homeserver management
 
@@ -165,6 +170,8 @@ Lower priority. Examples:
 - **Move:** switch homeservers and update your pkarr record.
 - **Authorized apps:** list and revoke them (done for keys in the browser).
 - **Key protection:** a PIN or passkey.
+
+With the key vault split, these run on account management. Storage use and the app list come through the bridge; Move, Mirror and key protection confirm on the key vault.
 
 ![Demo: homeserver management](images/0002-15-demo-homeserver.gif)
 
