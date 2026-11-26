@@ -9,6 +9,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "build:packages": "pnpm --filter \"./packages/**\" build",
     "start": "next start",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
@@ -20,7 +21,7 @@
     "test:staging:pubky": "vitest run --config vitest.staging.config.mts",
     "test:e2e": "pnpm build && pnpm test:e2e:run",
     "test:e2e:run": "playwright test",
-    "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test:coverage && pnpm build",
+    "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test:coverage && pnpm build:packages && pnpm build",
     "check:critical": "pnpm audit --prod && pnpm check && pnpm test:e2e:run"
   },
   "dependencies": {
