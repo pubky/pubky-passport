@@ -72,6 +72,10 @@ Some examples of what it could offer:
 
 ![Demo: sign-up with profile setup in Passport](images/0001-7-demo-profile.gif)
 
+The figure below shows how it all could work together: sign-in as in A.1, the Homegate picked per identity, every Homegate sign-up method in Passport, a choice of where the key lives, and managing your pubky with a child grant from Accounts. Each part could ship on its own.
+
+![Later: Passport as the front end for Homegate](images/0001-4-later-front-end.png)
+
 ### App integration
 
 Apps add one button from a Passport SDK, as the Passport v2 client package already does for Passport alone. The button opens a pop-up, and the app tab never leaves.
