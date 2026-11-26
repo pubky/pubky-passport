@@ -23,18 +23,20 @@
 <text x="664" y="465" font-size="15.5" fill="#4A2382" text-anchor="middle">discovery: methods,</text>
 <text x="664" y="486" font-size="15.5" fill="#4A2382" text-anchor="middle">prices, storage, terms</text>
 <rect x="1022" y="160" width="236" height="86" rx="14" fill="#F3EDFC" stroke="#9A6BE0" stroke-width="2.4"/>
-<text x="1140" y="198" font-size="18" font-weight="bold" fill="#4A2382" text-anchor="middle">SSO module</text>
-<text x="1140" y="220" font-size="15.5" fill="#4A2382" text-anchor="middle">Google, Apple</text>
+<text x="1140" y="188" font-size="18" font-weight="bold" fill="#4A2382" text-anchor="middle">Google module</text>
+<text x="1140" y="209" font-size="15.5" fill="#4A2382" text-anchor="middle">sign-up check, backup</text>
+<text x="1140" y="230" font-size="15.5" fill="#4A2382" text-anchor="middle">key</text>
 <rect x="1022" y="288" width="236" height="86" rx="14" fill="#F3EDFC" stroke="#9A6BE0" stroke-width="2.4"/>
-<text x="1140" y="326" font-size="18" font-weight="bold" fill="#4A2382" text-anchor="middle">SMS module</text>
-<text x="1140" y="348" font-size="15.5" fill="#4A2382" text-anchor="middle">phone number</text>
+<text x="1140" y="316" font-size="18" font-weight="bold" fill="#4A2382" text-anchor="middle">Apple module</text>
+<text x="1140" y="337" font-size="15.5" fill="#4A2382" text-anchor="middle">sign-up check, backup</text>
+<text x="1140" y="358" font-size="15.5" fill="#4A2382" text-anchor="middle">key</text>
 <rect x="1022" y="416" width="236" height="86" rx="14" fill="#F3EDFC" stroke="#9A6BE0" stroke-width="2.4"/>
-<text x="1140" y="444" font-size="18" font-weight="bold" fill="#4A2382" text-anchor="middle">Lightning module</text>
-<text x="1140" y="465" font-size="15.5" fill="#4A2382" text-anchor="middle">pay to sign up or for</text>
-<text x="1140" y="486" font-size="15.5" fill="#4A2382" text-anchor="middle">storage</text>
+<text x="1140" y="454" font-size="18" font-weight="bold" fill="#4A2382" text-anchor="middle">SMS module</text>
+<text x="1140" y="476" font-size="15.5" fill="#4A2382" text-anchor="middle">phone number</text>
 <rect x="1022" y="544" width="236" height="86" rx="14" fill="#F3EDFC" stroke="#9A6BE0" stroke-width="2.4"/>
-<text x="1140" y="582" font-size="18" font-weight="bold" fill="#4A2382" text-anchor="middle">Wrapping key module</text>
-<text x="1140" y="604" font-size="15.5" fill="#4A2382" text-anchor="middle">unlocks SSO backups</text>
+<text x="1140" y="572" font-size="18" font-weight="bold" fill="#4A2382" text-anchor="middle">Lightning module</text>
+<text x="1140" y="593" font-size="15.5" fill="#4A2382" text-anchor="middle">pay to sign up or for</text>
+<text x="1140" y="614" font-size="15.5" fill="#4A2382" text-anchor="middle">storage</text>
 <rect x="546" y="672" width="236" height="86" rx="14" fill="#F1F2F4" stroke="#8A9099" stroke-width="2.4"/>
 <text x="664" y="700" font-size="18" font-weight="bold" fill="#333A44" text-anchor="middle">Homeserver</text>
 <text x="664" y="721" font-size="15.5" fill="#333A44" text-anchor="middle">admin API makes sign-up</text>

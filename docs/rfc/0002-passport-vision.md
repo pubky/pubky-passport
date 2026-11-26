@@ -88,7 +88,7 @@ An app can make the profile required (`profile=required`). Passport then checks 
 
 - **Needs:** the Homegate discovery endpoint; the SMS, Lightning, and invite code steps from pubky.app or the v2 prototype.
 - **Benefits:** full onboarding from one button for every app; no lock-in to one Homegate.
-- **Tradeoffs:** screens differ per Homegate. Passport grows. SSO backup needs a Homegate with the wrapping key module. iOS users go to Ring, because Bitkit on iOS can't open sign-up links yet.
+- **Tradeoffs:** screens differ per Homegate. Passport grows. SSO backup needs a Homegate with that provider's backup key switched on. iOS users go to Ring, because Bitkit on iOS can't open sign-up links yet.
 
 ## Homegate: an optional front door
 
@@ -96,9 +96,9 @@ Anyone can run a Homegate in front of their homeserver. A homeserver without one
 
 ![Homegate](images/0002-06-homegate.png)
 
-- **Modules:** each verification method is a module, on only when configured (as today).
+- **Modules:** one module per method (Google, Apple, SMS, Lightning), on only when configured (as today). The Google and Apple modules each have two switches: sign-up check and backup key. So someone who signs up by SMS can still back up with Google, and an operator can offer backups without SSO sign-up.
 - **Discovery:** a new `GET /info` returns the homeserver key, the methods that are on, their price and storage, the operator's name, and terms links.
-- **Wrapping key:** the two wrapping key endpoints move from Passport into Homegate, with the same key derivation so existing backups still unlock. Passport then needs no server and can run as a static site.
+- **Backup key:** the Google and Apple wrapping key endpoints move from Passport into those two modules, with the same key derivation so existing backups still unlock. Passport then needs no server and can run as a static site.
 - **Run by anyone:** a Docker image with Postgres and a config file. One homeserver per Homegate.
 - **Finding Homegates:** each Passport lists the ones it knows; finding them on the network comes later.
 
@@ -132,7 +132,7 @@ Lower priority. Examples:
 1. Mobile Signer sign-in (mostly in the v2 prototype).
 2. Profile creation and management.
 3. Homegate discovery, then onboarding in Passport.
-4. Wrapping key module in Homegate.
+4. Backup key in the Google and Apple modules of Homegate.
 5. Identities with the key elsewhere (waits on the SDK release and Ring).
 6. Homeserver management.
 
@@ -143,5 +143,5 @@ Lower priority. Examples:
 - **Pubky Accounts:** the shared sign-in site for the Pubky suite.
 - **Parent and child grant:** one approval that lets Accounts act for you, and the per-app grants Accounts signs.
 - **SSO provider:** Google or Apple, which also stores your encrypted backup.
-- **Wrapping key:** unlocks your backup; a server derives it after checking your SSO sign-in.
+- **Wrapping key (backup key):** unlocks your backup; Homegate's Google or Apple module derives it after checking your sign-in with that provider.
 - **Homegate:** the optional service in front of a homeserver that checks new users and hands out sign-up codes.
