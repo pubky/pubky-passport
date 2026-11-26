@@ -1,0 +1,91 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2000 1389" width="2000" height="1389" font-family="DejaVu Sans, Verdana, sans-serif">
+<defs>
+<marker id="dark" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#333"/></marker>
+<marker id="green" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#2E9A50"/></marker>
+<marker id="grey" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#888"/></marker>
+<style>
+.solid{stroke:#333;stroke-width:2.2;fill:none;marker-end:url(#dark)}
+.dash{stroke:#2E9A50;stroke-width:2.2;fill:none;stroke-dasharray:8 6;marker-end:url(#green)}
+.opt{stroke:#888;stroke-width:2.2;fill:none;stroke-dasharray:6 5;marker-end:url(#grey)}
+.life{stroke:#bbb;stroke-width:1.5;stroke-dasharray:4 5}
+.title{font-weight:bold;font-size:34px;fill:#111}
+.sub{font-size:20px;fill:#555}
+.sec{font-weight:bold;font-size:22px;fill:#111}
+.h{font-weight:bold;font-size:20px;fill:#111}
+.b{font-size:17px;fill:#222}
+.cap{font-size:15px;fill:#555}
+.lbl{font-size:16px;fill:#222;paint-order:stroke;stroke:#fff;stroke-width:6px;stroke-linejoin:round}
+.lblg{font-size:16px;fill:#1E7D36;paint-order:stroke;stroke:#fff;stroke-width:6px;stroke-linejoin:round}
+.num{font-weight:bold}
+.link{font-size:15px;fill:#1E7D36;font-weight:bold}
+.mono{font-family:"DejaVu Sans Mono",monospace}
+.pro{font-size:17px;fill:#1E5E30}
+.con{font-size:17px;fill:#8A2A1E}
+</style>
+</defs>
+<rect width="2000" height="1389" fill="#fff"/>
+<text x="56" y="62" class="title">App integration: one SDK for suite apps and external apps</text><text x="56" y="96" class="sub">The SDK button opens a pop-up. Suite apps go through Accounts, external apps straight to Passport. The app tab stays open.</text><text x="56" y="170" class="sec" text-anchor="start">What is passed where</text>
+<line class="life" x1="200.0" y1="238" x2="200.0" y2="1024"/>
+<rect x="115.0" y="194" width="170.0" height="44" rx="10" fill="#EDF3FF" stroke="#3B6FD9" stroke-width="2"/>
+<text x="200.0" y="222" class="b num" text-anchor="middle">App tab</text>
+<line class="life" x1="600.0" y1="238" x2="600.0" y2="1024"/>
+<rect x="498.75" y="194" width="202.5" height="44" rx="10" fill="#FFF8EC" stroke="#D98A1C" stroke-width="2"/>
+<text x="600.0" y="222" class="b num" text-anchor="middle">Accounts (pop-up)</text>
+<line class="life" x1="1000.0" y1="238" x2="1000.0" y2="1024"/>
+<rect x="898.75" y="194" width="202.5" height="44" rx="10" fill="#EEF8F0" stroke="#2E9A50" stroke-width="2"/>
+<text x="1000.0" y="222" class="b num" text-anchor="middle">Passport (pop-up)</text>
+<line class="life" x1="1400.0" y1="238" x2="1400.0" y2="1024"/>
+<rect x="1315.0" y="194" width="170.0" height="44" rx="10" fill="#F2F2F2" stroke="#6E6E6E" stroke-width="2"/>
+<text x="1400.0" y="222" class="b num" text-anchor="middle">Relay</text>
+<line class="life" x1="1800.0" y1="238" x2="1800.0" y2="1024"/>
+<rect x="1677.75" y="194" width="244.5" height="44" rx="10" fill="#EDF3FF" stroke="#3B6FD9" stroke-width="2"/>
+<text x="1800.0" y="222" class="b num" text-anchor="middle">App callback (pop-up)</text>
+<line x1="56" y1="272" x2="1920" y2="272" stroke="#ddd" stroke-width="1"/>
+<rect x="56" y="256" width="290.6" height="30" rx="15" fill="#F4F4F4" stroke="#ccc" stroke-width="1"/>
+<text x="68" y="276" class="cap num" text-anchor="start">Suite app: through Accounts</text>
+<path class="solid" d="M200.0,328 H596.0"/>
+<text x="214.0" y="319" class="lbl" text-anchor="start">1  click: pop-up, child grant request</text>
+<rect x="471.6" y="356" width="256.79999999999995" height="32" rx="6" fill="#FFFBE6" stroke="#E0C860" stroke-width="1.2"/>
+<text x="600.0" y="377" class="cap" text-anchor="middle">opener link cut here (COOP)</text>
+<path class="solid" d="M600.0,428 H996.0"/>
+<text x="614.0" y="419" class="lbl" text-anchor="start">2  if not signed in: <tspan class="mono">pubkyauth://…</tspan> request</text>
+<path class="solid" d="M1000.0,478 H1396.0"/>
+<text x="1014.0" y="469" class="lbl" text-anchor="start">3  signed parent grant</text>
+<path class="solid" d="M1000.0,528 H604.0"/>
+<text x="614.0" y="519" class="lbl" text-anchor="start">4  navigates back</text>
+<path class="dash" d="M1400.0,578 H604.0"/>
+<text x="614.0" y="569" class="lblg" text-anchor="start">5  parent grant</text>
+<path class="dash" d="M600.0,628 H1796.0"/>
+<text x="614.0" y="619" class="lblg" text-anchor="start">6  app's callback URL with the child grant</text>
+<path class="dash" d="M1800.0,678 H204.0"/>
+<text x="214.0" y="669" class="lblg" text-anchor="start">7  same origin: hands it to the tab, closes the pop-up</text>
+<line x1="56" y1="722" x2="1920" y2="722" stroke="#ddd" stroke-width="1"/>
+<rect x="56" y="706" width="359.20000000000005" height="30" rx="15" fill="#F4F4F4" stroke="#ccc" stroke-width="1"/>
+<text x="68" y="726" class="cap num" text-anchor="start">External app: straight to Passport</text>
+<path class="solid" d="M200.0,778 H996.0"/>
+<text x="214.0" y="769" class="lbl" text-anchor="start">1  click: pop-up, its own request</text>
+<path class="solid" d="M1000.0,828 H1396.0"/>
+<text x="1014.0" y="819" class="lbl" text-anchor="start">2  grant signed with your key</text>
+<path class="dash" d="M1000.0,878 H204.0"/>
+<text x="214.0" y="869" class="lblg" text-anchor="start">3  message, pop-up closes</text>
+<path class="dash" d="M1400.0,928 H204.0"/>
+<text x="214.0" y="919" class="lblg" text-anchor="start">4  signed grant, the app makes its Session</text>
+<line x1="56" y1="972" x2="1920" y2="972" stroke="#ddd" stroke-width="1"/>
+<rect x="56" y="956" width="437.6" height="30" rx="15" fill="#F4F4F4" stroke="#ccc" stroke-width="1"/>
+<text x="68" y="976" class="cap num" text-anchor="start">Pop-up blocked: the same steps in this tab</text>
+<rect x="56" y="1064" width="934" height="285" rx="14" fill="#F3FAF5" stroke="#9CCFAA" stroke-width="1.5"/>
+<text x="80" y="1108" class="sec" text-anchor="start">Benefits</text>
+<text x="80" y="1144" class="pro" text-anchor="start">+ The app tab never leaves, so the page keeps its state.</text>
+<text x="80" y="1175" class="pro" text-anchor="start">+ One SDK button for every app. The SDK knows whether the app is in the suite.</text>
+<text x="80" y="1206" class="pro" text-anchor="start">+ Already signed in: suite apps need no click in the pop-up, external apps one approval.</text>
+<text x="80" y="1237" class="pro" text-anchor="start">+ Falls back to the same tab when a pop-up can't open.</text>
+<text x="80" y="1268" class="pro" text-anchor="start">+ Passport v2's client package already does the external half: button, pop-up, fallback.</text>
+<rect x="1010" y="1064" width="934" height="285" rx="14" fill="#FDF4F2" stroke="#E3A99F" stroke-width="1.5"/>
+<text x="1034" y="1108" class="sec" text-anchor="start">Tradeoffs</text>
+<text x="1034" y="1144" class="con" text-anchor="start">− Suite path: Accounts sends Cross-Origin-Opener-Policy: same-origin, which cuts the link to the</text>
+<text x="1034" y="1169" class="con" text-anchor="start">   app tab. The result comes back through the app's own callback page, which the SDK can ship.</text>
+<text x="1034" y="1200" class="con" text-anchor="start">− Suite path: with the link cut, the app can't see the pop-up close. Cancel needs a callback or a</text>
+<text x="1034" y="1225" class="con" text-anchor="start">   timeout.</text>
+<text x="1034" y="1256" class="con" text-anchor="start">− External path: no single sign-on. Each app's grant needs your key, so grant-only identities need</text>
+<text x="1034" y="1281" class="con" text-anchor="start">   an SSO sign-in or a Ring approval per app.</text>
+<text x="1034" y="1312" class="con" text-anchor="start">− The pop-up needs a click in the app. The SDK button gives it one.</text></svg>

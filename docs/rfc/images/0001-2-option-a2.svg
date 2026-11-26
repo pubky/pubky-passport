@@ -1,0 +1,79 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2000 1164" width="2000" height="1164" font-family="DejaVu Sans, Verdana, sans-serif">
+<defs>
+<marker id="dark" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#333"/></marker>
+<marker id="green" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#2E9A50"/></marker>
+<marker id="grey" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#888"/></marker>
+<style>
+.solid{stroke:#333;stroke-width:2.2;fill:none;marker-end:url(#dark)}
+.dash{stroke:#2E9A50;stroke-width:2.2;fill:none;stroke-dasharray:8 6;marker-end:url(#green)}
+.opt{stroke:#888;stroke-width:2.2;fill:none;stroke-dasharray:6 5;marker-end:url(#grey)}
+.life{stroke:#bbb;stroke-width:1.5;stroke-dasharray:4 5}
+.title{font-weight:bold;font-size:34px;fill:#111}
+.sub{font-size:20px;fill:#555}
+.sec{font-weight:bold;font-size:22px;fill:#111}
+.h{font-weight:bold;font-size:20px;fill:#111}
+.b{font-size:17px;fill:#222}
+.cap{font-size:15px;fill:#555}
+.lbl{font-size:16px;fill:#222;paint-order:stroke;stroke:#fff;stroke-width:6px;stroke-linejoin:round}
+.lblg{font-size:16px;fill:#1E7D36;paint-order:stroke;stroke:#fff;stroke-width:6px;stroke-linejoin:round}
+.num{font-weight:bold}
+.link{font-size:15px;fill:#1E7D36;font-weight:bold}
+.mono{font-family:"DejaVu Sans Mono",monospace}
+.pro{font-size:17px;fill:#1E5E30}
+.con{font-size:17px;fill:#8A2A1E}
+</style>
+</defs>
+<rect width="2000" height="1164" fill="#fff"/>
+<text x="56" y="62" class="title">Option A.2: Mobile Signer in Accounts, Passport for the rest</text><text x="56" y="96" class="sub">Accounts shows the QR code and one Continue with Passport button. Passport stays as today.</text><text x="56" y="170" class="sec" text-anchor="start">What is passed where</text>
+<line class="life" x1="200.0" y1="238" x2="200.0" y2="874"/>
+<rect x="115.0" y="194" width="170.0" height="44" rx="10" fill="#EDF3FF" stroke="#3B6FD9" stroke-width="2"/>
+<text x="200.0" y="222" class="b num" text-anchor="middle">App</text>
+<line class="life" x1="600.0" y1="238" x2="600.0" y2="874"/>
+<rect x="515.0" y="194" width="170.0" height="44" rx="10" fill="#FFF8EC" stroke="#D98A1C" stroke-width="2"/>
+<text x="600.0" y="222" class="b num" text-anchor="middle">Accounts</text>
+<line class="life" x1="1000.0" y1="238" x2="1000.0" y2="874"/>
+<rect x="915.0" y="194" width="170.0" height="44" rx="10" fill="#EEF8F0" stroke="#2E9A50" stroke-width="2"/>
+<text x="1000.0" y="222" class="b num" text-anchor="middle">Passport</text>
+<line class="life" x1="1400.0" y1="238" x2="1400.0" y2="874"/>
+<rect x="1315.0" y="194" width="170.0" height="44" rx="10" fill="#F2F2F2" stroke="#6E6E6E" stroke-width="2"/>
+<text x="1400.0" y="222" class="b num" text-anchor="middle">Relay</text>
+<line class="life" x1="1800.0" y1="238" x2="1800.0" y2="874"/>
+<rect x="1715.0" y="194" width="170.0" height="44" rx="10" fill="#EDEDED" stroke="#222222" stroke-width="2"/>
+<text x="1800.0" y="222" class="b num" text-anchor="middle">Mobile Signer</text>
+<path class="solid" d="M200.0,278 H596.0"/>
+<text x="214.0" y="269" class="lbl" text-anchor="start">1  Log in (redirect)</text>
+<line x1="56" y1="322" x2="1920" y2="322" stroke="#ddd" stroke-width="1"/>
+<rect x="56" y="306" width="153.4" height="30" rx="15" fill="#F4F4F4" stroke="#ccc" stroke-width="1"/>
+<text x="68" y="326" class="cap num" text-anchor="start">Mobile Signer</text>
+<path class="solid" d="M1800.0,378 H1404.0"/>
+<text x="1414.0" y="369" class="lbl" text-anchor="start">2  signed parent grant</text>
+<path class="dash" d="M1400.0,428 H604.0"/>
+<text x="614.0" y="419" class="lblg" text-anchor="start">3  parent grant (Accounts is still open)</text>
+<line x1="56" y1="472" x2="1920" y2="472" stroke="#ddd" stroke-width="1"/>
+<rect x="56" y="456" width="104.4" height="30" rx="15" fill="#F4F4F4" stroke="#ccc" stroke-width="1"/>
+<text x="68" y="476" class="cap num" text-anchor="start">Passport</text>
+<rect x="480.0" y="506" width="240.0" height="32" rx="6" fill="#FFFBE6" stroke="#E0C860" stroke-width="1.2"/>
+<text x="600.0" y="527" class="cap" text-anchor="middle">saves the pending request</text>
+<path class="solid" d="M600.0,578 H996.0"/>
+<text x="614.0" y="569" class="lbl" text-anchor="start">2  click: redirect with the request</text>
+<path class="solid" d="M1000.0,628 H1396.0"/>
+<text x="1014.0" y="619" class="lbl" text-anchor="start">3  signed parent grant, encrypted for Accounts</text>
+<path class="solid" d="M1000.0,678 H604.0"/>
+<text x="614.0" y="669" class="lbl" text-anchor="start">4  redirect back (not a credential)</text>
+<path class="dash" d="M1400.0,728 H604.0"/>
+<text x="614.0" y="719" class="lblg" text-anchor="start">5  parent grant</text>
+<line x1="56" y1="772" x2="1920" y2="772" stroke="#ddd" stroke-width="1"/>
+<rect x="56" y="756" width="65.2" height="30" rx="15" fill="#F4F4F4" stroke="#ccc" stroke-width="1"/>
+<text x="68" y="776" class="cap num" text-anchor="start">Both</text>
+<path class="dash" d="M600.0,828 H204.0"/>
+<text x="214.0" y="819" class="lblg" text-anchor="start">6  redirect back with a child grant</text>
+<rect x="56" y="914" width="934" height="210" rx="14" fill="#F3FAF5" stroke="#9CCFAA" stroke-width="1.5"/>
+<text x="80" y="958" class="sec" text-anchor="start">Benefits</text>
+<text x="80" y="994" class="pro" text-anchor="start">+ Mobile Signer users never leave Accounts.</text>
+<text x="80" y="1025" class="pro" text-anchor="start">+ Passport needs no QR code and no change.</text>
+<text x="80" y="1056" class="pro" text-anchor="start">+ The click can open Passport in a pop-up instead, so the Accounts tab stays.</text>
+<text x="80" y="1087" class="pro" text-anchor="start">+ No new backend.</text>
+<rect x="1010" y="914" width="934" height="210" rx="14" fill="#FDF4F2" stroke="#E3A99F" stroke-width="1.5"/>
+<text x="1034" y="958" class="sec" text-anchor="start">Tradeoffs</text>
+<text x="1034" y="994" class="con" text-anchor="start">− SSO and import users click once more before Passport opens.</text>
+<text x="1034" y="1025" class="con" text-anchor="start">− Accounts has its own sign-in page, so sign-in options appear on two sites.</text></svg>
