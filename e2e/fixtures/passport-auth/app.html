@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Passport auth fixture</title>
+    <script type="importmap">
+      { "imports": { "@synonymdev/pubky": "/fake-pubky.js" } }
+    </script>
+  </head>
+  <body>
+    <button id="sign-in" type="button">Sign in with Passport</button>
+    <output id="state">idle</output>
+    <script type="module">
+      import { createPassportAuth } from "/pkg/index.js";
+      import { createFakePubky, fixture } from "/fake-pubky.js";
+
+      const params = new URLSearchParams(location.search);
+      const passport = createPassportAuth({
+        pubky: createFakePubky(params.get("relay")),
+        capabilities: params.get("caps") ?? "/pub/example.app/:rw",
+        clientId: "example.app",
+        appName: "Example App",
+        instance: params.get("instance"),
+        ...(params.has("no-callback") ? {} : { callbackUrl: "/passport/return" }),
+        ...(params.has("timeout") ? { timeoutMs: Number(params.get("timeout")) } : {}),
+      });
+      passport.subscribe((state) => {
+        document.querySelector("#state").textContent = state;
+      });
+      document.querySelector("#sign-in").addEventListener("click", async () => {
+        const result = await passport.signIn();
+        fixture.results.push(
+          result.ok
+            ? { ok: true, publicKey: result.session.info.publicKey.z32() }
+            : { ok: false, reason: result.reason },
+        );
+      });
+    </script>
+  </body>
+</html>

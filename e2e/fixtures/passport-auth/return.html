@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Back to Example App</title>
+  </head>
+  <body>
+    <h1>Back to Example App</h1>
+    <a href="/app">Return to Example App</a>
+    <output id="return-status"></output>
+    <script type="module">
+      import { handlePassportReturn } from "/pkg/return.js";
+
+      document.querySelector("#return-status").textContent = handlePassportReturn().status;
+    </script>
+  </body>
+</html>
