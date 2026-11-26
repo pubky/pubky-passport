@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1136 516" width="1136" height="516" font-family="DejaVu Sans, Verdana, sans-serif">
+<defs><marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#444"/></marker><marker id="ag" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#2E9A50"/></marker></defs>
+<rect width="1136" height="516" fill="#FFFFFF"/>
+<text x="70" y="62" font-size="30" font-weight="bold" fill="#111">Key actions from Accounts: one confirm on the key vault</text>
+<text x="70" y="98" font-size="18" fill="#555">Move, Mirror, recovery phrase, move to Ring, attach Google or Apple, remove an identity. The tab</text>
+<text x="70" y="122" font-size="18" fill="#555">switches to the vault for one screen and comes back.</text>
+<path d="M188,246 L188,320" fill="none" stroke="#444" stroke-width="2.4" marker-end="url(#ar)"/>
+<path d="M306,203 L450,203" fill="none" stroke="#444" stroke-width="2.4" marker-end="url(#ar)"/>
+<path d="M686,203 L830,203" fill="none" stroke="#444" stroke-width="2.4" marker-end="url(#ar)"/>
+<path d="M948,246 L948,320" fill="none" stroke="#444" stroke-width="2.4" marker-end="url(#ar)"/>
+<path d="M568,246 L568,320" fill="none" stroke="#2E9A50" stroke-width="2.4" stroke-dasharray="8 6" marker-end="url(#ag)"/>
+<rect x="70" y="160" width="236" height="86" rx="14" fill="#EAF2FE" stroke="#5B8DEF" stroke-width="2.4"/>
+<text x="188" y="198" font-size="18" font-weight="bold" fill="#1D3F8A" text-anchor="middle">Accounts</text>
+<text x="188" y="220" font-size="15.5" fill="#1D3F8A" text-anchor="middle">Move: pick a homeserver</text>
+<rect x="70" y="320" width="236" height="86" rx="14" fill="#F3EDFC" stroke="#9A6BE0" stroke-width="2.4"/>
+<text x="188" y="358" font-size="18" font-weight="bold" fill="#4A2382" text-anchor="middle">Homegate</text>
+<text x="188" y="380" font-size="15.5" fill="#4A2382" text-anchor="middle">pay, sign-up code</text>
+<rect x="450" y="160" width="236" height="86" rx="14" fill="#EAF7EE" stroke="#3FAE63" stroke-width="2.4"/>
+<text x="568" y="198" font-size="18" font-weight="bold" fill="#185C2E" text-anchor="middle">Key vault</text>
+<text x="568" y="220" font-size="15.5" fill="#185C2E" text-anchor="middle">confirm: Move</text>
+<rect x="830" y="160" width="236" height="86" rx="14" fill="#F7F7F8" stroke="#B0B4BB" stroke-width="2.4"/>
+<text x="948" y="188" font-size="18" font-weight="bold" fill="#333A44" text-anchor="middle">New homeserver</text>
+<text x="948" y="209" font-size="15.5" fill="#333A44" text-anchor="middle">sign-up with your key,</text>
+<text x="948" y="230" font-size="15.5" fill="#333A44" text-anchor="middle">copy</text>
+<rect x="830" y="320" width="236" height="86" rx="14" fill="#FFFFFF" stroke="#B9BEC6" stroke-width="2.4"/>
+<text x="948" y="348" font-size="18" font-weight="bold" fill="#222222" text-anchor="middle">Homeserver record</text>
+<text x="948" y="369" font-size="15.5" fill="#222222" text-anchor="middle">points to the new</text>
+<text x="948" y="390" font-size="15.5" fill="#222222" text-anchor="middle">homeserver</text>
+<rect x="450" y="320" width="236" height="86" rx="14" fill="#EAF2FE" stroke="#5B8DEF" stroke-width="2.4"/>
+<text x="568" y="358" font-size="18" font-weight="bold" fill="#1D3F8A" text-anchor="middle">Accounts</text>
+<text x="568" y="380" font-size="15.5" fill="#1D3F8A" text-anchor="middle">done</text>
+<rect x="196" y="270" width="37" height="25" rx="6" fill="#FFFFFF" opacity="0.92"/>
+<text x="202" y="288" font-size="14.5" fill="#444" text-anchor="start">pay</text>
+<rect x="339" y="172" width="78" height="25" rx="6" fill="#FFFFFF" opacity="0.92"/>
+<text x="378" y="190" font-size="14.5" fill="#444" text-anchor="middle">redirect</text>
+<rect x="576" y="270" width="45" height="25" rx="6" fill="#FFFFFF" opacity="0.92"/>
+<text x="582" y="288" font-size="14.5" fill="#2E9A50" text-anchor="start">back</text>
+<rect x="70" y="460" width="22" height="22" rx="5" fill="#EAF2FE" stroke="#5B8DEF" stroke-width="2"/>
+<text x="100" y="477" font-size="16" fill="#444">Accounts</text>
+<rect x="202.0" y="460" width="22" height="22" rx="5" fill="#F3EDFC" stroke="#9A6BE0" stroke-width="2"/>
+<text x="232.0" y="477" font-size="16" fill="#444">Homegate</text>
+<rect x="334.0" y="460" width="22" height="22" rx="5" fill="#EAF7EE" stroke="#3FAE63" stroke-width="2"/>
+<text x="364.0" y="477" font-size="16" fill="#444">Key vault</text>
+<rect x="475.5" y="460" width="22" height="22" rx="5" fill="#F7F7F8" stroke="#B0B4BB" stroke-width="2"/>
+<text x="505.5" y="477" font-size="16" fill="#444">Homeserver</text>
+<path d="M640.5,471 L684.5,471" stroke="#444" stroke-width="2.4" marker-end="url(#ar)"/>
+<text x="694.5" y="477" font-size="16" fill="#444">request</text>
+<path d="M784.5,471 L828.5,471" stroke="#2E9A50" stroke-width="2.4" stroke-dasharray="8 6" marker-end="url(#ag)"/>
+<text x="838.5" y="477" font-size="16" fill="#444">result comes back</text>
+</svg>

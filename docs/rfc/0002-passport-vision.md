@@ -22,6 +22,48 @@ Passport could become the one place where you sign in, sign up, set up your prof
 - **Pubky Ring:** signs up from a sign-up link. No parent grants yet.
 - **SDK:** delegated grants (parent and child) are on the homeserver's main branch, not in the 0.18.0 release.
 
+## Key vault: the key on its own site
+
+Passport keeps the key in the browser storage of `passport.pubky.app`. Profile, files and homeserver tools show data other apps wrote, so in one site a bug there runs next to the key. This proposal splits one codebase across two sites:
+
+- **Key vault** (`passport.pubky.app`): the key, Google and Apple sign-in and backup, the whole sign-in and sign-up pop-up, and every signature behind its own Authorize.
+- **Account management** (`accounts.pubky.app`, proposed name Pubky Accounts): profile editing, files and homeserver tools, with a `/pub/` + `/priv/` grant the key vault signs. It never sees the key, the recovery phrase or a Google or Apple token.
+- **Pubky Dashboard** (`dashboard.pubky.app`): today's Pubky Accounts under a new name, for the suite.
+
+Browsers keep storage per host, so the key vault needs its own host; another path on the same host shares the storage. Both hosts sit under `pubky.app`, which browsers treat as one site.
+
+![Key vault: who holds what](images/0002-17-key-vault-overview.png)
+
+**Same screens.** The sign-in and sign-up pop-up stays on `passport.pubky.app`, as today. Profile, files and homeserver tools open on `accounts.pubky.app` with the same screens and clicks. Actions that need the key switch the tab to the key vault for one confirm screen, then come back: Move, Mirror, the recovery phrase, move to Ring, attach Google or Apple, remove an identity. Move gets one more click.
+
+![Demo: edit profile on account management](images/0002-20-demo-key-vault-edit.gif)
+
+![Edit profile with access from the key vault](images/0002-18-key-vault-edit.png)
+
+![Demo: move homeserver, confirmed on the key vault](images/0002-21-demo-key-vault-move.gif)
+
+![Demo: the recovery phrase shows only on the key vault](images/0002-22-demo-key-vault-phrase.gif)
+
+![Key actions: one confirm on the key vault](images/0002-19-key-vault-actions.png)
+
+**Signing rules**, enforced by the key vault:
+
+- Account management's own `/pub/` + `/priv/` grant is signed with no click, for that client ID and those capabilities only.
+- Everything else needs a click on a full key vault page that no other site can frame: grants for other apps, the parent grant, root, homeserver sign-up and record, export.
+- Never sent to account management: the key, the recovery phrase, the wrapping key, Google and Apple tokens.
+
+**Bridge.** A hidden key vault page that only `accounts.pubky.app` can frame. It returns public keys, storage use and the grant list, signs account management's own grant, and revokes apps. It has no buttons and never opens Google or Apple sign-in. Both hosts are one site, so browsers don't split its storage the way they would for Passport framed inside another site.
+
+**What it stops.** A bug or bad dependency on account management gets at most a revocable `/pub/` + `/priv/` grant. It can't take the key, sign for other apps or move your homeserver. It doesn't help if the key vault itself is compromised, so the key vault stays small and never shows content other apps wrote.
+
+**Self-hosting.** One image, two hostnames (`VAULT_ORIGIN`, `ACCOUNTS_ORIGIN`). Setting both to one host runs it as today, without the split. Apps still only know the key vault address, and the SDK default stays `passport.pubky.app`. Homegate and homeserver choice don't change.
+
+**Codebase.** Key code moves to `src/vault/` and account management to `src/accounts/`. Lint rules block imports between them, and CI checks that the account management bundle has no key code. `proxy.ts` routes each host and sets its headers.
+
+- **Needs:** host routing, the bridge, the signing rules. Google and Apple stay registered for `passport.pubky.app` only.
+- **Benefits:** the key never shares a site with profile, files or homeserver tools. Passport stays a small signer.
+- **Tradeoffs:** one more hostname to run. Key actions started in account management switch sites for one screen. Screens say Pubky Accounts while the sign-in pop-up shows `passport.pubky.app`.
+
 ## Core features
 
 ### 1. Mobile Signer sign-in
@@ -136,4 +178,7 @@ Lower priority. Examples:
 - **Parent and child grant:** one approval that lets Accounts act for you, and the per-app grants Accounts signs.
 - **SSO provider:** Google or Apple, which also stores your encrypted backup.
 - **Wrapping key (backup key):** unlocks your backup; Homegate's Google or Apple module derives it after checking your sign-in with that provider.
+- **Key vault:** `passport.pubky.app` when Passport is split; the only site that holds the key.
+- **Account management:** `accounts.pubky.app` when Passport is split (proposed name Pubky Accounts); profile, files and homeserver tools with a grant.
+- **Pubky Dashboard:** proposed new name for Pubky Accounts at `dashboard.pubky.app`.
 - **Homegate:** the optional service in front of a homeserver that checks new users and hands out sign-up codes.
