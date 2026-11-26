@@ -1,0 +1,47 @@
+{
+  "name": "@pubky/passport-auth",
+  "version": "0.1.0",
+  "description": "Headless Pubky Passport sign-in: opens the Passport popup, handles its messages and returns a Pubky SDK Session.",
+  "keywords": [
+    "pubky",
+    "passport",
+    "authentication",
+    "sign-in"
+  ],
+  "homepage": "https://github.com/pubky/pubky-passport/tree/main/packages/passport-auth#readme",
+  "bugs": {
+    "url": "https://github.com/pubky/pubky-passport/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pubky/pubky-passport.git",
+    "directory": "packages/passport-auth"
+  },
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": false,
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./return": {
+      "types": "./dist/return.d.ts",
+      "import": "./dist/return.js"
+    }
+  },
+  "scripts": {
+    "build": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\" && tsc -p tsconfig.build.json"
+  },
+  "peerDependencies": {
+    "@synonymdev/pubky": ">=0.18.0 <0.19"
+  },
+  "devDependencies": {
+    "@synonymdev/pubky": "0.18.0",
+    "typescript": "^6.0.3"
+  }
+}

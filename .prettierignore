@@ -1,6 +1,7 @@
 .next
 coverage
 node_modules
+packages/*/dist
 playwright-report
 pnpm-lock.yaml
 public

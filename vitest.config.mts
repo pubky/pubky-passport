@@ -13,8 +13,14 @@ export default defineConfig({
   },
   test: {
     coverage: {
-      exclude: ["src/**/*.test.ts", "src/**/*.test.tsx", "src/**/*.staging.test.ts"],
-      include: ["src/**/*.ts", "src/**/*.tsx"],
+      exclude: [
+        "src/**/*.test.ts",
+        "src/**/*.test.tsx",
+        "src/**/*.staging.test.ts",
+        "packages/*/src/**/*.test.ts",
+        "packages/*/src/testing/**",
+      ],
+      include: ["src/**/*.ts", "src/**/*.tsx", "packages/*/src/**/*.ts"],
       provider: "v8",
       reporter: ["text-summary", "html"],
       thresholds: {
@@ -23,7 +29,7 @@ export default defineConfig({
     },
     environment: "node",
     globals: false,
-    include: ["*.test.ts", "src/**/*.test.ts", "src/**/*.test.tsx"],
+    include: ["*.test.ts", "src/**/*.test.ts", "src/**/*.test.tsx", "packages/*/src/**/*.test.ts"],
     exclude: [...configDefaults.exclude, "src/**/*.staging.test.ts"],
     setupFiles: ["./test-utils/vitest-setup.ts"],
     silent: "passed-only",

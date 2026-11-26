@@ -47,6 +47,9 @@ jobs:
       - name: Unit tests and coverage
         run: pnpm test:coverage
 
+      - name: Build packages
+        run: pnpm build:packages
+
   browser:
     runs-on: ubuntu-latest
     env:

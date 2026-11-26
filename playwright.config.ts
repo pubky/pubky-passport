@@ -16,6 +16,7 @@ const SERVER_ENV = {
 
 export default defineConfig({
   testDir: "./e2e",
+  globalSetup: "./e2e/support/buildPassportAuth.ts",
   fullyParallel: true,
   forbidOnly: Boolean(process.env.CI),
   failOnFlakyTests: Boolean(process.env.CI),
