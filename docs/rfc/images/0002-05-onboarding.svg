@@ -13,6 +13,7 @@
 <path d="M868,406 L868,480" fill="none" stroke="#444" stroke-width="2.4" marker-end="url(#ar)"/>
 <path d="M528,406 L528,480" fill="none" stroke="#444" stroke-width="2.4" marker-end="url(#ar)"/>
 <path d="M750,523 L646,523" fill="none" stroke="#444" stroke-width="2.4" marker-end="url(#ar)"/>
+<path d="M986,523 L1090,523" fill="none" stroke="#2E9A50" stroke-width="2.4" stroke-dasharray="8 6" marker-end="url(#ag)"/>
 <path d="M410,523 L306,523" fill="none" stroke="#444" stroke-width="2.4" marker-end="url(#ar)"/>
 <rect x="70" y="160" width="236" height="86" rx="14" fill="#EAF2FE" stroke="#5B8DEF" stroke-width="2.4"/>
 <text x="188" y="188" font-size="18" font-weight="bold" fill="#1D3F8A" text-anchor="middle">1 App</text>
@@ -42,14 +43,18 @@
 <text x="528" y="390" font-size="15.5" fill="#185C2E" text-anchor="middle">backup</text>
 <rect x="750" y="480" width="236" height="86" rx="14" fill="#E6F7F7" stroke="#2AA6A6" stroke-width="2.4"/>
 <text x="868" y="508" font-size="18" font-weight="bold" fill="#0E5555" text-anchor="middle">7b Mobile Signer</text>
-<text x="868" y="529" font-size="15.5" fill="#0E5555" text-anchor="middle">scans a sign-up QR,</text>
+<text x="868" y="529" font-size="15.5" fill="#0E5555" text-anchor="middle">scans the sign-up QR,</text>
 <text x="868" y="550" font-size="15.5" fill="#0E5555" text-anchor="middle">makes the key</text>
+<rect x="1090" y="480" width="236" height="86" rx="14" fill="#EAF2FE" stroke="#5B8DEF" stroke-width="2.4"/>
+<text x="1208" y="508" font-size="18" font-weight="bold" fill="#1D3F8A" text-anchor="middle">9b App</text>
+<text x="1208" y="529" font-size="15.5" fill="#1D3F8A" text-anchor="middle">gets its approval from</text>
+<text x="1208" y="550" font-size="15.5" fill="#1D3F8A" text-anchor="middle">the Mobile Signer</text>
 <rect x="410" y="480" width="236" height="86" rx="14" fill="#F1F2F4" stroke="#8A9099" stroke-width="2.4"/>
 <text x="528" y="508" font-size="18" font-weight="bold" fill="#333A44" text-anchor="middle">8 Homeserver</text>
 <text x="528" y="529" font-size="15.5" fill="#333A44" text-anchor="middle">account created with the</text>
 <text x="528" y="550" font-size="15.5" fill="#333A44" text-anchor="middle">code</text>
 <rect x="70" y="480" width="236" height="86" rx="14" fill="#EAF7EE" stroke="#3FAE63" stroke-width="2.4"/>
-<text x="188" y="508" font-size="18" font-weight="bold" fill="#185C2E" text-anchor="middle">9 Passport</text>
+<text x="188" y="508" font-size="18" font-weight="bold" fill="#185C2E" text-anchor="middle">9a Passport</text>
 <text x="188" y="529" font-size="15.5" fill="#185C2E" text-anchor="middle">profile, then approve</text>
 <text x="188" y="550" font-size="15.5" fill="#185C2E" text-anchor="middle">the app</text>
 <rect x="659" y="153" width="78" height="44" rx="6" fill="#FFFFFF" opacity="0.92"/>
@@ -70,6 +75,10 @@
 <text x="542" y="448" font-size="14.5" fill="#444" text-anchor="start">sign up</text>
 <rect x="663" y="492" width="69" height="25" rx="6" fill="#FFFFFF" opacity="0.92"/>
 <text x="698" y="510" font-size="14.5" fill="#444" text-anchor="middle">sign up</text>
+<rect x="999" y="529" width="78" height="25" rx="6" fill="#FFFFFF" opacity="0.92"/>
+<text x="1038" y="547" font-size="14.5" fill="#2E9A50" text-anchor="middle">approval</text>
+<rect x="323" y="492" width="69" height="25" rx="6" fill="#FFFFFF" opacity="0.92"/>
+<text x="358" y="510" font-size="14.5" fill="#444" text-anchor="middle">browser</text>
 <rect x="70" y="620" width="22" height="22" rx="5" fill="#EAF2FE" stroke="#5B8DEF" stroke-width="2"/>
 <text x="100" y="637" font-size="16" fill="#444">App</text>
 <rect x="154.5" y="620" width="22" height="22" rx="5" fill="#EAF7EE" stroke="#3FAE63" stroke-width="2"/>

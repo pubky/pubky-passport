@@ -112,10 +112,14 @@ New users create their pubky in Passport, wherever they started:
 3. You verify. The Homegate returns a sign-up code and its homeserver.
 4. You choose where the key lives:
    - **In this browser:** Passport creates the key, signs up on the homeserver, and saves a backup with the SSO provider or as a recovery file.
-   - **In Pubky Ring or Bitkit:** Passport shows a sign-up QR code that carries the homeserver and the code. Ring creates the key and signs up itself, as it does for sign-up links today.
-5. Passport runs the profile step (feature 3) and then shows the app's grant review.
+   - **In Pubky Ring or Bitkit:** Passport turns the app's request into a sign-up request that also carries the homeserver and the sign-up code, and shows it as a QR code. Ring creates the key, signs up, and approves the app in one step, as it does for sign-up links today. Passport watches the relay as in feature 1 and returns you once the app has the approval.
+5. With the key in the browser, Passport runs the profile step (feature 3) and then shows the app's grant review. With the key in Ring, Passport has no key to write the profile with, so the profile step needs a grant (feature 2) or stays in the app.
 
-![Demo: onboarding through a Homegate](images/0002-14-demo-onboarding.gif)
+The first demo verifies by SMS and keeps the key in the browser. The second pays with Lightning and hands the sign-up code to Ring.
+
+![Demo: onboarding by SMS, key in the browser](images/0002-14-demo-onboarding.gif)
+
+![Demo: onboarding by Lightning, key in Ring](images/0002-16-demo-onboarding-ring.gif)
 
 ![Onboarding](images/0002-05-onboarding.png)
 
