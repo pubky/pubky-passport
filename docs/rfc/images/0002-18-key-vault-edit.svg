@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1550 516" width="1550" height="516" font-family="DejaVu Sans, Verdana, sans-serif">
+<defs><marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#444"/></marker><marker id="ag" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#2E9A50"/></marker></defs>
+<rect width="1550" height="516" fill="#FFFFFF"/>
+<text x="70" y="62" font-size="30" font-weight="bold" fill="#111">Edit profile: on Accounts, with access from the Account Vault</text>
+<text x="70" y="98" font-size="18" fill="#555">Accounts never holds the key. The first time in a browser, the Account Vault signs Accounts a /pub + /priv grant through the bridge, with</text>
+<text x="70" y="122" font-size="18" fill="#555">no click.</text>
+<path d="M306,203 L433,203" fill="none" stroke="#444" stroke-width="2.4" marker-end="url(#ar)"/>
+<path d="M703,203 L830,181" fill="none" stroke="#444" stroke-width="2.4" marker-end="url(#ar)"/>
+<path d="M568,246 L568,320" fill="none" stroke="#444" stroke-width="2.4" marker-end="url(#ar)"/>
+<path d="M686,363 L830,225" fill="none" stroke="#2E9A50" stroke-width="2.4" stroke-dasharray="8 6" marker-end="url(#ag)"/>
+<path d="M1066,203 L1210,203" fill="none" stroke="#444" stroke-width="2.4" marker-end="url(#ar)"/>
+<path d="M948,246 L948,320" fill="none" stroke="#2E9A50" stroke-width="2.4" stroke-dasharray="8 6" marker-end="url(#ag)"/>
+<rect x="70" y="160" width="236" height="86" rx="14" fill="#F1F2F4" stroke="#8A9099" stroke-width="2.4"/>
+<text x="188" y="198" font-size="18" font-weight="bold" fill="#333A44" text-anchor="middle">App</text>
+<text x="188" y="220" font-size="15.5" fill="#333A44" text-anchor="middle">Edit profile</text>
+<rect x="433" y="160" width="270" height="86" rx="43" fill="#FFFBE6" stroke="#D9B530" stroke-width="2.4"/>
+<text x="568" y="198" font-size="18" font-weight="bold" fill="#5E4B00" text-anchor="middle">Accounts has access</text>
+<text x="568" y="220" font-size="18" font-weight="bold" fill="#5E4B00" text-anchor="middle">here?</text>
+<rect x="450" y="320" width="236" height="86" rx="14" fill="#EAF7EE" stroke="#3FAE63" stroke-width="2.4"/>
+<text x="568" y="348" font-size="18" font-weight="bold" fill="#185C2E" text-anchor="middle">Account Vault bridge</text>
+<text x="568" y="369" font-size="15.5" fill="#185C2E" text-anchor="middle">signs Accounts&#x27; grant,</text>
+<text x="568" y="390" font-size="15.5" fill="#185C2E" text-anchor="middle">no click</text>
+<rect x="830" y="160" width="236" height="86" rx="14" fill="#EAF2FE" stroke="#5B8DEF" stroke-width="2.4"/>
+<text x="948" y="198" font-size="18" font-weight="bold" fill="#1D3F8A" text-anchor="middle">Accounts</text>
+<text x="948" y="220" font-size="15.5" fill="#1D3F8A" text-anchor="middle">edit, save</text>
+<rect x="1210" y="160" width="236" height="86" rx="14" fill="#F7F7F8" stroke="#B0B4BB" stroke-width="2.4"/>
+<text x="1328" y="198" font-size="18" font-weight="bold" fill="#333A44" text-anchor="middle">Homeserver</text>
+<text x="1328" y="220" font-size="15.5" fill="#333A44" text-anchor="middle">profile.json</text>
+<rect x="830" y="320" width="236" height="86" rx="14" fill="#F1F2F4" stroke="#8A9099" stroke-width="2.4"/>
+<text x="948" y="358" font-size="18" font-weight="bold" fill="#333A44" text-anchor="middle">App</text>
+<text x="948" y="380" font-size="15.5" fill="#333A44" text-anchor="middle">reads the new profile</text>
+<rect x="339" y="172" width="61" height="25" rx="6" fill="#FFFFFF" opacity="0.92"/>
+<text x="370" y="190" font-size="14.5" fill="#444" text-anchor="middle">pop-up</text>
+<rect x="748" y="161" width="37" height="25" rx="6" fill="#FFFFFF" opacity="0.92"/>
+<text x="766" y="179" font-size="14.5" fill="#444" text-anchor="middle">yes</text>
+<rect x="576" y="270" width="28" height="25" rx="6" fill="#FFFFFF" opacity="0.92"/>
+<text x="582" y="288" font-size="14.5" fill="#444" text-anchor="start">no</text>
+<rect x="732" y="300" width="53" height="25" rx="6" fill="#FFFFFF" opacity="0.92"/>
+<text x="758" y="318" font-size="14.5" fill="#2E9A50" text-anchor="middle">grant</text>
+<rect x="1112" y="172" width="53" height="25" rx="6" fill="#FFFFFF" opacity="0.92"/>
+<text x="1138" y="190" font-size="14.5" fill="#444" text-anchor="middle">write</text>
+<rect x="956" y="261" width="61" height="44" rx="6" fill="#FFFFFF" opacity="0.92"/>
+<text x="962" y="279" font-size="14.5" fill="#2E9A50" text-anchor="start">pop-up</text>
+<text x="962" y="298" font-size="14.5" fill="#2E9A50" text-anchor="start">closes</text>
+<rect x="70" y="460" width="22" height="22" rx="5" fill="#F1F2F4" stroke="#8A9099" stroke-width="2"/>
+<text x="100" y="477" font-size="16" fill="#444">App</text>
+<rect x="154.5" y="460" width="22" height="22" rx="5" fill="#EAF7EE" stroke="#3FAE63" stroke-width="2"/>
+<text x="184.5" y="477" font-size="16" fill="#444">Account Vault</text>
+<rect x="334.0" y="460" width="22" height="22" rx="5" fill="#EAF2FE" stroke="#5B8DEF" stroke-width="2"/>
+<text x="364.0" y="477" font-size="16" fill="#444">Accounts</text>
+<rect x="466.0" y="460" width="22" height="22" rx="5" fill="#F7F7F8" stroke="#B0B4BB" stroke-width="2"/>
+<text x="496.0" y="477" font-size="16" fill="#444">Homeserver</text>
+<path d="M631.0,471 L675.0,471" stroke="#444" stroke-width="2.4" marker-end="url(#ar)"/>
+<text x="685.0" y="477" font-size="16" fill="#444">request</text>
+<path d="M775.0,471 L819.0,471" stroke="#2E9A50" stroke-width="2.4" stroke-dasharray="8 6" marker-end="url(#ag)"/>
+<text x="829.0" y="477" font-size="16" fill="#444">result comes back</text>
+</svg>

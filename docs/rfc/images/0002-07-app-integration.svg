@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1430 516" width="1430" height="516" font-family="DejaVu Sans, Verdana, sans-serif">
+<defs><marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#444"/></marker><marker id="ag" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#2E9A50"/></marker></defs>
+<rect width="1430" height="516" fill="#FFFFFF"/>
+<text x="70" y="62" font-size="30" font-weight="bold" fill="#111">App integration: one button from the SDK</text>
+<text x="70" y="98" font-size="18" fill="#555">Suite apps go through the Dashboard. External apps open the Account Vault directly. Both use a pop-up, and the app tab stays</text>
+<text x="70" y="122" font-size="18" fill="#555">where it is.</text>
+<path d="M306,203 L393,203" fill="none" stroke="#444" stroke-width="2.4" marker-end="url(#ar)"/>
+<path d="M663,203 L750,203" fill="none" stroke="#444" stroke-width="2.4" marker-end="url(#ar)"/>
+<path d="M986,203 L1090,203" fill="none" stroke="#2E9A50" stroke-width="2.4" stroke-dasharray="8 6" marker-end="url(#ag)"/>
+<path d="M528,246 L528,363 L750,363" fill="none" stroke="#444" stroke-width="2.4" marker-end="url(#ar)"/>
+<path d="M868,246 L868,320" fill="none" stroke="#444" stroke-width="2.4" marker-end="url(#ar)"/>
+<path d="M986,363 L1208,363 L1208,246" fill="none" stroke="#2E9A50" stroke-width="2.4" stroke-dasharray="8 6" marker-end="url(#ag)"/>
+<rect x="70" y="160" width="236" height="86" rx="14" fill="#F1F2F4" stroke="#8A9099" stroke-width="2.4"/>
+<text x="188" y="188" font-size="18" font-weight="bold" fill="#333A44" text-anchor="middle">App</text>
+<text x="188" y="209" font-size="15.5" fill="#333A44" text-anchor="middle">Log in button from the</text>
+<text x="188" y="230" font-size="15.5" fill="#333A44" text-anchor="middle">SDK</text>
+<rect x="393" y="160" width="270" height="86" rx="43" fill="#FFFBE6" stroke="#D9B530" stroke-width="2.4"/>
+<text x="528" y="209" font-size="18" font-weight="bold" fill="#5E4B00" text-anchor="middle">Suite app?</text>
+<rect x="750" y="160" width="236" height="86" rx="14" fill="#FFF3E6" stroke="#F0A040" stroke-width="2.4"/>
+<text x="868" y="198" font-size="18" font-weight="bold" fill="#7A4A0C" text-anchor="middle">Dashboard</text>
+<text x="868" y="220" font-size="15.5" fill="#7A4A0C" text-anchor="middle">signed in? child grant</text>
+<rect x="1090" y="160" width="236" height="86" rx="14" fill="#F1F2F4" stroke="#8A9099" stroke-width="2.4"/>
+<text x="1208" y="188" font-size="18" font-weight="bold" fill="#333A44" text-anchor="middle">App callback page</text>
+<text x="1208" y="209" font-size="15.5" fill="#333A44" text-anchor="middle">grant arrives, pop-up</text>
+<text x="1208" y="230" font-size="15.5" fill="#333A44" text-anchor="middle">closes</text>
+<rect x="750" y="320" width="236" height="86" rx="14" fill="#EAF7EE" stroke="#3FAE63" stroke-width="2.4"/>
+<text x="868" y="348" font-size="18" font-weight="bold" fill="#185C2E" text-anchor="middle">Account Vault</text>
+<text x="868" y="369" font-size="15.5" fill="#185C2E" text-anchor="middle">sign in or create a</text>
+<text x="868" y="390" font-size="15.5" fill="#185C2E" text-anchor="middle">pubky</text>
+<rect x="688" y="172" width="37" height="25" rx="6" fill="#FFFFFF" opacity="0.92"/>
+<text x="706" y="190" font-size="14.5" fill="#444" text-anchor="middle">yes</text>
+<rect x="987" y="209" width="102" height="25" rx="6" fill="#FFFFFF" opacity="0.92"/>
+<text x="1038" y="227" font-size="14.5" fill="#2E9A50" text-anchor="middle">child grant</text>
+<rect x="625" y="332" width="28" height="25" rx="6" fill="#FFFFFF" opacity="0.92"/>
+<text x="639" y="350" font-size="14.5" fill="#444" text-anchor="middle">no</text>
+<rect x="876" y="261" width="94" height="44" rx="6" fill="#FFFFFF" opacity="0.92"/>
+<text x="882" y="279" font-size="14.5" fill="#444" text-anchor="start">not signed</text>
+<text x="882" y="298" font-size="14.5" fill="#444" text-anchor="start">in</text>
+<rect x="1054" y="369" width="86" height="63" rx="6" fill="#FFFFFF" opacity="0.92"/>
+<text x="1097" y="387" font-size="14.5" fill="#2E9A50" text-anchor="middle">own grant</text>
+<text x="1097" y="406" font-size="14.5" fill="#2E9A50" text-anchor="middle">(external</text>
+<text x="1097" y="425" font-size="14.5" fill="#2E9A50" text-anchor="middle">app)</text>
+<rect x="70" y="460" width="22" height="22" rx="5" fill="#F1F2F4" stroke="#8A9099" stroke-width="2"/>
+<text x="100" y="477" font-size="16" fill="#444">App</text>
+<rect x="154.5" y="460" width="22" height="22" rx="5" fill="#FFF3E6" stroke="#F0A040" stroke-width="2"/>
+<text x="184.5" y="477" font-size="16" fill="#444">Dashboard</text>
+<rect x="296.0" y="460" width="22" height="22" rx="5" fill="#EAF7EE" stroke="#3FAE63" stroke-width="2"/>
+<text x="326.0" y="477" font-size="16" fill="#444">Account Vault</text>
+<path d="M489.5,471 L533.5,471" stroke="#444" stroke-width="2.4" marker-end="url(#ar)"/>
+<text x="543.5" y="477" font-size="16" fill="#444">request</text>
+<path d="M633.5,471 L677.5,471" stroke="#2E9A50" stroke-width="2.4" stroke-dasharray="8 6" marker-end="url(#ag)"/>
+<text x="687.5" y="477" font-size="16" fill="#444">result comes back</text>
+</svg>

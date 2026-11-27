@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1516 676" width="1516" height="676" font-family="DejaVu Sans, Verdana, sans-serif">
+<defs><marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#444"/></marker><marker id="ag" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#2E9A50"/></marker></defs>
+<rect width="1516" height="676" fill="#FFFFFF"/>
+<text x="70" y="62" font-size="30" font-weight="bold" fill="#111">Account Vault and Accounts: who holds what</text>
+<text x="70" y="98" font-size="18" fill="#555">Account Vault: passport.pubky.app. Accounts: accounts.pubky.app. Dashboard: dashboard.pubky.app. Only the Account Vault holds the key;</text>
+<text x="70" y="122" font-size="18" fill="#555">Accounts has a /pub + /priv grant.</text>
+<path d="M306,203 L830,181" fill="none" stroke="#444" stroke-width="2.4" marker-end="url(#ar)"/>
+<path d="M306,363 L450,363" fill="none" stroke="#444" stroke-width="2.4" marker-end="url(#ar)"/>
+<path d="M568,320 L568,225 L830,225" fill="none" stroke="#444" stroke-width="2.4" marker-end="url(#ar)"/>
+<path d="M1066,203 L1210,203" fill="none" stroke="#444" stroke-width="2.4" marker-end="url(#ar)"/>
+<path d="M978,246 L978,443 L1210,443" fill="none" stroke="#444" stroke-width="2.4" marker-end="url(#ar)"/>
+<path d="M948,480 L918,246" fill="none" stroke="#444" stroke-width="2.4" marker-end="url(#ar)"/>
+<path d="M1066,523 L1328,523 L1328,486" fill="none" stroke="#444" stroke-width="2.4" marker-end="url(#ar)"/>
+<rect x="70" y="160" width="236" height="86" rx="14" fill="#F1F2F4" stroke="#8A9099" stroke-width="2.4"/>
+<text x="188" y="198" font-size="18" font-weight="bold" fill="#333A44" text-anchor="middle">External app</text>
+<text x="188" y="220" font-size="15.5" fill="#333A44" text-anchor="middle">own grant</text>
+<rect x="70" y="320" width="236" height="86" rx="14" fill="#F1F2F4" stroke="#8A9099" stroke-width="2.4"/>
+<text x="188" y="358" font-size="18" font-weight="bold" fill="#333A44" text-anchor="middle">Suite app</text>
+<text x="188" y="380" font-size="15.5" fill="#333A44" text-anchor="middle">child grant</text>
+<rect x="450" y="320" width="236" height="86" rx="14" fill="#FFF3E6" stroke="#F0A040" stroke-width="2.4"/>
+<text x="568" y="348" font-size="18" font-weight="bold" fill="#7A4A0C" text-anchor="middle">Dashboard</text>
+<text x="568" y="369" font-size="15.5" fill="#7A4A0C" text-anchor="middle">parent grant, signs</text>
+<text x="568" y="390" font-size="15.5" fill="#7A4A0C" text-anchor="middle">suite apps in</text>
+<rect x="830" y="160" width="236" height="86" rx="14" fill="#EAF7EE" stroke="#3FAE63" stroke-width="2.4"/>
+<text x="948" y="188" font-size="18" font-weight="bold" fill="#185C2E" text-anchor="middle">Account Vault</text>
+<text x="948" y="209" font-size="15.5" fill="#185C2E" text-anchor="middle">key, sign-in, sign-up,</text>
+<text x="948" y="230" font-size="15.5" fill="#185C2E" text-anchor="middle">every signature</text>
+<rect x="830" y="480" width="236" height="86" rx="14" fill="#EAF2FE" stroke="#5B8DEF" stroke-width="2.4"/>
+<text x="948" y="508" font-size="18" font-weight="bold" fill="#1D3F8A" text-anchor="middle">Accounts</text>
+<text x="948" y="529" font-size="15.5" fill="#1D3F8A" text-anchor="middle">profile, files,</text>
+<text x="948" y="550" font-size="15.5" fill="#1D3F8A" text-anchor="middle">homeserver tools</text>
+<rect x="1210" y="160" width="236" height="86" rx="14" fill="#FDEDEE" stroke="#E06B74" stroke-width="2.4"/>
+<text x="1328" y="198" font-size="18" font-weight="bold" fill="#7E1F27" text-anchor="middle">SSO provider</text>
+<text x="1328" y="220" font-size="15.5" fill="#7E1F27" text-anchor="middle">sign-in, backup</text>
+<rect x="1210" y="400" width="236" height="86" rx="14" fill="#F7F7F8" stroke="#B0B4BB" stroke-width="2.4"/>
+<text x="1328" y="438" font-size="18" font-weight="bold" fill="#333A44" text-anchor="middle">Homeserver</text>
+<text x="1328" y="460" font-size="15.5" fill="#333A44" text-anchor="middle">your data</text>
+<rect x="533" y="161" width="69" height="25" rx="6" fill="#FFFFFF" opacity="0.92"/>
+<text x="568" y="179" font-size="14.5" fill="#444" text-anchor="middle">sign in</text>
+<rect x="347" y="332" width="61" height="25" rx="6" fill="#FFFFFF" opacity="0.92"/>
+<text x="378" y="350" font-size="14.5" fill="#444" text-anchor="middle">log in</text>
+<rect x="644" y="194" width="110" height="25" rx="6" fill="#FFFFFF" opacity="0.92"/>
+<text x="699" y="212" font-size="14.5" fill="#444" text-anchor="middle">parent grant</text>
+<rect x="1055" y="393" width="78" height="44" rx="6" fill="#FFFFFF" opacity="0.92"/>
+<text x="1094" y="411" font-size="14.5" fill="#444" text-anchor="middle">sign-up,</text>
+<text x="1094" y="430" font-size="14.5" fill="#444" text-anchor="middle">record</text>
+<rect x="856" y="341" width="69" height="44" rx="6" fill="#FFFFFF" opacity="0.92"/>
+<text x="862" y="359" font-size="14.5" fill="#444" text-anchor="start">bridge,</text>
+<text x="862" y="378" font-size="14.5" fill="#444" text-anchor="start">confirm</text>
+<rect x="1142" y="492" width="110" height="25" rx="6" fill="#FFFFFF" opacity="0.92"/>
+<text x="1197" y="510" font-size="14.5" fill="#444" text-anchor="middle">/pub + /priv</text>
+<rect x="70" y="620" width="22" height="22" rx="5" fill="#F1F2F4" stroke="#8A9099" stroke-width="2"/>
+<text x="100" y="637" font-size="16" fill="#444">App</text>
+<rect x="154.5" y="620" width="22" height="22" rx="5" fill="#FFF3E6" stroke="#F0A040" stroke-width="2"/>
+<text x="184.5" y="637" font-size="16" fill="#444">Dashboard</text>
+<rect x="296.0" y="620" width="22" height="22" rx="5" fill="#EAF7EE" stroke="#3FAE63" stroke-width="2"/>
+<text x="326.0" y="637" font-size="16" fill="#444">Account Vault</text>
+<rect x="475.5" y="620" width="22" height="22" rx="5" fill="#EAF2FE" stroke="#5B8DEF" stroke-width="2"/>
+<text x="505.5" y="637" font-size="16" fill="#444">Accounts</text>
+<rect x="607.5" y="620" width="22" height="22" rx="5" fill="#FDEDEE" stroke="#E06B74" stroke-width="2"/>
+<text x="637.5" y="637" font-size="16" fill="#444">SSO provider</text>
+<rect x="777.5" y="620" width="22" height="22" rx="5" fill="#F7F7F8" stroke="#B0B4BB" stroke-width="2"/>
+<text x="807.5" y="637" font-size="16" fill="#444">Homeserver</text>
+</svg>
