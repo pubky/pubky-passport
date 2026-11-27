@@ -2,7 +2,7 @@
 <defs><marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#444"/></marker><marker id="ag" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#2E9A50"/></marker></defs>
 <rect width="1396" height="516" fill="#FFFFFF"/>
 <text x="70" y="62" font-size="30" font-weight="bold" fill="#111">3. Profile creation and management</text>
-<text x="70" y="98" font-size="18" fill="#555">Passport writes the shared profile file once. Every app reads the same file.</text>
+<text x="70" y="98" font-size="18" fill="#555">The Account Vault writes the shared profile file at sign-up. Accounts edits it later. Every app reads the same file.</text>
 <path d="M306,203 L410,203" fill="none" stroke="#444" stroke-width="2.4" marker-end="url(#ar)"/>
 <path d="M646,203 L750,203" fill="none" stroke="#444" stroke-width="2.4" marker-end="url(#ar)"/>
 <path d="M986,203 L1090,203" fill="none" stroke="#444" stroke-width="2.4" marker-end="url(#ar)"/>
@@ -12,19 +12,19 @@
 <text x="188" y="209" font-size="15.5" fill="#111111" text-anchor="middle">or an app that needs a</text>
 <text x="188" y="230" font-size="15.5" fill="#111111" text-anchor="middle">profile</text>
 <rect x="410" y="160" width="236" height="86" rx="14" fill="#EAF7EE" stroke="#3FAE63" stroke-width="2.4"/>
-<text x="528" y="188" font-size="18" font-weight="bold" fill="#185C2E" text-anchor="middle">Passport</text>
-<text x="528" y="209" font-size="15.5" fill="#185C2E" text-anchor="middle">name, bio, picture,</text>
-<text x="528" y="230" font-size="15.5" fill="#185C2E" text-anchor="middle">links</text>
-<rect x="750" y="160" width="236" height="86" rx="14" fill="#F1F2F4" stroke="#8A9099" stroke-width="2.4"/>
+<text x="528" y="188" font-size="18" font-weight="bold" fill="#185C2E" text-anchor="middle">Account Vault</text>
+<text x="528" y="209" font-size="15.5" fill="#185C2E" text-anchor="middle">sign-up: name, bio,</text>
+<text x="528" y="230" font-size="15.5" fill="#185C2E" text-anchor="middle">picture, links</text>
+<rect x="750" y="160" width="236" height="86" rx="14" fill="#F7F7F8" stroke="#B0B4BB" stroke-width="2.4"/>
 <text x="868" y="198" font-size="18" font-weight="bold" fill="#333A44" text-anchor="middle">Homeserver</text>
 <text x="868" y="220" font-size="15.5" fill="#333A44" text-anchor="middle">/pub/social/v1/profile.json</text>
-<rect x="1090" y="160" width="236" height="86" rx="14" fill="#EAF2FE" stroke="#5B8DEF" stroke-width="2.4"/>
-<text x="1208" y="198" font-size="18" font-weight="bold" fill="#1D3F8A" text-anchor="middle">Every app</text>
-<text x="1208" y="220" font-size="15.5" fill="#1D3F8A" text-anchor="middle">shows the same profile</text>
-<rect x="410" y="320" width="236" height="86" rx="14" fill="#EAF7EE" stroke="#3FAE63" stroke-width="2.4"/>
-<text x="528" y="348" font-size="18" font-weight="bold" fill="#185C2E" text-anchor="middle">Passport, any time</text>
-<text x="528" y="369" font-size="18" font-weight="bold" fill="#185C2E" text-anchor="middle">later</text>
-<text x="528" y="390" font-size="15.5" fill="#185C2E" text-anchor="middle">Edit profile</text>
+<rect x="1090" y="160" width="236" height="86" rx="14" fill="#F1F2F4" stroke="#8A9099" stroke-width="2.4"/>
+<text x="1208" y="198" font-size="18" font-weight="bold" fill="#333A44" text-anchor="middle">Every app</text>
+<text x="1208" y="220" font-size="15.5" fill="#333A44" text-anchor="middle">shows the same profile</text>
+<rect x="410" y="320" width="236" height="86" rx="14" fill="#EAF2FE" stroke="#5B8DEF" stroke-width="2.4"/>
+<text x="528" y="348" font-size="18" font-weight="bold" fill="#1D3F8A" text-anchor="middle">Accounts, any time</text>
+<text x="528" y="369" font-size="18" font-weight="bold" fill="#1D3F8A" text-anchor="middle">later</text>
+<text x="528" y="390" font-size="15.5" fill="#1D3F8A" text-anchor="middle">Edit profile</text>
 <rect x="672" y="172" width="53" height="25" rx="6" fill="#FFFFFF" opacity="0.92"/>
 <text x="698" y="190" font-size="14.5" fill="#444" text-anchor="middle">write</text>
 <rect x="1016" y="172" width="45" height="25" rx="6" fill="#FFFFFF" opacity="0.92"/>
@@ -32,9 +32,11 @@
 <rect x="726" y="332" width="61" height="25" rx="6" fill="#FFFFFF" opacity="0.92"/>
 <text x="757" y="350" font-size="14.5" fill="#444" text-anchor="middle">update</text>
 <rect x="70" y="460" width="22" height="22" rx="5" fill="#EAF7EE" stroke="#3FAE63" stroke-width="2"/>
-<text x="100" y="477" font-size="16" fill="#444">Passport</text>
-<rect x="202.0" y="460" width="22" height="22" rx="5" fill="#F1F2F4" stroke="#8A9099" stroke-width="2"/>
-<text x="232.0" y="477" font-size="16" fill="#444">Homeserver</text>
-<rect x="353.0" y="460" width="22" height="22" rx="5" fill="#EAF2FE" stroke="#5B8DEF" stroke-width="2"/>
-<text x="383.0" y="477" font-size="16" fill="#444">App</text>
+<text x="100" y="477" font-size="16" fill="#444">Account Vault</text>
+<rect x="249.5" y="460" width="22" height="22" rx="5" fill="#F7F7F8" stroke="#B0B4BB" stroke-width="2"/>
+<text x="279.5" y="477" font-size="16" fill="#444">Homeserver</text>
+<rect x="400.5" y="460" width="22" height="22" rx="5" fill="#F1F2F4" stroke="#8A9099" stroke-width="2"/>
+<text x="430.5" y="477" font-size="16" fill="#444">App</text>
+<rect x="485.0" y="460" width="22" height="22" rx="5" fill="#EAF2FE" stroke="#5B8DEF" stroke-width="2"/>
+<text x="515.0" y="477" font-size="16" fill="#444">Accounts</text>
 </svg>

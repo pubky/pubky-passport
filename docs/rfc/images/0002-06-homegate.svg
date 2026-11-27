@@ -2,7 +2,8 @@
 <defs><marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#444"/></marker><marker id="ag" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#2E9A50"/></marker></defs>
 <rect width="1342" height="868" fill="#FFFFFF"/>
 <text x="70" y="62" font-size="30" font-weight="bold" fill="#111">Homegate: an optional front door for any public homeserver</text>
-<text x="70" y="98" font-size="18" fill="#555">Each module is switched on in the operator&#x27;s config. Passport reads one discovery endpoint and shows only what is on.</text>
+<text x="70" y="98" font-size="18" fill="#555">Each module is switched on in the operator&#x27;s config. The Account Vault reads one discovery endpoint and shows only</text>
+<text x="70" y="122" font-size="18" fill="#555">what is on.</text>
 <path d="M306,203 L664,203 L664,404" fill="none" stroke="#444" stroke-width="2.4" stroke-dasharray="8 6" marker-end="url(#ar)"/>
 <path d="M306,437 L539,437" fill="none" stroke="#444" stroke-width="2.4" marker-end="url(#ar)"/>
 <path d="M539,481 L306,481" fill="none" stroke="#2E9A50" stroke-width="2.4" stroke-dasharray="8 6" marker-end="url(#ag)"/>
@@ -16,7 +17,7 @@
 <text x="188" y="209" font-size="15.5" fill="#111111" text-anchor="middle">runs a homeserver, adds</text>
 <text x="188" y="230" font-size="15.5" fill="#111111" text-anchor="middle">Homegate</text>
 <rect x="70" y="416" width="236" height="86" rx="14" fill="#EAF7EE" stroke="#3FAE63" stroke-width="2.4"/>
-<text x="188" y="454" font-size="18" font-weight="bold" fill="#185C2E" text-anchor="middle">Passport</text>
+<text x="188" y="454" font-size="18" font-weight="bold" fill="#185C2E" text-anchor="middle">Account Vault</text>
 <text x="188" y="476" font-size="15.5" fill="#185C2E" text-anchor="middle">any instance</text>
 <rect x="539" y="404" width="250" height="110" rx="14" fill="#F3EDFC" stroke="#9A6BE0" stroke-width="2.4"/>
 <text x="664" y="444" font-size="18" font-weight="bold" fill="#4A2382" text-anchor="middle">Homegate</text>
@@ -37,7 +38,7 @@
 <text x="1140" y="572" font-size="18" font-weight="bold" fill="#4A2382" text-anchor="middle">Lightning module</text>
 <text x="1140" y="593" font-size="15.5" fill="#4A2382" text-anchor="middle">pay to sign up or for</text>
 <text x="1140" y="614" font-size="15.5" fill="#4A2382" text-anchor="middle">storage</text>
-<rect x="546" y="672" width="236" height="86" rx="14" fill="#F1F2F4" stroke="#8A9099" stroke-width="2.4"/>
+<rect x="546" y="672" width="236" height="86" rx="14" fill="#F7F7F8" stroke="#B0B4BB" stroke-width="2.4"/>
 <text x="664" y="700" font-size="18" font-weight="bold" fill="#333A44" text-anchor="middle">Homeserver</text>
 <text x="664" y="721" font-size="15.5" fill="#333A44" text-anchor="middle">admin API makes sign-up</text>
 <text x="664" y="742" font-size="15.5" fill="#333A44" text-anchor="middle">tokens</text>
@@ -52,13 +53,13 @@
 <text x="678" y="598" font-size="14.5" fill="#444" text-anchor="start">sign-up</text>
 <text x="678" y="618" font-size="14.5" fill="#444" text-anchor="start">token</text>
 <rect x="70" y="812" width="22" height="22" rx="5" fill="#EAF7EE" stroke="#3FAE63" stroke-width="2"/>
-<text x="100" y="829" font-size="16" fill="#444">Passport</text>
-<rect x="202.0" y="812" width="22" height="22" rx="5" fill="#F3EDFC" stroke="#9A6BE0" stroke-width="2"/>
-<text x="232.0" y="829" font-size="16" fill="#444">Homegate</text>
-<rect x="334.0" y="812" width="22" height="22" rx="5" fill="#F1F2F4" stroke="#8A9099" stroke-width="2"/>
-<text x="364.0" y="829" font-size="16" fill="#444">Homeserver</text>
-<path d="M499.0,823 L543.0,823" stroke="#444" stroke-width="2.4" marker-end="url(#ar)"/>
-<text x="553.0" y="829" font-size="16" fill="#444">request</text>
-<path d="M643.0,823 L687.0,823" stroke="#2E9A50" stroke-width="2.4" stroke-dasharray="8 6" marker-end="url(#ag)"/>
-<text x="697.0" y="829" font-size="16" fill="#444">result comes back</text>
+<text x="100" y="829" font-size="16" fill="#444">Account Vault</text>
+<rect x="249.5" y="812" width="22" height="22" rx="5" fill="#F3EDFC" stroke="#9A6BE0" stroke-width="2"/>
+<text x="279.5" y="829" font-size="16" fill="#444">Homegate</text>
+<rect x="381.5" y="812" width="22" height="22" rx="5" fill="#F7F7F8" stroke="#B0B4BB" stroke-width="2"/>
+<text x="411.5" y="829" font-size="16" fill="#444">Homeserver</text>
+<path d="M546.5,823 L590.5,823" stroke="#444" stroke-width="2.4" marker-end="url(#ar)"/>
+<text x="600.5" y="829" font-size="16" fill="#444">request</text>
+<path d="M690.5,823 L734.5,823" stroke="#2E9A50" stroke-width="2.4" stroke-dasharray="8 6" marker-end="url(#ag)"/>
+<text x="744.5" y="829" font-size="16" fill="#444">result comes back</text>
 </svg>

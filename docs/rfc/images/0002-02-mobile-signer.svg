@@ -1,34 +1,35 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1396 516" width="1396" height="516" font-family="DejaVu Sans, Verdana, sans-serif">
 <defs><marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#444"/></marker><marker id="ag" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#2E9A50"/></marker></defs>
 <rect width="1396" height="516" fill="#FFFFFF"/>
-<text x="70" y="62" font-size="30" font-weight="bold" fill="#111">1. Mobile Signer sign-in in Passport</text>
-<text x="70" y="98" font-size="18" fill="#555">Passport shows the app&#x27;s request as a QR code. The Signer approves it, and Passport returns you once the app took the</text>
-<text x="70" y="122" font-size="18" fill="#555">approval.</text>
+<text x="70" y="62" font-size="30" font-weight="bold" fill="#111">1. Mobile Signer sign-in in the Account Vault</text>
+<text x="70" y="98" font-size="18" fill="#555">The Account Vault shows the app&#x27;s request as a QR code. The Signer approves it, and the Account Vault returns you once the</text>
+<text x="70" y="122" font-size="18" fill="#555">app took the approval.</text>
 <path d="M306,203 L410,203" fill="none" stroke="#444" stroke-width="2.4" marker-end="url(#ar)"/>
 <path d="M646,203 L750,203" fill="none" stroke="#444" stroke-width="2.4" marker-end="url(#ar)"/>
 <path d="M986,203 L1090,181" fill="none" stroke="#444" stroke-width="2.4" marker-end="url(#ar)"/>
 <path d="M1208,246 L1208,320" fill="none" stroke="#2E9A50" stroke-width="2.4" stroke-dasharray="8 6" marker-end="url(#ag)"/>
 <path d="M986,363 L1090,225" fill="none" stroke="#444" stroke-width="2.4" stroke-dasharray="8 6" marker-end="url(#ar)"/>
-<rect x="70" y="160" width="236" height="86" rx="14" fill="#EAF2FE" stroke="#5B8DEF" stroke-width="2.4"/>
-<text x="188" y="198" font-size="18" font-weight="bold" fill="#1D3F8A" text-anchor="middle">1 App</text>
-<text x="188" y="220" font-size="15.5" fill="#1D3F8A" text-anchor="middle">Log in opens Passport</text>
+<rect x="70" y="160" width="236" height="86" rx="14" fill="#F1F2F4" stroke="#8A9099" stroke-width="2.4"/>
+<text x="188" y="188" font-size="18" font-weight="bold" fill="#333A44" text-anchor="middle">1 App</text>
+<text x="188" y="209" font-size="15.5" fill="#333A44" text-anchor="middle">Log in opens the Account</text>
+<text x="188" y="230" font-size="15.5" fill="#333A44" text-anchor="middle">Vault</text>
 <rect x="410" y="160" width="236" height="86" rx="14" fill="#EAF7EE" stroke="#3FAE63" stroke-width="2.4"/>
-<text x="528" y="188" font-size="18" font-weight="bold" fill="#185C2E" text-anchor="middle">2 Passport</text>
+<text x="528" y="188" font-size="18" font-weight="bold" fill="#185C2E" text-anchor="middle">2 Account Vault</text>
 <text x="528" y="209" font-size="15.5" fill="#185C2E" text-anchor="middle">QR code next to SSO and</text>
 <text x="528" y="230" font-size="15.5" fill="#185C2E" text-anchor="middle">Import</text>
 <rect x="750" y="160" width="236" height="86" rx="14" fill="#E6F7F7" stroke="#2AA6A6" stroke-width="2.4"/>
 <text x="868" y="198" font-size="18" font-weight="bold" fill="#0E5555" text-anchor="middle">3 Mobile Signer</text>
 <text x="868" y="220" font-size="15.5" fill="#0E5555" text-anchor="middle">scan and approve</text>
-<rect x="1090" y="160" width="236" height="86" rx="14" fill="#F1F2F4" stroke="#8A9099" stroke-width="2.4"/>
+<rect x="1090" y="160" width="236" height="86" rx="14" fill="#F7F7F8" stroke="#B0B4BB" stroke-width="2.4"/>
 <text x="1208" y="188" font-size="18" font-weight="bold" fill="#333A44" text-anchor="middle">4 Relay</text>
 <text x="1208" y="209" font-size="15.5" fill="#333A44" text-anchor="middle">holds the signed</text>
 <text x="1208" y="230" font-size="15.5" fill="#333A44" text-anchor="middle">approval</text>
-<rect x="1090" y="320" width="236" height="86" rx="14" fill="#EAF2FE" stroke="#5B8DEF" stroke-width="2.4"/>
-<text x="1208" y="348" font-size="18" font-weight="bold" fill="#1D3F8A" text-anchor="middle">5 App</text>
-<text x="1208" y="369" font-size="15.5" fill="#1D3F8A" text-anchor="middle">takes the approval,</text>
-<text x="1208" y="390" font-size="15.5" fill="#1D3F8A" text-anchor="middle">signed in</text>
+<rect x="1090" y="320" width="236" height="86" rx="14" fill="#F1F2F4" stroke="#8A9099" stroke-width="2.4"/>
+<text x="1208" y="348" font-size="18" font-weight="bold" fill="#333A44" text-anchor="middle">5 App</text>
+<text x="1208" y="369" font-size="15.5" fill="#333A44" text-anchor="middle">takes the approval,</text>
+<text x="1208" y="390" font-size="15.5" fill="#333A44" text-anchor="middle">signed in</text>
 <rect x="750" y="320" width="236" height="86" rx="14" fill="#EAF7EE" stroke="#3FAE63" stroke-width="2.4"/>
-<text x="868" y="348" font-size="18" font-weight="bold" fill="#185C2E" text-anchor="middle">6 Passport</text>
+<text x="868" y="348" font-size="18" font-weight="bold" fill="#185C2E" text-anchor="middle">6 Account Vault</text>
 <text x="868" y="369" font-size="15.5" fill="#185C2E" text-anchor="middle">sees it was taken,</text>
 <text x="868" y="390" font-size="15.5" fill="#185C2E" text-anchor="middle">returns you</text>
 <rect x="676" y="172" width="45" height="25" rx="6" fill="#FFFFFF" opacity="0.92"/>
@@ -39,16 +40,16 @@
 <text x="1222" y="288" font-size="14.5" fill="#2E9A50" text-anchor="start">approval</text>
 <rect x="1046" y="282" width="94" height="25" rx="6" fill="#FFFFFF" opacity="0.92"/>
 <text x="1052" y="300" font-size="14.5" fill="#444" text-anchor="start">taken yet?</text>
-<rect x="70" y="460" width="22" height="22" rx="5" fill="#EAF2FE" stroke="#5B8DEF" stroke-width="2"/>
+<rect x="70" y="460" width="22" height="22" rx="5" fill="#F1F2F4" stroke="#8A9099" stroke-width="2"/>
 <text x="100" y="477" font-size="16" fill="#444">App</text>
 <rect x="154.5" y="460" width="22" height="22" rx="5" fill="#EAF7EE" stroke="#3FAE63" stroke-width="2"/>
-<text x="184.5" y="477" font-size="16" fill="#444">Passport</text>
-<rect x="286.5" y="460" width="22" height="22" rx="5" fill="#E6F7F7" stroke="#2AA6A6" stroke-width="2"/>
-<text x="316.5" y="477" font-size="16" fill="#444">Mobile Signer</text>
-<rect x="466.0" y="460" width="22" height="22" rx="5" fill="#F1F2F4" stroke="#8A9099" stroke-width="2"/>
-<text x="496.0" y="477" font-size="16" fill="#444">Homeserver</text>
-<path d="M631.0,471 L675.0,471" stroke="#444" stroke-width="2.4" marker-end="url(#ar)"/>
-<text x="685.0" y="477" font-size="16" fill="#444">request</text>
-<path d="M775.0,471 L819.0,471" stroke="#2E9A50" stroke-width="2.4" stroke-dasharray="8 6" marker-end="url(#ag)"/>
-<text x="829.0" y="477" font-size="16" fill="#444">result comes back</text>
+<text x="184.5" y="477" font-size="16" fill="#444">Account Vault</text>
+<rect x="334.0" y="460" width="22" height="22" rx="5" fill="#E6F7F7" stroke="#2AA6A6" stroke-width="2"/>
+<text x="364.0" y="477" font-size="16" fill="#444">Mobile Signer</text>
+<rect x="513.5" y="460" width="22" height="22" rx="5" fill="#F7F7F8" stroke="#B0B4BB" stroke-width="2"/>
+<text x="543.5" y="477" font-size="16" fill="#444">Homeserver</text>
+<path d="M678.5,471 L722.5,471" stroke="#444" stroke-width="2.4" marker-end="url(#ar)"/>
+<text x="732.5" y="477" font-size="16" fill="#444">request</text>
+<path d="M822.5,471 L866.5,471" stroke="#2E9A50" stroke-width="2.4" stroke-dasharray="8 6" marker-end="url(#ag)"/>
+<text x="876.5" y="477" font-size="16" fill="#444">result comes back</text>
 </svg>

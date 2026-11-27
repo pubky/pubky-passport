@@ -1,9 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1550 516" width="1550" height="516" font-family="DejaVu Sans, Verdana, sans-serif">
 <defs><marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#444"/></marker><marker id="ag" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#2E9A50"/></marker></defs>
 <rect width="1550" height="516" fill="#FFFFFF"/>
-<text x="70" y="62" font-size="30" font-weight="bold" fill="#111">Edit profile: on Accounts, with access from the key vault</text>
-<text x="70" y="98" font-size="18" fill="#555">Accounts never holds the key. The first time in a browser, the key vault signs Accounts a /pub + /priv grant through the bridge, with no</text>
-<text x="70" y="122" font-size="18" fill="#555">click.</text>
+<text x="70" y="62" font-size="30" font-weight="bold" fill="#111">Edit profile: on Accounts, with access from the Account Vault</text>
+<text x="70" y="98" font-size="18" fill="#555">Accounts never holds the key. The first time in a browser, the Account Vault signs Accounts a /pub + /priv grant through the bridge, with</text>
+<text x="70" y="122" font-size="18" fill="#555">no click.</text>
 <path d="M306,203 L433,203" fill="none" stroke="#444" stroke-width="2.4" marker-end="url(#ar)"/>
 <path d="M703,203 L830,181" fill="none" stroke="#444" stroke-width="2.4" marker-end="url(#ar)"/>
 <path d="M568,246 L568,320" fill="none" stroke="#444" stroke-width="2.4" marker-end="url(#ar)"/>
@@ -17,7 +17,7 @@
 <text x="568" y="198" font-size="18" font-weight="bold" fill="#5E4B00" text-anchor="middle">Accounts has access</text>
 <text x="568" y="220" font-size="18" font-weight="bold" fill="#5E4B00" text-anchor="middle">here?</text>
 <rect x="450" y="320" width="236" height="86" rx="14" fill="#EAF7EE" stroke="#3FAE63" stroke-width="2.4"/>
-<text x="568" y="348" font-size="18" font-weight="bold" fill="#185C2E" text-anchor="middle">Key vault bridge</text>
+<text x="568" y="348" font-size="18" font-weight="bold" fill="#185C2E" text-anchor="middle">Account Vault bridge</text>
 <text x="568" y="369" font-size="15.5" fill="#185C2E" text-anchor="middle">signs Accounts&#x27; grant,</text>
 <text x="568" y="390" font-size="15.5" fill="#185C2E" text-anchor="middle">no click</text>
 <rect x="830" y="160" width="236" height="86" rx="14" fill="#EAF2FE" stroke="#5B8DEF" stroke-width="2.4"/>
@@ -45,13 +45,13 @@
 <rect x="70" y="460" width="22" height="22" rx="5" fill="#F1F2F4" stroke="#8A9099" stroke-width="2"/>
 <text x="100" y="477" font-size="16" fill="#444">App</text>
 <rect x="154.5" y="460" width="22" height="22" rx="5" fill="#EAF7EE" stroke="#3FAE63" stroke-width="2"/>
-<text x="184.5" y="477" font-size="16" fill="#444">Key vault</text>
-<rect x="296.0" y="460" width="22" height="22" rx="5" fill="#EAF2FE" stroke="#5B8DEF" stroke-width="2"/>
-<text x="326.0" y="477" font-size="16" fill="#444">Accounts</text>
-<rect x="428.0" y="460" width="22" height="22" rx="5" fill="#F7F7F8" stroke="#B0B4BB" stroke-width="2"/>
-<text x="458.0" y="477" font-size="16" fill="#444">Homeserver</text>
-<path d="M593.0,471 L637.0,471" stroke="#444" stroke-width="2.4" marker-end="url(#ar)"/>
-<text x="647.0" y="477" font-size="16" fill="#444">request</text>
-<path d="M737.0,471 L781.0,471" stroke="#2E9A50" stroke-width="2.4" stroke-dasharray="8 6" marker-end="url(#ag)"/>
-<text x="791.0" y="477" font-size="16" fill="#444">result comes back</text>
+<text x="184.5" y="477" font-size="16" fill="#444">Account Vault</text>
+<rect x="334.0" y="460" width="22" height="22" rx="5" fill="#EAF2FE" stroke="#5B8DEF" stroke-width="2"/>
+<text x="364.0" y="477" font-size="16" fill="#444">Accounts</text>
+<rect x="466.0" y="460" width="22" height="22" rx="5" fill="#F7F7F8" stroke="#B0B4BB" stroke-width="2"/>
+<text x="496.0" y="477" font-size="16" fill="#444">Homeserver</text>
+<path d="M631.0,471 L675.0,471" stroke="#444" stroke-width="2.4" marker-end="url(#ar)"/>
+<text x="685.0" y="477" font-size="16" fill="#444">request</text>
+<path d="M775.0,471 L819.0,471" stroke="#2E9A50" stroke-width="2.4" stroke-dasharray="8 6" marker-end="url(#ag)"/>
+<text x="829.0" y="477" font-size="16" fill="#444">result comes back</text>
 </svg>

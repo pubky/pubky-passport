@@ -1,37 +1,46 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1260 676" width="1260" height="676" font-family="DejaVu Sans, Verdana, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1260 836" width="1260" height="836" font-family="DejaVu Sans, Verdana, sans-serif">
 <defs><marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#444"/></marker><marker id="ag" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#2E9A50"/></marker></defs>
-<rect width="1260" height="676" fill="#FFFFFF"/>
-<text x="70" y="62" font-size="30" font-weight="bold" fill="#111">Later: homeserver management in Passport</text>
-<text x="70" y="98" font-size="18" fill="#555">Passport becomes your front end to the homeserver and its Homegate: usage, more storage, mirror, backup, move</text>
-<text x="70" y="122" font-size="18" fill="#555">and authorized apps.</text>
+<rect width="1260" height="836" fill="#FFFFFF"/>
+<text x="70" y="62" font-size="30" font-weight="bold" fill="#111">Later: homeserver management in Accounts</text>
+<text x="70" y="98" font-size="18" fill="#555">Accounts is your front end to the homeserver and its Homegate. Usage and apps come through the Account Vault;</text>
+<text x="70" y="122" font-size="18" fill="#555">Mirror and Move need the key, so the Account Vault does them.</text>
 <path d="M188,320 L188,203 L512,203" fill="none" stroke="#444" stroke-width="2.4" marker-end="url(#ar)"/>
 <path d="M306,363 L512,363" fill="none" stroke="#444" stroke-width="2.4" marker-end="url(#ar)"/>
 <path d="M188,406 L188,523 L512,523" fill="none" stroke="#444" stroke-width="2.4" marker-end="url(#ar)"/>
 <path d="M748,523 L954,523" fill="none" stroke="#444" stroke-width="2.4" marker-end="url(#ar)"/>
-<rect x="70" y="320" width="236" height="86" rx="14" fill="#EAF7EE" stroke="#3FAE63" stroke-width="2.4"/>
-<text x="188" y="358" font-size="18" font-weight="bold" fill="#185C2E" text-anchor="middle">Passport</text>
-<text x="188" y="380" font-size="15.5" fill="#185C2E" text-anchor="middle">Your homeserver</text>
-<rect x="512" y="160" width="236" height="86" rx="14" fill="#F1F2F4" stroke="#8A9099" stroke-width="2.4"/>
-<text x="630" y="188" font-size="18" font-weight="bold" fill="#333A44" text-anchor="middle">Homeserver</text>
-<text x="630" y="209" font-size="15.5" fill="#333A44" text-anchor="middle">usage, authorized apps,</text>
-<text x="630" y="230" font-size="15.5" fill="#333A44" text-anchor="middle">export</text>
+<path d="M630,566 L630,683 L954,683" fill="none" stroke="#444" stroke-width="2.4" marker-end="url(#ar)"/>
+<rect x="70" y="320" width="236" height="86" rx="14" fill="#EAF2FE" stroke="#5B8DEF" stroke-width="2.4"/>
+<text x="188" y="358" font-size="18" font-weight="bold" fill="#1D3F8A" text-anchor="middle">Accounts</text>
+<text x="188" y="380" font-size="15.5" fill="#1D3F8A" text-anchor="middle">Your homeserver</text>
+<rect x="512" y="160" width="236" height="86" rx="14" fill="#F7F7F8" stroke="#B0B4BB" stroke-width="2.4"/>
+<text x="630" y="198" font-size="18" font-weight="bold" fill="#333A44" text-anchor="middle">Homeserver</text>
+<text x="630" y="220" font-size="15.5" fill="#333A44" text-anchor="middle">files, export</text>
 <rect x="512" y="320" width="236" height="86" rx="14" fill="#F3EDFC" stroke="#9A6BE0" stroke-width="2.4"/>
 <text x="630" y="348" font-size="18" font-weight="bold" fill="#4A2382" text-anchor="middle">Homegate</text>
 <text x="630" y="369" font-size="15.5" fill="#4A2382" text-anchor="middle">more storage, paid with</text>
 <text x="630" y="390" font-size="15.5" fill="#4A2382" text-anchor="middle">Lightning</text>
-<rect x="512" y="480" width="236" height="86" rx="14" fill="#F1F2F4" stroke="#8A9099" stroke-width="2.4"/>
-<text x="630" y="518" font-size="18" font-weight="bold" fill="#333A44" text-anchor="middle">Second homeserver</text>
-<text x="630" y="540" font-size="15.5" fill="#333A44" text-anchor="middle">mirror or move</text>
-<rect x="954" y="480" width="236" height="86" rx="14" fill="#FFFFFF" stroke="#B9BEC6" stroke-width="2.4"/>
-<text x="1072" y="508" font-size="18" font-weight="bold" fill="#222222" text-anchor="middle">Your pkarr record</text>
-<text x="1072" y="529" font-size="15.5" fill="#222222" text-anchor="middle">points to the new</text>
-<text x="1072" y="550" font-size="15.5" fill="#222222" text-anchor="middle">homeserver</text>
-<rect x="829" y="492" width="45" height="25" rx="6" fill="#FFFFFF" opacity="0.92"/>
-<text x="851" y="510" font-size="14.5" fill="#444" text-anchor="middle">move</text>
-<rect x="70" y="620" width="22" height="22" rx="5" fill="#EAF7EE" stroke="#3FAE63" stroke-width="2"/>
-<text x="100" y="637" font-size="16" fill="#444">Passport</text>
-<rect x="202.0" y="620" width="22" height="22" rx="5" fill="#F1F2F4" stroke="#8A9099" stroke-width="2"/>
-<text x="232.0" y="637" font-size="16" fill="#444">Homeserver</text>
-<rect x="353.0" y="620" width="22" height="22" rx="5" fill="#F3EDFC" stroke="#9A6BE0" stroke-width="2"/>
-<text x="383.0" y="637" font-size="16" fill="#444">Homegate</text>
+<rect x="512" y="480" width="236" height="86" rx="14" fill="#EAF7EE" stroke="#3FAE63" stroke-width="2.4"/>
+<text x="630" y="508" font-size="18" font-weight="bold" fill="#185C2E" text-anchor="middle">Account Vault</text>
+<text x="630" y="529" font-size="15.5" fill="#185C2E" text-anchor="middle">usage, apps; confirms</text>
+<text x="630" y="550" font-size="15.5" fill="#185C2E" text-anchor="middle">Mirror, Move</text>
+<rect x="954" y="480" width="236" height="86" rx="14" fill="#F7F7F8" stroke="#B0B4BB" stroke-width="2.4"/>
+<text x="1072" y="508" font-size="18" font-weight="bold" fill="#333A44" text-anchor="middle">Second homeserver</text>
+<text x="1072" y="529" font-size="15.5" fill="#333A44" text-anchor="middle">sign-up with your key,</text>
+<text x="1072" y="550" font-size="15.5" fill="#333A44" text-anchor="middle">copy</text>
+<rect x="954" y="640" width="236" height="86" rx="14" fill="#FFFFFF" stroke="#B9BEC6" stroke-width="2.4"/>
+<text x="1072" y="668" font-size="18" font-weight="bold" fill="#222222" text-anchor="middle">Your pkarr record</text>
+<text x="1072" y="689" font-size="15.5" fill="#222222" text-anchor="middle">points to the new</text>
+<text x="1072" y="710" font-size="15.5" fill="#222222" text-anchor="middle">homeserver</text>
+<rect x="796" y="492" width="110" height="25" rx="6" fill="#FFFFFF" opacity="0.92"/>
+<text x="851" y="510" font-size="14.5" fill="#444" text-anchor="middle">mirror, move</text>
+<rect x="770" y="652" width="45" height="25" rx="6" fill="#FFFFFF" opacity="0.92"/>
+<text x="792" y="670" font-size="14.5" fill="#444" text-anchor="middle">move</text>
+<rect x="70" y="780" width="22" height="22" rx="5" fill="#EAF2FE" stroke="#5B8DEF" stroke-width="2"/>
+<text x="100" y="797" font-size="16" fill="#444">Accounts</text>
+<rect x="202.0" y="780" width="22" height="22" rx="5" fill="#F7F7F8" stroke="#B0B4BB" stroke-width="2"/>
+<text x="232.0" y="797" font-size="16" fill="#444">Homeserver</text>
+<rect x="353.0" y="780" width="22" height="22" rx="5" fill="#F3EDFC" stroke="#9A6BE0" stroke-width="2"/>
+<text x="383.0" y="797" font-size="16" fill="#444">Homegate</text>
+<rect x="485.0" y="780" width="22" height="22" rx="5" fill="#EAF7EE" stroke="#3FAE63" stroke-width="2"/>
+<text x="515.0" y="797" font-size="16" fill="#444">Account Vault</text>
 </svg>
