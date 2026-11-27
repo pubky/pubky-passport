@@ -25,6 +25,16 @@ export type FakeAppleOptions = {
   records?: Map<string, StoredRecord>;
   homegate?: "ok" | "unavailable";
   closeAfterApple?: boolean;
+  /**
+   * iOS Safari: the window Passport hands from Sign in with Apple to iCloud closes before
+   * iCloud's page shows. Windows opened afterwards behave normally.
+   */
+  closeHandedOverWindow?: boolean;
+  /**
+   * Apple answers only once Passport has asked for its second iCloud sign-in URL, as when a
+   * person spends a few seconds in Apple's sheet. Without it this stand-in answers at once.
+   */
+  appleSheetTakesTime?: boolean;
   holdApple?: boolean;
   holdICloud?: boolean;
   icloudError?: "accessError" | "unknownError" | "window closed";
@@ -41,10 +51,19 @@ export async function installFakeApple(context: BrowserContext, options: FakeApp
   const homegateBodies: unknown[] = [];
   const cloudKitCalls: { url: string; body: unknown }[] = [];
   let changeTag = 0;
+  let handedOverWindowClosed = false;
 
   context.on("request", (request) => requests.push(request));
 
-  await context.route(`${APPLE_AUTHORIZE}?**`, (route) => {
+  await context.route(`${APPLE_AUTHORIZE}?**`, async (route) => {
+    if (options.appleSheetTakesTime) {
+      const signInUrlRequests = () =>
+        cloudKitCalls.filter((call) => !new URL(call.url).searchParams.has("ckWebAuthToken"));
+      for (let waited = 0; signInUrlRequests().length < 2 && waited < 5_000; waited += 50) {
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+      await new Promise((resolve) => setTimeout(resolve, 150));
+    }
     const request = new URL(route.request().url());
     const now = Math.floor(Date.now() / 1000);
     const encode = (value: unknown) => Buffer.from(JSON.stringify(value)).toString("base64url");
@@ -86,18 +105,23 @@ export async function installFakeApple(context: BrowserContext, options: FakeApp
         : `<!doctype html><script>opener.postMessage(${JSON.stringify(JSON.stringify(message))}, "*");${options.closeAfterApple ? "close();" : ""}</script>`,
     });
   });
-  await context.route("https://idmsa.apple.com/**", (route) =>
-    route.fulfill({
+  await context.route("https://idmsa.apple.com/**", (route) => {
+    const closeNow = options.closeHandedOverWindow === true && !handedOverWindowClosed;
+    handedOverWindowClosed = true;
+    return route.fulfill({
       contentType: "text/html",
-      body: '<!doctype html><script>location.replace("https://cdn.apple-cloudkit.com/ck-auth/?stub=1")</script>',
-    }),
-  );
+      body: closeNow
+        ? "<!doctype html><script>close()</script>"
+        : '<!doctype html><script>location.replace("https://cdn.apple-cloudkit.com/ck-auth/?stub=1")</script>',
+    });
+  });
+  // Like Apple's page, this one posts the session and closes itself in the same step.
   await context.route("https://cdn.apple-cloudkit.com/ck-auth/**", (route) =>
     route.fulfill({
       contentType: "text/html",
       body: options.holdICloud
         ? "<!doctype html><h1>Allow iCloud</h1>"
-        : `<!doctype html><script>setTimeout(() => { opener.postMessage(${JSON.stringify(options.icloudError ? { errorMessage: options.icloudError } : { ckSession: CLOUDKIT_SESSION })}, "*"); ${options.icloudError ? "" : "setTimeout(() => close(), 50);"} }, 400);</script>`,
+        : `<!doctype html><script>setTimeout(() => { opener.postMessage(${JSON.stringify(options.icloudError ? { errorMessage: options.icloudError } : { ckSession: CLOUDKIT_SESSION })}, "*"); ${options.icloudError ? "" : "close();"} }, 400);</script>`,
     }),
   );
   await context.route("https://api.apple-cloudkit.com/**", async (route) => {

@@ -87,7 +87,10 @@ type Operation =
   | { kind: "detach"; publicIdentity: PubkyPublicIdentity; expectedAppleSubject: string };
 
 type Connection = Pick<ICloudConnection, "prepare" | "connect" | "dispose"> &
-  Partial<Pick<ICloudConnection, "focusPopup" | "cancel">>;
+  Partial<Pick<ICloudConnection, "focusPopup" | "cancel" | "isPrepared" | "hasOpenWindow">>;
+
+/** What became of the window after Sign in with Apple; see {@link AppleIdentityController}. */
+type Handoff = "same_window" | "window_closed" | "blocked";
 
 type Lifecycle = Pick<
   AppleIdentityLifecycle,
@@ -131,7 +134,9 @@ const CREDENTIAL_EXPIRY_MARGIN_MS = 30_000;
  *    page's memory and only talks to Apple, then reads, creates or deletes the encrypted record.
  *
  * The first click opens one window. A validated Apple reply hands it to iCloud synchronously.
- * If that window cannot be reused, the user can continue from the second-step screen.
+ * If that window cannot be reused, the user can continue from the second-step screen. iOS
+ * Safari closes the window when its own Apple sheet is done, so there the second step is the
+ * normal path: it shows at once, ready and without a notice, because nothing went wrong.
  */
 export class AppleIdentityController {
   private readonly signInWithApple: Pick<SignInWithApple, "signIn"> &
@@ -209,7 +214,7 @@ export class AppleIdentityController {
     if (!this.hasFreshCredentials()) return this.startWithApple(this.operation);
     this.busy = true;
     const connected = connection.connect();
-    this.publish({ status: "connecting-icloud" });
+    if (connection.hasOpenWindow?.() ?? true) this.publish({ status: "connecting-icloud" });
     return this.finishConnect(connected);
   }
 
@@ -229,14 +234,14 @@ export class AppleIdentityController {
     this.connection?.cancel?.();
   }
 
-  private prewarmICloud(): void {
+  private prewarmICloud(options?: { spare: boolean }): void {
     if (this.disposed) return;
     const connection =
       this.connection ??
       this.dependencies.createICloudConnection?.() ??
       new ICloudConnection(this.configuration.icloud);
     this.connection = connection;
-    void connection.prepare();
+    void connection.prepare(options);
   }
 
   /** Returns to idle so a new attempt can use a different Apple Account. */
@@ -285,13 +290,14 @@ export class AppleIdentityController {
       this.connection = undefined;
     }
     this.database = undefined;
-    this.prewarmICloud();
+    // Apple's window takes one iCloud sign-in URL; the spare keeps the second step ready.
+    this.prewarmICloud({ spare: true });
     this.handoff = undefined;
     const signedIn = this.signInWithApple.signIn((popup, credentials) => {
+      const connection = this.connection;
       if (
         this.disposed ||
-        !this.connection ||
-        popup.closed ||
+        !connection ||
         credentials.expiresAt <= Date.now() + CREDENTIAL_EXPIRY_MARGIN_MS
       )
         return false;
@@ -300,9 +306,14 @@ export class AppleIdentityController {
         credentials.appleSubject !== operation.expectedAppleSubject
       )
         return false;
+      if (popup.closed) {
+        this.logHandoff("window_closed");
+        return false;
+      }
       this.credentials = this.rememberName(credentials);
-      this.handoff = this.connection.connect(popup);
-      this.publish({ status: "connecting-icloud" });
+      this.handoff = connection.connect(popup);
+      // No "Finish in Apple's window" for a window that could not be handed over at all.
+      if (connection.hasOpenWindow?.() ?? true) this.publish({ status: "connecting-icloud" });
       return true;
     });
     this.publish({ status: "requesting-apple" });
@@ -334,7 +345,7 @@ export class AppleIdentityController {
         }
         return this.fail({ code: "apple_session_expired" });
       }
-      if (this.handoff) return await this.finishConnect(this.handoff);
+      if (this.handoff) return await this.finishConnect(this.handoff, true);
       return await this.prepareICloud();
     } catch (e) {
       return this.unexpected("sign_in_with_apple", e);
@@ -353,6 +364,11 @@ export class AppleIdentityController {
       this.dependencies.createICloudConnection?.() ??
       new ICloudConnection(this.configuration.icloud);
     this.connection = connection;
+    if (connection.isPrepared?.()) {
+      // A sign-in URL is waiting, so the button works at once: no "Preparing iCloud…".
+      this.publish({ status: "connect-icloud", ready: true, notice });
+      return Result.ok();
+    }
     this.publish({ status: "connect-icloud", ready: false, notice });
     const prepared = await connection.prepare();
     if (this.disposed || this.connection !== connection) return Result.err({ code: "cancelled" });
@@ -364,16 +380,25 @@ export class AppleIdentityController {
     return Result.ok();
   }
 
+  /** @param handedOver The window is the one Sign in with Apple used. */
   private async finishConnect(
     connected: ReturnType<ICloudConnection["connect"]>,
+    handedOver = false,
   ): Promise<ResultType<void, AppleIdentityViewError>> {
     try {
       const database = await connected;
       if (this.disposed) return Result.err({ code: "cancelled" });
       if (Result.isError(database)) {
         const { code } = database.error;
+        if (code === "icloud_handoff_lost" || code === "icloud_handoff_blocked") {
+          // The browser took Apple's window away. The person did nothing wrong: show the
+          // second step as usual, without the "window was closed" notice.
+          this.logHandoff(code === "icloud_handoff_lost" ? "window_closed" : "blocked");
+          return await this.prepareICloud();
+        }
         return await this.prepareICloud(code);
       }
+      if (handedOver) this.logHandoff("same_window");
       this.database = database.value;
       return await this.runOperation();
     } catch (e) {
@@ -545,6 +570,14 @@ export class AppleIdentityController {
       ...safeErrorLogFields(e),
     });
     return this.fail({ code: "operation_failed" });
+  }
+
+  /**
+   * Which path the step from Apple to iCloud took, for reading a device test from the logs. A
+   * fixed enum only: never URLs, tokens, subjects or emails.
+   */
+  private logHandoff(path: Handoff): void {
+    LOGGER.info("identity.apple.handoff", { path });
   }
 
   /** Releases the busy flag; a lifecycle disposed mid-operation is released once it settles. */

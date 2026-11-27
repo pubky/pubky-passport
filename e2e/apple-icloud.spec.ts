@@ -40,6 +40,37 @@ async function expectNoAppleButtonLogo(page: Page) {
   expect(await page.locator("body").textContent()).not.toContain("\uF8FF");
 }
 
+/**
+ * Counts the person's clicks in Passport's page, and notes whether the page ever showed the
+ * texts of a wait or of a blamed person. Apple's own windows are stand-ins without buttons.
+ */
+async function watchPassportPage(page: Page) {
+  await page.addInitScript(() => {
+    const seen = { clicks: 0, preparing: false, closedNotice: false };
+    Object.assign(window, { __passportSeen: seen });
+    window.addEventListener("click", () => seen.clicks++, true);
+    const read = () => {
+      const text = document.body?.textContent ?? "";
+      seen.preparing ||= text.includes("Preparing iCloud");
+      seen.closedNotice ||= text.includes("window was closed");
+    };
+    new MutationObserver(read).observe(document, {
+      childList: true,
+      subtree: true,
+      characterData: true,
+    });
+  });
+  return () =>
+    page.evaluate(
+      () =>
+        (
+          window as unknown as {
+            __passportSeen: { clicks: number; preparing: boolean; closedNotice: boolean };
+          }
+        ).__passportSeen,
+    );
+}
+
 async function expectNoAccessibilityViolations(page: Page) {
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
 }
@@ -49,6 +80,7 @@ test("a new user signs in with Apple, connects iCloud, and tokens only go where 
   page,
 }, testInfo) => {
   const apple = await installFakeApple(context);
+  const seen = await watchPassportPage(page);
   await page.goto("/");
 
   await expect(page.getByText(/Use your existing accounts/u)).toBeVisible();
@@ -99,16 +131,20 @@ test("a new user signs in with Apple, connects iCloud, and tokens only go where 
   // encryption and writes nothing; the record's shape is covered by the store's unit tests.
   await expect(page.getByText(/could not encrypt it for iCloud/u)).toBeVisible();
   expect(apple.records.size).toBe(0);
+  // One click in Passport did both Apple sign-ins, in one window.
+  expect(await seen()).toEqual({ clicks: 1, preparing: false, closedNotice: false });
+  // Two sign-in URLs (the second is the spare the click asks for), then the session.
   expect(apple.cloudKitCalls.map((call) => new URL(call.url).pathname)).toEqual([
+    "/database/1/iCloud.app.pubky.passport.e2e/development/public/users/caller",
     "/database/1/iCloud.app.pubky.passport.e2e/development/public/users/caller",
     "/database/1/iCloud.app.pubky.passport.e2e/development/public/users/caller",
     "/database/1/iCloud.app.pubky.passport.e2e/development/private/records/lookup",
   ]);
 
   // The CloudKit session only ever travelled to Apple's CloudKit host, never the forged one.
-  for (const call of apple.cloudKitCalls.slice(1)) {
-    expect(new URL(call.url).searchParams.get("ckWebAuthToken")).toBe(CLOUDKIT_SESSION);
-  }
+  expect(
+    apple.cloudKitCalls.map((call) => new URL(call.url).searchParams.get("ckWebAuthToken")),
+  ).toEqual([null, null, CLOUDKIT_SESSION, CLOUDKIT_SESSION]);
   const elsewhere = sentOutsideCloudKit(apple.requests);
   expect(elsewhere).not.toContain(CLOUDKIT_SESSION);
   expect(elsewhere).not.toContain("FORGED-SESSION");
@@ -146,6 +182,52 @@ test("a new user signs in with Apple, connects iCloud, and tokens only go where 
     expect(everything).not.toContain(encodeURIComponent(value));
   }
 });
+
+for (const [name, options] of [
+  // Safari closes the window while Passport sends it on to iCloud.
+  ["right after the handoff", { closeHandedOverWindow: true }],
+  // Safari has closed the window by the time Apple's reply reaches Passport.
+  ["before Apple's reply is read", { closeAfterApple: true }],
+] as const) {
+  test(`iPhone: Apple's window closes ${name}; iCloud is ready at once and one more click finishes`, async ({
+    context,
+    page,
+  }) => {
+    const apple = await installFakeApple(context, { ...options, appleSheetTakesTime: true });
+    const seen = await watchPassportPage(page);
+    await page.goto("/");
+    const continueWithApple = page.getByRole("button", { name: "Continue with Apple" });
+    await expect(continueWithApple).toBeEnabled();
+
+    const opened = page.waitForEvent("popup");
+    await continueWithApple.click();
+    const appleWindow = await opened;
+    if (!appleWindow.isClosed()) await appleWindow.waitForEvent("close");
+
+    // No dead "Finish in Apple's window" screen: the second step shows well inside the 5 s a
+    // closed window used to cost, with its button ready and nothing blaming the person.
+    const secondStep = page.getByRole("heading", { name: "Signed in with Apple. One more step." });
+    await expect(secondStep).toBeVisible({ timeout: 3_000 });
+    await expect(continueWithApple).toBeEnabled({ timeout: 1 });
+    await expect(page.getByRole("main").getByRole("alert")).toHaveCount(0);
+    expect(await seen()).toEqual({ clicks: 1, preparing: false, closedNotice: false });
+
+    // One more click opens iCloud's page directly, and setup runs.
+    const icloudWindow = page.waitForEvent("popup");
+    await continueWithApple.click();
+    await icloudWindow;
+    // As in the first test, setup on this HTTP test server stops at encryption.
+    await expect(page.getByText(/could not encrypt it for iCloud/u)).toBeVisible();
+    expect(await seen()).toEqual({ clicks: 2, preparing: false, closedNotice: false });
+    expect(context.pages().filter((candidate) => candidate !== page)).toHaveLength(0);
+    expect(apple.cloudKitCalls.at(-1)?.url).toContain("/private/records/lookup");
+    expect(
+      apple.cloudKitCalls.filter(
+        (call) => new URL(call.url).searchParams.get("ckWebAuthToken") === CLOUDKIT_SESSION,
+      ),
+    ).toHaveLength(2);
+  });
+}
 
 test("an iCloud record from another Apple Account is reported, not decrypted", async ({
   context,
