@@ -44,7 +44,7 @@ Browsers keep storage per host, so the Account Vault needs its own host; another
 
 ![Account Vault and Accounts: who holds what](images/0002-17-key-vault-overview.png)
 
-**Same screens.** The sign-in and sign-up pop-up stays on `passport.pubky.app`, as today. Profile, files and homeserver tools open on `accounts.pubky.app` with the same screens and clicks. Actions that need the key switch the tab to the Account Vault for one confirm screen, then come back: Move, Mirror, the recovery phrase, move to Ring, attach Google or Apple, remove an identity. Move gets one more click.
+**Same screens.** The sign-in and sign-up pop-up stays on `passport.pubky.app`, as today. Profile, files and homeserver tools open on `accounts.pubky.app` with the same screens and clicks. Actions that need the key switch the tab to the Account Vault for one screen, then come back: authorized apps, Move, Mirror, the recovery phrase, move to Ring, attach or detach Google or Apple, log out. Move gets one more click.
 
 ![Demo: edit profile on Accounts](images/0002-20-demo-key-vault-edit.gif)
 
@@ -62,7 +62,7 @@ Browsers keep storage per host, so the Account Vault needs its own host; another
 - Everything else needs a click on a full Account Vault page that no other site can frame: grants for other apps, the Dashboard's parent grant, root, homeserver sign-up and record, export.
 - Never sent to Accounts: the key, the recovery phrase, the wrapping key, Google and Apple tokens.
 
-**Bridge.** A hidden Account Vault page that only `accounts.pubky.app` can frame. It returns public keys, storage use and the grant list, signs Accounts' own grant, and revokes apps. It has no buttons and never opens Google or Apple sign-in. Both hosts are one site, so browsers don't split its storage the way they would for a vault framed inside another site.
+**Bridge.** A hidden Account Vault page that only `accounts.pubky.app` can frame. It returns public keys, key location and backup, storage use and the app list, and signs Accounts' own grant. It changes nothing else: revoking an app, log out and every key action open a vault page. It has no buttons and never opens Google or Apple sign-in. Both hosts are one site, so browsers don't split its storage the way they would for a vault framed inside another site.
 
 **What it stops.** A bug or bad dependency on Accounts gets at most a revocable `/pub/` + `/priv/` grant. It can't take the key, sign for other apps or move your homeserver. It doesn't help if the Account Vault itself is compromised, so the Account Vault stays small and never shows content other apps wrote.
 
@@ -73,6 +73,30 @@ Browsers keep storage per host, so the Account Vault needs its own host; another
 - **Needs:** host routing, the bridge, the signing rules. Google and Apple stay registered for `passport.pubky.app` only.
 - **Benefits:** the key never shares a site with profile, files or homeserver tools. The Account Vault stays a small signer.
 - **Tradeoffs:** one more hostname to run. Key actions started in Accounts switch sites for one screen. The bridge still needs a check in Chrome, Firefox, Safari and Brave, including private modes.
+
+### Moving between Accounts and the Account Vault
+
+Accounts is the overview. The Account Vault opens only for actions that need the key, always for one pubky.
+
+- **Direct visits:** `passport.pubky.app/` redirects to Accounts. The vault keeps the sign-in pop-up, the action pages and the bridge.
+- **Your pubkys:** Accounts lists every pubky it can reach. Name and picture come from the profile; key location (this browser or Ring) and backup (Google Drive, iCloud or none) come from the bridge. Pubkys with the key in Ring come from a Dashboard child grant or a Ring grant. Add a pubky opens the same vault pop-up apps use.
+- **One pubky:** profile, homeserver and the app list are on Accounts. Rows that need the key carry an Account Vault tag.
+- **Action links:** such a row sends the same tab to `passport.pubky.app/i/<pubky>/<action>?return=<Accounts path>`, with the actions `apps`, `phrase`, `ring`, `attach`, `detach`, `logout`, `move` and `mirror`. The vault page names the pubky and says it was opened from Accounts. Back and Done go to the return path, which must be on the paired Accounts host. The vault sends no result back; Accounts reads the new state through the bridge.
+- **Authorized apps:** Accounts shows the list. Manage opens the vault on that pubky's apps, with today's app dialog and Revoke.
+- **Log out:** on the vault. The key leaves this browser, Accounts' grant for that pubky is revoked and the vault's own sessions end. The Dashboard and apps keep their grants. With no backup, the page asks for one first.
+- **Detach from Google or Apple:** today's steps plus one optional box, off by default: "Also log out of this browser". Ticked, Remove also logs out as above, so Accounts is signed out of that pubky too.
+- **Attach Google or Apple:** today's attach screen on the vault, then back to Accounts.
+- **Key in Ring:** listing and revoking apps need root, so the vault asks Ring for a short root grant by QR (open: Ring support). Log out runs on Accounts alone: it revokes Accounts' own grant, and the key stays in Ring.
+
+![Demo: manage one pubky's apps](images/0002-23-demo-key-vault-apps.gif)
+
+![Demo: detach from Google and log out](images/0002-24-demo-key-vault-detach.gif)
+
+Every screen and the button that leads to it, for design:
+
+![Screen map: Accounts and the Account Vault](images/0002-25-key-vault-screen-map.png)
+
+Clickable version of the same screens: [prototype](https://8120--main--hermes-main--gil.coder.riginode.xyz/accounts-vault-screens/) (draft, mockup).
 
 ## Core features
 
@@ -178,7 +202,7 @@ Lower priority. These run on Accounts:
 - **Mirror:** keep a copy on a second homeserver.
 - **Export:** download all your files.
 - **Move:** switch homeservers and update your pkarr record.
-- **Authorized apps:** list and revoke them (done for keys in the browser).
+- **Authorized apps:** the list on Accounts, Revoke on the Account Vault (done for keys in the browser).
 - **Key protection:** a PIN or passkey on the Account Vault.
 
 Storage use and the app list come through the bridge. Mirror, Move and key protection need the key, so they confirm on the Account Vault.
