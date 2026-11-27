@@ -30,6 +30,14 @@ Passport keeps the key in the browser storage of `passport.pubky.app`. Profile, 
 - **Account management** (`accounts.pubky.app`, proposed name Pubky Accounts): profile editing, files and homeserver tools, with a `/pub/` + `/priv/` grant the key vault signs. It never sees the key, the recovery phrase or a Google or Apple token.
 - **Pubky Dashboard** (`dashboard.pubky.app`): today's Pubky Accounts under a new name, for the suite.
 
+**Proposed names.** Passport now does more than sign: it signs you up and manages your pubky. Pubky Accounts is really the suite's overview. The names should say what each site does:
+
+- **Pubky Account Vault** (`passport.pubky.app`, today's Passport): holds your keys and signs. This section calls it the key vault. It could later move to `vault.accounts.pubky.app`, but existing keys and backups would have to move with it, because both are tied to the Passport address.
+- **Pubky Accounts** (`accounts.pubky.app`, new): where you manage your pubkys: identities, profile, files and homeserver. Plural, because it holds several pubkys. This section calls it account management.
+- **Pubky Dashboard** (`dashboard.pubky.app`, today's Pubky Accounts): the suite's overview. It holds the parent grant and signs suite apps in.
+
+Apps don't change: they still link the vault, and the SDK default stays `passport.pubky.app`.
+
 Browsers keep storage per host, so the key vault needs its own host; another path on the same host shares the storage. Both hosts sit under `pubky.app`, which browsers treat as one site.
 
 ![Key vault: who holds what](images/0002-17-key-vault-overview.png)
@@ -180,12 +188,12 @@ With the key vault split, these run on account management. Storage use and the a
 ## Terms
 
 - **Mobile Signer:** Pubky Ring or Bitkit.
-- **Passport:** the Signer that runs in the browser. With the key vault split, the key vault is Passport.
+- **Passport:** the Signer that runs in the browser. With the key vault split, it becomes Pubky Account Vault.
 - **Pubky Accounts:** today, the shared sign-in site for the Pubky suite. With the key vault split, it becomes Pubky Dashboard and the name moves to account management.
 - **Parent and child grant:** one approval that lets Accounts act for you, and the per-app grants Accounts signs.
 - **SSO provider:** Google or Apple, which also stores your encrypted backup.
 - **Wrapping key (backup key):** unlocks your backup; Homegate's Google or Apple module derives it after checking your sign-in with that provider.
-- **Key vault:** `passport.pubky.app` when Passport is split; the only site that holds the key.
-- **Account management:** `accounts.pubky.app` when Passport is split (proposed name Pubky Accounts); profile, files and homeserver tools with a grant.
+- **Pubky Account Vault (key vault):** proposed name for Passport when it's split; `passport.pubky.app`, the only site that holds the key.
+- **Account management:** `accounts.pubky.app` when Passport is split (proposed name Pubky Accounts); identities, profile, files and homeserver tools with a grant.
 - **Pubky Dashboard:** proposed new name for Pubky Accounts at `dashboard.pubky.app`.
 - **Homegate:** the optional service in front of a homeserver that checks new users and hands out sign-up codes.
