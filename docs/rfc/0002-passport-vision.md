@@ -180,8 +180,8 @@ With the key vault split, these run on account management. Storage use and the a
 ## Terms
 
 - **Mobile Signer:** Pubky Ring or Bitkit.
-- **Passport:** the Signer that runs in the browser.
-- **Pubky Accounts:** the shared sign-in site for the Pubky suite.
+- **Passport:** the Signer that runs in the browser. With the key vault split, the key vault is Passport.
+- **Pubky Accounts:** today, the shared sign-in site for the Pubky suite. With the key vault split, it becomes Pubky Dashboard and the name moves to account management.
 - **Parent and child grant:** one approval that lets Accounts act for you, and the per-app grants Accounts signs.
 - **SSO provider:** Google or Apple, which also stores your encrypted backup.
 - **Wrapping key (backup key):** unlocks your backup; Homegate's Google or Apple module derives it after checking your sign-in with that provider.
