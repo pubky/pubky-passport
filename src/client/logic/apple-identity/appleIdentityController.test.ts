@@ -150,6 +150,215 @@ describe("AppleIdentityController", () => {
     });
   });
 
+  describe("when the browser takes Apple's window away (iOS Safari)", () => {
+    /** Runs Sign in with Apple and offers `popup` for the handoff, like the real class. */
+    function handOver(signIn: ReturnType<typeof setup>["signIn"], popup: Window) {
+      let handedOver: boolean | undefined;
+      signIn.mockImplementationOnce(async (...args) => {
+        const continueInPopup = (
+          args as unknown as [(popup: Window, credentials: AppleIdentityCredentials) => boolean]
+        )[0];
+        const credentials = Result.ok<AppleIdentityCredentials>({
+          appleIdToken: ID_TOKEN,
+          appleSubject: SUBJECT,
+          email: EMAIL,
+          name: NAME,
+          expiresAt: Date.now() + 600_000,
+        });
+        handedOver = continueInPopup(popup, credentials.value);
+        return credentials;
+      });
+      return () => handedOver;
+    }
+
+    it.each([
+      ["icloud_handoff_lost", "window_closed"],
+      ["icloud_handoff_blocked", "blocked"],
+    ] as const)(
+      "shows the ready second step without a notice after %s, then finishes on the next click",
+      async (code, path) => {
+        const info = vi.spyOn(LOGGER, "info").mockImplementation(() => undefined);
+        const isPrepared = vi.fn(() => true);
+        const { connection, controller, signIn, states } = setup();
+        Object.assign(connection, { isPrepared });
+        connection.connect.mockResolvedValueOnce(Result.err({ code }));
+        const popup = { closed: false } as Window;
+        const handedOver = handOver(signIn, popup);
+
+        expectResultOk(await controller.continueWithApple());
+
+        expect(handedOver()).toBe(true);
+        expect(connection.connect).toHaveBeenCalledExactlyOnceWith(popup);
+        // The normal step 2: ready, and no "window was closed" notice.
+        expect(controller.getState()).toEqual({ status: "connect-icloud", ready: true });
+        // Never the "Preparing iCloud…" state on the way there.
+        expect(states).not.toContainEqual(expect.objectContaining({ ready: false }));
+        expect(info).toHaveBeenCalledWith("identity.apple.handoff", { path });
+
+        expectResultOk(await controller.connectICloud());
+        expect(connection.connect).toHaveBeenLastCalledWith();
+        expect(controller.getState().status).toBe("established");
+        expect(info.mock.calls.filter(([event]) => event === "identity.apple.handoff")).toEqual([
+          ["identity.apple.handoff", { path }],
+        ]);
+      },
+    );
+
+    it.each([
+      ["attach", "attached"],
+      ["detach", "detached"],
+    ] as const)("finishes a %s on the next click after a lost handoff", async (kind, done) => {
+      vi.spyOn(LOGGER, "info").mockImplementation(() => undefined);
+      const { connection, controller, lifecycle, signIn } = setup();
+      Object.assign(connection, { isPrepared: () => true });
+      connection.connect.mockResolvedValueOnce(Result.err({ code: "icloud_handoff_lost" }));
+      handOver(signIn, { closed: false } as Window);
+
+      expectResultOk(
+        await (kind === "attach"
+          ? controller.attachIdentity(PUBLIC_IDENTITY)
+          : controller.detachIdentity(PUBLIC_IDENTITY, SUBJECT)),
+      );
+      expect(controller.getState()).toEqual({ status: "connect-icloud", ready: true });
+      expect(lifecycle.attachIdentity).not.toHaveBeenCalled();
+      expect(lifecycle.detachIdentity).not.toHaveBeenCalled();
+
+      expectResultOk(await controller.connectICloud());
+      expect(controller.getState().status).toBe(done);
+      expect(signIn).toHaveBeenCalledOnce();
+    });
+
+    it("does not hand over a window that is already closed, and shows the ready second step", async () => {
+      const info = vi.spyOn(LOGGER, "info").mockImplementation(() => undefined);
+      const { connection, controller, signIn, states } = setup();
+      Object.assign(connection, { isPrepared: () => true });
+      const handedOver = handOver(signIn, { closed: true } as Window);
+
+      expectResultOk(await controller.continueWithApple());
+
+      expect(handedOver()).toBe(false);
+      expect(connection.connect).not.toHaveBeenCalled();
+      expect(states.map((state) => state.status)).toEqual(["requesting-apple", "connect-icloud"]);
+      expect(controller.getState()).toEqual({ status: "connect-icloud", ready: true });
+      expect(info).toHaveBeenCalledWith("identity.apple.handoff", { path: "window_closed" });
+    });
+
+    it("never shows the waiting screen for a window that closed during the handoff", async () => {
+      vi.spyOn(LOGGER, "info").mockImplementation(() => undefined);
+      const { connection, controller, signIn, states } = setup();
+      Object.assign(connection, { isPrepared: () => true, hasOpenWindow: () => false });
+      connection.connect.mockResolvedValueOnce(Result.err({ code: "icloud_handoff_lost" }));
+      handOver(signIn, { closed: false } as Window);
+
+      expectResultOk(await controller.continueWithApple());
+
+      expect(states.map((state) => state.status)).toEqual(["requesting-apple", "connect-icloud"]);
+    });
+
+    it("keeps the notice when the person closed iCloud's window themselves", async () => {
+      const info = vi.spyOn(LOGGER, "info").mockImplementation(() => undefined);
+      const { connection, controller, signIn } = setup();
+      Object.assign(connection, { isPrepared: () => true });
+      connection.connect.mockResolvedValueOnce(Result.err({ code: "icloud_sign_in_cancelled" }));
+      handOver(signIn, { closed: false } as Window);
+
+      expectResultOk(await controller.continueWithApple());
+
+      expect(controller.getState()).toEqual({
+        status: "connect-icloud",
+        ready: true,
+        notice: "icloud_sign_in_cancelled",
+      });
+      expect(info).not.toHaveBeenCalledWith("identity.apple.handoff", expect.anything());
+    });
+
+    it("says Preparing only when no sign-in URL is waiting", async () => {
+      vi.spyOn(LOGGER, "info").mockImplementation(() => undefined);
+      const { connection, controller, signIn, states } = setup();
+      Object.assign(connection, { isPrepared: () => false });
+      connection.connect.mockResolvedValueOnce(Result.err({ code: "icloud_handoff_lost" }));
+      handOver(signIn, { closed: false } as Window);
+
+      expectResultOk(await controller.continueWithApple());
+
+      expect(states.slice(-2)).toEqual([
+        { status: "connect-icloud", ready: false },
+        { status: "connect-icloud", ready: true },
+      ]);
+    });
+
+    it("logs the same window when iCloud's session came through Apple's window", async () => {
+      const info = vi.spyOn(LOGGER, "info").mockImplementation(() => undefined);
+      const { controller, signIn } = setup();
+      handOver(signIn, { closed: false } as Window);
+
+      expectResultOk(await controller.continueWithApple());
+
+      expect(controller.getState().status).toBe("established");
+      expect(info.mock.calls.filter(([event]) => event === "identity.apple.handoff")).toEqual([
+        ["identity.apple.handoff", { path: "same_window" }],
+      ]);
+      // A fixed enum only: no token, subject, email or name in any log line.
+      const logged = JSON.stringify(info.mock.calls);
+      for (const secret of [ID_TOKEN, SUBJECT, EMAIL, NAME]) expect(logged).not.toContain(secret);
+    });
+
+    it("does not log a handoff for the click on the second step", async () => {
+      const info = vi.spyOn(LOGGER, "info").mockImplementation(() => undefined);
+      const { controller } = setup();
+      await controller.continueWithApple();
+      expectResultOk(await controller.connectICloud());
+      expect(info).not.toHaveBeenCalledWith("identity.apple.handoff", expect.anything());
+    });
+
+    it("asks for a spare iCloud sign-in URL when Sign in with Apple starts, not before", async () => {
+      const { connection, controller } = setup();
+      expect(connection.prepare.mock.calls).toEqual([[undefined]]);
+      await controller.continueWithApple();
+      expect(connection.prepare).toHaveBeenCalledWith({ spare: true });
+    });
+
+    it("still refuses a detach with another Apple Account before any handoff", async () => {
+      vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+      const info = vi.spyOn(LOGGER, "info").mockImplementation(() => undefined);
+      const { connection, controller, signIn } = setup();
+      const handedOver = handOver(signIn, { closed: true } as Window);
+
+      expectResultError(await controller.detachIdentity(PUBLIC_IDENTITY, "000000.other.0000"), {
+        code: "apple_account_mismatch",
+      });
+
+      expect(handedOver()).toBe(false);
+      expect(connection.connect).not.toHaveBeenCalled();
+      expect(info).not.toHaveBeenCalledWith("identity.apple.handoff", expect.anything());
+    });
+
+    it("drops the Apple token when disposed while the lost handoff settles", async () => {
+      vi.spyOn(LOGGER, "info").mockImplementation(() => undefined);
+      let settle!: (result: Awaited<ReturnType<ICloudConnection["connect"]>>) => void;
+      const { connection, controller, lifecycle, signIn, states } = setup();
+      connection.connect.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            settle = resolve;
+          }),
+      );
+      handOver(signIn, { closed: false } as Window);
+
+      const started = controller.continueWithApple();
+      await vi.waitFor(() => expect(connection.connect).toHaveBeenCalledOnce());
+      controller.dispose();
+      settle(Result.err({ code: "icloud_handoff_lost" }));
+
+      expectResultError(await started, { code: "cancelled" });
+      expect(connection.dispose).toHaveBeenCalledOnce();
+      // Nothing is published after dispose: no second step for a controller that is gone.
+      expect(states.map((state) => state.status)).not.toContain("connect-icloud");
+      expectResultError(await controller.connectICloud(), { code: "operation_failed" });
+      expect(lifecycle.establishIdentity).not.toHaveBeenCalled();
+    });
+  });
+
   it("never puts the Apple ID token or the CloudKit database into UI state", async () => {
     const { controller, states } = setup();
     await controller.continueWithApple();

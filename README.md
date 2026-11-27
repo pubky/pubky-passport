@@ -72,9 +72,10 @@ Two Apple steps, normally in one window opened by a single click:
    only goes to Apple's CloudKit API; Passport's server never receives it, so it cannot read the
    file.
 
-If Apple or the browser closes the first window before handoff, Passport shows **Step 2 of 2**
-with the same **Continue with Apple** button to open iCloud. Links refresh before expiry and on
-return to the page; a suspended page can refresh inside the window opened by the click.
+If the browser closes the first window, as iOS Safari does when its own Apple sheet is done,
+Passport shows **Step 2 of 2** at once, with the same **Continue with Apple** button to open
+iCloud. Passport keeps a spare iCloud sign-in link for that click. Links refresh before expiry
+and on return to the page; a suspended page can refresh inside the window opened by the click.
 
 No Apple script runs on Passport's pages: both sign-ins are Apple pages in a popup that answers
 with `postMessage`, and Passport calls the CloudKit web API itself. Apple login is off unless
