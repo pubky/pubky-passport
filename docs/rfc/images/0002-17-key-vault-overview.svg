@@ -44,9 +44,9 @@
 <rect x="1055" y="393" width="78" height="44" rx="6" fill="#FFFFFF" opacity="0.92"/>
 <text x="1094" y="411" font-size="14.5" fill="#444" text-anchor="middle">sign-up,</text>
 <text x="1094" y="430" font-size="14.5" fill="#444" text-anchor="middle">record</text>
-<rect x="941" y="341" width="69" height="44" rx="6" fill="#FFFFFF" opacity="0.92"/>
-<text x="947" y="359" font-size="14.5" fill="#444" text-anchor="start">bridge,</text>
-<text x="947" y="378" font-size="14.5" fill="#444" text-anchor="start">confirm</text>
+<rect x="856" y="341" width="69" height="44" rx="6" fill="#FFFFFF" opacity="0.92"/>
+<text x="862" y="359" font-size="14.5" fill="#444" text-anchor="start">bridge,</text>
+<text x="862" y="378" font-size="14.5" fill="#444" text-anchor="start">confirm</text>
 <rect x="1142" y="492" width="110" height="25" rx="6" fill="#FFFFFF" opacity="0.92"/>
 <text x="1197" y="510" font-size="14.5" fill="#444" text-anchor="middle">/pub + /priv</text>
 <rect x="70" y="620" width="22" height="22" rx="5" fill="#F1F2F4" stroke="#8A9099" stroke-width="2"/>
